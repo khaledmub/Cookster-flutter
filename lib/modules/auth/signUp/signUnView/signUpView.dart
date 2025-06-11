@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:cookster/appUtils/appCenterIcon.dart';
 import 'package:cookster/modules/auth/signUp/registrationSettingsModel/registrationModel.dart';
 import 'package:cookster/modules/auth/signUp/signUpController/cityController.dart';
 import 'package:cookster/modules/auth/signUp/signUpController/signUpController.dart';
@@ -203,7 +204,7 @@ class _SignVpViewState extends State<SignVpView> {
                         Form(
                           key: signUpController.formKey,
                           child: Column(
-                            spacing: 12.h,
+                            spacing: 10.h,
                             crossAxisAlignment: CrossAxisAlignment.center,
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
@@ -248,19 +249,7 @@ class _SignVpViewState extends State<SignVpView> {
                                   ),
 
                                   // Center Logo
-                                  Align(
-                                    alignment: Alignment.center,
-                                    child: Container(
-                                      margin: EdgeInsets.symmetric(
-                                        vertical: 4.h,
-                                      ),
-                                      height: 50.h,
-                                      width: 50.h,
-                                      child: Image.asset(
-                                        "assets/images/appIconC.png",
-                                      ),
-                                    ),
-                                  ),
+                                 AppCenterIcon()
                                 ],
                               ),
 

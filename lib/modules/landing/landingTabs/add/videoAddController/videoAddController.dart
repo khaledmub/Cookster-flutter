@@ -1062,11 +1062,21 @@ class VideoAddController extends GetxController {
         );
       } else {
         print("Failed to fetch site settings: ${response.statusCode}");
-        Get.snackbar("error_title".tr, "fetch_site_settings_error".tr);
+        ScaffoldMessenger.of(Get.context!).showSnackBar(
+          SnackBar(
+            content: Text("fetch_site_settings_error".tr),
+            backgroundColor: Colors.red,
+          ),
+        );
       }
     } catch (e) {
       print("Error fetching site settings: $e");
-      Get.snackbar("error_title".tr, "fetch_site_settings_error_message".tr);
+      ScaffoldMessenger.of(Get.context!).showSnackBar(
+        SnackBar(
+          content: Text("fetch_site_settings_error_message".tr),
+          backgroundColor: Colors.red,
+        ),
+      );
     }
   }
 

@@ -1,3 +1,4 @@
+import 'package:cookster/appUtils/appCenterIcon.dart';
 import 'package:cookster/appUtils/colorUtils.dart';
 import 'package:cookster/modules/auth/signUp/signUpController/cityController.dart';
 import 'package:cookster/modules/landing/landingTabs/add/videoAddController/videoAddController.dart';
@@ -352,19 +353,7 @@ class _EditVideoViewState extends State<EditVideoView> {
                             children: [
                               Stack(
                                 children: [
-                                  Center(
-                                    child: InkWell(
-                                      onTap: () {},
-                                      child: Container(
-                                        margin: const EdgeInsets.only(top: 20),
-                                        height: 50.h,
-                                        width: 50.h,
-                                        child: Image.asset(
-                                          "assets/images/appIconC.png",
-                                        ),
-                                      ),
-                                    ),
-                                  ),
+                                 AppCenterIcon(),
                                   Positioned(
                                     // Conditionally set left or right based on language
                                     left: isRtl ? null : 16,

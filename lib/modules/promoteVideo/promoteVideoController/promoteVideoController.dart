@@ -348,23 +348,30 @@ class PromoteVideoController extends GetxController {
           }
 
           if (validationErrors.isNotEmpty) {
-            Get.snackbar(
-              "error".tr,
-              validationErrors.value['general']?.first ??
-                  validationErrors.values.first.first,
-              backgroundColor: Colors.red,
-              colorText: Colors.white,
-              snackPosition: SnackPosition.BOTTOM,
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  validationErrors.value['general']?.first ??
+                      validationErrors.values.first.first,
+                ),
+                backgroundColor: Colors.red,
+                behavior: SnackBarBehavior.floating,
+              ),
             );
+
           }
         } else {
-          Get.snackbar(
-            "Error",
-            "Failed to promote video: ${response.statusCode}",
-            backgroundColor: Colors.red,
-            colorText: Colors.white,
-            snackPosition: SnackPosition.BOTTOM,
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                validationErrors.value['general']?.first ??
+                    validationErrors.values.first.first,
+              ),
+              backgroundColor: Colors.red,
+              behavior: SnackBarBehavior.floating,
+            ),
           );
+
         }
         print(
           "Failed to promote video: ${response.statusCode} - ${response.body}",
@@ -374,13 +381,17 @@ class PromoteVideoController extends GetxController {
       }
     } catch (e) {
       print("Error promoting video: $e");
-      Get.snackbar(
-        "Error",
-        "An error occurred while promoting the video",
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
-        snackPosition: SnackPosition.BOTTOM,
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            validationErrors.value['general']?.first ??
+                validationErrors.values.first.first,
+          ),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+        ),
       );
+
       isLoading.value = false;
       return false;
     }

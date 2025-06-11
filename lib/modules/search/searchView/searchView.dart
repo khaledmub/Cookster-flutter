@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cookster/appUtils/apiEndPoints.dart';
+import 'package:cookster/appUtils/appCenterIcon.dart';
 import 'package:cookster/modules/search/searchController/searchController.dart';
 import 'package:cookster/modules/singleVideoView/singleVideoView.dart';
 import 'package:cookster/modules/visitProfile/visitProfileView/visitProfileView.dart';
@@ -100,7 +101,7 @@ class _SearchViewState extends State<SearchView>
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: PreferredSize(
-        preferredSize: Size.fromHeight(173.h),
+        preferredSize: Size.fromHeight(183.h),
         child: Column(
           children: [
             Container(
@@ -177,14 +178,7 @@ class _SearchViewState extends State<SearchView>
                           ),
                         ),
                       ),
-                      Align(
-                        alignment: Alignment.center,
-                        child: Container(
-                          height: 50.h,
-                          width: 50.h,
-                          child: Image.asset("assets/images/appIconC.png"),
-                        ),
-                      ),
+                     AppCenterIcon()
                     ],
                   ),
                   Padding(

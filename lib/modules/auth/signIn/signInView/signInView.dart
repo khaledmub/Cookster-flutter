@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:awesome_dialog/awesome_dialog.dart';
 import 'package:cookster/appRoutes/appRoutes.dart';
+import 'package:cookster/appUtils/appCenterIcon.dart';
 import 'package:cookster/appUtils/appUtils.dart';
 import 'package:cookster/modules/auth/signIn/signInController/signInController.dart';
 import 'package:flutter/foundation.dart';
@@ -92,6 +93,7 @@ class _SignInViewState extends State<SignInView> {
                                   buildFormContent(logInController),
                                 ],
                               ),
+                              AppCenterIcon()
                             ],
                           ),
                         ),
@@ -110,26 +112,26 @@ class _SignInViewState extends State<SignInView> {
   Widget buildFormContent(LogInController logInController) {
     return SingleChildScrollView(
       child: Column(
-        spacing: 8.h,
+        spacing: 10.h,
         crossAxisAlignment: CrossAxisAlignment.center,
         mainAxisAlignment: MainAxisAlignment.start,
         children: [
-          SizedBox(height: 2),
-          SizedBox(
-            width: double.infinity,
-            child: Stack(
-              alignment: Alignment.center,
-
-              children: [
-                Container(
-                  height: 50.h,
-                  width: 50.h,
-                  child: Image.asset("assets/images/appIconC.png"),
-                ),
-              ],
-            ),
-          ),
-          SizedBox(height: 2),
+          // SizedBox(height: 2),
+          // SizedBox(
+          //   width: double.infinity,
+          //   child: Stack(
+          //     alignment: Alignment.center,
+          //
+          //     children: [
+          //       Container(
+          //         height: 50.h,
+          //         width: 50.h,
+          //         child: Image.asset("assets/images/appIconC.png"),
+          //       ),
+          //     ],
+          //   ),
+          // ),
+          SizedBox(height: 60.h),
 
           Container(
             margin: EdgeInsets.symmetric(horizontal: 16),

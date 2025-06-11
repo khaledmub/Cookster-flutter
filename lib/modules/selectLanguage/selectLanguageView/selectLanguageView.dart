@@ -1,3 +1,4 @@
+import 'package:cookster/appUtils/appCenterIcon.dart';
 import 'package:cookster/appUtils/appUtils.dart';
 import 'package:cookster/modules/landing/landingView/landingView.dart';
 import 'package:cookster/modules/selectLanguage/selectController/selectLanguageController.dart';
@@ -109,15 +110,7 @@ class _SelectLanguageViewState extends State<SelectLanguageView> {
 
 
                       // Center Logo
-                      Align(
-                        alignment: Alignment.center,
-                        child: Container(
-                          margin: EdgeInsets.symmetric(vertical: 4.h),
-                          height: 50.h,
-                          width: 50.h,
-                          child: Image.asset("assets/images/appIconC.png"),
-                        ),
-                      ),
+                     AppCenterIcon()
                     ],
                   ),
                   Container(

@@ -754,12 +754,22 @@ class SignUpController extends GetxController {
         var data = jsonDecode(response.body);
         registrationSettings.value = RegistrationSettings.fromJson(data);
       } else {
-        Get.snackbar("Error", "Failed to load registration settings");
+        ScaffoldMessenger.of(Get.context!).showSnackBar(
+          SnackBar(
+            content: Text("Failed to load registration settings"),
+            backgroundColor: Colors.red,
+          ),
+        );
       }
     } catch (e) {
       print("PRINTING THE ERROR");
       print(e);
-      Get.snackbar("upload_error_title".tr, "fetch_site_settings_error".tr);
+      ScaffoldMessenger.of(Get.context!).showSnackBar(
+        SnackBar(
+          content: Text("fetch_site_settings_error".tr),
+          backgroundColor: Colors.red,
+        ),
+      );
     } finally {
       isSettingsLoading(false);
     }
@@ -773,12 +783,22 @@ class SignUpController extends GetxController {
         var data = jsonDecode(response.body);
         packagesList.value = PackagesList.fromJson(data);
       } else {
-        Get.snackbar("Error", "Failed to load packages list");
+        ScaffoldMessenger.of(Get.context!).showSnackBar(
+          SnackBar(
+            content: Text("Failed to load packages list"),
+            backgroundColor: Colors.red,
+          ),
+        );
       }
     } catch (e) {
       print("PRINTING THE ERROR");
       print(e);
-      Get.snackbar("Error", "Something went wrong");
+      ScaffoldMessenger.of(Get.context!).showSnackBar(
+        SnackBar(
+          content: Text("Something went wrong"),
+          backgroundColor: Colors.red,
+        ),
+      );
     } finally {
       isSettingsLoading(false);
     }
@@ -795,11 +815,21 @@ class SignUpController extends GetxController {
         );
       } else {
         print("Failed to fetch site settings: ${response.statusCode}");
-        Get.snackbar("error_title".tr, "fetch_site_settings_error".tr);
+        ScaffoldMessenger.of(Get.context!).showSnackBar(
+          SnackBar(
+            content: Text("fetch_site_settings_error".tr),
+            backgroundColor: Colors.red,
+          ),
+        );
       }
     } catch (e) {
       print("Error fetching site settings: $e");
-      Get.snackbar("error_title".tr, "fetch_site_settings_error_message".tr);
+      ScaffoldMessenger.of(Get.context!).showSnackBar(
+        SnackBar(
+          content: Text("fetch_site_settings_error_message".tr),
+          backgroundColor: Colors.red,
+        ),
+      );
     }
   }
 

@@ -1,4 +1,5 @@
 import 'package:awesome_dialog/awesome_dialog.dart';
+import 'package:cookster/appUtils/appCenterIcon.dart';
 import 'package:cookster/modules/landing/landingTabs/reportContent/reportContentController/reportContentController.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -127,11 +128,7 @@ class _ReportContentViewState extends State<ReportContentView> {
                           ),
                         ),
 
-                        Container(
-                          height: 40.h,
-                          width: 40.h,
-                          child: Image.asset("assets/images/appIconC.png"),
-                        ),
+                       AppCenterIcon()
                       ],
                     ),
                   ),

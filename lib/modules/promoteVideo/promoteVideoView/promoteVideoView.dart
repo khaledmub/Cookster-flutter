@@ -1,3 +1,4 @@
+import 'package:cookster/appUtils/appCenterIcon.dart';
 import 'package:cookster/appUtils/appUtils.dart';
 import 'package:cookster/modules/auth/signUp/signUpController/cityController.dart';
 import 'package:cookster/modules/auth/signUp/signUpController/signUpController.dart';
@@ -629,20 +630,7 @@ class _PromoteVideoViewState extends State<PromoteVideoView> {
               ),
             ),
           ),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              InkWell(
-                onTap: () {},
-                child: Container(
-                  margin: const EdgeInsets.only(top: 20),
-                  height: 50.h,
-                  width: 50.h,
-                  child: Image.asset("assets/images/appIconC.png"),
-                ),
-              ),
-            ],
-          ),
+         AppCenterIcon()
         ],
       ),
     );

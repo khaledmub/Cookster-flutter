@@ -1,4 +1,5 @@
 import 'package:awesome_dialog/awesome_dialog.dart';
+import 'package:cookster/appUtils/appCenterIcon.dart';
 import 'package:cookster/appUtils/appUtils.dart';
 import 'package:cookster/modules/landing/landingView/landingView.dart';
 import 'package:cookster/modules/selectLanguage/selectController/selectLanguageController.dart';
@@ -150,15 +151,7 @@ class _InitLanguageViewState extends State<InitLanguageView> {
                   ),
                 ],
               ),
-              Align(
-                alignment: Alignment.topCenter,
-                child: Container(
-                  margin: EdgeInsets.symmetric(vertical: 4.h),
-                  height: 50.h,
-                  width: 50.h,
-                  child: Image.asset("assets/images/appIconC.png"),
-                ),
-              ),
+              AppCenterIcon(),
             ],
           ),
         ),
