@@ -1,0 +1,688 @@
+import 'dart:io';
+import 'dart:ui';
+import 'package:awesome_dialog/awesome_dialog.dart';
+import 'package:camera/camera.dart';
+import 'package:cookster/loaders/pulseLoader.dart';
+import 'package:cookster/modules/landing/landingTabs/notification/notificationView/notificationView.dart';
+import 'package:cookster/modules/landing/landingTabs/professionalProfile/changePlan/changePlanView/changePlanView.dart';
+import 'package:cookster/modules/landing/landingTabs/profile/profileControlller/profileController.dart';
+import 'package:cookster/modules/landing/landingTabs/profile/profileView/profileView.dart';
+import 'package:flutter/cupertino.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:flutter_svg/flutter_svg.dart';
+import 'package:get/get.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../../../appUtils/colorUtils.dart';
+import '../../../basicVideoEditor/basicVideoEditor.dart';
+import '../../../cameraScreen.dart';
+import '../../../captuteImage.dart';
+import '../../../services/imageEditScreen.dart';
+import '../../promoteVideo/promoteVideoController/promoteVideoController.dart';
+import '../../search/searchController/searchController.dart';
+import '../landingController/landingController.dart';
+import '../landingTabs/add/videoAddController/videoAddController.dart';
+import '../landingTabs/home/homeController/homeController.dart';
+import '../landingTabs/home/homeController/saveController.dart';
+import '../landingTabs/home/homeView/reelsVideoScreen.dart';
+import '../landingTabs/nearBusiness/nearBusinessController/nearBusinessController.dart';
+import '../landingTabs/nearBusiness/newBusinessView/nearBusinessView.dart';
+import '../landingTabs/professionalProfile/profileControlller/professionalProfileController.dart';
+import '../landingTabs/professionalProfile/profileView/professionalProfileView.dart';
+
+class Landing extends StatefulWidget {
+  final int initialIndex;
+
+  Landing({super.key, this.initialIndex = 0});
+
+  @override
+  State<Landing> createState() => _LandingState();
+}
+
+class _LandingState extends State<Landing> {
+  final NavBarController navBarController = Get.put(NavBarController());
+  final SaveController saveController = Get.put(SaveController());
+  final PromoteVideoController promoteVideoController = Get.put(
+    PromoteVideoController(),
+  );
+
+  final HomeController controller = Get.put(HomeController());
+
+  final VideoAddController videoAddController = Get.put(VideoAddController());
+
+  final ImagePicker _picker = ImagePicker();
+
+  void showUploadingDialog(BuildContext context) {
+    AwesomeDialog(
+      context: context,
+      dialogType: DialogType.warning,
+      // Change to error, info, success if needed
+      animType: AnimType.scale,
+      title: "Warning",
+      desc: "Already Uploading Video",
+      dismissOnTouchOutside: false,
+      btnOkText: "OK",
+      btnOkColor: Colors.orange,
+      btnOkOnPress: () {},
+    ).show();
+  }
+
+  // Variables to track the position of the draggable progress indicator
+  RxDouble _dragX = 10.0.obs;
+
+  // Slightly offset from the left edge
+  RxDouble _dragY = (Get.height / 2 - 40.h).obs;
+
+  // Center vertically, adjust for widget height
+  Future<void> _pickImage(BuildContext context, ImageSource source) async {
+    // controller.handleNavigation();
+    controller.pauseCurrentVideo(); // Pause any ongoing video
+
+    // Get available cameras first
+    final cameras = await availableCameras();
+    if (cameras.isEmpty) {
+      Get.snackbar(
+        'Error',
+        'No cameras available on this device.',
+        snackPosition: SnackPosition.BOTTOM,
+      );
+      return;
+    }
+
+    Get.to(CameraCaptureScreen(cameras: cameras))?.then((_) {
+      controller.restoreVideoState(); // Restore video state after returning
+    });
+  }
+
+  Future<void> _pickVideo(BuildContext context, ImageSource source) async {
+    // Check if a video is already uploading
+    if (videoAddController.isVideoUploading.value) {
+      AwesomeDialog(
+        context: context,
+        dialogType: DialogType.info,
+        animType: AnimType.scale,
+        title: "Upload in Progress",
+        desc: "Already uploading a video... Please wait!",
+        btnOkText: "OK",
+        btnOkOnPress: () {
+          Navigator.pop(context);
+        },
+        btnOkColor: ColorUtils.primaryColor,
+      ).show();
+      return; // Exit the function if an upload is in progress
+    }
+
+    try {
+      final XFile? video = await _picker.pickVideo(source: source);
+      if (video != null) {
+        File videoFile = File(video.path);
+        controller.handleNavigation();
+        await Get.to(() => VideoTextEditor(videoFile: videoFile))?.then((_) {
+          controller.restoreVideoState();
+        });
+      }
+    } catch (e) {
+      print('Error picking video: $e');
+    }
+  }
+
+  Future<int> getEntity() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    print(
+      'Getting entity from shared preferences: ${prefs.getInt('entity') ?? 0}',
+    );
+    return prefs.getInt('entity') ?? 0;
+  }
+
+  final ProfileController profileController = Get.put(ProfileController());
+
+  final ProfessionalProfileController professionalProfileController = Get.put(
+    ProfessionalProfileController(),
+  );
+
+  final LocationController locationController = Get.put(LocationController());
+  final UserSearchController searchController = Get.put(UserSearchController());
+
+  Future<List<Widget>> _screens(BuildContext context) async {
+    int entity = await getEntity();
+    return [
+      VideoReelScreen(),
+      // VideoRecorderScreen(),
+      // Container(),
+      NearestBusinessScreen(),
+      Notifications(),
+      entity == 2 ? ProfessionalProfileView() : ProfileView(),
+    ];
+  }
+
+  void showAwesomeMaintenanceDialog(BuildContext context) {
+    AwesomeDialog(
+      context: context,
+      dialogType: DialogType.warning,
+      animType: AnimType.scale,
+      title: "Maintenance Mode",
+      desc: "Our app is currently under maintenance. We'll be back soon!",
+      btnOkText: "Got it!",
+      btnOkOnPress: () {},
+      btnOkColor: Colors.orange,
+    ).show();
+  }
+
+  void _showVideoOptions(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(12.0)),
+      ),
+      backgroundColor: Colors.white,
+      builder: (context) {
+        return SafeArea(
+          child: Padding(
+            padding: EdgeInsets.only(
+              bottom:10,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  height: 4,
+                  width: 40,
+                  margin: EdgeInsets.only(top: 8, bottom: 12),
+                  decoration: BoxDecoration(
+                    color: Colors.grey[300],
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+                Padding(
+                  padding: EdgeInsets.only(left: 16, bottom: 8),
+                  child: Text(
+                    "video_options".tr,
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black87,
+                    ),
+                  ),
+                ),
+                ListTile(
+                  leading: Icon(Icons.videocam, color: Colors.black87),
+                  title: Text(
+                    "Select Video or Image".tr,
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+                  ),
+                  onTap: () async {
+                    Navigator.pop(context);
+                    controller.pauseCurrentVideo();
+
+                    try {
+                      // Pick a file from gallery
+                      final XFile? pickedFile = await ImagePicker().pickMedia(
+                        imageQuality: 80,
+                        maxWidth: 1920,
+                        maxHeight: 1080,
+                      );
+
+                      if (pickedFile != null) {
+                        // Determine file type
+                        final fileType = pickedFile.path.toLowerCase();
+
+                        if (fileType.endsWith('.jpg') ||
+                            fileType.endsWith('.jpeg') ||
+                            fileType.endsWith('.png') ||
+                            fileType.endsWith('.webp')) {
+                          // Image selected
+                          await Get.to(
+                                () => ImageEditScreen(imagePath: pickedFile.path),
+                          );
+                        } else if (fileType.endsWith('.mp4') ||
+                            fileType.endsWith('.avi') ||
+                            fileType.endsWith('.mov')) {
+                          // Video selected
+                          await Get.to(
+                                () => VideoTextEditor(videoFile: File(pickedFile.path)),
+                          );
+                        } else {
+                          // Unsupported file type
+                          Get.snackbar(
+                            'Error'.tr,
+                            'Unsupported file type'.tr,
+                            snackPosition: SnackPosition.BOTTOM,
+                            backgroundColor: Colors.red,
+                            colorText: Colors.white,
+                          );
+                        }
+                      }
+                    } catch (e) {
+                      // Handle any errors during file picking
+                      Get.snackbar(
+                        'Error'.tr,
+                        'Failed to pick file'.tr,
+                        snackPosition: SnackPosition.BOTTOM,
+                        backgroundColor: Colors.red,
+                        colorText: Colors.white,
+                      );
+                    } finally {
+                      // Restore video state
+                      controller.restoreVideoState();
+                    }
+                  },
+                ),
+                ListTile(
+                  leading: Icon(CupertinoIcons.camera, color: Colors.black87),
+                  title: Text(
+                    "Capture Video".tr,
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+                  ),
+                  onTap: () async {
+                    Navigator.pop(context);
+                    controller.pauseCurrentVideo();
+
+                    // Get available cameras first
+                    final cameras = await availableCameras();
+
+                    Get.to(CameraScreen(cameras: cameras))?.then((_) {
+                      controller.restoreVideoState();
+                    });
+                  },
+                ),
+                ListTile(
+                  leading: Icon(CupertinoIcons.photo, color: Colors.black87),
+                  title: Text(
+                    "Capture an Image".tr,
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+                  ),
+                  onTap: () async {
+                    Navigator.pop(context);
+                    _pickImage(context, ImageSource.camera).then((_) {
+                      controller.restoreVideoState();
+                    });
+                  },
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  // Handle back button press
+  Future<bool> _onWillPop() async {
+    // If not on home screen (index 0), navigate to home
+    if (navBarController.selectedIndex.value != 0) {
+      navBarController.changeTab(0);
+      controller.restoreVideoState();
+      return false; // Don't exit the app
+    } else {
+      // Show exit confirmation dialog
+      return await _showExitConfirmationDialog(context);
+    }
+  }
+
+  // Show exit confirmation dialog
+  Future<bool> _showExitConfirmationDialog(BuildContext context) async {
+    bool shouldExit = false;
+
+    await AwesomeDialog(
+      context: context,
+      dialogType: DialogType.question,
+      animType: AnimType.scale,
+      title: "exit_app".tr,
+      desc: "are_you_sure_you_want_to_exit_the_app".tr,
+      btnOkText: "Yes".tr,
+      btnCancelText: "No".tr,
+      btnOkColor: ColorUtils.primaryColor,
+      btnCancelColor: Colors.grey,
+      btnOkOnPress: () {
+        shouldExit = true;
+      },
+      btnCancelOnPress: () {
+        shouldExit = false;
+      },
+      dismissOnTouchOutside: false,
+    ).show();
+
+    return shouldExit;
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    navBarController.selectedIndex.value = widget.initialIndex;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Obx(() {
+      return PopScope(
+        canPop: false, // Prevent default pop until custom logic is applied
+        onPopInvoked: (didPop) async {
+          // If didPop is true, the pop action was already performed, so skip
+          if (didPop) return;
+
+          // If not on home screen (index 0), navigate to home
+          if (navBarController.selectedIndex.value != 0) {
+            navBarController.changeTab(0);
+            controller.restoreVideoState();
+            // No need to call Navigator.pop here; canPop: false handles it
+          } else {
+            // Show exit confirmation dialog
+            final shouldPop = await _showExitConfirmationDialog(context);
+            if (shouldPop) {
+              // Explicitly exit the app if the user confirms
+              SystemNavigator.pop();
+            }
+          }
+        },
+        child: AnnotatedRegion<SystemUiOverlayStyle>(
+          value: SystemUiOverlayStyle(
+            statusBarColor:
+                navBarController.selectedIndex.value == 0
+                    ? Colors.black.withOpacity(0.4)
+                    : Colors.white,
+            statusBarIconBrightness:
+                navBarController.selectedIndex.value == 0
+                    ? Brightness.light
+                    : Brightness.dark,
+            statusBarBrightness:
+                navBarController.selectedIndex.value == 0
+                    ? Brightness.dark
+                    : Brightness.light,
+          ),
+          child: SafeArea(
+            child:
+                profileController.isLoading.value ||
+                        professionalProfileController.isLoading.value
+                    ? Scaffold(
+                      body: Center(
+                        child: PulseLogoLoader(
+                          logoPath: "assets/images/appIconC.png",
+                        ),
+                      ),
+                    )
+                    : Scaffold(
+                      resizeToAvoidBottomInset: false,
+                      floatingActionButton: InkWell(
+                        onTap: () {
+                          if (professionalProfileController.userDetails.value !=
+                                  null &&
+                              professionalProfileController
+                                      .userDetails
+                                      .value!
+                                      .subscription !=
+                                  null &&
+                              professionalProfileController
+                                      .userDetails
+                                      .value!
+                                      .subscription!
+                                      .endDate !=
+                                  null) {
+                            try {
+                              DateTime endDate = DateTime.parse(
+                                professionalProfileController
+                                    .userDetails
+                                    .value!
+                                    .subscription!
+                                    .endDate!,
+                              );
+                              if (endDate.isAfter(DateTime.now())) {
+                                _showVideoOptions(context);
+                              } else {
+                                showExpiredPackageDialog(
+                                  context,
+                                ); // Show dialog instead of _showVideoOptions
+                              }
+                            } catch (e) {
+                              print("Invalid date format: $e");
+                              showExpiredPackageDialog(context);
+                            }
+                          } else {
+                            _showVideoOptions(context);
+                          }
+                        },
+                        child: Container(
+                          margin: EdgeInsets.only(bottom: 10, right: 0),
+                          padding: EdgeInsets.all(15),
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: ColorUtils.primaryColor,
+                            boxShadow: [
+                              BoxShadow(
+                                color: ColorUtils.primaryColor,
+                                blurRadius: 10,
+                                spreadRadius: 2,
+                              ),
+                            ],
+                          ),
+                          child: SvgPicture.asset(
+                            "assets/icons/add.svg",
+                            fit: BoxFit.cover,
+                            color: ColorUtils.darkBrown,
+                          ),
+                        ),
+                      ),
+                      floatingActionButtonLocation:
+                          FloatingActionButtonLocation.centerDocked,
+                      body: FutureBuilder<List<Widget>>(
+                        future: _screens(context),
+                        builder: (context, snapshot) {
+                          if (snapshot.connectionState ==
+                              ConnectionState.waiting) {
+                            return Center(
+                              child: PulseLogoLoader(
+                                logoPath: "assets/images/appIcon.png",
+                                size: 80,
+                              ),
+                            );
+                          } else if (snapshot.hasError) {
+                            return Center(child: Text("Error loading screens"));
+                          } else {
+                            return Stack(
+                              clipBehavior: Clip.none,
+                              children: [
+                                // Main content
+                                Obx(
+                                  () =>
+                                      snapshot.data![navBarController
+                                          .selectedIndex
+                                          .value],
+                                ),
+
+                                // Bottom Navigation Bar
+                                Positioned(
+                                  bottom: 0,
+                                  left: 0,
+                                  right: 0,
+                                  child: ClipRect(
+                                    // Use ClipRect to limit the blur effect
+                                    child: BackdropFilter(
+                                      filter: ImageFilter.blur(
+                                        sigmaX: 10.0,
+                                        sigmaY: 10.0,
+                                      ),
+                                      child: Container(
+                                        width: Get.width,
+                                        height: 60.h,
+                                        decoration: BoxDecoration(
+                                          color:
+                                              navBarController
+                                                          .selectedIndex
+                                                          .value ==
+                                                      0
+                                                  ? Colors.black.withOpacity(
+                                                    0.15,
+                                                  ) // Slightly black for visibility
+                                                  : Colors.white,
+                                          border: Border(
+                                            top: BorderSide(
+                                              color: Colors.grey.withOpacity(
+                                                0.2,
+                                              ),
+                                              width: 0.5,
+                                            ),
+                                          ),
+                                        ),
+                                        child: Padding(
+                                          padding: const EdgeInsets.symmetric(
+                                            vertical: 8.0,
+                                          ),
+                                          child: Row(
+                                            mainAxisAlignment:
+                                                MainAxisAlignment.spaceAround,
+                                            children: [
+                                              _buildNavItem(
+                                                svgIcon:
+                                                    'assets/icons/home.svg',
+                                                selectedSvgIcon:
+                                                    'assets/icons/homeFilled.svg',
+                                                label: 'Home',
+                                                index: 0,
+                                                isSelected:
+                                                    navBarController
+                                                        .selectedIndex
+                                                        .value ==
+                                                    0,
+                                                context: context,
+                                              ),
+                                              _buildNavItem(
+                                                svgIcon:
+                                                    'assets/icons/chat.svg',
+                                                selectedSvgIcon:
+                                                    'assets/icons/chatFilled.svg',
+                                                label: 'Discover'.tr,
+                                                index: 1,
+                                                isSelected:
+                                                    navBarController
+                                                        .selectedIndex
+                                                        .value ==
+                                                    1,
+                                                context: context,
+                                              ),
+                                              SizedBox(width: 55.w),
+                                              _buildNavItem(
+                                                svgIcon:
+                                                    'assets/icons/notificaion.svg',
+                                                selectedSvgIcon:
+                                                    'assets/icons/notificationFilled.svg',
+                                                label: 'Notifications',
+                                                index: 2,
+                                                isSelected:
+                                                    navBarController
+                                                        .selectedIndex
+                                                        .value ==
+                                                    2,
+                                                context: context,
+                                              ),
+                                              _buildNavItem(
+                                                svgIcon:
+                                                    'assets/icons/profile.svg',
+                                                selectedSvgIcon:
+                                                    'assets/icons/userFilled.svg',
+                                                label: 'Profile',
+                                                index: 3,
+                                                isSelected:
+                                                    navBarController
+                                                        .selectedIndex
+                                                        .value ==
+                                                    3,
+                                                context: context,
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            );
+                          }
+                        },
+                      ),
+                    ),
+          ),
+        ),
+      );
+    });
+  }
+
+  Widget _buildNavItem({
+    required String svgIcon,
+    required String selectedSvgIcon,
+    required String label,
+    required int index,
+    required bool isSelected,
+    required BuildContext context,
+  }) {
+    return InkWell(
+      onTap: () {
+        if (navBarController.selectedIndex.value == 0 && index != 0) {
+          controller.handleNavigation();
+        } else if (index == 0) {
+          controller.restoreVideoState();
+        }
+        controller.pauseCurrentVideo();
+
+        navBarController.changeTab(index);
+      },
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+            decoration: BoxDecoration(
+              color:
+                  isSelected
+                      ? ColorUtils.primaryColor.withOpacity(0.3)
+                      : Colors.transparent,
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: SvgPicture.asset(
+              isSelected ? selectedSvgIcon : svgIcon,
+              height: 16.h,
+              colorFilter: ColorFilter.mode(
+                navBarController.selectedIndex.value == 0
+                    ? (isSelected ? ColorUtils.primaryColor : Colors.white)
+                    : (isSelected ? ColorUtils.primaryColor : ColorUtils.grey),
+                BlendMode.srcIn,
+              ),
+            ),
+          ),
+          SizedBox(height: 4),
+          Text(
+            label.tr,
+            style: TextStyle(
+              fontSize: 12.sp,
+              color:
+                  navBarController.selectedIndex.value == 0
+                      ? (isSelected ? Colors.white : Colors.white)
+                      : (isSelected
+                          ? ColorUtils.primaryColor
+                          : ColorUtils.grey),
+              fontWeight: isSelected ? FontWeight.w500 : FontWeight.w300,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void showExpiredPackageDialog(BuildContext context) {
+    AwesomeDialog(
+      context: context,
+      dialogType: DialogType.warning,
+      animType: AnimType.bottomSlide,
+      title: 'package_expired'.tr,
+      desc: 'your_package_has_been_expired'.tr,
+      btnOkText: 'renew'.tr,
+      btnOkColor: ColorUtils.primaryColor,
+      btnOkOnPress: () {
+        Get.to(ChangePlanView());
+        // Add renewal logic here
+      },
+      dismissOnTouchOutside: false,
+    ).show();
+  }
+}

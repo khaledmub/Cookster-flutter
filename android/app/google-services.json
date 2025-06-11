@@ -1,0 +1,122 @@
+{
+  "project_info": {
+    "project_number": "588874074588",
+    "project_id": "cockster-e477a",
+    "storage_bucket": "cockster-e477a.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:588874074588:android:3efcb7afd680a86f64a719",
+        "android_client_info": {
+          "package_name": "com.cookster.cooksterapp"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "588874074588-5l02g7jm1srqrgve59iptcegmvnv3i6u.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.cookster.cooksterapp",
+            "certificate_hash": "8fa1550d0ab9122af02c2346037c9db9d57f38a0"
+          }
+        },
+        {
+          "client_id": "588874074588-6viv40kbb9jtvqq9fe47jgqvoss6c93a.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.cookster.cooksterapp",
+            "certificate_hash": "44a65eb500d82eef6b27ee8665a5c306bcf96214"
+          }
+        },
+        {
+          "client_id": "588874074588-otr7kght72hnkmb4rthv27me09h741up.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.cookster.cooksterapp",
+            "certificate_hash": "f60478f7e1897608928049244293218613dca4f2"
+          }
+        },
+        {
+          "client_id": "588874074588-ls288jb68aq4dh7igmc5iqr60ogj1o74.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCfQqWRSLWguPoH27MxWSMsmVZpHvpJcI4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "588874074588-ls288jb68aq4dh7igmc5iqr60ogj1o74.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "588874074588-38pfu3soei0aigs26s2f9nluaq7q0gsq.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.cookster"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:588874074588:android:316e4df7fe70519164a719",
+        "android_client_info": {
+          "package_name": "com.example.cookster"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "588874074588-bfohsutoji5ree65vkcm7coa43p3gmus.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.cookster",
+            "certificate_hash": "7b7dadf4d21ddb5a62f9982c2bc18865505ad4a6"
+          }
+        },
+        {
+          "client_id": "588874074588-duflc06ksmmuc5moclplk19p4c6lf3u3.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.cookster",
+            "certificate_hash": "44a65eb500d82eef6b27ee8665a5c306bcf96214"
+          }
+        },
+        {
+          "client_id": "588874074588-ls288jb68aq4dh7igmc5iqr60ogj1o74.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCfQqWRSLWguPoH27MxWSMsmVZpHvpJcI4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "588874074588-ls288jb68aq4dh7igmc5iqr60ogj1o74.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "588874074588-38pfu3soei0aigs26s2f9nluaq7q0gsq.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.cookster"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -1,0 +1,2431 @@
+import 'dart:async';
+import 'dart:ui';
+
+import 'package:awesome_dialog/awesome_dialog.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:chewie/chewie.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cookster/appUtils/apiEndPoints.dart';
+import 'package:cookster/appUtils/appUtils.dart';
+import 'package:cookster/modules/landing/landingTabs/home/homeController/saveController.dart';
+import 'package:cookster/modules/landing/landingTabs/home/homeModel/userSaveUnsave.dart';
+import 'package:cookster/modules/landing/landingTabs/home/homeModel/videoFeedModel.dart';
+import 'package:cookster/modules/landing/landingTabs/home/homeView/commentScreen.dart';
+import 'package:cookster/modules/landing/landingTabs/home/homeView/hashTagReels.dart';
+import 'package:cookster/modules/landing/landingTabs/professionalProfile/profileControlller/professionalProfileController.dart';
+import 'package:cookster/modules/landing/landingTabs/profile/profileControlller/profileController.dart';
+import 'package:cookster/modules/landing/landingTabs/profile/profileModel/profileModel.dart';
+import 'package:cookster/modules/landing/landingTabs/profile/profileModel/simpleUserProfileModel.dart';
+import 'package:cookster/modules/landing/landingTabs/reportContent/reportContentView/reportContentView.dart';
+import 'package:cookster/modules/search/searchView/searchView.dart';
+import 'package:cookster/modules/visitProfile/visitProfileView/visitProfileView.dart';
+import 'package:flutter/gestures.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:flutter_svg/svg.dart';
+import 'package:flutter_swiper_plus/flutter_swiper_plus.dart';
+import 'package:get/get.dart';
+import 'package:like_button/like_button.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:wakelock_plus/wakelock_plus.dart';
+import '../../../../../appUtils/colorUtils.dart';
+import '../../../../../loaders/pulseLoader.dart';
+import '../../../../auth/signUp/signUpController/cityController.dart';
+import '../../../../promoteVideo/promoteVideoController/promoteVideoController.dart';
+import '../../../../search/searchController/searchController.dart';
+import '../../../../singleVideoView/singleVideoView.dart';
+import '../../add/videoAddController/videoAddController.dart';
+import '../homeController/addCommentControllr.dart';
+import '../homeController/homeController.dart';
+import '../homeWidgets/contactNowDialog.dart';
+import '../homeWidgets/reviewSheet.dart';
+
+class VideoReelScreen extends StatefulWidget {
+  @override
+  _VideoReelScreenState createState() => _VideoReelScreenState();
+}
+
+class _VideoReelScreenState extends State<VideoReelScreen>
+    with WidgetsBindingObserver, AutomaticKeepAliveClientMixin {
+  final HomeController controller = Get.find();
+  final PromoteVideoController promoteVideoController = Get.find();
+  final VideoCommentsController videoCommentsController = Get.put(
+    VideoCommentsController(),
+  );
+  final ProfileController profileController = Get.find();
+  final ProfessionalProfileController professionalProfileController =
+      Get.find();
+
+  final SaveController saveController = Get.find();
+
+  @override
+  bool get wantKeepAlive => true;
+
+  late SwiperController _swiperController;
+  bool _showIcon = false;
+
+  String _language = 'en'; // Default to English
+  // Load language from SharedPreferences
+  Future<void> _loadLanguage() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _language =
+          prefs.getString('language') ?? 'en'; // Default to 'en' if not set
+    });
+  }
+
+  late final PageController pageController;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadLanguage();
+    WakelockPlus.enable();
+    pageController = PageController(initialPage: controller.currentIndex.value);
+
+    _swiperController = SwiperController();
+    _restoreSwiperPosition();
+  }
+
+  void _restoreSwiperPosition() {
+    // Set Swiper to the last viewed index
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted &&
+          controller.currentIndex.value >= 0 &&
+          controller.currentIndex.value < controller.chewieControllers.length) {
+        _swiperController.move(controller.currentIndex.value, animation: false);
+      }
+    });
+  }
+
+  void _togglePlayPause() {
+    controller.togglePlayPause();
+    setState(() {
+      _showIcon = true;
+    });
+    Future.delayed(Duration(seconds: 1), () {
+      if (mounted) {
+        setState(() {
+          _showIcon = false;
+        });
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _swiperController.dispose();
+    WakelockPlus.disable();
+    // Do not dispose controllers here to preserve state
+    super.dispose();
+  }
+
+  void _handleScreenExit() {
+    controller.handleNavigation(); // Save state and pause
+  }
+
+  @override
+  void deactivate() {
+    // Save the current video's position and pause it
+    if (controller.currentIndex.value >= 0 &&
+        controller.currentIndex.value < controller.chewieControllers.length) {
+      final currentChewieController =
+          controller.chewieControllers[controller.currentIndex.value];
+      if (currentChewieController != null &&
+          currentChewieController.videoPlayerController.value.isInitialized) {
+        // Save the current position
+        controller.lastVideoPosition.value =
+            currentChewieController.videoPlayerController.value.position;
+        // Pause the video
+        currentChewieController.videoPlayerController.pause();
+      }
+    }
+    super.deactivate();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    print('didChangeDependencies called');
+
+    // Step 1: Check if currentIndex is within valid range
+    int index = controller.currentIndex.value;
+    print('Current index: $index');
+    if (index >= 0 && index < controller.chewieControllers.length) {
+      print('Valid currentIndex. Proceeding to get ChewieController...');
+
+      // Step 2: Get current ChewieController
+      final currentChewieController = controller.chewieControllers[index];
+      print('Got currentChewieController: $currentChewieController');
+
+      // Step 3: Check if controller is not null and video is initialized
+      if (currentChewieController != null) {
+        bool isInitialized =
+            currentChewieController.videoPlayerController.value.isInitialized;
+        print('Video is initialized: $isInitialized');
+        print('Last saved video position: ${controller.lastVideoPosition}');
+
+        if (isInitialized) {
+          print('Controller is valid and has a saved video position');
+
+          if (!controller.isAppInBackground.value) {
+            print('App is in foreground. Resuming video playback...');
+            currentChewieController.videoPlayerController.play();
+          } else {
+            print('App is in background. Not playing video.');
+          }
+        } else {
+          print('Video not initialized.');
+        }
+      } else {
+        print('ChewieController is null.');
+      }
+    } else {
+      print('Invalid currentIndex. Skipping video restoration.');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    var currentUserDetails = profileController.simpleUserDetails.value?.user;
+    var currentUser = professionalProfileController.userDetails.value?.user;
+    String? userId = currentUser?.id ?? currentUserDetails?.id;
+    bool isRtl = _language == 'ar';
+
+    return WillPopScope(
+      onWillPop: () async {
+        _handleScreenExit();
+        return true;
+      },
+      child: Scaffold(
+        backgroundColor: Colors.black,
+        body: Obx(() {
+          if (controller.isLoading.value) {
+            return Center(
+              child: PulseLogoLoader(
+                logoPath: "assets/images/appIcon.png",
+                size: 80,
+              ),
+            );
+          }
+
+          if (controller.videoFeed.value.videos == null ||
+              controller.videoFeed.value.videos!.isEmpty) {
+            return Stack(
+              children: [
+                Align(
+                  alignment: Alignment.topCenter,
+                  child: Obx(
+                    () => Container(
+                      margin: EdgeInsets.only(top: 16),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          if (promoteVideoController
+                                  .siteSettings
+                                  .value!
+                                  .settings!
+                                  .allowGeneralVideos ==
+                              1)
+                            GestureDetector(
+                              onTap: () async {
+                                controller.disposeControllers();
+                                controller.setSelectedType("General");
+                                controller.fetchVideos();
+                              },
+                              child: Text(
+                                "General".tr,
+                                style: TextStyle(
+                                  shadows: <Shadow>[
+                                    // Subtle depth shadow
+                                    Shadow(
+                                      offset: Offset(0.0, 2.0),
+                                      blurRadius: 4.0,
+                                      color: Color.fromARGB(60, 0, 0, 0),
+                                    ),
+                                    // Soft outline for readability
+                                    Shadow(
+                                      offset: Offset(0.0, 0.0),
+                                      blurRadius: 8.0,
+                                      color: Color.fromARGB(80, 0, 0, 0),
+                                    ),
+                                    // Crisp edge definition
+                                    Shadow(
+                                      offset: Offset(0.5, 0.5),
+                                      blurRadius: 1.0,
+                                      color: Color.fromARGB(100, 0, 0, 0),
+                                    ),
+                                  ],
+                                  color:
+                                      controller.selectedType.value == "General"
+                                          ? Colors.white
+                                          : Colors.white.withOpacity(0.5),
+                                  fontWeight:
+                                      controller.selectedType.value == "General"
+                                          ? FontWeight.w500
+                                          : FontWeight.w300,
+                                  fontSize: 18,
+                                ),
+                              ),
+                            ),
+                          SizedBox(width: 16),
+                          GestureDetector(
+                            onTap: () {
+                              controller.disposeControllers();
+                              controller.setSelectedType("Near Me");
+                              controller.fetchVideos();
+                            },
+                            child: Text(
+                              "Near Me".tr,
+                              style: TextStyle(
+                                shadows: <Shadow>[
+                                  // Subtle depth shadow
+                                  Shadow(
+                                    offset: Offset(0.0, 2.0),
+                                    blurRadius: 4.0,
+                                    color: Color.fromARGB(60, 0, 0, 0),
+                                  ),
+                                  // Soft outline for readability
+                                  Shadow(
+                                    offset: Offset(0.0, 0.0),
+                                    blurRadius: 8.0,
+                                    color: Color.fromARGB(80, 0, 0, 0),
+                                  ),
+                                  // Crisp edge definition
+                                  Shadow(
+                                    offset: Offset(0.5, 0.5),
+                                    blurRadius: 1.0,
+                                    color: Color.fromARGB(100, 0, 0, 0),
+                                  ),
+                                ],
+                                color:
+                                    controller.selectedType.value == "Near Me"
+                                        ? Colors.white
+                                        : Colors.white.withOpacity(0.5),
+                                fontWeight:
+                                    controller.selectedType.value == "Near Me"
+                                        ? FontWeight.w500
+                                        : FontWeight.w300,
+                                fontSize: 18,
+                              ),
+                            ),
+                          ),
+                          SizedBox(width: 16),
+                          if (promoteVideoController
+                                  .siteSettings
+                                  .value!
+                                  .settings!
+                                  .allowFollowingVideos ==
+                              1)
+                            GestureDetector(
+                              onTap: () async {
+                                controller.disposeControllers();
+                                controller.setSelectedType("Following");
+                                controller.fetchVideos();
+                              },
+                              child: Text(
+                                "Following".tr,
+                                style: TextStyle(
+                                  shadows: <Shadow>[
+                                    // Subtle depth shadow
+                                    Shadow(
+                                      offset: Offset(0.0, 2.0),
+                                      blurRadius: 4.0,
+                                      color: Color.fromARGB(60, 0, 0, 0),
+                                    ),
+                                    // Soft outline for readability
+                                    Shadow(
+                                      offset: Offset(0.0, 0.0),
+                                      blurRadius: 8.0,
+                                      color: Color.fromARGB(80, 0, 0, 0),
+                                    ),
+                                    // Crisp edge definition
+                                    Shadow(
+                                      offset: Offset(0.5, 0.5),
+                                      blurRadius: 1.0,
+                                      color: Color.fromARGB(100, 0, 0, 0),
+                                    ),
+                                  ],
+                                  color:
+                                      controller.selectedType.value ==
+                                              "Following"
+                                          ? Colors.white
+                                          : Colors.white.withOpacity(0.5),
+                                  fontWeight:
+                                      controller.selectedType.value ==
+                                              "Following"
+                                          ? FontWeight.w500
+                                          : FontWeight.w300,
+                                  fontSize: 18,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        textAlign: TextAlign.center,
+                        "${'no_video_for'.tr} ${controller.currentCity.value} ${'try_to_change'.tr}",
+                        style: TextStyle(color: Colors.white, fontSize: 14.sp),
+                      ),
+                      SizedBox(height: 16),
+
+                      Row(
+                        children: [
+                          Expanded(
+                            child: AppButton(
+                              text: "Change Location",
+                              onTap: () {
+                                _showBottomSheet(context);
+                              },
+                            ),
+                          ),
+                          // SizedBox(width: 8),
+                          //
+                          // Expanded(
+                          //   child: AppButton(
+                          //     text: "General",
+                          //     onTap: () {
+                          //       controller.setSelectedType("General");
+                          //       controller.fetchVideos();
+                          //     },
+                          //   ),
+                          // ),
+                          SizedBox(width: 8),
+                          Padding(
+                            padding: const EdgeInsets.only(right: 16.0),
+
+                            child: InkWell(
+                              onTap: () {
+                                // controller.pauseCurrentVideo();
+                                // _handleScreenExit();
+                                Get.to(
+                                  () => SearchView(
+                                    isGeneral:
+                                        controller.selectedType.value ==
+                                                "General"
+                                            ? 1
+                                            : 0,
+                                  ),
+                                )?.then((_) {
+                                  controller.restoreVideoState();
+                                });
+                              },
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  color: Colors.transparent,
+                                  // Transparent to show blur
+                                  borderRadius: BorderRadius.circular(50),
+                                ),
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(50),
+                                  child: BackdropFilter(
+                                    filter: ImageFilter.blur(
+                                      sigmaX: 10.0,
+                                      sigmaY: 10.0,
+                                    ), // Blur effect
+                                    child: Container(
+                                      padding: EdgeInsets.all(14),
+                                      decoration: BoxDecoration(
+                                        color: ColorUtils.primaryColor,
+                                        // Blue tint
+                                        borderRadius: BorderRadius.circular(50),
+                                      ),
+                                      child: Icon(
+                                        Icons.search,
+                                        color: Colors.black,
+                                        size: 24.sp,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            );
+          }
+
+          return Stack(
+            children: [
+              PageView.builder(
+                dragStartBehavior: DragStartBehavior.down,
+                // 👈 Apply here
+                scrollBehavior: ScrollBehavior(),
+                // physics: PageScrollPhysics(),
+                scrollDirection: Axis.vertical,
+                controller: pageController,
+                onPageChanged: (index) {
+                  controller.handlePageChange(index);
+                  if (mounted) setState(() {});
+                },
+                itemCount: controller.chewieControllers.length,
+                itemBuilder: (context, index) {
+                  var videoDetail = controller.videoFeed.value.videos![index];
+                  var chewieController = controller.chewieControllers[index];
+                  bool isInitialized =
+                      chewieController != null &&
+                      chewieController
+                          .videoPlayerController
+                          .value
+                          .isInitialized;
+
+                  return Stack(
+                    clipBehavior: Clip.none,
+                    alignment: Alignment.bottomLeft,
+                    children: [
+                      Positioned.fill(
+                        child: GestureDetector(
+                          onTap: _togglePlayPause,
+                          onDoubleTap: controller.toggleMute,
+                          child: Stack(
+                            children: [
+                              Center(
+                                child:
+                                    isInitialized
+                                        ? Chewie(controller: chewieController)
+                                        : Container(
+                                          width:
+                                              MediaQuery.of(context).size.width,
+                                          height:
+                                              MediaQuery.of(
+                                                context,
+                                              ).size.height,
+                                          color: Colors.black,
+                                          child: Center(
+                                            child: PulseLogoLoader(
+                                              logoPath:
+                                                  "assets/images/appIcon.png",
+                                              size: 80,
+                                            ),
+                                          ),
+                                        ),
+                              ),
+                              if (_showIcon &&
+                                  isInitialized &&
+                                  index == controller.currentIndex.value)
+                                Center(
+                                  child: Container(
+                                    decoration: BoxDecoration(
+                                      color: Colors.black.withOpacity(0.3),
+                                      shape: BoxShape.circle,
+                                    ),
+                                    padding: EdgeInsets.all(8),
+                                    child: Icon(
+                                      chewieController.isPlaying
+                                          ? Icons.pause_circle_filled
+                                          : Icons.play_circle_filled,
+                                      size: 64.0,
+                                      color: Colors.white.withOpacity(0.7),
+                                    ),
+                                  ),
+                                ),
+                              if (videoDetail.isImage == 0 && isInitialized)
+                                Positioned(
+                                  bottom: 70,
+                                  left: 0.0,
+                                  right: 0.0,
+                                  child: StreamBuilder<Duration>(
+                                    stream: Stream.periodic(
+                                      Duration(milliseconds: 100),
+                                      (_) {
+                                        return chewieController
+                                            .videoPlayerController
+                                            .value
+                                            .position;
+                                      },
+                                    ),
+                                    builder: (context, snapshot) {
+                                      final position =
+                                          snapshot.data ?? Duration.zero;
+                                      final duration =
+                                          chewieController
+                                              .videoPlayerController
+                                              .value
+                                              .duration ??
+                                          Duration.zero;
+                                      return SliderTheme(
+                                        data: SliderThemeData(),
+                                        child: Slider(
+                                          value: position.inSeconds.toDouble(),
+                                          max:
+                                              duration.inSeconds > 0
+                                                  ? duration.inSeconds
+                                                      .toDouble()
+                                                  : 1.0,
+                                          onChanged: (value) {
+                                            chewieController.seekTo(
+                                              Duration(seconds: value.toInt()),
+                                            );
+                                          },
+                                          thumbColor: ColorUtils.primaryColor,
+                                          activeColor: ColorUtils.primaryColor,
+                                          inactiveColor: ColorUtils.darkBrown,
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      Obx(
+                        () =>
+                            controller.isMuted.value
+                                ? Positioned(
+                                  top: 100,
+                                  right: 20,
+                                  child: InkWell(
+                                    onTap: controller.toggleMute,
+                                    child: Container(
+                                      padding: EdgeInsets.all(8),
+                                      decoration: BoxDecoration(
+                                        color: Colors.black.withOpacity(0.6),
+                                        borderRadius: BorderRadius.circular(20),
+                                      ),
+                                      child: Icon(
+                                        Icons.volume_off,
+                                        color: Colors.white,
+                                        size: 24.sp,
+                                      ),
+                                    ),
+                                  ),
+                                )
+                                : SizedBox(),
+                      ),
+                      VideoDescriptionWidget(
+                        title: videoDetail.title,
+                        description: videoDetail.description,
+                        tags: videoDetail.tags,
+                        controller: controller,
+                      ),
+                      videoUserDetails(
+                        profileController: profileController,
+                        professionalProfileController:
+                            professionalProfileController,
+                        videoDetail: videoDetail,
+                        controller: controller,
+                        userId: userId,
+                      ),
+                      videoActions(
+                        videoDetail,
+                        currentUserDetails,
+                        currentUser,
+                        context,
+                      ),
+                    ],
+                  );
+                },
+              ),
+
+              Align(
+                alignment: Alignment.topCenter,
+                child: Obx(
+                  () => Container(
+                    margin: EdgeInsets.only(top: 16),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        if (promoteVideoController
+                                .siteSettings
+                                .value!
+                                .settings!
+                                .allowGeneralVideos ==
+                            1)
+                          GestureDetector(
+                            onTap: () async {
+                              controller.disposeControllers();
+                              controller.setSelectedType("General");
+                              controller.fetchVideos();
+                            },
+                            child: Padding(
+                              padding: const EdgeInsets.only(left: 16.0),
+
+                              child: Text(
+                                "General".tr,
+                                style: TextStyle(
+                                  shadows: <Shadow>[
+                                    // Subtle depth shadow
+                                    Shadow(
+                                      offset: Offset(0.0, 2.0),
+                                      blurRadius: 4.0,
+                                      color: Color.fromARGB(60, 0, 0, 0),
+                                    ),
+                                    // Soft outline for readability
+                                    Shadow(
+                                      offset: Offset(0.0, 0.0),
+                                      blurRadius: 8.0,
+                                      color: Color.fromARGB(80, 0, 0, 0),
+                                    ),
+                                    // Crisp edge definition
+                                    Shadow(
+                                      offset: Offset(0.5, 0.5),
+                                      blurRadius: 1.0,
+                                      color: Color.fromARGB(100, 0, 0, 0),
+                                    ),
+                                  ],
+                                  color:
+                                      controller.selectedType.value == "General"
+                                          ? Colors.white
+                                          : Colors.white.withOpacity(0.5),
+                                  fontWeight:
+                                      controller.selectedType.value == "General"
+                                          ? FontWeight.w500
+                                          : FontWeight.w300,
+                                  fontSize: 18,
+                                ),
+                              ),
+                            ),
+                          ),
+                        SizedBox(width: 8),
+                        GestureDetector(
+                          onTap: () {
+                            controller.disposeControllers();
+                            controller.setSelectedType("Near Me");
+                            controller.fetchVideos();
+                          },
+                          child: Text(
+                            "Near Me".tr,
+                            style: TextStyle(
+                              shadows: <Shadow>[
+                                // Subtle depth shadow
+                                Shadow(
+                                  offset: Offset(0.0, 2.0),
+                                  blurRadius: 4.0,
+                                  color: Color.fromARGB(60, 0, 0, 0),
+                                ),
+                                // Soft outline for readability
+                                Shadow(
+                                  offset: Offset(0.0, 0.0),
+                                  blurRadius: 8.0,
+                                  color: Color.fromARGB(80, 0, 0, 0),
+                                ),
+                                // Crisp edge definition
+                                Shadow(
+                                  offset: Offset(0.5, 0.5),
+                                  blurRadius: 1.0,
+                                  color: Color.fromARGB(100, 0, 0, 0),
+                                ),
+                              ],
+
+                              color:
+                                  controller.selectedType.value == "Near Me"
+                                      ? Colors.white
+                                      : Colors.white.withOpacity(0.5),
+                              fontWeight:
+                                  controller.selectedType.value == "Near Me"
+                                      ? FontWeight.w500
+                                      : FontWeight.w300,
+                              fontSize: 18,
+                            ),
+                          ),
+                        ),
+                        SizedBox(width: 8),
+
+                        if (promoteVideoController
+                                .siteSettings
+                                .value!
+                                .settings!
+                                .allowFollowingVideos ==
+                            1)
+                          Padding(
+                            padding: const EdgeInsets.only(right: 16.0),
+                            child: GestureDetector(
+                              onTap: () async {
+                                controller.disposeControllers();
+                                controller.setSelectedType("Following");
+                                controller.fetchVideos();
+                              },
+                              child: Text(
+                                "Following".tr,
+                                style: TextStyle(
+                                  shadows: <Shadow>[
+                                    // Subtle depth shadow
+                                    Shadow(
+                                      offset: Offset(0.0, 2.0),
+                                      blurRadius: 4.0,
+                                      color: Color.fromARGB(60, 0, 0, 0),
+                                    ),
+                                    // Soft outline for readability
+                                    Shadow(
+                                      offset: Offset(0.0, 0.0),
+                                      blurRadius: 8.0,
+                                      color: Color.fromARGB(80, 0, 0, 0),
+                                    ),
+                                    // Crisp edge definition
+                                    Shadow(
+                                      offset: Offset(0.5, 0.5),
+                                      blurRadius: 1.0,
+                                      color: Color.fromARGB(100, 0, 0, 0),
+                                    ),
+                                  ],
+                                  color:
+                                      controller.selectedType.value ==
+                                              "Following"
+                                          ? Colors.white
+                                          : Colors.white.withOpacity(0.5),
+                                  fontWeight:
+                                      controller.selectedType.value ==
+                                              "Following"
+                                          ? FontWeight.w500
+                                          : FontWeight.w300,
+                                  fontSize: 18,
+                                ),
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+
+              Positioned(
+                top: Get.height * 0.05,
+                right: isRtl ? null : 16,
+                left: isRtl ? 16 : null,
+                child: Row(
+                  children: [
+                    InkWell(
+                      onTap: () {
+                        controller.pauseCurrentVideo();
+                        // _handleScreenExit();
+                        Get.to(
+                          () => SearchView(
+                            isGeneral:
+                                controller.selectedType.value == "General"
+                                    ? 1
+                                    : 0,
+                            isFollowing:
+                                controller.selectedType.value == "Following"
+                                    ? 1
+                                    : 0,
+                          ),
+                        )?.then((_) {
+                          controller.restoreVideoState();
+                        });
+                      },
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(50),
+                        child: BackdropFilter(
+                          filter: ImageFilter.blur(sigmaX: 10.0, sigmaY: 10.0),
+                          // Blur effect
+                          child: Container(
+                            height: 50,
+                            width: 50,
+
+                            decoration: BoxDecoration(
+                              color: Colors.black.withOpacity(0.3), // Blue tint
+                              borderRadius: BorderRadius.circular(50),
+                            ),
+                            child: Center(
+                              child: Icon(
+                                Icons.search,
+                                color: Colors.white,
+                                size: 24.sp,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    if (controller.selectedType.value == "Near Me")
+                      Row(
+                        children: [
+                          SizedBox(width: 8),
+                          InkWell(
+                            onTap: () {
+                              controller.pauseCurrentVideo();
+                              _showBottomSheet(context);
+                              // _handleScreenExit();
+                            },
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(50),
+                              child: BackdropFilter(
+                                filter: ImageFilter.blur(
+                                  sigmaX: 10.0,
+                                  sigmaY: 10.0,
+                                ), // Blur effect
+                                child: Container(
+                                  height: 50,
+                                  width: 50,
+                                  padding: EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 8,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: Colors.black.withOpacity(0.3),
+                                    // Blue tint
+                                    borderRadius: BorderRadius.circular(50),
+                                  ),
+                                  child: Icon(
+                                    Icons.tune,
+                                    color: Colors.white,
+                                    size: 20.sp,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          );
+        }),
+      ),
+    );
+  }
+
+  String? selectedCountry;
+  String? selectedCity;
+
+  String _formatDuration(Duration duration) {
+    String twoDigits(int n) => n.toString().padLeft(2, '0');
+    final minutes = twoDigits(duration.inMinutes.remainder(60));
+    final seconds = twoDigits(duration.inSeconds.remainder(60));
+    return '$minutes:$seconds';
+  }
+
+  void _showBottomSheet(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+
+      builder: (BuildContext context) {
+        return SafeArea(
+          child: StatefulBuilder(
+            builder: (BuildContext context, StateSetter setModalState) {
+              return Container(
+                color: Colors.white,
+                padding: EdgeInsets.all(20),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'Filter'.tr,
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    SizedBox(height: 20),
+                    InkWell(
+                      onTap: () {
+                        showLocationDialog(context);
+                      },
+                      child: Row(
+                        children: [
+                          Icon(Icons.location_on_outlined),
+                          SizedBox(width: 10),
+                          Obx(
+                            () => Text(
+                              controller.currentCountry.value == ""
+                                  ? 'Select Country'.tr
+                                  : controller.currentCountry.value,
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                          Spacer(),
+                          Icon(Icons.chevron_right_rounded),
+                        ],
+                      ),
+                    ),
+                    SizedBox(height: 15),
+                    InkWell(
+                      onTap: () {
+                        // Pass the initialCity ID to showCityDialog
+                        showCityDialog(
+                          context,
+                          initialCity: int.parse(
+                            controller.currentCityId.value,
+                          ),
+                        );
+                      },
+                      child: Row(
+                        children: [
+                          Icon(Icons.location_on_outlined),
+                          SizedBox(width: 10),
+                          Obx(
+                            () => Text(
+                              controller.currentCity.value == ""
+                                  ? 'Select City'.tr
+                                  : controller.currentCity.value,
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                          Spacer(),
+                          Icon(Icons.chevron_right_rounded),
+                        ],
+                      ),
+                    ),
+                    SizedBox(height: 20),
+                    AppButton(
+                      text: "Submit".tr,
+                      onTap: () {
+                        Navigator.pop(context);
+                        controller.currentCity.value == ""
+                            ? null
+                            : controller.fetchVideos(
+                              city: controller.currentCity.value,
+                              country: controller.currentCountry.value,
+                            );
+                      },
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+        );
+      },
+    );
+  }
+
+  Stream<double> _getAverageRating(String videoId) {
+    return FirebaseFirestore.instance
+        .collection('videos')
+        .doc(videoId)
+        .collection('reviews')
+        .snapshots()
+        .map((snapshot) {
+          if (snapshot.docs.isEmpty) return 0.0;
+          double totalRating = 0.0;
+          for (var doc in snapshot.docs) {
+            totalRating += (doc['rating'] as num?)?.toDouble() ?? 0.0;
+          }
+
+          rateVideo(videoId, totalRating / snapshot.docs.length);
+          return totalRating / snapshot.docs.length;
+        });
+  }
+
+  /// Video widgets with details
+  Positioned videoActions(
+    WallVideos videoDetail,
+    SimpleUser? currentUserDetails,
+    User? currentUser,
+    BuildContext context,
+  ) {
+    return Positioned(
+      right: 10,
+      bottom: Get.height * 0.13,
+      child: Column(
+        children: [
+          Container(
+            decoration: BoxDecoration(
+              color: Colors.transparent,
+              borderRadius: BorderRadius.circular(50),
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(50),
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 10.0, sigmaY: 10.0),
+                child: Container(
+                  padding: EdgeInsets.symmetric(horizontal: 6, vertical: 16),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.3),
+                    borderRadius: BorderRadius.circular(50),
+                  ),
+                  child: StreamBuilder<DocumentSnapshot>(
+                    stream:
+                        FirebaseFirestore.instance
+                            .collection('videos')
+                            .doc(videoDetail.id)
+                            .snapshots(),
+                    builder: (context, snapshot) {
+                      final data =
+                          snapshot.data?.data() as Map<String, dynamic>? ?? {};
+                      List<dynamic> likes = data['likes'] ?? [];
+                      int likeCount =
+                          likes.length; // Count likes from array length
+
+                      String userId =
+                          currentUserDetails?.id ?? currentUser?.id ?? '';
+                      bool isLiked = likes.contains(userId);
+
+                      String formattedLikeCount =
+                          likeCount > 1000
+                              ? '${(likeCount / 1000).toStringAsFixed(1)}K'
+                              : likeCount.toString();
+
+                      // Fetch the comment count from the comments subcollection
+                      return StreamBuilder<QuerySnapshot>(
+                        stream:
+                            FirebaseFirestore.instance
+                                .collection('videos')
+                                .doc(videoDetail.id)
+                                .collection('comments')
+                                .snapshots(),
+                        builder: (context, commentSnapshot) {
+                          int commentCount =
+                              commentSnapshot.data?.docs.length ?? 0;
+                          String formattedCommentCount =
+                              commentCount > 1000
+                                  ? '${(commentCount / 1000).toStringAsFixed(1)}K'
+                                  : commentCount.toString();
+
+                          return Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              // Simplified Like Button
+                              InkWell(
+                                onTap: () async {
+                                  final String videoId = videoDetail.id!;
+                                  String userId =
+                                      currentUserDetails?.id ??
+                                      currentUser!.id!;
+                                  HapticFeedback.lightImpact();
+
+                                  // Optimistic UI update
+                                  final optimisticLikes = List<dynamic>.from(
+                                    likes,
+                                  );
+                                  if (isLiked) {
+                                    optimisticLikes.remove(userId);
+                                  } else {
+                                    optimisticLikes.add(userId);
+                                  }
+                                  await videoCommentsController.toggleVideoLike(
+                                    videoId.toString(),
+                                    userId.toString(),
+                                  );
+                                },
+                                child: SizedBox(
+                                  height: 20.h,
+                                  width: 20.h,
+                                  child: SvgPicture.asset(
+                                    "assets/icons/heart.svg",
+                                    fit: BoxFit.fill,
+                                    color: isLiked ? Colors.red : Colors.white,
+                                  ),
+                                ),
+                              ),
+                              SizedBox(height: 2),
+                              Text(
+                                formattedLikeCount ?? "0",
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 10.sp,
+                                ),
+                              ),
+                              // Comment Button
+                              if (videoDetail.allowComments == 1) ...[
+                                SizedBox(height: 8),
+                                InkWell(
+                                  onTap: () {
+                                    controller.pauseCurrentVideo();
+                                    String? userId =
+                                        currentUserDetails?.id ??
+                                        currentUser!.id;
+                                    String? userImage =
+                                        currentUserDetails?.image ??
+                                        currentUser?.image ??
+                                        "";
+                                    showCommentsBottomSheetNew(
+                                      context,
+                                      videoDetail.id!,
+                                      userId!,
+                                      userImage!,
+                                    );
+
+                                    if (mounted) {
+                                      controller.restoreVideoState();
+                                    }
+                                  },
+                                  child: SizedBox(
+                                    height: 20.h,
+                                    width: 20.h,
+                                    child: SvgPicture.asset(
+                                      "assets/icons/comment.svg",
+                                      fit: BoxFit.fill,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                ),
+                                SizedBox(height: 2),
+                                Text(
+                                  formattedCommentCount,
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 10.sp,
+                                  ),
+                                ),
+                                SizedBox(height: 8),
+                              ],
+                              // Static Buttons (Share, Save, More)
+                              _buildStaticButtons(
+                                videoDetail,
+                                currentUserDetails?.id ?? currentUser?.id ?? '',
+                                context,
+                              ),
+
+                              if (videoDetail.takeOrder == 1 &&
+                                  (videoDetail.contactPhone?.isNotEmpty ==
+                                          true ||
+                                      videoDetail.contactEmail?.isNotEmpty ==
+                                          true ||
+                                      videoDetail.latitude?.isNotEmpty == true))
+                                Column(
+                                  children: [
+                                    Container(
+                                      margin: EdgeInsets.symmetric(vertical: 4),
+                                      width: 40,
+                                      height: 1,
+                                      decoration: BoxDecoration(
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                    InkWell(
+                                      onTap: () {
+                                        final businessId =
+                                            videoDetail.frontUserId.toString();
+                                        final firestore =
+                                            FirebaseFirestore.instance;
+                                        final docRef = firestore
+                                            .collection('countContactClick')
+                                            .doc(videoDetail.id);
+
+                                        firestore.runTransaction((
+                                          transaction,
+                                        ) async {
+                                          final docSnapshot = await transaction
+                                              .get(docRef);
+                                          if (!docSnapshot.exists) {
+                                            transaction.set(docRef, {
+                                              'businessId':
+                                                  videoDetail.frontUserId,
+                                              'videoId': videoDetail.id,
+                                              'totalClicks': 1,
+                                              'userIds': [
+                                                currentUserDetails!.id,
+                                              ],
+                                            });
+                                          } else {
+                                            final data = docSnapshot.data()!;
+                                            final userIds = List<String>.from(
+                                              data['userIds'] ?? [],
+                                            );
+                                            if (!userIds.contains(
+                                              currentUserDetails!.id,
+                                            )) {
+                                              transaction.update(docRef, {
+                                                'totalClicks':
+                                                    FieldValue.increment(1),
+                                                'userIds':
+                                                    FieldValue.arrayUnion([
+                                                      currentUserDetails.id,
+                                                    ]),
+                                              });
+                                            }
+                                          }
+                                        });
+
+                                        controller.pauseCurrentVideo();
+                                        showContactNowDialog(
+                                          context,
+                                          website: videoDetail.website ?? "",
+                                          phoneNumber:
+                                              videoDetail.contactPhone ?? "",
+                                          latitude: videoDetail.latitude ?? "",
+                                          longitude:
+                                              videoDetail.longitude ?? "",
+                                          email: videoDetail.contactEmail ?? "",
+                                          videoId: videoDetail.id.toString(),
+                                        );
+                                      },
+                                      child: Container(
+                                        padding: EdgeInsets.all(8),
+                                        decoration: BoxDecoration(
+                                          color: ColorUtils.primaryColor,
+                                          shape: BoxShape.circle,
+                                        ),
+                                        child: SvgPicture.asset(
+                                          "assets/icons/contact.svg",
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                            ],
+                          );
+                        },
+                      );
+                    },
+                  ),
+                ),
+              ),
+            ),
+          ),
+          SizedBox(height: 8),
+
+          if (videoDetail.sponsorType == null)
+            if (videoDetail.frontUserId != currentUserDetails?.id)
+              Container(
+                decoration: BoxDecoration(
+                  color: Colors.transparent,
+                  borderRadius: BorderRadius.circular(50),
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(50),
+                  child: BackdropFilter(
+                    filter: ImageFilter.blur(sigmaX: 10.0, sigmaY: 10.0),
+                    child: Container(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 16,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(0.3),
+                        borderRadius: BorderRadius.circular(50),
+                      ),
+                      child: InkWell(
+                        onTap: () {
+                          controller.pauseCurrentVideo();
+                          String? userId =
+                              currentUserDetails?.id ?? currentUser!.id;
+                          String? userImage =
+                              currentUserDetails?.image ??
+                              currentUser?.image ??
+                              "";
+                          showReviewsBottomSheet(
+                            context,
+                            videoDetail.id!,
+                            userId!,
+                            userImage!,
+                          );
+
+                          if (mounted) {
+                            controller.restoreVideoState();
+                          }
+                        },
+                        child: Column(
+                          children: [
+                            Icon(
+                              Icons.star_rounded,
+                              color: Colors.amberAccent,
+                              size: 40,
+                            ),
+                            StreamBuilder<double>(
+                              stream: _getAverageRating(videoDetail.id!),
+                              builder: (context, snapshot) {
+                                final averageRating =
+                                    snapshot.hasData && snapshot.data! > 0
+                                        ? snapshot.data!.toStringAsFixed(1)
+                                        : "0.0";
+                                return Text(
+                                  averageRating,
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 14.sp,
+                                  ),
+                                );
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+        ],
+      ),
+    );
+  }
+
+  // Helper method for static buttons to avoid rebuilding
+  Widget _buildStaticButtons(
+    WallVideos videoDetail,
+    String loggedInUserId,
+    BuildContext context,
+  ) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // Share Button
+        Column(
+          children: [
+            InkWell(
+              onTap: () => _handleShare(videoDetail),
+              child: SizedBox(
+                height: 20.h,
+                width: 20.h,
+                child: SvgPicture.asset(
+                  "assets/icons/share.svg",
+                  fit: BoxFit.fill,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+            SizedBox(height: 2),
+            Text(
+              "share".tr,
+              style: TextStyle(color: Colors.white, fontSize: 10.sp),
+            ),
+          ],
+        ),
+
+        // Save Button
+        videoDetail.sponsorType == null
+            ? Obx(() {
+              // Check if video is already saved
+              bool isSaved = saveController.savedVideos.any(
+                (video) => video.id.toString() == videoDetail.id,
+              );
+
+              return Column(
+                children: [
+                  SizedBox(height: 8),
+
+                  InkWell(
+                    onTap: () async {
+                      if (isSaved) {
+                        // 1. Immediately remove from local list
+                        saveController.savedVideos.removeWhere(
+                          (video) =>
+                              video.id.toString() == videoDetail.id.toString(),
+                        );
+
+                        // 2. Then hit API
+                        await saveController.saveVideo(videoDetail.id!);
+                      } else {
+                        // 1. Immediately add to local list
+                        saveController.savedVideos.add(
+                          SavedVideos(
+                            id: videoDetail.id,
+                            title: videoDetail.title,
+                            // Add other fields if needed, or just id is fine for now
+                          ),
+                        );
+
+                        // 2. Then hit API
+                        await saveController.saveVideo(videoDetail.id!);
+                      }
+                    },
+                    child: SizedBox(
+                      height: 20.h,
+                      width: 20.h,
+                      child: SvgPicture.asset(
+                        "assets/icons/bookmark.svg",
+                        fit: BoxFit.fill,
+                        color: isSaved ? ColorUtils.primaryColor : Colors.white,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    "Save".tr,
+                    style: TextStyle(color: Colors.white, fontSize: 10.sp),
+                  ),
+                  SizedBox(height: 8),
+                ],
+              );
+            })
+            : SizedBox.shrink(),
+
+        // SizedBox(height: 16),
+        // More Button
+        if (videoDetail.frontUserId != loggedInUserId)
+          Column(
+            children: [
+              InkWell(
+                onTap: () {
+                  controller.pauseCurrentVideo();
+                  _showMoreOptions(
+                    context,
+                    videoDetail.id!,
+                    videoDetail.frontUserId!,
+                  );
+
+                  if (mounted) {
+                    controller.restoreVideoState();
+                  }
+                },
+                child: SizedBox(
+                  height: 20.h,
+                  width: 20.h,
+                  child: SvgPicture.asset(
+                    "assets/icons/more.svg",
+                    fit: BoxFit.fill,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+              // SizedBox(height: 2),
+              Text(
+                "more".tr,
+                style: TextStyle(color: Colors.white, fontSize: 10.sp),
+              ),
+            ],
+          ),
+      ],
+    );
+  }
+
+  void _handleShare(WallVideos videoDetail) async {
+    _handleScreenExit();
+    try {
+      final String videoId = videoDetail.id!;
+      final String webUrl = "https://cookster.com/visitSingleVideo?id=$videoId";
+      final String shareMessage =
+          'Check out this amazing video on Cookster!\n$webUrl';
+      await Share.share(shareMessage, subject: 'Cookster Video');
+    } catch (e) {
+      print('Error sharing video: $e');
+      Get.snackbar(
+        'Error',
+        'Could not share this video',
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
+    } finally {
+      controller.restoreVideoState();
+    }
+  }
+
+  void _showMoreOptions(
+    BuildContext context,
+    String videoId,
+    String frontUserId,
+  ) {
+    // _handleScreenExit();
+    // controller.pauseCurrentVideo();
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        return SafeArea(
+          child: Container(
+            padding: EdgeInsets.symmetric(vertical: 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: ColorUtils.grey,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+
+                ListTile(
+                  leading: Icon(Icons.block, color: ColorUtils.grey),
+                  trailing: Icon(
+                    Icons.chevron_right_rounded,
+                    color: ColorUtils.grey,
+                  ),
+                  title: Text(
+                    'block_user'.tr,
+                    style: TextStyle(color: Colors.black, fontSize: 14.sp),
+                  ),
+                  onTap: () {
+                    Navigator.pop(context);
+                    controller.pauseCurrentVideo();
+                    controller.blockUser(frontUserId);
+
+                  },
+                ),
+                ListTile(
+                  leading: Icon(Icons.flag_outlined, color: ColorUtils.grey),
+                  trailing: Icon(
+                    Icons.chevron_right_rounded,
+                    color: ColorUtils.grey,
+                  ),
+                  title: Text(
+                    'report-content'.tr,
+                    style: TextStyle(color: Colors.black, fontSize: 14.sp),
+                  ),
+                  onTap: () {
+                    Navigator.pop(context);
+                    controller.pauseCurrentVideo();
+                    Get.to(ReportContentView(videoId: videoId))?.then((_) {
+                      controller.restoreVideoState();
+                    });
+                  },
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class videoUserDetails extends StatelessWidget {
+  const videoUserDetails({
+    super.key,
+    required this.profileController,
+    required this.professionalProfileController,
+    required this.videoDetail,
+    required this.controller,
+    required this.userId,
+  });
+
+  final ProfileController profileController;
+  final ProfessionalProfileController professionalProfileController;
+  final WallVideos videoDetail;
+  final HomeController controller;
+  final String? userId;
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned(
+      top: Get.height * 0.05,
+      // left: 10,
+      child: SizedBox(
+        width: Get.width * 1,
+        child: Stack(
+          children: [
+            Container(
+              constraints: BoxConstraints(
+                maxWidth:
+                    Get.width * 0.72, // Maximum width for the entire container
+              ),
+              decoration: BoxDecoration(
+                color: Colors.transparent, // Transparent to show blur
+                borderRadius: BorderRadius.circular(50),
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(50),
+                child: BackdropFilter(
+                  filter: ImageFilter.blur(sigmaX: 10.0, sigmaY: 10.0),
+                  // Blur effect
+                  child: Container(
+                    padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withOpacity(0.3), // Blue tint
+                      borderRadius: BorderRadius.circular(50),
+                    ),
+                    child: Obx(() {
+                      var currentUserDetails =
+                          profileController.simpleUserDetails.value?.user;
+                      var currentUser =
+                          professionalProfileController.userDetails.value?.user;
+                      bool isProfileNull = currentUser == null;
+                      bool isFollowing =
+                          isProfileNull
+                              ? profileController.isFollowing(
+                                videoDetail.frontUserId!,
+                              )
+                              : professionalProfileController.isFollowing(
+                                videoDetail.frontUserId!,
+                              );
+
+                      return Row(
+                        mainAxisSize: MainAxisSize.min,
+                        // Adjust width to content
+                        children: [
+                          InkWell(
+                            onTap: () {
+                              controller.pauseCurrentVideo();
+                              Get.to(
+                                VisitProfileView(
+                                  userId: videoDetail.frontUserId!,
+                                ),
+                              )?.then((_) {
+                                controller.restoreVideoState();
+                              });
+                            },
+                            child: Row(
+                              children: [
+                                Container(
+                                  decoration: BoxDecoration(
+                                    border: Border.all(color: Colors.white),
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: CircleAvatar(
+                                    radius: 16.r,
+                                    backgroundImage:
+                                        videoDetail.userImage != null &&
+                                                videoDetail
+                                                    .userImage!
+                                                    .isNotEmpty
+                                            ? CachedNetworkImageProvider(
+                                              '${Common.profileImage}/${videoDetail.userImage}',
+                                            )
+                                            : null,
+                                    child:
+                                        videoDetail.userImage == null ||
+                                                videoDetail.userImage!.isEmpty
+                                            ? Icon(
+                                              Icons.person,
+                                              color: Colors.white,
+                                            )
+                                            : null,
+                                  ),
+                                ),
+                                SizedBox(width: 8),
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Container(
+                                      constraints: BoxConstraints(
+                                        maxWidth:
+                                            Get.width *
+                                            0.3, // Max width for username
+                                      ),
+                                      child: Text(
+                                        videoDetail.userName ?? 'Unknown User',
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                        overflow:
+                                            TextOverflow
+                                                .ellipsis, // Ellipsis for overflow
+                                      ),
+                                    ),
+                                    videoDetail.sponsorType != null
+                                        ? Text(
+                                          "Sponsored",
+                                          style: TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 10.sp,
+                                            fontWeight: FontWeight.w400,
+                                          ),
+                                        )
+                                        : Text(
+                                          "${videoDetail.followersCount} ${"Followers".tr}",
+                                          style: TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 10.sp,
+                                            fontWeight: FontWeight.w400,
+                                          ),
+                                        ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                          SizedBox(width: 8),
+
+                          if (userId != videoDetail.frontUserId &&
+                              videoDetail.sponsorType == null)
+                            InkWell(
+                              onTap: () async {
+                                // Store the current following status before the action
+                                bool wasFollowing = isFollowing;
+
+                                if (isProfileNull) {
+                                  await profileController.toggleFollowStatus(
+                                    videoDetail.frontUserId!,
+                                  );
+                                } else {
+                                  await professionalProfileController
+                                      .toggleFollowStatus(
+                                        videoDetail.frontUserId!,
+                                      );
+                                }
+
+                                // Update the follower count based on the action
+                                if (wasFollowing) {
+                                  // User unfollowed, decrease count
+                                  videoDetail.followersCount =
+                                      (videoDetail.followersCount ?? 1) - 1;
+                                } else {
+                                  // User followed, increase count
+                                  videoDetail.followersCount =
+                                      (videoDetail.followersCount ?? 0) + 1;
+                                }
+                              },
+                              child: Container(
+                                height: 25,
+                                padding: EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 0,
+                                ),
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(6),
+                                  border: Border.all(color: Colors.white),
+                                  color:
+                                      isFollowing ? Colors.white : Colors.black,
+                                ),
+                                child: Center(
+                                  child: Text(
+                                    isFollowing ? "Following".tr : "follow".tr,
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w500,
+                                      color:
+                                          isFollowing
+                                              ? Colors.black
+                                              : Colors.white,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                        ],
+                      );
+                    }),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class videoTitleEtc extends StatelessWidget {
+  const videoTitleEtc({super.key, required this.videoDetail});
+
+  final WallVideos videoDetail;
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned(
+      bottom: Get.height * 0.13,
+      left: 10,
+      child: Container(
+        width: Get.width * 0.75,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (videoDetail.title != null && videoDetail.title!.isNotEmpty)
+              Text(
+                videoDetail.title!,
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16.sp,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            if (videoDetail.description != null &&
+                videoDetail.description!.isNotEmpty)
+              Text(
+                videoDetail.description!,
+                style: TextStyle(color: Colors.white, fontSize: 14.sp),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            if (videoDetail.tags != null && videoDetail.tags!.isNotEmpty)
+              Wrap(
+                spacing: 6,
+                children:
+                    videoDetail.tags!.split(',').map((tag) {
+                      final trimmedTag = tag.trim();
+                      return GestureDetector(
+                        onTap: () {
+                          print("hello");
+                          Get.to(HashTagReels(tag: trimmedTag));
+                          // Replace with your actual navigation logic
+                        },
+                        child: Text(
+                          "#$trimmedTag",
+                          style: TextStyle(
+                            color: ColorUtils.primaryColor,
+                            fontSize: 14.sp,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      );
+                    }).toList(),
+              )
+            else
+              Text(
+                "#",
+                style: TextStyle(
+                  color: ColorUtils.primaryColor,
+                  fontSize: 12.sp,
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+void showLocationDialog(BuildContext context) {
+  final HomeController homeController = Get.find();
+  final VideoAddController controller = Get.find();
+  final ProfileController profileController = Get.find();
+  final UserSearchController searchUpdateController = Get.find();
+  final CityController cityController = Get.put(CityController());
+
+  Map<String, int> countryMap = {};
+  List<String> countryName =
+      profileController.videoUploadSettings.value!.countries!.map((country) {
+        countryMap[country.name!] = country.id!;
+        return country.name!;
+      }).toList();
+
+  // Controller for search field
+  final TextEditingController searchController = TextEditingController();
+  RxList<String> filteredCountryName = countryName.obs;
+
+  // Filter countries based on search input
+  void filterCountries(String query) {
+    if (query.isEmpty) {
+      filteredCountryName.value = countryName;
+    } else {
+      filteredCountryName.value =
+          countryName
+              .where(
+                (country) =>
+                    country.toLowerCase().contains(query.toLowerCase()),
+              )
+              .toList();
+    }
+  }
+
+  Get.dialog(
+    Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20.r)),
+      child: Container(
+        width: 350.w,
+        padding: EdgeInsets.all(16.w),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20.r),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            /// **Header (Title + Close Button)**
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.location_on, color: Colors.black),
+                    SizedBox(width: 8.w),
+                    Text(
+                      "select_country_dialog_label".tr,
+                      style: TextStyle(
+                        fontSize: 18.sp,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black,
+                      ),
+                    ),
+                  ],
+                ),
+                InkWell(
+                  onTap: () => Get.back(),
+                  child: Icon(Icons.close, color: Colors.grey),
+                ),
+              ],
+            ),
+            SizedBox(height: 16.h),
+
+            /// **Search Field**
+            TextField(
+              controller: searchController,
+              decoration: InputDecoration(
+                hintText: 'search_country_placeholder'.tr,
+                prefixIcon: Icon(Icons.search, color: Colors.grey),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10.r),
+                  borderSide: BorderSide(color: Colors.grey),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10.r),
+                  borderSide: BorderSide(color: ColorUtils.primaryColor),
+                ),
+                contentPadding: EdgeInsets.symmetric(
+                  vertical: 10.h,
+                  horizontal: 12.w,
+                ),
+              ),
+              onChanged: (value) => filterCountries(value),
+            ),
+            SizedBox(height: 16.h),
+
+            /// **Scrollable Location List**
+            Container(
+              height: 240.h,
+              child: SingleChildScrollView(
+                child: Obx(
+                  () => Column(
+                    children: List.generate(
+                      filteredCountryName.length,
+                      (index) => InkWell(
+                        onTap: () async {
+                          try {
+                            controller.selectLocation(
+                              filteredCountryName[index],
+                              countryMap[filteredCountryName[index]]!,
+                            );
+                            searchUpdateController.currentCountry.value =
+                                filteredCountryName[index];
+
+                            await cityController.fetchCities(
+                              countryMap[filteredCountryName[index]]!,
+                            );
+                            homeController.currentCountry.value =
+                                filteredCountryName[index];
+                            Get.back(); // Close the country dialog
+                            showCityDialog(context);
+                          } catch (e) {
+                            print('Error selecting country: $e');
+                            Get.snackbar('Error', 'Failed to load cities');
+                          }
+                        },
+                        child: Padding(
+                          padding: EdgeInsets.symmetric(vertical: 12.h),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                filteredCountryName[index],
+                                style: TextStyle(
+                                  fontSize: 13.sp,
+                                  fontWeight:
+                                      controller.selectedCountry.value ==
+                                              filteredCountryName[index]
+                                          ? FontWeight.bold
+                                          : FontWeight.normal,
+                                  color: Colors.black,
+                                ),
+                              ),
+                              Container(
+                                width: 20.w,
+                                height: 20.w,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  border: Border.all(
+                                    color: ColorUtils.primaryColor,
+                                    width: 2,
+                                  ),
+                                  color:
+                                      controller.selectedCountry.value ==
+                                              filteredCountryName[index]
+                                          ? ColorUtils.primaryColor
+                                          : Colors.white,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            SizedBox(height: 20.h),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+void showCityDialog(BuildContext context, {int? initialCity}) {
+  final VideoAddController controller = Get.find();
+  final CityController cityController = Get.find();
+  final HomeController homeController = Get.find();
+  final UserSearchController searchUpdateController = Get.find();
+
+  Map<String, int> cityMap = {};
+  List<String> cityName =
+      cityController.cityList.map((city) {
+        cityMap[city.name!] = city.id!;
+        return city.name!;
+      }).toList();
+
+  // Controller for search field
+  final TextEditingController searchController = TextEditingController();
+  RxList<String> filteredCityName = cityName.obs;
+
+  // Set initial selected city based on initialCity parameter
+  if (initialCity != null && cityMap.containsValue(initialCity)) {
+    String? initialCityName =
+        cityMap.entries
+            .firstWhere(
+              (entry) => entry.value == initialCity,
+              orElse: () => MapEntry('', -1),
+            )
+            .key;
+    if (initialCityName.isNotEmpty) {
+      controller.selectedCity.value = initialCityName;
+      homeController.currentCity.value = initialCityName;
+      searchUpdateController.currentCity.value = initialCityName;
+    }
+  }
+
+  // Filter cities based on search input
+  void filterCities(String query) {
+    if (query.isEmpty) {
+      filteredCityName.value = cityName;
+    } else {
+      filteredCityName.value =
+          cityName
+              .where((city) => city.toLowerCase().contains(query.toLowerCase()))
+              .toList();
+    }
+  }
+
+  Get.dialog(
+    Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20.r)),
+      child: Container(
+        width: 350.w,
+        padding: EdgeInsets.all(16.w),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20.r),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            /// **Header (Title + Close Button)**
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.location_on, color: Colors.black),
+                    SizedBox(width: 8.w),
+                    Text(
+                      "select_city_label".tr,
+                      style: TextStyle(
+                        fontSize: 18.sp,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black,
+                      ),
+                    ),
+                  ],
+                ),
+                InkWell(
+                  onTap: () => Get.back(),
+                  child: Icon(Icons.close, color: Colors.grey),
+                ),
+              ],
+            ),
+            SizedBox(height: 16.h),
+
+            /// **Search Field**
+            TextField(
+              controller: searchController,
+              decoration: InputDecoration(
+                hintText: 'search_city_placeholder'.tr,
+                prefixIcon: Icon(Icons.search, color: Colors.grey),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10.r),
+                  borderSide: BorderSide(color: Colors.grey),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10.r),
+                  borderSide: BorderSide(color: ColorUtils.primaryColor),
+                ),
+                contentPadding: EdgeInsets.symmetric(
+                  vertical: 10.h,
+                  horizontal: 12.w,
+                ),
+              ),
+              onChanged: (value) => filterCities(value),
+            ),
+            SizedBox(height: 16.h),
+
+            /// **Scrollable Location List**
+            Container(
+              height: 230.h,
+              child: SingleChildScrollView(
+                child: Obx(
+                  () => Column(
+                    children: List.generate(
+                      filteredCityName.length,
+                      (index) => InkWell(
+                        onTap: () async {
+                          try {
+                            print(
+                              "Selected City: ${filteredCityName[index]} (ID: ${cityMap[filteredCityName[index]]})",
+                            );
+
+                            homeController.currentCity.value =
+                                filteredCityName[index];
+                            homeController.currentCityId.value =
+                                cityMap[filteredCityName[index]].toString();
+
+                            searchUpdateController.currentCity.value =
+                                filteredCityName[index];
+
+                            controller.selectedCity.value =
+                                filteredCityName[index];
+
+                            print(
+                              "Current City: ${homeController.currentCity.value}",
+                            );
+
+                            // homeController.fetchVideos(
+                            //   city: filteredCityName[index],
+                            //   // cityMap[filteredCityName[index]]!,
+                            // );
+                            // await homeController.fetchVideos(
+                            //   city: filteredCityName[index],
+                            // );
+                            Get.back(); // Close the city dialog
+                          } catch (e) {
+                            print('Error selecting city: $e');
+                            Get.snackbar('Error', 'Failed to fetch videos');
+                          }
+                        },
+                        child: Padding(
+                          padding: EdgeInsets.symmetric(vertical: 12.h),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                filteredCityName[index],
+                                style: TextStyle(
+                                  fontSize: 13.sp,
+                                  fontWeight:
+                                      controller.selectedCity.value ==
+                                              filteredCityName[index]
+                                          ? FontWeight.bold
+                                          : FontWeight.normal,
+                                  color: Colors.black,
+                                ),
+                              ),
+                              Container(
+                                width: 20.w,
+                                height: 20.w,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  border: Border.all(
+                                    color: ColorUtils.primaryColor,
+                                    width: 2,
+                                  ),
+                                  color:
+                                      controller.selectedCity.value ==
+                                              filteredCityName[index]
+                                          ? ColorUtils.primaryColor
+                                          : Colors.white,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            SizedBox(height: 20.h),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+class VideoDescriptionWidget extends StatefulWidget {
+  final String? title;
+  final String? description;
+  final String? tags;
+  final HomeController? controller;
+
+  const VideoDescriptionWidget({
+    this.title,
+    this.description,
+    this.tags,
+    this.controller,
+  }) : super();
+
+  @override
+  _VideoDescriptionWidgetState createState() => _VideoDescriptionWidgetState();
+}
+
+class _VideoDescriptionWidgetState extends State<VideoDescriptionWidget> {
+  bool _isExpanded = false;
+  bool _hasOverflow = false;
+  final TextEditingController _textController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+
+    // Initialize text controller for description
+    if (widget.description != null) {
+      _textController.text = widget.description!;
+    }
+  }
+
+  @override
+  void dispose() {
+    _textController.dispose();
+    super.dispose();
+  }
+
+  // Function to check if text overflows
+  bool _checkTextOverflow(String text, TextStyle style, double maxWidth) {
+    final TextPainter textPainter = TextPainter(
+      text: TextSpan(text: text, style: style),
+      maxLines: 2,
+      textDirection: TextDirection.ltr,
+    )..layout(maxWidth: maxWidth);
+    return textPainter.didExceedMaxLines;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final descriptionStyle = TextStyle(color: Colors.white, fontSize: 14.sp);
+
+    return Positioned(
+      bottom: Get.height * 0.13, // Moved slightly higher from 0.15 to 0.18
+      left: 10,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Title
+          if (widget.title != null && widget.title!.isNotEmpty)
+            Text(
+              widget.title!,
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: 16.sp,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          if (widget.title != null && widget.title!.isNotEmpty)
+            SizedBox(height: 4.h),
+          // Description with Show More/Show Less
+          if (widget.description != null && widget.description!.isNotEmpty)
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final maxWidth = 10.0,
+                    _hasOverflow = _checkTextOverflow(
+                      widget.description!,
+                      descriptionStyle,
+                      maxWidth,
+                    );
+
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    AnimatedSize(
+                      duration: Duration(milliseconds: 300),
+                      curve: Curves.easeInOut,
+                      child: Text(
+                        widget.description!,
+                        style: descriptionStyle,
+                        maxLines: _isExpanded ? null : 2,
+                        overflow: _isExpanded ? null : TextOverflow.ellipsis,
+                      ),
+                    ),
+                    if (_hasOverflow && !_isExpanded)
+                      GestureDetector(
+                        onTap: () {
+                          setState(() {
+                            _isExpanded = true;
+                          });
+                        },
+                        child: Text(
+                          "Show More",
+                          style: TextStyle(
+                            color: ColorUtils.primaryColor,
+                            fontSize: 12.sp,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    if (_isExpanded)
+                      GestureDetector(
+                        onTap: () {
+                          setState(() {
+                            _isExpanded = false;
+                          });
+                        },
+                        child: Text(
+                          "Show Less",
+                          style: TextStyle(
+                            color: ColorUtils.primaryColor,
+                            fontSize: 12.sp,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                  ],
+                );
+              },
+            ),
+          if (widget.description != null && widget.description!.isNotEmpty)
+            SizedBox(height: 4.h),
+          // Tags
+          if (widget.tags != null && widget.tags!.isNotEmpty)
+            Wrap(
+              spacing: 6,
+              children:
+                  widget.tags!.split(',').map((tag) {
+                    final trimmedTag = tag.trim();
+                    return GestureDetector(
+                      onTap: () {
+                        // Replace with your actual navigation logic
+                        Get.to(
+                          SearchView(
+                            tag: trimmedTag,
+
+                            isGeneral:
+                                widget.controller?.selectedType.value ==
+                                        "General"
+                                    ? 1
+                                    : 0,
+                          ),
+                        );
+                      },
+                      child: Text(
+                        "#$trimmedTag",
+                        style: TextStyle(
+                          color: ColorUtils.primaryColor,
+                          fontSize: 12.sp,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    );
+                  }).toList(),
+            )
+          else
+            Text(
+              "#",
+              style: TextStyle(color: ColorUtils.primaryColor, fontSize: 12.sp),
+            ),
+        ],
+      ),
+    );
+  }
+}
