@@ -282,7 +282,7 @@ const Map<String, String> en = {
   "please_select_package": "Please select a package",
   "package_title_placeholder": "Package",
   "package_amount_prefix": "SAR",
-  "package_duration_suffix": "Months",
+  "package_duration_suffix": "Month/s",
   "sure_to_delete":
       "Are you sure you want to delete this video? All content related to this video will be deleted and cannot be recovered.",
   "yes_delete": "Yes, Delete",

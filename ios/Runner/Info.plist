@@ -2,6 +2,7 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
   <dict>
+    <!-- Permission Descriptions -->
     <key>NSCameraUsageDescription</key>
     <string>This app requires camera access to take photos</string>
     <key>NSPhotoLibraryUsageDescription</key>
@@ -12,14 +13,25 @@
     <string>This app requires location access to tag photos with your location</string>
     <key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
     <string>This app requires location access to tag photos with your location, even when the app is in the background</string>
-    <key>NSLocationAlwaysUsageDescription</key>
-    <string>This app requires location access to tag photos with your location, even when the app is not in use</string>
     <key>NSMicrophoneUsageDescription</key>
     <string>This app requires microphone access to record audio for videos</string>
     <key>NSFaceIDUsageDescription</key>
     <string>This app requires Face ID to secure your account</string>
     <key>NSAppleMusicUsageDescription</key>
     <string>This app requires media library access to select music for your creations</string>
+    <key>NSCalendarsUsageDescription</key>
+    <string>This app requires calendar access to help you schedule and manage cooking-related events and reminders</string>
+
+    <!-- Notification Settings -->
+    <key>UIBackgroundModes</key>
+    <array>
+      <string>fetch</string>
+      <string>remote-notification</string>
+    </array>
+    <key>FirebaseAppDelegateProxyEnabled</key>
+    <false/>
+
+    <!-- Core App Settings -->
     <key>CFBundleDevelopmentRegion</key>
     <string>$(DEVELOPMENT_LANGUAGE)</string>
     <key>CFBundleDisplayName</key>
@@ -37,13 +49,15 @@
     <key>CFBundleShortVersionString</key>
     <string>$(FLUTTER_BUILD_NAME)</string>
     <key>CFBundleSignature</key>
-    <string>????</string>
+    <string>COOK</string>
     <key>CFBundleVersion</key>
     <string>$(FLUTTER_BUILD_NUMBER)</string>
     <key>LSRequiresIPhoneOS</key>
     <true/>
     <key>UILaunchStoryboardName</key>
     <string>LaunchScreen</string>
+    <key>NSLocationAlwaysUsageDescription</key>
+    <string>This app needs access to your location at all times for full functionality.</string>
     <key>UIMainStoryboardFile</key>
     <string>Main</string>
     <key>UISupportedInterfaceOrientations</key>

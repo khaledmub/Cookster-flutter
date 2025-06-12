@@ -15,10 +15,11 @@ class SubscriptionPackageView extends StatefulWidget {
   final Subscription subscription; // Subscription object from UserDetails
 
   const SubscriptionPackageView({key, required this.subscription})
-      : super(key: key);
+    : super(key: key);
 
   @override
-  State<SubscriptionPackageView> createState() => _SubscriptionPackageViewState();
+  State<SubscriptionPackageView> createState() =>
+      _SubscriptionPackageViewState();
 }
 
 class _SubscriptionPackageViewState extends State<SubscriptionPackageView> {
@@ -30,11 +31,13 @@ class _SubscriptionPackageViewState extends State<SubscriptionPackageView> {
   }
 
   String _language = 'en';
+
   // Default to English
   Future<void> _loadLanguage() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
-      _language = prefs.getString('language') ?? 'en'; // Default to 'en' if not set
+      _language =
+          prefs.getString('language') ?? 'en'; // Default to 'en' if not set
     });
   }
 
@@ -169,6 +172,7 @@ class _SubscriptionPackageViewState extends State<SubscriptionPackageView> {
                           '${widget.subscription.duration} ${"months".tr}',
                           style: TextStyle(
                             fontSize: 14.sp,
+                            fontWeight: FontWeight.w700,
                             color: Colors.grey.shade600,
                           ),
                         ),
@@ -216,11 +220,11 @@ class _SubscriptionPackageViewState extends State<SubscriptionPackageView> {
 
   // Helper method to build each detail row with optional row and value color
   Widget _buildDetailRow(
-      String label,
-      String value, {
-        Color? rowColor,
-        Color? valueColor,
-      }) {
+    String label,
+    String value, {
+    Color? rowColor,
+    Color? valueColor,
+  }) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [

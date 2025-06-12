@@ -3,11 +3,11 @@
 <plist version="1.0">
 <dict>
 	<key>CLIENT_ID</key>
-	<string>588874074588-38pfu3soei0aigs26s2f9nluaq7q0gsq.apps.googleusercontent.com</string>
+	<string>588874074588-pf9i1v6e4olsrbbg5f3fgi66r983doe3.apps.googleusercontent.com</string>
 	<key>REVERSED_CLIENT_ID</key>
-	<string>com.googleusercontent.apps.588874074588-38pfu3soei0aigs26s2f9nluaq7q0gsq</string>
+	<string>com.googleusercontent.apps.588874074588-pf9i1v6e4olsrbbg5f3fgi66r983doe3</string>
 	<key>ANDROID_CLIENT_ID</key>
-	<string>588874074588-bfohsutoji5ree65vkcm7coa43p3gmus.apps.googleusercontent.com</string>
+	<string>588874074588-5l02g7jm1srqrgve59iptcegmvnv3i6u.apps.googleusercontent.com</string>
 	<key>API_KEY</key>
 	<string>AIzaSyDww5MrJxf3eMSHXAnT-BZDp2Lc6Nxxjdg</string>
 	<key>GCM_SENDER_ID</key>
@@ -15,7 +15,7 @@
 	<key>PLIST_VERSION</key>
 	<string>1</string>
 	<key>BUNDLE_ID</key>
-	<string>com.example.cookster</string>
+	<string>com.cookster.cooksterapp</string>
 	<key>PROJECT_ID</key>
 	<string>cockster-e477a</string>
 	<key>STORAGE_BUCKET</key>
@@ -31,6 +31,6 @@
 	<key>IS_SIGNIN_ENABLED</key>
 	<true></true>
 	<key>GOOGLE_APP_ID</key>
-	<string>1:588874074588:ios:c72fef258f9223bc64a719</string>
+	<string>1:588874074588:ios:ef6a7ce3841cae1c64a719</string>
 </dict>
 </plist>

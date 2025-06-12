@@ -380,6 +380,7 @@ class _PackagesScreenState extends State<PackagesScreen> {
                   '${package.duration} ${'package_duration_suffix'.tr}',
                   style: TextStyle(
                     fontSize: 14.sp,
+                    fontWeight: FontWeight.w700,
                     color: Colors.grey.shade600,
                   ),
                 ),
