@@ -1803,77 +1803,77 @@ class videoUserDetails extends StatelessWidget {
   }
 }
 
-class videoTitleEtc extends StatelessWidget {
-  const videoTitleEtc({super.key, required this.videoDetail});
-
-  final WallVideos videoDetail;
-
-  @override
-  Widget build(BuildContext context) {
-    return Positioned(
-      bottom: Get.height * 0.13,
-      left: 10,
-      child: Container(
-        width: Get.width * 0.75,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (videoDetail.title != null && videoDetail.title!.isNotEmpty)
-              Text(
-                videoDetail.title!,
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 16.sp,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            if (videoDetail.description != null &&
-                videoDetail.description!.isNotEmpty)
-              Text(
-                videoDetail.description!,
-                style: TextStyle(color: Colors.white, fontSize: 14.sp),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            if (videoDetail.tags != null && videoDetail.tags!.isNotEmpty)
-              Wrap(
-                spacing: 6,
-                children:
-                    videoDetail.tags!.split(',').map((tag) {
-                      final trimmedTag = tag.trim();
-                      return GestureDetector(
-                        onTap: () {
-                          print("hello");
-                          Get.to(HashTagReels(tag: trimmedTag));
-                          // Replace with your actual navigation logic
-                        },
-                        child: Text(
-                          "#$trimmedTag",
-                          style: TextStyle(
-                            color: ColorUtils.primaryColor,
-                            fontSize: 14.sp,
-                          ),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      );
-                    }).toList(),
-              )
-            else
-              Text(
-                "#",
-                style: TextStyle(
-                  color: ColorUtils.primaryColor,
-                  fontSize: 12.sp,
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-}
+// class videoTitleEtc extends StatelessWidget {
+//   const videoTitleEtc({super.key, required this.videoDetail});
+//
+//   final WallVideos videoDetail;
+//
+//   @override
+//   Widget build(BuildContext context) {
+//     return Positioned(
+//       bottom: Get.height * 0.13,
+//       left: 10,
+//       child: Container(
+//         width: Get.width * 0.75,
+//         child: Column(
+//           crossAxisAlignment: CrossAxisAlignment.start,
+//           children: [
+//             if (videoDetail.title != null && videoDetail.title!.isNotEmpty)
+//               Text(
+//                 videoDetail.title!,
+//                 style: TextStyle(
+//                   color: Colors.white,
+//                   fontWeight: FontWeight.bold,
+//                   fontSize: 16.sp,
+//                 ),
+//                 maxLines: 1,
+//                 overflow: TextOverflow.ellipsis,
+//               ),
+//             if (videoDetail.description != null &&
+//                 videoDetail.description!.isNotEmpty)
+//               Text(
+//                 videoDetail.description!,
+//                 style: TextStyle(color: Colors.white, fontSize: 14.sp),
+//                 maxLines: 1,
+//                 overflow: TextOverflow.ellipsis,
+//               ),
+//             if (videoDetail.tags != null && videoDetail.tags!.isNotEmpty)
+//               Wrap(
+//                 spacing: 6,
+//                 children:
+//                     videoDetail.tags!.split(',').map((tag) {
+//                       final trimmedTag = tag.trim();
+//                       return GestureDetector(
+//                         onTap: () {
+//                           print("hello");
+//                           Get.to(HashTagReels(tag: trimmedTag));
+//                           // Replace with your actual navigation logic
+//                         },
+//                         child: Text(
+//                           "#$trimmedTag",
+//                           style: TextStyle(
+//                             color: ColorUtils.primaryColor,
+//                             fontSize: 14.sp,
+//                           ),
+//                           overflow: TextOverflow.ellipsis,
+//                         ),
+//                       );
+//                     }).toList(),
+//               )
+//             else
+//               Text(
+//                 "#",
+//                 style: TextStyle(
+//                   color: ColorUtils.primaryColor,
+//                   fontSize: 12.sp,
+//                 ),
+//               ),
+//           ],
+//         ),
+//       ),
+//     );
+//   }
+// }
 
 void showLocationDialog(BuildContext context) {
   final HomeController homeController = Get.find();
@@ -2348,18 +2348,24 @@ class VideoDescriptionWidget extends StatefulWidget {
   _VideoDescriptionWidgetState createState() => _VideoDescriptionWidgetState();
 }
 
-class _VideoDescriptionWidgetState extends State<VideoDescriptionWidget> {
+class _VideoDescriptionWidgetState extends State<VideoDescriptionWidget>
+    with TickerProviderStateMixin {
   bool _isExpanded = false;
   bool _hasOverflow = false;
+
+  bool _isTagExpanded = false;
+  bool _hasTagOverflow = false;
+
   final TextEditingController _textController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
-
-    // Initialize text controller for description
     if (widget.description != null) {
       _textController.text = widget.description!;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _checkOverflowOnce();
+      });
     }
   }
 
@@ -2369,14 +2375,35 @@ class _VideoDescriptionWidgetState extends State<VideoDescriptionWidget> {
     super.dispose();
   }
 
-  // Function to check if text overflows
-  bool _checkTextOverflow(String text, TextStyle style, double maxWidth) {
-    final TextPainter textPainter = TextPainter(
-      text: TextSpan(text: text, style: style),
-      maxLines: 2,
+  void _checkOverflowOnce() {
+    final descriptionStyle = TextStyle(color: Colors.white, fontSize: 14.sp);
+    final tagStyle = TextStyle(color: ColorUtils.primaryColor, fontSize: 12.sp);
+
+    const double maxDescriptionWidth = 250.0;
+    const double maxTagWidth = 250.0;
+
+    // Check description overflow
+    final TextPainter descPainter = TextPainter(
+      text: TextSpan(text: widget.description, style: descriptionStyle),
+      maxLines: 1,
       textDirection: TextDirection.ltr,
-    )..layout(maxWidth: maxWidth);
-    return textPainter.didExceedMaxLines;
+    )..layout(maxWidth: maxDescriptionWidth);
+
+    // Check tag overflow
+    final String tagLine =
+        widget.tags?.split(',').map((t) => '#${t.trim()}').join(' ') ?? '';
+    final TextPainter tagPainter = TextPainter(
+      text: TextSpan(text: tagLine, style: tagStyle),
+      maxLines: 1,
+      textDirection: TextDirection.ltr,
+    )..layout(maxWidth: maxTagWidth);
+
+    if (mounted) {
+      setState(() {
+        _hasOverflow = descPainter.didExceedMaxLines;
+        _hasTagOverflow = tagPainter.didExceedMaxLines;
+      });
+    }
   }
 
   @override
@@ -2384,127 +2411,155 @@ class _VideoDescriptionWidgetState extends State<VideoDescriptionWidget> {
     final descriptionStyle = TextStyle(color: Colors.white, fontSize: 14.sp);
 
     return Positioned(
-      bottom: Get.height * 0.13, // Moved slightly higher from 0.15 to 0.18
+      bottom: Get.height * 0.13,
       left: 10,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Title
-          if (widget.title != null && widget.title!.isNotEmpty)
-            Text(
-              widget.title!,
-              style: TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-                fontSize: 16.sp,
+      child: Container(
+        padding: EdgeInsets.all(8),
+        constraints: BoxConstraints(maxWidth: 270),
+        decoration: BoxDecoration(
+          color: Colors.black.withOpacity(0.3),
+          // Semi-transparent dark background
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Title
+            if (widget.title != null && widget.title!.isNotEmpty)
+              ConstrainedBox(
+                constraints: BoxConstraints(maxWidth: 150),
+                child: Text(
+                  widget.title!,
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16.sp,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          if (widget.title != null && widget.title!.isNotEmpty)
-            SizedBox(height: 4.h),
-          // Description with Show More/Show Less
-          if (widget.description != null && widget.description!.isNotEmpty)
-            LayoutBuilder(
-              builder: (context, constraints) {
-                final maxWidth = 10.0,
-                    _hasOverflow = _checkTextOverflow(
-                      widget.description!,
-                      descriptionStyle,
-                      maxWidth,
-                    );
 
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    AnimatedSize(
-                      duration: Duration(milliseconds: 300),
-                      curve: Curves.easeInOut,
+            if (widget.title != null && widget.title!.isNotEmpty)
+              SizedBox(height: 4.h),
+
+            // Description with expand/collapse
+            if (widget.description != null && widget.description!.isNotEmpty)
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  AnimatedSize(
+                    duration: Duration(milliseconds: 300),
+                    curve: Curves.easeInOut,
+                    alignment: Alignment.topLeft,
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(maxWidth: 250),
                       child: Text(
                         widget.description!,
-                        style: descriptionStyle,
-                        maxLines: _isExpanded ? null : 2,
-                        overflow: _isExpanded ? null : TextOverflow.ellipsis,
+                        style: TextStyle(color: Colors.white, fontSize: 14.sp),
+                        maxLines: _isExpanded ? null : 1,
+                        overflow:
+                            _isExpanded
+                                ? TextOverflow.visible
+                                : TextOverflow.ellipsis,
                       ),
                     ),
-                    if (_hasOverflow && !_isExpanded)
-                      GestureDetector(
-                        onTap: () {
-                          setState(() {
-                            _isExpanded = true;
-                          });
-                        },
-                        child: Text(
-                          "Show More",
-                          style: TextStyle(
-                            color: ColorUtils.primaryColor,
-                            fontSize: 12.sp,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ),
-                    if (_isExpanded)
-                      GestureDetector(
-                        onTap: () {
-                          setState(() {
-                            _isExpanded = false;
-                          });
-                        },
-                        child: Text(
-                          "Show Less",
-                          style: TextStyle(
-                            color: ColorUtils.primaryColor,
-                            fontSize: 12.sp,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ),
-                  ],
-                );
-              },
-            ),
-          if (widget.description != null && widget.description!.isNotEmpty)
-            SizedBox(height: 4.h),
-          // Tags
-          if (widget.tags != null && widget.tags!.isNotEmpty)
-            Wrap(
-              spacing: 6,
-              children:
-                  widget.tags!.split(',').map((tag) {
-                    final trimmedTag = tag.trim();
-                    return GestureDetector(
+                  ),
+                  if (_hasOverflow)
+                    GestureDetector(
                       onTap: () {
-                        // Replace with your actual navigation logic
-                        Get.to(
-                          SearchView(
-                            tag: trimmedTag,
-
-                            isGeneral:
-                                widget.controller?.selectedType.value ==
-                                        "General"
-                                    ? 1
-                                    : 0,
-                          ),
-                        );
+                        setState(() {
+                          _isExpanded = !_isExpanded;
+                        });
                       },
-                      child: Text(
-                        "#$trimmedTag",
-                        style: TextStyle(
-                          color: ColorUtils.primaryColor,
-                          fontSize: 12.sp,
+                      child: Padding(
+                        padding: const EdgeInsets.only(top: 4.0),
+                        child: Text(
+                          _isExpanded ? "Show Less" : "Show More",
+                          style: TextStyle(
+                            color: ColorUtils.primaryColor,
+                            fontSize: 12.sp,
+                            fontWeight: FontWeight.w500,
+                          ),
                         ),
-                        overflow: TextOverflow.ellipsis,
                       ),
-                    );
-                  }).toList(),
-            )
-          else
-            Text(
-              "#",
-              style: TextStyle(color: ColorUtils.primaryColor, fontSize: 12.sp),
-            ),
-        ],
+                    ),
+                ],
+              ),
+
+            if (widget.description != null && widget.description!.isNotEmpty)
+              SizedBox(height: 4.h),
+
+            // Tags
+            if (widget.tags != null && widget.tags!.isNotEmpty)
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  AnimatedSize(
+                    duration: Duration(milliseconds: 300),
+                    curve: Curves.easeInOut,
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(maxWidth: 250),
+                      child: Wrap(
+                        spacing: 8.w,
+                        runSpacing: 4.h,
+                        children:
+                            widget.tags!.split(',').map((tag) {
+                              final trimmedTag = tag.trim();
+                              return InkWell(
+                                onTap: () {
+                                  Get.to(
+                                    () => SearchView(
+                                      tag: trimmedTag,
+                                      isFollowing: 1,
+                                    ),
+                                  ); // Pass the tapped tag
+                                  //
+                                },
+                                child: Text(
+                                  '#$trimmedTag',
+                                  style: TextStyle(
+                                    color: ColorUtils.primaryColor,
+                                    fontSize: 12.sp,
+                                  ),
+                                ),
+                              );
+                            }).toList(),
+                      ),
+                    ),
+                  ),
+                  if (_hasTagOverflow)
+                    GestureDetector(
+                      onTap: () {
+                        setState(() {
+                          _isTagExpanded = !_isTagExpanded;
+                        });
+                      },
+                      child: Padding(
+                        padding: const EdgeInsets.only(top: 4.0),
+                        child: Text(
+                          _isTagExpanded ? "show_less".tr : "show_more".tr,
+                          style: TextStyle(
+                            color: ColorUtils.primaryColor,
+                            fontSize: 12.sp,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              )
+            else
+              Text(
+                "#",
+                style: TextStyle(
+                  color: ColorUtils.primaryColor,
+                  fontSize: 12.sp,
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }

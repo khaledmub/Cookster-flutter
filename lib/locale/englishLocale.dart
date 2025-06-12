@@ -405,4 +405,6 @@ const Map<String, String> en = {
   "contact_email_required" : "Contact Email is required",
   "contact_phone_required" : "Contact Phone is required",
   "payment_cancelled": "Payment cancelled",
+  "show_more" : "Show More",
+  "show_less" : "Show Less",
 };

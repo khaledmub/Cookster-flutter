@@ -398,4 +398,6 @@ const Map<String, String> ar = {
   "contact_email_required": "البريد الإلكتروني للتواصل مطلوب",
   "contact_phone_required": "رقم الهاتف للتواصل مطلوب",
   "payment_cancelled": "تم إلغاء الدفع",
+  "show_more": "عرض المزيد",
+  "show_less": "عرض أقل"
 };
