@@ -84,9 +84,8 @@ class _SignVpViewState extends State<SignVpView> {
       setState(() {
         googleSignInBit = prefs.getInt('google_sign_in') ?? 0;
 
-        if(googleSignInBit == 1)
-        signUpController.passwordController.text = "Welcome@119";
-
+        if (googleSignInBit == 1)
+          signUpController.passwordController.text = "Welcome@119";
       });
 
       if (email != null && email.isNotEmpty) {
@@ -238,7 +237,7 @@ class _SignVpViewState extends State<SignVpView> {
                                           child: Icon(
                                             // Use right chevron for Arabic, left chevron for English
                                             isRtl
-                                                ? Icons.arrow_forward
+                                                ? Icons.arrow_back
                                                 : Icons.arrow_back,
                                             color: ColorUtils.darkBrown,
                                             size: 24,
@@ -249,7 +248,7 @@ class _SignVpViewState extends State<SignVpView> {
                                   ),
 
                                   // Center Logo
-                                 AppCenterIcon()
+                                  AppCenterIcon(),
                                 ],
                               ),
 
@@ -1645,11 +1644,19 @@ void showCountrySelectionDialog(
   final SignUpController signUpController = Get.find();
   final CityController cityController = Get.put(CityController());
 
-  // Controller for search field
   final TextEditingController searchController = TextEditingController();
   RxList<String> filteredCountryName = countryName.obs;
 
-  // Filter countries based on search input
+  // Get the name of the already selected country, if any
+  String initialCountryName = '';
+  for (var c in countryName) {
+    if (allCountries[c]?.toString() == signUpController.selectCountryId.value) {
+      initialCountryName = c;
+      break;
+    }
+  }
+  RxString selectedCountryName = initialCountryName.obs;
+
   void filterCountries(String query) {
     if (query.isEmpty) {
       filteredCountryName.value = countryName;
@@ -1739,39 +1746,34 @@ void showCountrySelectionDialog(
               child: SingleChildScrollView(
                 child: Obx(
                   () => Column(
-                    children: List.generate(
-                      filteredCountryName.length,
-                      (index) => InkWell(
-                        onTap: () async {
-                          String selectedCountry = filteredCountryName[index];
-                          Navigator.pop(context);
+                    children: List.generate(filteredCountryName.length, (
+                      index,
+                    ) {
+                      String country = filteredCountryName[index];
+                      bool isSelected = selectedCountryName.value == country;
 
-                          int? selectedId = allCountries[selectedCountry];
-                          if (selectedId != null) {
-                            signUpController.selectCountryId.value =
-                                selectedId.toString();
-
-                            signUpController.countryError.value =
-                                ''; // Clear error
-                            await cityController.fetchCities(selectedId);
-                          }
+                      return InkWell(
+                        onTap: () {
+                          selectedCountryName.value = country;
                         },
                         child: Padding(
                           padding: EdgeInsets.symmetric(vertical: 12.h),
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              Text(
-                                filteredCountryName[index],
-                                style: TextStyle(
-                                  fontSize: 13.sp,
-                                  fontWeight:
-                                      signUpController.selectCountryId.value ==
-                                              allCountries[filteredCountryName[index]]
-                                                  .toString()
-                                          ? FontWeight.bold
-                                          : FontWeight.normal,
-                                  color: Colors.black,
+                              ConstrainedBox(
+                                constraints: BoxConstraints(maxWidth: 200.w),
+                                child: Text(
+                                  country,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    fontSize: 13.sp,
+                                    fontWeight:
+                                        isSelected
+                                            ? FontWeight.bold
+                                            : FontWeight.normal,
+                                    color: Colors.black,
+                                  ),
                                 ),
                               ),
                               Container(
@@ -1784,9 +1786,7 @@ void showCountrySelectionDialog(
                                     width: 2,
                                   ),
                                   color:
-                                      signUpController.selectCountryId.value ==
-                                              allCountries[filteredCountryName[index]]
-                                                  .toString()
+                                      isSelected
                                           ? ColorUtils.primaryColor
                                           : Colors.white,
                                 ),
@@ -1794,13 +1794,46 @@ void showCountrySelectionDialog(
                             ],
                           ),
                         ),
-                      ),
-                    ),
+                      );
+                    }),
                   ),
                 ),
               ),
             ),
             SizedBox(height: 20.h),
+            Obx(
+              () => ElevatedButton(
+                onPressed:
+                    selectedCountryName.value.isNotEmpty
+                        ? () async {
+                          int? selectedId =
+                              allCountries[selectedCountryName.value];
+                          if (selectedId != null) {
+                            signUpController.selectCountryId.value =
+                                selectedId.toString();
+                            signUpController.countryError.value = '';
+                            await cityController.fetchCities(selectedId);
+                            Get.back();
+                          }
+                        }
+                        : null,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: ColorUtils.primaryColor,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10.r),
+                  ),
+                  minimumSize: Size(double.infinity, 44.h),
+                ),
+                child: Text(
+                  "Submit".tr,
+                  style: TextStyle(
+                    fontSize: 14.sp,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+            ),
           ],
         ),
       ),
@@ -1818,6 +1851,14 @@ void showCitySelectionDialog(
   // Controller for search field
   final TextEditingController searchController = TextEditingController();
   RxList<String> filteredCityName = city.obs;
+  RxString selectedCityName =
+      city
+          .firstWhereOrNull(
+            (c) =>
+                cities[c]?.toString() == signUpController.selectedCityId.value,
+          )
+          ?.obs ??
+      ''.obs;
 
   // Filter cities based on search input
   void filterCities(String query) {
@@ -1901,43 +1942,38 @@ void showCitySelectionDialog(
             SizedBox(height: 16.h),
 
             /// **Scrollable City List**
+            /// Scrollable City List
             Container(
               height: 240.h,
               child: SingleChildScrollView(
                 child: Obx(
                   () => Column(
-                    children: List.generate(
-                      filteredCityName.length,
-                      (index) => InkWell(
+                    children: List.generate(filteredCityName.length, (index) {
+                      String cityName = filteredCityName[index];
+                      bool isSelected = selectedCityName.value == cityName;
+
+                      return InkWell(
                         onTap: () {
-                          String selectedCity = filteredCityName[index];
-                          int? selectedId = cities[selectedCity];
-                          if (selectedId != null) {
-                            signUpController.selectedCityId.value =
-                                selectedId.toString();
-                            signUpController.cityError.value =
-                                ''; // Clear error
-                            print("PRINTING THE SELECTED CITY ID");
-                            print(selectedId);
-                          }
-                          Navigator.pop(context);
+                          selectedCityName.value = cityName;
                         },
                         child: Padding(
                           padding: EdgeInsets.symmetric(vertical: 12.h),
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              Text(
-                                filteredCityName[index],
-                                style: TextStyle(
-                                  fontSize: 13.sp,
-                                  fontWeight:
-                                      signUpController.selectedCityId.value ==
-                                              cities[filteredCityName[index]]
-                                                  .toString()
-                                          ? FontWeight.bold
-                                          : FontWeight.normal,
-                                  color: Colors.black,
+                              ConstrainedBox(
+                                constraints: BoxConstraints(maxWidth: 200.w),
+                                child: Text(
+                                  cityName,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    fontSize: 13.sp,
+                                    fontWeight:
+                                        isSelected
+                                            ? FontWeight.bold
+                                            : FontWeight.normal,
+                                    color: Colors.black,
+                                  ),
                                 ),
                               ),
                               Container(
@@ -1950,9 +1986,7 @@ void showCitySelectionDialog(
                                     width: 2,
                                   ),
                                   color:
-                                      signUpController.selectedCityId.value ==
-                                              cities[filteredCityName[index]]
-                                                  .toString()
+                                      isSelected
                                           ? ColorUtils.primaryColor
                                           : Colors.white,
                                 ),
@@ -1960,13 +1994,48 @@ void showCitySelectionDialog(
                             ],
                           ),
                         ),
-                      ),
-                    ),
+                      );
+                    }),
                   ),
                 ),
               ),
             ),
+
             SizedBox(height: 20.h),
+
+            /// Submit Button
+            Obx(
+              () => ElevatedButton(
+                onPressed:
+                    selectedCityName.value.isNotEmpty
+                        ? () {
+                          int? selectedId = cities[selectedCityName.value];
+                          if (selectedId != null) {
+                            signUpController.selectedCityId.value =
+                                selectedId.toString();
+                            signUpController.cityError.value = '';
+                            print("SUBMITTED CITY ID: $selectedId");
+                            Get.back(); // Close dialog
+                          }
+                        }
+                        : null, // Disable button when no city selected
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: ColorUtils.primaryColor,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10.r),
+                  ),
+                  minimumSize: Size(double.infinity, 44.h),
+                ),
+                child: Text(
+                  "Submit".tr,
+                  style: TextStyle(
+                    fontSize: 14.sp,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+            ),
           ],
         ),
       ),

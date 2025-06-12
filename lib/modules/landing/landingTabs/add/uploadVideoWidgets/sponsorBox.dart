@@ -360,6 +360,11 @@ class SponsorBox extends StatelessWidget {
 
     final TextEditingController searchController = TextEditingController();
     RxList<String> filteredCountryName = countryName.obs;
+    RxString selectedCountryName =
+        (controller.selectedCountry.value.isNotEmpty
+                ? controller.selectedCountry.value
+                : '')
+            .obs;
 
     void filterCountries(String query) {
       if (query.isEmpty) {
@@ -440,35 +445,34 @@ class SponsorBox extends StatelessWidget {
                 child: SingleChildScrollView(
                   child: Obx(
                     () => Column(
-                      children: List.generate(
-                        filteredCountryName.length,
-                        (index) => InkWell(
-                          onTap: () async {
-                            controller.selectLocation(
-                              filteredCountryName[index],
-                              countryMap[filteredCountryName[index]]!,
-                            );
-                            Navigator.pop(context);
-                            await cityController.fetchCities(
-                              countryMap[filteredCountryName[index]]!,
-                            );
-                            showCityDialog(context);
+                      children: List.generate(filteredCountryName.length, (
+                        index,
+                      ) {
+                        String country = filteredCountryName[index];
+                        bool isSelected = selectedCountryName.value == country;
+
+                        return InkWell(
+                          onTap: () {
+                            selectedCountryName.value = country;
                           },
                           child: Padding(
                             padding: EdgeInsets.symmetric(vertical: 12.h),
                             child: Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
-                                Text(
-                                  filteredCountryName[index],
-                                  style: TextStyle(
-                                    fontSize: 13.sp,
-                                    fontWeight:
-                                        controller.selectedCountry.value ==
-                                                filteredCountryName[index]
-                                            ? FontWeight.bold
-                                            : FontWeight.normal,
-                                    color: Colors.black,
+                                ConstrainedBox(
+                                  constraints: BoxConstraints(maxWidth: 200.w),
+                                  child: Text(
+                                    country,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      fontSize: 13.sp,
+                                      fontWeight:
+                                          isSelected
+                                              ? FontWeight.bold
+                                              : FontWeight.normal,
+                                      color: Colors.black,
+                                    ),
                                   ),
                                 ),
                                 Container(
@@ -481,8 +485,7 @@ class SponsorBox extends StatelessWidget {
                                       width: 2,
                                     ),
                                     color:
-                                        controller.selectedCountry.value ==
-                                                filteredCountryName[index]
+                                        isSelected
                                             ? ColorUtils.primaryColor
                                             : Colors.white,
                                   ),
@@ -490,13 +493,48 @@ class SponsorBox extends StatelessWidget {
                               ],
                             ),
                           ),
-                        ),
-                      ),
+                        );
+                      }),
                     ),
                   ),
                 ),
               ),
               SizedBox(height: 20.h),
+              Obx(
+                () => ElevatedButton(
+                  onPressed:
+                      selectedCountryName.value.isNotEmpty
+                          ? () async {
+                            int? selectedId =
+                                countryMap[selectedCountryName.value];
+                            if (selectedId != null) {
+                              controller.selectLocation(
+                                selectedCountryName.value,
+                                selectedId,
+                              );
+                              await cityController.fetchCities(selectedId);
+                              Get.back();
+                              showCityDialog(context);
+                            }
+                          }
+                          : null,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: ColorUtils.primaryColor,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10.r),
+                    ),
+                    minimumSize: Size(double.infinity, 44.h),
+                  ),
+                  child: Text(
+                    "Submit".tr,
+                    style: TextStyle(
+                      fontSize: 14.sp,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ),
             ],
           ),
         ),
@@ -517,6 +555,7 @@ class SponsorBox extends StatelessWidget {
 
     final TextEditingController searchController = TextEditingController();
     RxList<String> filteredCityName = cityName.obs;
+    RxList<String> selectedCities = controller.selectedCities.toList().obs;
 
     void filterCities(String query) {
       if (query.isEmpty) {
@@ -536,118 +575,172 @@ class SponsorBox extends StatelessWidget {
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(20.r),
         ),
-        child: Container(
-          width: 350.w,
-          padding: EdgeInsets.all(16.w),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(20.r),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Row(
-                    children: [
-                      Icon(Icons.location_on, color: Colors.black),
-                      SizedBox(width: 8.w),
-                      Text(
-                        "select_cities_dialog_label".tr,
-                        style: TextStyle(
-                          fontSize: 14.sp,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.black,
-                        ),
-                      ),
-                    ],
-                  ),
-                  InkWell(
-                    onTap: () => Get.back(),
-                    child: Icon(Icons.close, color: Colors.grey),
-                  ),
-                ],
-              ),
-              SizedBox(height: 16.h),
-              TextField(
-                controller: searchController,
-                decoration: InputDecoration(
-                  hintText: 'search_city_placeholder'.tr,
-                  prefixIcon: Icon(Icons.search, color: Colors.grey),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10.r),
-                    borderSide: BorderSide(color: Colors.grey),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10.r),
-                    borderSide: BorderSide(color: ColorUtils.primaryColor),
-                  ),
-                  contentPadding: EdgeInsets.symmetric(
-                    vertical: 10.h,
-                    horizontal: 12.w,
-                  ),
-                ),
-                onChanged: (value) => filterCities(value),
-              ),
-              SizedBox(height: 16.h),
-              Container(
-                height: 230.h,
-                child: SingleChildScrollView(
-                  child: Obx(
-                    () => Column(
-                      children: List.generate(
-                        filteredCityName.length,
-                        (index) => InkWell(
-                          onTap: () {
-                            controller.toggleCity(
-                              filteredCityName[index],
-                              cityMap[filteredCityName[index]]!,
-                            );
-                          },
-                          child: Padding(
-                            padding: EdgeInsets.symmetric(vertical: 12.h),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        child: Obx(
+          () => Container(
+            width: 350.w,
+            padding: EdgeInsets.all(16.w),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(20.r),
+            ),
+            child:
+                cityController.isLoading.value
+                    ? Center(child: CircularProgressIndicator())
+                    : Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Row(
                               children: [
+                                Icon(Icons.location_on, color: Colors.black),
+                                SizedBox(width: 8.w),
                                 Text(
-                                  filteredCityName[index],
+                                  "select_cities_dialog_label".tr,
                                   style: TextStyle(
-                                    fontSize: 13.sp,
-                                    fontWeight:
-                                        controller.selectedCities.contains(
-                                              filteredCityName[index],
-                                            )
-                                            ? FontWeight.bold
-                                            : FontWeight.normal,
+                                    fontSize: 14.sp,
+                                    fontWeight: FontWeight.bold,
                                     color: Colors.black,
                                   ),
                                 ),
-                                Checkbox(
-                                  value: controller.selectedCities.contains(
-                                    filteredCityName[index],
-                                  ),
-                                  onChanged: (bool? value) {
-                                    if (value != null) {
-                                      controller.toggleCity(
-                                        filteredCityName[index],
-                                        cityMap[filteredCityName[index]]!,
-                                      );
-                                    }
-                                  },
-                                  activeColor: ColorUtils.primaryColor,
-                                ),
                               ],
+                            ),
+                            InkWell(
+                              onTap: () => Get.back(),
+                              child: Icon(Icons.close, color: Colors.grey),
+                            ),
+                          ],
+                        ),
+                        SizedBox(height: 16.h),
+                        TextField(
+                          controller: searchController,
+                          decoration: InputDecoration(
+                            hintText: 'search_city_placeholder'.tr,
+                            prefixIcon: Icon(Icons.search, color: Colors.grey),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(10.r),
+                              borderSide: BorderSide(color: Colors.grey),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(10.r),
+                              borderSide: BorderSide(
+                                color: ColorUtils.primaryColor,
+                              ),
+                            ),
+                            contentPadding: EdgeInsets.symmetric(
+                              vertical: 10.h,
+                              horizontal: 12.w,
+                            ),
+                          ),
+                          onChanged: (value) => filterCities(value),
+                        ),
+                        SizedBox(height: 16.h),
+                        Container(
+                          height: 230.h,
+                          child: SingleChildScrollView(
+                            child: Obx(
+                              () => Column(
+                                children: List.generate(
+                                  filteredCityName.length,
+                                  (index) {
+                                    String city = filteredCityName[index];
+                                    bool isSelected = selectedCities.contains(
+                                      city,
+                                    );
+
+                                    return InkWell(
+                                      onTap: () {
+                                        if (isSelected) {
+                                          selectedCities.remove(city);
+                                        } else {
+                                          selectedCities.add(city);
+                                        }
+                                      },
+                                      child: Padding(
+                                        padding: EdgeInsets.symmetric(
+                                          vertical: 12.h,
+                                        ),
+                                        child: Row(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.spaceBetween,
+                                          children: [
+                                            ConstrainedBox(
+                                              constraints: BoxConstraints(
+                                                maxWidth: 200.w,
+                                              ),
+                                              child: Text(
+                                                city,
+                                                overflow: TextOverflow.ellipsis,
+                                                style: TextStyle(
+                                                  fontSize: 13.sp,
+                                                  fontWeight:
+                                                      isSelected
+                                                          ? FontWeight.bold
+                                                          : FontWeight.normal,
+                                                  color: Colors.black,
+                                                ),
+                                              ),
+                                            ),
+                                            Checkbox(
+                                              value: isSelected,
+                                              onChanged: (bool? value) {
+                                                if (value != null) {
+                                                  if (value) {
+                                                    selectedCities.add(city);
+                                                  } else {
+                                                    selectedCities.remove(city);
+                                                  }
+                                                }
+                                              },
+                                              activeColor:
+                                                  ColorUtils.primaryColor,
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                ),
+                              ),
                             ),
                           ),
                         ),
-                      ),
+                        SizedBox(height: 20.h),
+                        Obx(
+                          () => ElevatedButton(
+                            onPressed:
+                                selectedCities.isNotEmpty
+                                    ? () {
+                                      // Update controller with selected cities
+                                      for (String city in selectedCities) {
+                                        controller.toggleCity(
+                                          city,
+                                          cityMap[city]!,
+                                        );
+                                      }
+                                      Get.back();
+                                    }
+                                    : null,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: ColorUtils.primaryColor,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10.r),
+                              ),
+                              minimumSize: Size(double.infinity, 44.h),
+                            ),
+                            child: Text(
+                              "Submit".tr,
+                              style: TextStyle(
+                                fontSize: 14.sp,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
-                  ),
-                ),
-              ),
-              SizedBox(height: 20.h),
-            ],
           ),
         ),
       ),

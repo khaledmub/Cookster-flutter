@@ -23,14 +23,14 @@ const Map<String, String> en = {
   "add your personal info": "Add your personal info",
   "select your account type": "Select your account type",
   "password_limit":
-  "Your Password should contain at least 8 characters, including numbers or digits and 1 upper case letter",
+      "Your Password should contain at least 8 characters, including numbers or digits and 1 upper case letter",
   "or sign up with": "or sign up with",
   "signUpSubtitle":
-  "Create a profile easily, create your own contents, follow other accounts and more",
+      "Create a profile easily, create your own contents, follow other accounts and more",
   "sign up": "Sign Up",
   "sign in now": "Sign In Now",
   "signInSubtitle":
-  "Explore delicious recipes, food vlogs, and cooking tips from food lovers worldwide.",
+      "Explore delicious recipes, food vlogs, and cooking tips from food lovers worldwide.",
   "password": "Password",
   "sign in": "Sign In",
   "forget_password": "Forgot Password",
@@ -51,7 +51,7 @@ const Map<String, String> en = {
   "Top Rated": "Top Rated",
   "Search": "Search",
   "type_at_least_search":
-  "Type at least 3 characters in the search bar above to find what you're looking for",
+      "Type at least 3 characters in the search bar above to find what you're looking for",
   "search_video": "Search for Videos, Businesses and top Rated movies",
   "Find Business": "Find Business",
   "Search Radius": "Search Radius",
@@ -77,7 +77,7 @@ const Map<String, String> en = {
   "processing_video": "Processing Video",
   "Discard changes": "Discard changes",
   "If you go back now, you'll lose your edits":
-  "If you go back now, you'll lose your edits",
+      "If you go back now, you'll lose your edits",
   "Discard": "Discard",
   "Saved Reels": "Saved Reels",
   "Followers": "Followers",
@@ -107,13 +107,13 @@ const Map<String, String> en = {
   "Please select a city before closing": "Please select a city before closing",
   "Change Language": "Change Language",
   "Password must be at least 8 characters":
-  "Password must be at least 8 characters",
+      "Password must be at least 8 characters",
   "Password must contain at least one capital letter":
-  "Password must contain at least one capital letter",
+      "Password must contain at least one capital letter",
   "Password must contain at least one special character":
-  "Password must contain at least one special character",
+      "Password must contain at least one special character",
   "go_back_warning":
-  "If you go back now, you'll lose your edits. es ki trranslation do",
+      "If you go back now, you'll lose your edits. es ki trranslation do",
   "cancel": "Cancel",
   "discard_changes": "Discard Changes",
   "type_text": "Type your text",
@@ -172,7 +172,7 @@ const Map<String, String> en = {
   ////
   "discard_changes_title": "Discard Changes?",
   "discard_changes_message":
-  "You have unsaved changes that will be lost if you leave this screen.",
+      "You have unsaved changes that will be lost if you leave this screen.",
   "stay_button": "Stay",
   "discard_button": "Discard",
   "select_country_city_error": "Please select both Country and City",
@@ -196,7 +196,7 @@ const Map<String, String> en = {
   "update_failed_message": "Failed to update video. Status: ",
   "fetch_site_settings_error": "Failed to fetch site settings",
   "fetch_site_settings_error_message":
-  "An error occurred while fetching site settings",
+      "An error occurred while fetching site settings",
   "select_city_dialog_label": "Select City",
   "success_title": "Success",
   "success_message": "Video uploaded successfully!",
@@ -214,11 +214,11 @@ const Map<String, String> en = {
   "select-business-type": "Select business type",
   "current_plan": "Current Plan",
   "domain_repeat_error":
-  "Domain should not contain repeated segments (e.g., com.com)",
+      "Domain should not contain repeated segments (e.g., com.com)",
   ////
   "location_empty_error": "Location cannot be empty",
   "website_invalid_error":
-  "Enter a valid website URL (e.g., https://example.com)",
+      "Enter a valid website URL (e.g., https://example.com)",
   "dob_empty_error": "Please enter your date of birth",
   "dob_format_error": "Enter a valid date in YYYY-MM-DD format",
   "dob_future_error": "Date of birth cannot be in the future",
@@ -230,16 +230,16 @@ const Map<String, String> en = {
   "password_required_error": "Password cannot be empty",
   "password_length_error": "Password must be at least 8 characters long",
   "password_uppercase_error":
-  "Password must contain at least one capital letter",
+      "Password must contain at least one capital letter",
   "password_special_char_error":
-  "Password must contain at least one special character",
+      "Password must contain at least one special character",
   "name_required_error":
-  "Enter your name to personalize your profile and connect with others.",
+      "Enter your name to personalize your profile and connect with others.",
   "name_length_error": "Name must be at least 3 characters long.",
   "name_format_error": "Name can only contain letters, numbers, and spaces.",
   "phone_required_error": "Please enter your phone number",
   "phone_invalid_error":
-  "Enter a valid phone number (7-14 digits, no alphabets)",
+      "Enter a valid phone number (7-14 digits, no alphabets)",
   "business_type_missing_error": "Please select a valid Business Type",
   "form_general_error": "Validation failed",
   "form_unknown_error": "Something went wrong",
@@ -264,9 +264,9 @@ const Map<String, String> en = {
   "why-not-see-video": "Why don't you want to see this video?",
   "additional-comments": "Additional Comments",
   "provide-report-details":
-  "Please provide additional details about your report...",
+      "Please provide additional details about your report...",
   "report-community-standards":
-  "Your report helps us maintain community standards. Thank you.",
+      "Your report helps us maintain community standards. Thank you.",
   "submit-report": "Submit Report",
   "continue": "Continue",
   "error": "Error",
@@ -284,7 +284,7 @@ const Map<String, String> en = {
   "package_amount_prefix": "SAR",
   "package_duration_suffix": "Months",
   "sure_to_delete":
-  "Are you sure you want to delete this video? All content related to this video will be deleted and cannot be recovered.",
+      "Are you sure you want to delete this video? All content related to this video will be deleted and cannot be recovered.",
   "yes_delete": "Yes, Delete",
   "delete_video": "Delete Video",
   "saved_videos": "Saved Videos",
@@ -297,7 +297,7 @@ const Map<String, String> en = {
   "search_followers_following": "Search followers and following",
   "enter_email": "Enter your email to receive an OTP for password reset.",
   "otp_sent":
-  "OTP sent to your email. Enter it below to reset your password.\n For testing purpose OTP is: 12345",
+      "OTP sent to your email. Enter it below to reset your password.\n For testing purpose OTP is: 12345",
   "enter_new_password": "Enter your new password.",
   "reset_password": "Reset Password",
   "verify_otp": "Verify OTP",
@@ -312,7 +312,7 @@ const Map<String, String> en = {
   "close": "Close",
   "whatsapp_not_installed": "WhatsApp not installed or URL scheme unsupported",
   "google_maps_not_installed":
-  "Google Maps not installed or URL scheme unsupported",
+      "Google Maps not installed or URL scheme unsupported",
   "browser_not_installed": "Browser not installed or URL scheme unsupported",
   "error_launching_whatsapp": "Error launching WhatsApp",
   "error_launching_google_maps": "Error launching Google Maps",
@@ -346,29 +346,33 @@ const Map<String, String> en = {
   "your_package_has_been_expired": "Your package has been expired",
   "renew": "Renew",
   "exit_app": "Exit App",
-  "are_you_sure_you_want_to_exit_the_app": "Are you sure you want to exit the app?",
-  "processing" : "Processing",
-  "recent_searches" : "Recent Searches",
-  "unfollowed" : "Unfollowed",
-  "does_not_change_anything" : "Does not change anything!",
-  "months" : "Months",
-  "personal" : "Personal",
+  "are_you_sure_you_want_to_exit_the_app":
+      "Are you sure you want to exit the app?",
+  "processing": "Processing",
+  "recent_searches": "Recent Searches",
+  "unfollowed": "Unfollowed",
+  "does_not_change_anything": "Does not change anything!",
+  "months": "Months",
+  "personal": "Personal",
   "no_internet": "Server Not Responding",
-  "no_internet_description": "We’re unable to connect to the server. Please try again later.",
+  "no_internet_description":
+      "We’re unable to connect to the server. Please try again later.",
   "retry_button": "Retry",
   "retrying_button": "Checking...",
   "snackbar_title": "Server Unavailable",
   "snackbar_message": "Unable to reach the server. Please try again later.",
-  "post" : "Post",
-  "enter_inform_to_signup" : "Please enter your information to complete the signup.",
-  "select_account_type" : "Select Account Type",
+  "post": "Post",
+  "enter_inform_to_signup":
+      "Please enter your information to complete the signup.",
+  "select_account_type": "Select Account Type",
   "pick_a_location": "Pick a Location",
   "search_location": "Search location",
   "location_error": "Location Error",
   "please_enable_location_services": "Please enable location services.",
   "permission_denied": "Permission Denied",
   "location_access_required": "Location access is required.",
-  "permissions_permanently_denied": "Location permissions are permanently denied. Please enable them from settings.",
+  "permissions_permanently_denied":
+      "Location permissions are permanently denied. Please enable them from settings.",
   "failed_to_get_location": "Failed to get location. Try again.",
   "user_location_not_found": "User location not found!",
   "confirm_location": "Confirm Location",
@@ -378,21 +382,26 @@ const Map<String, String> en = {
   "finding_address": "Finding address...",
   "already_have_account": "Already have an account? ",
   "sign_in": "Sign In",
-  "dob" : "DOB",
+  "dob": "DOB",
   "please_select_business_type": "Please select a business type.",
-  "search_not_found_result" : "We couldn't find any matches for your search. Please try different keywords.We couldn't find any matches for your search. Please try different keywords.",
-  "no_music" : "No Music",
-  "select_music" : "Select Music",
-  "Premium" : "Premium",
-  "Basic" : "Basic",
-  "day" : "Day",
-  "days" : "Days",
-  "sure_to_delete_account" : "Are you sure you want to delete your account?",
-  "sure_to_delete_description" : "This action is permanent and will remove all your data, including your profile, posts, and any saved content. Once deleted, your account cannot be restored.",
-  "payment_error" : "Payment Error",
-  "block_user" : "Block User",
-  "block" : "Block",
-  "block_user_description" : "They won't be notified that you blocked them. Blocked users can't interact with your content.",
-  "bad_word_error": "Entered text contains inappropriate words"
-
+  "search_not_found_result":
+      "We couldn't find any matches for your search. Please try different keywords.We couldn't find any matches for your search. Please try different keywords.",
+  "no_music": "No Music",
+  "select_music": "Select Music",
+  "Premium": "Premium",
+  "Basic": "Basic",
+  "day": "Day",
+  "days": "Days",
+  "sure_to_delete_account": "Are you sure you want to delete your account?",
+  "sure_to_delete_description":
+      "This action is permanent and will remove all your data, including your profile, posts, and any saved content. Once deleted, your account cannot be restored.",
+  "payment_error": "Payment Error",
+  "block_user": "Block User",
+  "block": "Block",
+  "block_user_description":
+      "They won't be notified that you blocked them. Blocked users can't interact with your content.",
+  "bad_word_error": "Entered text contains inappropriate words",
+  "Delete Account": "Delete Account",
+  "contact_email_required" : "Contact Email is required",
+  "contact_phone_required" : "Contact Phone is required",
 };

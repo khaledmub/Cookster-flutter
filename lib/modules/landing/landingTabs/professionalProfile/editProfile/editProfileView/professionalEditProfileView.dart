@@ -103,7 +103,8 @@ class _EditProfessionalProfileViewState
         profileController.phoneNumberController.text != initialPhone ||
         profileController.contactPhoneController.text != initialContactPhone ||
         profileController.contactEmailController.text != initialContactEmail ||
-        profileController.emailController.text != initialWebsite ||
+        profileController.websiteController.text !=
+            initialWebsite || // Fixed: was comparing emailController
         profileController.locationController.text != initialLocation ||
         profileController.selectedImage.value != null ||
         profileController.selectedCityId.value != initialCity.toString() ||
@@ -112,60 +113,151 @@ class _EditProfessionalProfileViewState
         profileController.passwordController.text.trim().isNotEmpty;
   }
 
+  // 2. Enhanced saveChanges() method with better validation
   void saveChanges() {
-    if (!hasChanges()) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text("No changes detected!")));
+    // First check if form is valid
+    if (!_formKey.currentState!.validate()) {
+      // ScaffoldMessenger.of(context).showSnackBar(
+      //   SnackBar(
+      //     content: Text("Please fix the validation errors".tr),
+      //     backgroundColor: Colors.red,
+      //   ),
+      // );
       return;
     }
 
-    if (_formKey.currentState!.validate()) {
-      profileController
-          .updateUserProfile(
-            name:
-                profileController.nameController.text.trim().isNotEmpty
-                    ? profileController.nameController.text.trim()
-                    : null,
-            dob:
-                profileController.birthdayController.text.trim().isNotEmpty
-                    ? profileController.birthdayController.text.trim()
-                    : null,
-            contactEmail:
-                profileController.contactEmailController.text.trim().isNotEmpty
-                    ? profileController.contactEmailController.text.trim()
-                    : null,
-            contactPhone:
-                profileController.contactPhoneController.text.trim().isNotEmpty
-                    ? profileController.contactPhoneController.text.trim()
-                    : null,
-            website:
-                profileController.websiteController.text.trim().isNotEmpty
-                    ? profileController.websiteController.text.trim()
-                    : null,
-            location:
-                profileController.locationController.text.trim().isNotEmpty
-                    ? profileController.locationController.text.trim()
-                    : null,
-            latitude:
-                profileController.latitude.isNotEmpty
-                    ? profileController.latitude
-                    : null,
-            longitude:
-                profileController.longitude.isNotEmpty
-                    ? profileController.longitude
-                    : null,
-            password:
-                profileController.passwordController.text.trim().isNotEmpty
-                    ? profileController.passwordController.text.trim()
-                    : null,
-            imageFile: profileController.selectedImage.value,
-            context: context,
-          )
-          .then((_) {
-            profileController.selectedImage.value = null;
-          });
+    // Then check if there are any changes
+    if (!hasChanges()) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("No changes detected!".tr),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
     }
+
+    // Additional validation for required fields (if any are required)
+    if (profileController.nameController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("name_is_required".tr),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    if (profileController.contactEmailController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("contact_email_required".tr),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+    if (profileController.contactPhoneController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("contact_phone_required".tr),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    // For entity == 2 (business), validate business type selection
+    if (entity == 2 && profileController.menuId == 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("Please select business type".tr),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    // Validate country and city selection
+    if (profileController.selectCountryId.value.isEmpty ||
+        profileController.selectCountryId.value == "0") {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("Please select a country".tr),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    if (profileController.selectedCityId.value.isEmpty ||
+        profileController.selectedCityId.value == "0") {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("Please select a city".tr),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    // For entity == 2 (business), validate location if required
+    if (entity == 2 &&
+        profileController.locationController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("Location is required for business profiles".tr),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    // All validations passed, proceed with API call
+    profileController
+        .updateUserProfile(
+          name:
+              profileController.nameController.text.trim().isNotEmpty
+                  ? profileController.nameController.text.trim()
+                  : null,
+          dob:
+              profileController.birthdayController.text.trim().isNotEmpty
+                  ? profileController.birthdayController.text.trim()
+                  : null,
+          contactEmail:
+              profileController.contactEmailController.text.trim().isNotEmpty
+                  ? profileController.contactEmailController.text.trim()
+                  : null,
+          contactPhone:
+              profileController.contactPhoneController.text.trim().isNotEmpty
+                  ? profileController.contactPhoneController.text.trim()
+                  : null,
+          website:
+              profileController.websiteController.text.trim().isNotEmpty
+                  ? profileController.websiteController.text.trim()
+                  : null,
+          location:
+              profileController.locationController.text.trim().isNotEmpty
+                  ? profileController.locationController.text.trim()
+                  : null,
+          latitude:
+              profileController.latitude.isNotEmpty
+                  ? profileController.latitude
+                  : null,
+          longitude:
+              profileController.longitude.isNotEmpty
+                  ? profileController.longitude
+                  : null,
+          password:
+              profileController.passwordController.text.trim().isNotEmpty
+                  ? profileController.passwordController.text.trim()
+                  : null,
+          imageFile: profileController.selectedImage.value,
+          context: context,
+        )
+        .then((_) {
+          profileController.selectedImage.value = null;
+        });
   }
 
   int entity = -1;
@@ -543,7 +635,7 @@ class _EditProfessionalProfileViewState
                           context,
                           allCountries,
                           countryName,
-                          selectedCountryName,
+                          // selectedCountryName,
                           countryId: int.parse(
                             profileController.selectCountryId.value,
                           ),
@@ -767,10 +859,8 @@ class _EditProfessionalProfileViewState
                           context: context,
                           dialogType: DialogType.warning,
                           animType: AnimType.bottomSlide,
-                          title:
-                          'sure_to_delete_account'.tr,
-                          desc:
-                          'sure_to_delete_description'.tr,
+                          title: 'sure_to_delete_account'.tr,
+                          desc: 'sure_to_delete_description'.tr,
                           btnCancelOnPress: () {
                             // Do nothing, dialog will close
                           },
@@ -778,25 +868,24 @@ class _EditProfessionalProfileViewState
                             try {
                               // Call the delete_account API
                               final response =
-                              await ApiClient.postDeleteAccount({});
-
+                                  await ApiClient.postDeleteAccount({});
 
                               print(response.body);
 
                               if (response.statusCode == 200) {
                                 SharedPreferences prefs =
-                                await SharedPreferences.getInstance();
+                                    await SharedPreferences.getInstance();
 
                                 // Store the onboarding_completed, language, and selectedLanguage values before clearing
                                 bool onboardingCompleted =
                                     prefs.getBool('onboarding_completed') ??
-                                        false;
+                                    false;
                                 String language =
                                     prefs.getString('language') ??
-                                        'en'; // Default to 'en' as per ApiClient
+                                    'en'; // Default to 'en' as per ApiClient
                                 String selectedLanguage =
                                     prefs.getString('selectedLanguage') ??
-                                        'English'; // Default to 'English' as per LanguageController
+                                    'English'; // Default to 'English' as per LanguageController
                                 bool initLanguage =
                                     prefs.getBool('initLanguage') ?? false;
 
@@ -820,9 +909,9 @@ class _EditProfessionalProfileViewState
 
                                 // Clear in-memory user data
                                 profileController.userDetails.value =
-                                null; // Assuming this is defined elsewhere
+                                    null; // Assuming this is defined elsewhere
                                 profileController.simpleUserDetails.value =
-                                null; // Assuming this is defined elsewhere
+                                    null; // Assuming this is defined elsewhere
                                 profileController.followersList
                                     .clear(); // Assuming this is defined elsewhere
                                 profileController.followingList
@@ -883,14 +972,13 @@ class _EditProfessionalProfileViewState
                             Directionality.of(context) == dir.TextDirection.rtl
                                 ? Icon(Icons.arrow_forward, color: Colors.white)
                                 : Icon(
-                              Icons.arrow_forward,
-                              color: Colors.white,
-                            ),
+                                  Icons.arrow_forward,
+                                  color: Colors.white,
+                                ),
                           ],
                         ),
                       ),
                     ),
-
 
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 16.0),
@@ -934,8 +1022,7 @@ class _EditProfessionalProfileViewState
 void showProfileCountrySelectionDialog(
   BuildContext context,
   Map<String, int> allCountries,
-  List<String> countryName,
-  String? selectedCountryName, {
+  List<String> countryName, {
   int? countryId, // Optional parameter for initial country ID
 }) {
   final ProfessionalProfileController profileController = Get.find();
@@ -945,25 +1032,19 @@ void showProfileCountrySelectionDialog(
   final TextEditingController searchController = TextEditingController();
   RxList<String> filteredCountryName = countryName.obs;
 
-  // Set initial country selection based on countryId if provided
+  // Initialize selected country name based on countryId
+  String initialCountryName = '';
   if (countryId != null) {
-    profileController.countryId = countryId;
-    profileController.selectCountryId.value = countryId.toString();
-    // Find the country name corresponding to the countryId
-    String? initialCountryName =
+    initialCountryName =
         allCountries.entries
             .firstWhere(
               (entry) => entry.value == countryId,
-              orElse:
-                  () => MapEntry('', 0), // Return a dummy entry if not found
+              orElse: () => MapEntry('', 0),
             )
             .key;
-    if (initialCountryName.isNotEmpty) {
-      selectedCountryName = initialCountryName;
-    }
   }
+  RxString selectedCountryName = initialCountryName.obs;
 
-  // Rest of the code remains unchanged
   // Filter countries based on search input
   void filterCountries(String query) {
     if (query.isEmpty) {
@@ -992,7 +1073,7 @@ void showProfileCountrySelectionDialog(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            /// **Header (Title + Close Button)**
+            /// Header
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -1022,7 +1103,7 @@ void showProfileCountrySelectionDialog(
             ),
             SizedBox(height: 16.h),
 
-            /// **Search Field**
+            /// Search Field
             TextField(
               controller: searchController,
               decoration: InputDecoration(
@@ -1048,66 +1129,40 @@ void showProfileCountrySelectionDialog(
             ),
             SizedBox(height: 16.h),
 
-            /// **Scrollable Country List**
+            /// Scrollable Country List
             Container(
               height: 240.h,
               child: SingleChildScrollView(
                 child: Obx(
                   () => Column(
-                    children: List.generate(
-                      filteredCountryName.length,
-                      (index) => InkWell(
-                        onTap: () async {
-                          String selectedCountry = filteredCountryName[index];
-                          Navigator.pop(context); // Close country dialog
+                    children: List.generate(filteredCountryName.length, (
+                      index,
+                    ) {
+                      String country = filteredCountryName[index];
+                      bool isSelected = selectedCountryName.value == country;
 
-                          int? selectedId = allCountries[selectedCountry];
-                          if (selectedId != null) {
-                            profileController.countryId = selectedId.toInt();
-                            profileController.selectCountryId.value =
-                                selectedId.toString();
-                            profileController.cityId = 0; // Reset city
-                            profileController.selectedCityId.value =
-                                ''; // Reset selected city ID
-                            cityController.cityList.clear(); // Clear cities
-
-                            // Fetch cities for the selected country
-                            await cityController.fetchCities(selectedId);
-
-                            // Prepare city data for the city dialog
-                            Map<String, int> allCities = {};
-                            List<String> cityName =
-                                cityController.cityList.map<String>((city) {
-                                  allCities[city.name!] = city.id!;
-                                  return city.name!;
-                                }).toList();
-
-                            String? selectedCityName = '';
-
-                            // Show city selection dialog
-                            showProfileCitySelectionDialog(
-                              context,
-                              allCities,
-                              cityName,
-                              selectedCityName,
-                            );
-                          }
+                      return InkWell(
+                        onTap: () {
+                          selectedCountryName.value = country;
                         },
                         child: Padding(
                           padding: EdgeInsets.symmetric(vertical: 12.h),
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              Text(
-                                filteredCountryName[index],
-                                style: TextStyle(
-                                  fontSize: 13.sp,
-                                  fontWeight:
-                                      profileController.countryId ==
-                                              allCountries[filteredCountryName[index]]
-                                          ? FontWeight.bold
-                                          : FontWeight.normal,
-                                  color: Colors.black,
+                              ConstrainedBox(
+                                constraints: BoxConstraints(maxWidth: 200.w),
+                                child: Text(
+                                  country,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    fontSize: 13.sp,
+                                    fontWeight:
+                                        isSelected
+                                            ? FontWeight.bold
+                                            : FontWeight.normal,
+                                    color: Colors.black,
+                                  ),
                                 ),
                               ),
                               Container(
@@ -1120,8 +1175,7 @@ void showProfileCountrySelectionDialog(
                                     width: 2,
                                   ),
                                   color:
-                                      profileController.countryId ==
-                                              allCountries[filteredCountryName[index]]
+                                      isSelected
                                           ? ColorUtils.primaryColor
                                           : Colors.white,
                                 ),
@@ -1129,13 +1183,68 @@ void showProfileCountrySelectionDialog(
                             ],
                           ),
                         ),
-                      ),
-                    ),
+                      );
+                    }),
                   ),
                 ),
               ),
             ),
             SizedBox(height: 20.h),
+
+            /// Submit Button
+            Obx(
+              () => ElevatedButton(
+                onPressed:
+                    selectedCountryName.value.isNotEmpty
+                        ? () async {
+                          int? selectedId =
+                              allCountries[selectedCountryName.value];
+                          if (selectedId != null) {
+                            profileController.countryId = selectedId;
+                            profileController.selectCountryId.value =
+                                selectedId.toString();
+                            profileController.cityId = 0;
+                            profileController.selectedCityId.value = '';
+                            cityController.cityList.clear();
+
+                            await cityController.fetchCities(selectedId);
+
+                            // Prepare cities
+                            Map<String, int> allCities = {};
+                            List<String> cityName =
+                                cityController.cityList.map<String>((city) {
+                                  allCities[city.name!] = city.id!;
+                                  return city.name!;
+                                }).toList();
+
+                            Get.back(); // Close country dialog
+
+                            showProfileCitySelectionDialog(
+                              context,
+                              allCities,
+                              cityName,
+                              '',
+                            );
+                          }
+                        }
+                        : null,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: ColorUtils.primaryColor,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10.r),
+                  ),
+                  minimumSize: Size(double.infinity, 44.h),
+                ),
+                child: Text(
+                  "Submit".tr,
+                  style: TextStyle(
+                    fontSize: 14.sp,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+            ),
           ],
         ),
       ),
@@ -1148,33 +1257,26 @@ void showProfileCitySelectionDialog(
   Map<String, int> allCities,
   List<String> cityName,
   String? selectedCityName, {
-  int? cityId, // Optional parameter for initial city ID
+  int? cityId,
 }) {
   final ProfessionalProfileController profileController = Get.find();
 
-  // Controller for search field
   final TextEditingController searchController = TextEditingController();
   RxList<String> filteredCityName = cityName.obs;
 
-  // Set initial city selection based on cityId if provided
+  // Set initial selected city name from cityId
+  String initialCityName = '';
   if (cityId != null) {
-    profileController.cityId = cityId;
-    profileController.selectedCityId.value = cityId.toString();
-    // Find the city name corresponding to the cityId
-    String? initialCityName =
+    initialCityName =
         allCities.entries
             .firstWhere(
               (entry) => entry.value == cityId,
-              orElse:
-                  () => MapEntry('', 0), // Return a dummy entry if not found
+              orElse: () => MapEntry('', 0),
             )
             .key;
-    if (initialCityName.isNotEmpty) {
-      selectedCityName = initialCityName;
-    }
   }
+  RxString selectedCity = initialCityName.obs;
 
-  // Filter cities based on search input
   void filterCities(String query) {
     if (query.isEmpty) {
       filteredCityName.value = cityName;
@@ -1187,7 +1289,7 @@ void showProfileCitySelectionDialog(
   }
 
   Get.dialog(
-    barrierDismissible: false, // Prevent dismissing by tapping outside
+    barrierDismissible: false,
     Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20.r)),
       child: Container(
@@ -1200,7 +1302,7 @@ void showProfileCitySelectionDialog(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            /// **Header (Title + Close Button)**
+            /// Header
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -1224,9 +1326,7 @@ void showProfileCitySelectionDialog(
                 ),
                 InkWell(
                   onTap: () {
-                    // Check if a city is selected
-                    if (profileController.selectedCityId.value.isEmpty) {
-                      // Show SnackBar if no city is selected
+                    if (selectedCity.value.isEmpty) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
                           content: Text(
@@ -1237,7 +1337,6 @@ void showProfileCitySelectionDialog(
                         ),
                       );
                     } else {
-                      // Close dialog if a city is selected
                       Get.back();
                     }
                   },
@@ -1247,7 +1346,7 @@ void showProfileCitySelectionDialog(
             ),
             SizedBox(height: 16.h),
 
-            /// **Search Field**
+            /// Search Field
             TextField(
               controller: searchController,
               decoration: InputDecoration(
@@ -1269,51 +1368,42 @@ void showProfileCitySelectionDialog(
                   horizontal: 12.w,
                 ),
               ),
-              onChanged: (value) => filterCities(value),
+              onChanged: filterCities,
             ),
             SizedBox(height: 16.h),
 
-            /// **Scrollable City List**
+            /// Scrollable City List
             Container(
               height: 230.h,
               child: SingleChildScrollView(
                 child: Obx(
                   () => Column(
-                    children: List.generate(
-                      filteredCityName.length,
-                      (index) => InkWell(
+                    children: List.generate(filteredCityName.length, (index) {
+                      String city = filteredCityName[index];
+                      bool isSelected = selectedCity.value == city;
+
+                      return InkWell(
                         onTap: () {
-                          String selectedCity = filteredCityName[index];
-                          int? selectedId = allCities[selectedCity];
-                          if (selectedId != null) {
-                            profileController.cityId = selectedId.toInt();
-                            profileController.selectedCityId.value =
-                                selectedId.toString();
-                            print(
-                              'Selected City ID: $selectedId, Selected City Name: $selectedCity',
-                            );
-                            print(
-                              'City ID: ${profileController.cityId}, City Name: ${profileController.selectedCityId.value}',
-                            );
-                            // Close dialog after selecting a city
-                            Navigator.pop(context);
-                          }
+                          selectedCity.value = city;
                         },
                         child: Padding(
                           padding: EdgeInsets.symmetric(vertical: 12.h),
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              Text(
-                                filteredCityName[index],
-                                style: TextStyle(
-                                  fontSize: 13.sp,
-                                  fontWeight:
-                                      profileController.cityId ==
-                                              allCities[filteredCityName[index]]
-                                          ? FontWeight.bold
-                                          : FontWeight.normal,
-                                  color: Colors.black,
+                              ConstrainedBox(
+                                constraints: BoxConstraints(maxWidth: 200.w),
+                                child: Text(
+                                  city,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    fontSize: 13.sp,
+                                    fontWeight:
+                                        isSelected
+                                            ? FontWeight.bold
+                                            : FontWeight.normal,
+                                    color: Colors.black,
+                                  ),
                                 ),
                               ),
                               Container(
@@ -1326,8 +1416,7 @@ void showProfileCitySelectionDialog(
                                     width: 2,
                                   ),
                                   color:
-                                      profileController.cityId ==
-                                              allCities[filteredCityName[index]]
+                                      isSelected
                                           ? ColorUtils.primaryColor
                                           : Colors.white,
                                 ),
@@ -1335,13 +1424,48 @@ void showProfileCitySelectionDialog(
                             ],
                           ),
                         ),
-                      ),
-                    ),
+                      );
+                    }),
                   ),
                 ),
               ),
             ),
             SizedBox(height: 20.h),
+
+            /// Submit Button
+            Obx(
+              () => ElevatedButton(
+                onPressed:
+                    selectedCity.value.isNotEmpty
+                        ? () {
+                          int? selectedId = allCities[selectedCity.value];
+                          if (selectedId != null) {
+                            profileController.cityId = selectedId;
+                            profileController.selectedCityId.value =
+                                selectedId.toString();
+                            print('Selected City ID: $selectedId');
+                            print('Selected City Name: ${selectedCity.value}');
+                            Get.back();
+                          }
+                        }
+                        : null,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: ColorUtils.primaryColor,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10.r),
+                  ),
+                  minimumSize: Size(double.infinity, 44.h),
+                ),
+                child: Text(
+                  "Submit".tr,
+                  style: TextStyle(
+                    fontSize: 14.sp,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+            ),
           ],
         ),
       ),

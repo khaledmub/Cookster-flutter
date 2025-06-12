@@ -177,7 +177,7 @@ class uploadVideoStep3 extends StatelessWidget {
     required String title,
     required Function() onTap,
   }) {
-    final VideoAddController videoAddController = Get.find();
+    // final VideoAddController videoAddController = Get.find();
     return Column(
       children: [
         InkWell(

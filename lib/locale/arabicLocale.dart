@@ -393,6 +393,8 @@ const Map<String, String> ar = {
   "block": "حظر",
   "block_user_description":
       "لن يتم إبلاغهم بأنك قمت بحظرهم. لا يمكن للمستخدمين المحظورين التفاعل مع محتواك",
-  "bad_word_error": "العنوان يحتوي على كلمات غير لائقة"
-
+  "bad_word_error": "العنوان يحتوي على كلمات غير لائقة",
+  "Delete Account": "حذف الحساب",
+  "contact_email_required": "البريد الإلكتروني للتواصل مطلوب",
+  "contact_phone_required": "رقم الهاتف للتواصل مطلوب",
 };
