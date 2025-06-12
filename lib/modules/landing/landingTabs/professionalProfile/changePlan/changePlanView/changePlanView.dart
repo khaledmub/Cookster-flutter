@@ -1,5 +1,5 @@
 import 'dart:convert';
-
+import 'package:intl/intl.dart'; // Added for number formatting
 import 'package:cookster/appUtils/appUtils.dart';
 import 'package:cookster/modules/landing/landingTabs/add/videoAddController/videoAddController.dart';
 import 'package:cookster/modules/landing/landingTabs/professionalProfile/changePlan/changePlanController/changePlanController.dart';
@@ -10,6 +10,7 @@ import 'package:carousel_slider/carousel_slider.dart';
 import 'package:flutter_widget_from_html/flutter_widget_from_html.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:urwaypayment/urwaypayment.dart';
+import 'package:flutter/material.dart' as dir;
 import '../../../../../../appUtils/colorUtils.dart';
 
 class ChangePlanView extends StatefulWidget {
@@ -40,7 +41,16 @@ class _ChangePlanViewState extends State<ChangePlanView> {
   void initState() {
     super.initState();
     _loadLanguage();
-    // Set the default selected package to the middle one after data is fetched
+    // Select the first package by default after data is fetched
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final packages = changePlanController.packagesList.value.packages ?? [];
+      if (packages.isNotEmpty) {
+        changePlanController.selectPackage(packages[0].id!);
+        setState(() {
+          _currentIndex = 0; // Ensure carousel starts at the first item
+        });
+      }
+    });
   }
 
   @override
@@ -60,7 +70,6 @@ class _ChangePlanViewState extends State<ChangePlanView> {
             Container(
               decoration: BoxDecoration(gradient: ColorUtils.goldGradient),
             ),
-
             SafeArea(
               child: SingleChildScrollView(
                 child: Column(
@@ -166,21 +175,20 @@ class _ChangePlanViewState extends State<ChangePlanView> {
                             Map<String, dynamic>? paymentResult =
                                 await initiatePayment(context);
 
-
-
                             if (paymentResult != null &&
                                 paymentResult['success'] == true) {
                               // If payment is successful, then submit the form with payment parameters
                               changePlanController.submitForm(
                                 packageId:
-                                changePlanController.selectedPackageId.value,
+                                    changePlanController
+                                        .selectedPackageId
+                                        .value,
                                 paymentParams: paymentResult['paymentParams'],
                               );
                             } else {
                               // Payment failed, show error message
-                              Get.snackbar("error".tr, "payment_failed".tr);
+                              // Get.snackbar("error".tr, "payment_failed".tr);
                             }
-
                           } else {
                             Get.snackbar(
                               "error".tr,
@@ -196,11 +204,9 @@ class _ChangePlanViewState extends State<ChangePlanView> {
               ),
             ),
             Positioned(
-              // Conditionally set left or right based on language
               left: isRtl ? null : 16,
               right: isRtl ? 16 : null,
               top: 20,
-              // Assuming .h is from a package like flutter_screenutil, replace with 20 if not using it
               child: GestureDetector(
                 behavior: HitTestBehavior.opaque,
                 onTap: () {
@@ -220,7 +226,6 @@ class _ChangePlanViewState extends State<ChangePlanView> {
                   ),
                   child: Center(
                     child: Icon(
-                      // Use right chevron for Arabic, left chevron for English
                       isRtl ? Icons.arrow_back : Icons.arrow_back,
                       color: ColorUtils.darkBrown,
                       size: 24,
@@ -238,8 +243,6 @@ class _ChangePlanViewState extends State<ChangePlanView> {
   Future<Map<String, dynamic>?> initiatePayment(BuildContext context) async {
     try {
       final orderId = "SUB_${DateTime.now().millisecondsSinceEpoch}";
-
-      // Get the selected package amount
       final selectedPackage = changePlanController.packagesList.value.packages!
           .firstWhere(
             (package) =>
@@ -256,7 +259,7 @@ class _ChangePlanViewState extends State<ChangePlanView> {
         trackid: orderId,
         udf1: "",
         udf2: "",
-        udf3: Directionality.of(context) == TextDirection.rtl ? "AR" : "EN",
+        udf3: Directionality.of(context) == dir.TextDirection.rtl ? "AR" : "EN",
         udf4: "",
         udf5: "",
         metadata: '{"orderId":"$orderId","source":"FlutterApp"}',
@@ -306,19 +309,20 @@ class _ChangePlanViewState extends State<ChangePlanView> {
       print("PRINTING ERROR: $e");
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text("payment_error".tr)));
+      ).showSnackBar(SnackBar(content: Text("payment_cancelled".tr)));
       return {'success': false};
     }
   }
 
   Widget _buildPackageCard(dynamic package) {
+    // Create a number formatter for comma-separated numbers
+    final NumberFormat numberFormat = NumberFormat("#,##0", "en_US");
     return Obx(() {
       bool isSelected =
           changePlanController.selectedPackageId.value == package.id;
       return GestureDetector(
         onTap: () {
           changePlanController.selectPackage(package.id);
-          // Update the carousel to center the selected card
           setState(() {
             _currentIndex = changePlanController.packagesList.value.packages!
                 .indexWhere((p) => p.id == package.id);
@@ -375,7 +379,8 @@ class _ChangePlanViewState extends State<ChangePlanView> {
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16.0),
                 child: Text(
-                  '${controller.siteSettings.value!.settings!.currencySymbol} ${package.amount}',
+                  '${controller.siteSettings.value!.settings!.currencySymbol} ${numberFormat.format(package.amount)}',
+                  // Formatted price
                   style: TextStyle(
                     fontSize: 24.sp,
                     fontWeight: FontWeight.w600,

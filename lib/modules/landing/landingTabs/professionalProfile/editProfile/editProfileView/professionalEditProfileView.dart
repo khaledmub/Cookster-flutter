@@ -944,8 +944,8 @@ class _EditProfessionalProfileViewState
                               );
                             }
                           },
-                          btnOkText: 'Confirm',
-                          btnCancelText: 'Cancel',
+                          btnOkText: 'ok'.tr,
+                          btnCancelText: 'cancel'.tr,
                         ).show();
                       },
                       child: Container(

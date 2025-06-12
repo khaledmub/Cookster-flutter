@@ -404,4 +404,5 @@ const Map<String, String> en = {
   "Delete Account": "Delete Account",
   "contact_email_required" : "Contact Email is required",
   "contact_phone_required" : "Contact Phone is required",
+  "payment_cancelled": "Payment cancelled",
 };

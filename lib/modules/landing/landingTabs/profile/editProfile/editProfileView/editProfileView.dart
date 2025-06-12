@@ -858,8 +858,8 @@ class _EditProfileViewState extends State<EditProfileView> {
                               );
                             }
                           },
-                          btnOkText: 'Confirm',
-                          btnCancelText: 'Cancel',
+                          btnOkText: 'ok'.tr,
+                          btnCancelText: 'cancel'.tr,
                         ).show();
                       },
                       child: Container(

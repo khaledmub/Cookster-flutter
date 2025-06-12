@@ -397,4 +397,5 @@ const Map<String, String> ar = {
   "Delete Account": "حذف الحساب",
   "contact_email_required": "البريد الإلكتروني للتواصل مطلوب",
   "contact_phone_required": "رقم الهاتف للتواصل مطلوب",
+  "payment_cancelled": "تم إلغاء الدفع",
 };

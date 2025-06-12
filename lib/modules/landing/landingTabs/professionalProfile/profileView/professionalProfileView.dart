@@ -790,8 +790,8 @@ class _ProfessionalProfileViewState extends State<ProfessionalProfileView>
                                                       ),
                                                     ),
                                                     Positioned(
-                                                      top: 10,
-                                                      right: 0,
+                                                      top: 8.h, // Adjusted for better spacing, using flutter_screenutil for responsiveness
+                                                      right: 8.w, // Adjusted for better spacing
                                                       child: InkWell(
                                                         onTap: () {
                                                           showMoreOptions(
@@ -802,12 +802,30 @@ class _ProfessionalProfileViewState extends State<ProfessionalProfileView>
                                                             video,
                                                           );
                                                         },
-                                                        child: Icon(
-                                                          Icons.more_vert,
-                                                          color: Colors.white,
+                                                        splashColor: Colors.grey.withOpacity(0.3), // Add subtle splash effect for feedback
+                                                        borderRadius: BorderRadius.circular(10.r), // Rounded touch area
+                                                        child: Container(
+                                                          // padding: EdgeInsets.all(6.w), // Larger touch area
+                                                          decoration: BoxDecoration(
+                                                            color: Colors.black.withOpacity(0.6), // Semi-transparent dark background for contrast
+                                                            shape: BoxShape.circle, // Circular shape
+                                                            boxShadow: [
+                                                              BoxShadow(
+                                                                color: Colors.black.withOpacity(0.2), // Subtle shadow for depth
+                                                                blurRadius: 4,
+                                                                offset: Offset(0, 2),
+                                                              ),
+                                                            ],
+                                                          ),
+                                                          child: Icon(
+                                                            Icons.more_vert,
+                                                            color: Colors.white, // Keep white color for icon
+                                                            // size: 20.sp, // Slightly larger icon for visibility, responsive size
+                                                          ),
                                                         ),
                                                       ),
                                                     ),
+
                                                     if (video.sponsorType !=
                                                         null)
                                                       Positioned(

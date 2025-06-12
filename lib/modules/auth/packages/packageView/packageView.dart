@@ -1,5 +1,5 @@
 import 'dart:convert';
-
+import 'package:intl/intl.dart'; // Added for number formatting
 import 'package:cookster/appUtils/appUtils.dart';
 import 'package:cookster/modules/auth/signUp/signUpController/signUpController.dart';
 import 'package:flutter/material.dart';
@@ -10,7 +10,7 @@ import 'package:flutter_widget_from_html/flutter_widget_from_html.dart';
 import 'package:urwaypayment/urwaypayment.dart';
 
 import '../../../../appUtils/colorUtils.dart';
-import '../../signUp/signUpController/signUpController.dart';
+import 'package:flutter/material.dart' as dir;
 
 class PackagesScreen extends StatefulWidget {
   @override
@@ -26,6 +26,16 @@ class _PackagesScreenState extends State<PackagesScreen> {
   @override
   void initState() {
     super.initState();
+    // Select the first package by default
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final packages = signUpController.packagesList.value.packages ?? [];
+      if (packages.isNotEmpty) {
+        signUpController.selectPackage(packages[0].id!);
+        setState(() {
+          _currentIndex = 0; // Ensure carousel starts at the first item
+        });
+      }
+    });
   }
 
   @override
@@ -43,7 +53,6 @@ class _PackagesScreenState extends State<PackagesScreen> {
             Container(
               decoration: BoxDecoration(gradient: ColorUtils.goldGradient),
             ),
-
             SingleChildScrollView(
               child: Column(
                 children: [
@@ -158,11 +167,15 @@ class _PackagesScreenState extends State<PackagesScreen> {
                 ],
               ),
             ),
-
             Positioned(
-              left: Directionality.of(context) == TextDirection.rtl ? null : 16,
+              left:
+                  Directionality.of(context) == dir.TextDirection.rtl
+                      ? null
+                      : 16,
               right:
-                  Directionality.of(context) == TextDirection.rtl ? 16 : null,
+                  Directionality.of(context) == dir.TextDirection.rtl
+                      ? 16
+                      : null,
               top: 20.h,
               child: GestureDetector(
                 behavior: HitTestBehavior.opaque,
@@ -183,7 +196,7 @@ class _PackagesScreenState extends State<PackagesScreen> {
                   ),
                   child: Center(
                     child: Icon(
-                      Directionality.of(context) == TextDirection.rtl
+                      Directionality.of(context) == dir.TextDirection.rtl
                           ? Icons.arrow_back
                           : Icons.arrow_back,
                       color: ColorUtils.darkBrown,
@@ -216,8 +229,6 @@ class _PackagesScreenState extends State<PackagesScreen> {
   Future<Map<String, dynamic>?> initiatePayment(BuildContext context) async {
     try {
       final orderId = "SUB_${DateTime.now().millisecondsSinceEpoch}";
-
-      // Get the selected package amount
       final selectedPackage = signUpController.packagesList.value.packages!
           .firstWhere(
             (package) => package.id == signUpController.selectedPackageId.value,
@@ -233,7 +244,7 @@ class _PackagesScreenState extends State<PackagesScreen> {
         trackid: orderId,
         udf1: "",
         udf2: "",
-        udf3: Directionality.of(context) == TextDirection.rtl ? "AR" : "EN",
+        udf3: Directionality.of(context) == dir.TextDirection.rtl ? "AR" : "EN",
         udf4: "",
         udf5: "",
         metadata: '{"orderId":"$orderId","source":"FlutterApp"}',
@@ -283,19 +294,20 @@ class _PackagesScreenState extends State<PackagesScreen> {
       print("PRINTING ERROR: $e");
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text("payment_error".tr)));
+      ).showSnackBar(SnackBar(content: Text("payment_cancelled".tr)));
       return {'success': false};
     }
   }
 
   Widget _buildPackageCard(dynamic package) {
     final SignUpController signUpController = Get.find<SignUpController>();
+    // Create a number formatter for comma-separated numbers
+    final NumberFormat numberFormat = NumberFormat("#,##0", "en_US");
     return Obx(() {
       bool isSelected = signUpController.selectedPackageId.value == package.id;
       return GestureDetector(
         onTap: () {
           signUpController.selectPackage(package.id);
-          // Update the carousel to center the selected card
           setState(() {
             _currentIndex = signUpController.packagesList.value.packages!
                 .indexWhere((p) => p.id == package.id);
@@ -352,7 +364,8 @@ class _PackagesScreenState extends State<PackagesScreen> {
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16.0),
                 child: Text(
-                  '${signUpController.siteSettings.value!.settings!.currencySymbol} ${package.amount}',
+                  '${signUpController.siteSettings.value!.settings!.currencySymbol} ${numberFormat.format(package.amount)}',
+                  // Formatted price
                   style: TextStyle(
                     fontSize: 24.sp,
                     fontWeight: FontWeight.w600,

@@ -14,7 +14,6 @@ import '../../../profile/profileModel/profileModel.dart';
 class SubscriptionPackageView extends StatefulWidget {
   final Subscription subscription; // Subscription object from UserDetails
 
-
   const SubscriptionPackageView({key, required this.subscription})
       : super(key: key);
 
@@ -35,8 +34,7 @@ class _SubscriptionPackageViewState extends State<SubscriptionPackageView> {
   Future<void> _loadLanguage() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
-      _language =
-          prefs.getString('language') ?? 'en'; // Default to 'en' if not set
+      _language = prefs.getString('language') ?? 'en'; // Default to 'en' if not set
     });
   }
 
@@ -44,7 +42,6 @@ class _SubscriptionPackageViewState extends State<SubscriptionPackageView> {
 
   @override
   void initState() {
-    // TODO: implement initState
     super.initState();
     _loadLanguage();
   }
@@ -52,6 +49,8 @@ class _SubscriptionPackageViewState extends State<SubscriptionPackageView> {
   @override
   Widget build(BuildContext context) {
     bool isRtl = _language == 'ar';
+    // Create a number formatter for comma-separated numbers
+    final NumberFormat numberFormat = NumberFormat("#,##0", "en_US");
 
     return Scaffold(
       appBar: AppBar(
@@ -69,7 +68,6 @@ class _SubscriptionPackageViewState extends State<SubscriptionPackageView> {
             left: isRtl ? null : 16,
             right: isRtl ? 16 : null,
             top: 20,
-            // Assuming .h is from a package like flutter_screenutil, replace with 20 if not using it
             child: GestureDetector(
               behavior: HitTestBehavior.opaque,
               onTap: () {
@@ -89,12 +87,7 @@ class _SubscriptionPackageViewState extends State<SubscriptionPackageView> {
                 ),
                 child: Center(
                   child: Icon(
-                    // Use right chevron for Arabic, left chevron for English
-                    isRtl
-                        ? Icons.arrow_back
-
-                        : Icons.arrow_back
-                    ,
+                    isRtl ? Icons.arrow_back : Icons.arrow_back,
                     color: ColorUtils.darkBrown,
                     size: 24,
                   ),
@@ -102,7 +95,6 @@ class _SubscriptionPackageViewState extends State<SubscriptionPackageView> {
               ),
             ),
           ),
-
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
@@ -118,7 +110,7 @@ class _SubscriptionPackageViewState extends State<SubscriptionPackageView> {
             crossAxisAlignment: CrossAxisAlignment.center,
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              // Card with dynamic height
+              //<Card with dynamic height
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16.0),
                 child: Card(
@@ -162,7 +154,7 @@ class _SubscriptionPackageViewState extends State<SubscriptionPackageView> {
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 16.0),
                         child: Text(
-                          '${controller.siteSettings.value!.settings!.currencySymbol} ${widget.subscription.amount}',
+                          '${controller.siteSettings.value!.settings!.currencySymbol} ${numberFormat.format(widget.subscription.amount)}', // Formatted price
                           style: TextStyle(
                             fontSize: 24.sp,
                             fontWeight: FontWeight.w600,

@@ -257,7 +257,7 @@ class PromoteVideoController extends GetxController {
       print("PRINTING ERROR: $e");
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text("payment_error".tr)));
+      ).showSnackBar(SnackBar(content: Text("payment_cancelled".tr)));
       return false;
     }
   }
