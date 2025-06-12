@@ -1571,7 +1571,7 @@ class _VideoDescriptionWidgetState extends State<VideoDescriptionWidget> {
                       child: Padding(
                         padding: const EdgeInsets.only(top: 4.0),
                         child: Text(
-                          _isExpanded ? "Show Less" : "Show More",
+                          _isExpanded ? "show_less".tr : "show_more".tr,
                           style: TextStyle(
                             color: ColorUtils.primaryColor,
                             fontSize: 12.sp,
