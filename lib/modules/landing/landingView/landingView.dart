@@ -142,7 +142,6 @@ class _LandingState extends State<Landing> {
     ProfessionalProfileController(),
   );
 
-  final LocationController locationController = Get.put(LocationController());
   final UserSearchController searchController = Get.put(UserSearchController());
 
   Future<List<Widget>> _screens(BuildContext context) async {
@@ -179,129 +178,129 @@ class _LandingState extends State<Landing> {
       backgroundColor: Colors.white,
       builder: (context) {
         return SafeArea(
-          child: Padding(
-            padding: EdgeInsets.only(
-              bottom:10,
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  height: 4,
-                  width: 40,
-                  margin: EdgeInsets.only(top: 8, bottom: 12),
-                  decoration: BoxDecoration(
-                    color: Colors.grey[300],
-                    borderRadius: BorderRadius.circular(4),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                height: 4,
+                width: 40,
+                margin: EdgeInsets.only(top: 8, bottom: 12),
+                decoration: BoxDecoration(
+                  color: Colors.grey[300],
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ),
+              Padding(
+                padding: EdgeInsets.only(left: 16, bottom: 8),
+                child: Text(
+                  "video_options".tr,
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black87,
                   ),
                 ),
-                Padding(
-                  padding: EdgeInsets.only(left: 16, bottom: 8),
-                  child: Text(
-                    "video_options".tr,
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black87,
-                    ),
-                  ),
+              ),
+              ListTile(
+                leading: Icon(Icons.videocam, color: Colors.black87),
+                title: Text(
+                  "Select Video or Image".tr,
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
                 ),
-                ListTile(
-                  leading: Icon(Icons.videocam, color: Colors.black87),
-                  title: Text(
-                    "Select Video or Image".tr,
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
-                  ),
-                  onTap: () async {
-                    Navigator.pop(context);
-                    controller.pauseCurrentVideo();
-
-                    try {
-                      // Pick a file from gallery
-                      final XFile? pickedFile = await ImagePicker().pickMedia(
-                        imageQuality: 80,
-                        maxWidth: 1920,
-                        maxHeight: 1080,
-                      );
-
-                      if (pickedFile != null) {
-                        // Determine file type
-                        final fileType = pickedFile.path.toLowerCase();
-
-                        if (fileType.endsWith('.jpg') ||
-                            fileType.endsWith('.jpeg') ||
-                            fileType.endsWith('.png') ||
-                            fileType.endsWith('.webp')) {
-                          // Image selected
-                          await Get.to(
-                                () => ImageEditScreen(imagePath: pickedFile.path),
-                          );
-                        } else if (fileType.endsWith('.mp4') ||
-                            fileType.endsWith('.avi') ||
-                            fileType.endsWith('.mov')) {
-                          // Video selected
-                          await Get.to(
-                                () => VideoTextEditor(videoFile: File(pickedFile.path)),
-                          );
-                        } else {
-                          // Unsupported file type
-                          Get.snackbar(
-                            'Error'.tr,
-                            'Unsupported file type'.tr,
-                            snackPosition: SnackPosition.BOTTOM,
-                            backgroundColor: Colors.red,
-                            colorText: Colors.white,
-                          );
-                        }
+                onTap: () async {
+                  Navigator.pop(context);
+                  controller.pauseCurrentVideo();
+          
+                  try {
+                    // Pick a file from gallery
+                    final XFile? pickedFile = await ImagePicker().pickMedia(
+                      imageQuality: 80,
+                      maxWidth: 1920,
+                      maxHeight: 1080,
+                    );
+          
+                    if (pickedFile != null) {
+                      // Determine file type
+                      final fileType = pickedFile.path.toLowerCase();
+          
+                      if (fileType.endsWith('.jpg') ||
+                          fileType.endsWith('.jpeg') ||
+                          fileType.endsWith('.png') ||
+                          fileType.endsWith('.webp')) {
+                        // Image selected
+                        await Get.to(
+                              () => ImageEditScreen(imagePath: pickedFile.path),
+                        );
+                      } else if (fileType.endsWith('.mp4') ||
+                          fileType.endsWith('.avi') ||
+                          fileType.endsWith('.mov')) {
+                        // Video selected
+                        await Get.to(
+                              () => VideoTextEditor(videoFile: File(pickedFile.path)),
+                        );
+                      } else {
+                        // Unsupported file type
+                        Get.snackbar(
+                          'Error'.tr,
+                          'Unsupported file type'.tr,
+                          snackPosition: SnackPosition.BOTTOM,
+                          backgroundColor: Colors.red,
+                          colorText: Colors.white,
+                        );
                       }
-                    } catch (e) {
-                      // Handle any errors during file picking
-                      Get.snackbar(
-                        'Error'.tr,
-                        'Failed to pick file'.tr,
-                        snackPosition: SnackPosition.BOTTOM,
-                        backgroundColor: Colors.red,
-                        colorText: Colors.white,
-                      );
-                    } finally {
-                      // Restore video state
-                      controller.restoreVideoState();
                     }
-                  },
+                  } catch (e) {
+                    // Handle any errors during file picking
+                    Get.snackbar(
+                      'Error'.tr,
+                      'Failed to pick file'.tr,
+                      snackPosition: SnackPosition.BOTTOM,
+                      backgroundColor: Colors.red,
+                      colorText: Colors.white,
+                    );
+                  } finally {
+                    // Restore video state
+                    controller.restoreVideoState();
+                  }
+                },
+              ),
+              // SizedBox(height: 10),
+              ListTile(
+                leading: Icon(CupertinoIcons.camera, color: Colors.black87),
+                title: Text(
+                  "Capture Video".tr,
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
                 ),
-                ListTile(
-                  leading: Icon(CupertinoIcons.camera, color: Colors.black87),
-                  title: Text(
-                    "Capture Video".tr,
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
-                  ),
-                  onTap: () async {
-                    Navigator.pop(context);
-                    controller.pauseCurrentVideo();
-
-                    // Get available cameras first
-                    final cameras = await availableCameras();
-
-                    Get.to(CameraScreen(cameras: cameras))?.then((_) {
-                      controller.restoreVideoState();
-                    });
-                  },
+                onTap: () async {
+                  Navigator.pop(context);
+                  // controller.handleNavigation();
+                  controller.pauseCurrentVideo();
+          
+                  // Get available cameras first
+                  final cameras = await availableCameras();
+          
+                  Get.to(CameraScreen(cameras: cameras))?.then((_) {
+                    controller.restoreVideoState();
+                  });
+                  // _pickVideo(context, ImageSource.camera);
+                },
+              ),
+              // SizedBox(height: 10),
+              ListTile(
+                leading: Icon(CupertinoIcons.photo, color: Colors.black87),
+                title: Text(
+                  "Capture an Image".tr,
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
                 ),
-                ListTile(
-                  leading: Icon(CupertinoIcons.photo, color: Colors.black87),
-                  title: Text(
-                    "Capture an Image".tr,
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
-                  ),
-                  onTap: () async {
-                    Navigator.pop(context);
-                    _pickImage(context, ImageSource.camera).then((_) {
-                      controller.restoreVideoState();
-                    });
-                  },
-                ),
-              ],
-            ),
+                onTap: () async {
+                  Navigator.pop(context);
+                  // controller.handleNavigation();
+                  _pickImage(context, ImageSource.camera).then((_) {
+                    controller.restoreVideoState();
+                  });
+                },
+              ),
+            ],
           ),
         );
       },
@@ -357,255 +356,128 @@ class _LandingState extends State<Landing> {
   Widget build(BuildContext context) {
     return Obx(() {
       return PopScope(
-        canPop: false, // Prevent default pop until custom logic is applied
+        canPop: false,
         onPopInvoked: (didPop) async {
-          // If didPop is true, the pop action was already performed, so skip
           if (didPop) return;
 
-          // If not on home screen (index 0), navigate to home
           if (navBarController.selectedIndex.value != 0) {
             navBarController.changeTab(0);
             controller.restoreVideoState();
-            // No need to call Navigator.pop here; canPop: false handles it
           } else {
-            // Show exit confirmation dialog
             final shouldPop = await _showExitConfirmationDialog(context);
             if (shouldPop) {
-              // Explicitly exit the app if the user confirms
               SystemNavigator.pop();
             }
           }
         },
-        child: AnnotatedRegion<SystemUiOverlayStyle>(
-          value: SystemUiOverlayStyle(
-            statusBarColor:
-                navBarController.selectedIndex.value == 0
-                    ? Colors.black.withOpacity(0.4)
-                    : Colors.white,
-            statusBarIconBrightness:
-                navBarController.selectedIndex.value == 0
-                    ? Brightness.light
-                    : Brightness.dark,
-            statusBarBrightness:
-                navBarController.selectedIndex.value == 0
-                    ? Brightness.dark
-                    : Brightness.light,
+        child:
+        profileController.isLoading.value ||
+            professionalProfileController.isLoading.value
+            ? Scaffold(
+          body: Center(
+            child: PulseLogoLoader(
+              logoPath: "assets/images/appIconC.png",
+            ),
           ),
-          child: SafeArea(
-            child:
-                profileController.isLoading.value ||
-                        professionalProfileController.isLoading.value
-                    ? Scaffold(
-                      body: Center(
-                        child: PulseLogoLoader(
-                          logoPath: "assets/images/appIconC.png",
-                        ),
-                      ),
-                    )
-                    : Scaffold(
-                      resizeToAvoidBottomInset: false,
-                      floatingActionButton: InkWell(
-                        onTap: () {
-                          if (professionalProfileController.userDetails.value !=
-                                  null &&
-                              professionalProfileController
-                                      .userDetails
-                                      .value!
-                                      .subscription !=
-                                  null &&
-                              professionalProfileController
-                                      .userDetails
-                                      .value!
-                                      .subscription!
-                                      .endDate !=
-                                  null) {
-                            try {
-                              DateTime endDate = DateTime.parse(
-                                professionalProfileController
-                                    .userDetails
-                                    .value!
-                                    .subscription!
-                                    .endDate!,
-                              );
-                              if (endDate.isAfter(DateTime.now())) {
-                                _showVideoOptions(context);
-                              } else {
-                                showExpiredPackageDialog(
-                                  context,
-                                ); // Show dialog instead of _showVideoOptions
-                              }
-                            } catch (e) {
-                              print("Invalid date format: $e");
-                              showExpiredPackageDialog(context);
-                            }
-                          } else {
-                            _showVideoOptions(context);
-                          }
-                        },
-                        child: Container(
-                          margin: EdgeInsets.only(bottom: 10, right: 0),
-                          padding: EdgeInsets.all(15),
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: ColorUtils.primaryColor,
-                            boxShadow: [
-                              BoxShadow(
-                                color: ColorUtils.primaryColor,
-                                blurRadius: 10,
-                                spreadRadius: 2,
-                              ),
-                            ],
-                          ),
-                          child: SvgPicture.asset(
-                            "assets/icons/add.svg",
-                            fit: BoxFit.cover,
-                            color: ColorUtils.darkBrown,
-                          ),
-                        ),
-                      ),
-                      floatingActionButtonLocation:
-                          FloatingActionButtonLocation.centerDocked,
-                      body: FutureBuilder<List<Widget>>(
-                        future: _screens(context),
-                        builder: (context, snapshot) {
-                          if (snapshot.connectionState ==
-                              ConnectionState.waiting) {
-                            return Center(
-                              child: PulseLogoLoader(
-                                logoPath: "assets/images/appIcon.png",
-                                size: 80,
-                              ),
-                            );
-                          } else if (snapshot.hasError) {
-                            return Center(child: Text("Error loading screens"));
-                          } else {
-                            return Stack(
-                              clipBehavior: Clip.none,
-                              children: [
-                                // Main content
-                                Obx(
-                                  () =>
-                                      snapshot.data![navBarController
-                                          .selectedIndex
-                                          .value],
-                                ),
+        )
+            : Scaffold(
+          resizeToAvoidBottomInset: false,
+          body: FutureBuilder<List<Widget>>(
+            future: _screens(context),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return Center(
+                  child: PulseLogoLoader(
+                    logoPath: "assets/images/appIcon.png",
+                    size: 80,
+                  ),
+                );
+              } else if (snapshot.hasError) {
+                return Center(child: Text("Error loading screens"));
+              } else {
+                return Obx(() {
+                  return Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      // Main content - Remove the inner Obx here
+                      snapshot.data![navBarController
+                          .selectedIndex
+                          .value],
 
-                                // Bottom Navigation Bar
-                                Positioned(
-                                  bottom: 0,
-                                  left: 0,
-                                  right: 0,
-                                  child: ClipRect(
-                                    // Use ClipRect to limit the blur effect
-                                    child: BackdropFilter(
-                                      filter: ImageFilter.blur(
-                                        sigmaX: 10.0,
-                                        sigmaY: 10.0,
-                                      ),
-                                      child: Container(
-                                        width: Get.width,
-                                        height: 60.h,
-                                        decoration: BoxDecoration(
-                                          color:
-                                              navBarController
-                                                          .selectedIndex
-                                                          .value ==
-                                                      0
-                                                  ? Colors.black.withOpacity(
-                                                    0.15,
-                                                  ) // Slightly black for visibility
-                                                  : Colors.white,
-                                          border: Border(
-                                            top: BorderSide(
-                                              color: Colors.grey.withOpacity(
-                                                0.2,
-                                              ),
-                                              width: 0.5,
-                                            ),
-                                          ),
-                                        ),
-                                        child: Padding(
-                                          padding: const EdgeInsets.symmetric(
-                                            vertical: 8.0,
-                                          ),
-                                          child: Row(
-                                            mainAxisAlignment:
-                                                MainAxisAlignment.spaceAround,
-                                            children: [
-                                              _buildNavItem(
-                                                svgIcon:
-                                                    'assets/icons/home.svg',
-                                                selectedSvgIcon:
-                                                    'assets/icons/homeFilled.svg',
-                                                label: 'Home',
-                                                index: 0,
-                                                isSelected:
-                                                    navBarController
-                                                        .selectedIndex
-                                                        .value ==
-                                                    0,
-                                                context: context,
-                                              ),
-                                              _buildNavItem(
-                                                svgIcon:
-                                                    'assets/icons/chat.svg',
-                                                selectedSvgIcon:
-                                                    'assets/icons/chatFilled.svg',
-                                                label: 'Discover'.tr,
-                                                index: 1,
-                                                isSelected:
-                                                    navBarController
-                                                        .selectedIndex
-                                                        .value ==
-                                                    1,
-                                                context: context,
-                                              ),
-                                              SizedBox(width: 55.w),
-                                              _buildNavItem(
-                                                svgIcon:
-                                                    'assets/icons/notificaion.svg',
-                                                selectedSvgIcon:
-                                                    'assets/icons/notificationFilled.svg',
-                                                label: 'Notifications',
-                                                index: 2,
-                                                isSelected:
-                                                    navBarController
-                                                        .selectedIndex
-                                                        .value ==
-                                                    2,
-                                                context: context,
-                                              ),
-                                              _buildNavItem(
-                                                svgIcon:
-                                                    'assets/icons/profile.svg',
-                                                selectedSvgIcon:
-                                                    'assets/icons/userFilled.svg',
-                                                label: 'Profile',
-                                                index: 3,
-                                                isSelected:
-                                                    navBarController
-                                                        .selectedIndex
-                                                        .value ==
-                                                    3,
-                                                context: context,
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            );
-                          }
-                        },
+                      // Bottom Navigation Bar
+                      Positioned(
+                        bottom: 0,
+                        left: 0,
+                        right: 0,
+                        child: _buildBottomNavBar(context),
                       ),
-                    ),
+                    ],
+                  );
+                });
+              }
+            },
           ),
         ),
       );
     });
+  }
+
+  Widget _buildBottomNavBar(BuildContext context) {
+    return ClipRect(
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 10.0, sigmaY: 10.0),
+        child: Container(
+          width: Get.width,
+          height: 60.h,
+          decoration: BoxDecoration(
+            color:
+            navBarController.selectedIndex.value == 0
+                ? Colors.black.withOpacity(0.15)
+                : Colors.white,
+            border: Border(
+              top: BorderSide(color: Colors.grey.withOpacity(0.2), width: 0.5),
+            ),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8.0),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                _buildNavItem(
+                  svgIcon: 'assets/icons/home.svg',
+                  selectedSvgIcon: 'assets/icons/homeFilled.svg',
+                  label: 'Home',
+                  index: 0,
+                  context: context,
+                ),
+                _buildNavItem(
+                  svgIcon: 'assets/icons/chat.svg',
+                  selectedSvgIcon: 'assets/icons/chatFilled.svg',
+                  label: 'Discover'.tr,
+                  index: 1,
+                  context: context,
+                ),
+                _buildAddButton(context),
+                _buildNavItem(
+                  svgIcon: 'assets/icons/notificaion.svg',
+                  selectedSvgIcon: 'assets/icons/notificationFilled.svg',
+                  label: 'Notifications',
+                  index: 2,
+                  context: context,
+                ),
+                _buildNavItem(
+                  svgIcon: 'assets/icons/profile.svg',
+                  selectedSvgIcon: 'assets/icons/userFilled.svg',
+                  label: 'Profile',
+                  index: 3,
+                  context: context,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   Widget _buildNavItem({
@@ -613,9 +485,12 @@ class _LandingState extends State<Landing> {
     required String selectedSvgIcon,
     required String label,
     required int index,
-    required bool isSelected,
     required BuildContext context,
   }) {
+    // Calculate isSelected here for better reactivity
+    final isSelected = navBarController.selectedIndex.value == index;
+    final isHomeTab = navBarController.selectedIndex.value == 0;
+
     return InkWell(
       onTap: () {
         if (navBarController.selectedIndex.value == 0 && index != 0) {
@@ -624,7 +499,6 @@ class _LandingState extends State<Landing> {
           controller.restoreVideoState();
         }
         controller.pauseCurrentVideo();
-
         navBarController.changeTab(index);
       },
       child: Column(
@@ -634,18 +508,16 @@ class _LandingState extends State<Landing> {
             padding: EdgeInsets.symmetric(horizontal: 16, vertical: 6),
             decoration: BoxDecoration(
               color:
-                  isSelected
-                      ? ColorUtils.primaryColor.withOpacity(0.3)
-                      : Colors.transparent,
+              isSelected
+                  ? ColorUtils.primaryColor.withOpacity(0.3)
+                  : Colors.transparent,
               borderRadius: BorderRadius.circular(20),
             ),
             child: SvgPicture.asset(
               isSelected ? selectedSvgIcon : svgIcon,
               height: 16.h,
               colorFilter: ColorFilter.mode(
-                navBarController.selectedIndex.value == 0
-                    ? (isSelected ? ColorUtils.primaryColor : Colors.white)
-                    : (isSelected ? ColorUtils.primaryColor : ColorUtils.grey),
+                _getIconColor(isSelected, isHomeTab),
                 BlendMode.srcIn,
               ),
             ),
@@ -655,16 +527,83 @@ class _LandingState extends State<Landing> {
             label.tr,
             style: TextStyle(
               fontSize: 12.sp,
-              color:
-                  navBarController.selectedIndex.value == 0
-                      ? (isSelected ? Colors.white : Colors.white)
-                      : (isSelected
-                          ? ColorUtils.primaryColor
-                          : ColorUtils.grey),
+              color: _getTextColor(isSelected, isHomeTab),
               fontWeight: isSelected ? FontWeight.w500 : FontWeight.w300,
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Color _getIconColor(bool isSelected, bool isHomeTab) {
+    if (isHomeTab) {
+      return isSelected ? ColorUtils.primaryColor : Colors.white;
+    } else {
+      return isSelected ? ColorUtils.primaryColor : ColorUtils.grey;
+    }
+  }
+
+  Color _getTextColor(bool isSelected, bool isHomeTab) {
+    if (isHomeTab) {
+      return Colors.white; // Always white on home tab
+    } else {
+      return isSelected ? ColorUtils.primaryColor : ColorUtils.grey;
+    }
+  }
+
+  Widget _buildAddButton(BuildContext context) {
+    return InkWell(
+      onTap: () {
+        if (professionalProfileController.userDetails.value != null &&
+            professionalProfileController.userDetails.value!.subscription !=
+                null &&
+            professionalProfileController
+                .userDetails
+                .value!
+                .subscription!
+                .endDate !=
+                null) {
+          try {
+            DateTime endDate = DateTime.parse(
+              professionalProfileController
+                  .userDetails
+                  .value!
+                  .subscription!
+                  .endDate!,
+            );
+            if (endDate.isAfter(DateTime.now())) {
+              _showVideoOptions(context);
+            } else {
+              showExpiredPackageDialog(context);
+            }
+          } catch (e) {
+            print("Invalid date format: $e");
+            showExpiredPackageDialog(context);
+          }
+        } else {
+          _showVideoOptions(context);
+        }
+      },
+      child: Container(
+        margin: EdgeInsets.only(bottom: 10, right: 0),
+        padding: EdgeInsets.all(15),
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: ColorUtils.primaryColor,
+          boxShadow: [
+            BoxShadow(
+              color: ColorUtils.primaryColor,
+              blurRadius: 10,
+              spreadRadius: 2,
+            ),
+          ],
+        ),
+        child: SvgPicture.asset(
+          "assets/icons/add.svg",
+          fit: BoxFit.contain,
+          color: ColorUtils.darkBrown,
+        ),
       ),
     );
   }

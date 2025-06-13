@@ -352,7 +352,7 @@ const Map<String, String> en = {
   "recent_searches": "Recent Searches",
   "unfollowed": "Unfollowed",
   "does_not_change_anything": "Does not change anything!",
-  "months": "Months",
+  "months": "Month/s",
   "personal": "Personal",
   "no_internet": "Server Not Responding",
   "no_internet_description":

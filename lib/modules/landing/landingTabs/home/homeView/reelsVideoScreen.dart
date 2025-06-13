@@ -56,7 +56,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
   );
   final ProfileController profileController = Get.find();
   final ProfessionalProfileController professionalProfileController =
-      Get.find();
+  Get.find();
 
   final SaveController saveController = Get.find();
 
@@ -133,7 +133,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
     if (controller.currentIndex.value >= 0 &&
         controller.currentIndex.value < controller.chewieControllers.length) {
       final currentChewieController =
-          controller.chewieControllers[controller.currentIndex.value];
+      controller.chewieControllers[controller.currentIndex.value];
       if (currentChewieController != null &&
           currentChewieController.videoPlayerController.value.isInitialized) {
         // Save the current position
@@ -220,16 +220,16 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                 Align(
                   alignment: Alignment.topCenter,
                   child: Obx(
-                    () => Container(
-                      margin: EdgeInsets.only(top: 16),
+                        () => Container(
+                      margin: EdgeInsets.only(top: 40),
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           if (promoteVideoController
-                                  .siteSettings
-                                  .value!
-                                  .settings!
-                                  .allowGeneralVideos ==
+                              .siteSettings
+                              .value!
+                              .settings!
+                              .allowGeneralVideos ==
                               1)
                             GestureDetector(
                               onTap: () async {
@@ -261,13 +261,13 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                                     ),
                                   ],
                                   color:
-                                      controller.selectedType.value == "General"
-                                          ? Colors.white
-                                          : Colors.white.withOpacity(0.5),
+                                  controller.selectedType.value == "General"
+                                      ? Colors.white
+                                      : Colors.white.withOpacity(0.5),
                                   fontWeight:
-                                      controller.selectedType.value == "General"
-                                          ? FontWeight.w500
-                                          : FontWeight.w300,
+                                  controller.selectedType.value == "General"
+                                      ? FontWeight.w500
+                                      : FontWeight.w300,
                                   fontSize: 18,
                                 ),
                               ),
@@ -303,23 +303,23 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                                   ),
                                 ],
                                 color:
-                                    controller.selectedType.value == "Near Me"
-                                        ? Colors.white
-                                        : Colors.white.withOpacity(0.5),
+                                controller.selectedType.value == "Near Me"
+                                    ? Colors.white
+                                    : Colors.white.withOpacity(0.5),
                                 fontWeight:
-                                    controller.selectedType.value == "Near Me"
-                                        ? FontWeight.w500
-                                        : FontWeight.w300,
+                                controller.selectedType.value == "Near Me"
+                                    ? FontWeight.w500
+                                    : FontWeight.w300,
                                 fontSize: 18,
                               ),
                             ),
                           ),
                           SizedBox(width: 16),
                           if (promoteVideoController
-                                  .siteSettings
-                                  .value!
-                                  .settings!
-                                  .allowFollowingVideos ==
+                              .siteSettings
+                              .value!
+                              .settings!
+                              .allowFollowingVideos ==
                               1)
                             GestureDetector(
                               onTap: () async {
@@ -351,15 +351,15 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                                     ),
                                   ],
                                   color:
-                                      controller.selectedType.value ==
-                                              "Following"
-                                          ? Colors.white
-                                          : Colors.white.withOpacity(0.5),
+                                  controller.selectedType.value ==
+                                      "Following"
+                                      ? Colors.white
+                                      : Colors.white.withOpacity(0.5),
                                   fontWeight:
-                                      controller.selectedType.value ==
-                                              "Following"
-                                          ? FontWeight.w500
-                                          : FontWeight.w300,
+                                  controller.selectedType.value ==
+                                      "Following"
+                                      ? FontWeight.w500
+                                      : FontWeight.w300,
                                   fontSize: 18,
                                 ),
                               ),
@@ -413,12 +413,12 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                                 // controller.pauseCurrentVideo();
                                 // _handleScreenExit();
                                 Get.to(
-                                  () => SearchView(
+                                      () => SearchView(
                                     isGeneral:
-                                        controller.selectedType.value ==
-                                                "General"
-                                            ? 1
-                                            : 0,
+                                    controller.selectedType.value ==
+                                        "General"
+                                        ? 1
+                                        : 0,
                                   ),
                                 )?.then((_) {
                                   controller.restoreVideoState();
@@ -483,10 +483,10 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                   var chewieController = controller.chewieControllers[index];
                   bool isInitialized =
                       chewieController != null &&
-                      chewieController
-                          .videoPlayerController
-                          .value
-                          .isInitialized;
+                          chewieController
+                              .videoPlayerController
+                              .value
+                              .isInitialized;
 
                   return Stack(
                     clipBehavior: Clip.none,
@@ -500,24 +500,24 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                             children: [
                               Center(
                                 child:
-                                    isInitialized
-                                        ? Chewie(controller: chewieController)
-                                        : Container(
-                                          width:
-                                              MediaQuery.of(context).size.width,
-                                          height:
-                                              MediaQuery.of(
-                                                context,
-                                              ).size.height,
-                                          color: Colors.black,
-                                          child: Center(
-                                            child: PulseLogoLoader(
-                                              logoPath:
-                                                  "assets/images/appIcon.png",
-                                              size: 80,
-                                            ),
-                                          ),
-                                        ),
+                                isInitialized
+                                    ? Chewie(controller: chewieController)
+                                    : Container(
+                                  width:
+                                  MediaQuery.of(context).size.width,
+                                  height:
+                                  MediaQuery.of(
+                                    context,
+                                  ).size.height,
+                                  color: Colors.black,
+                                  child: Center(
+                                    child: PulseLogoLoader(
+                                      logoPath:
+                                      "assets/images/appIcon.png",
+                                      size: 80,
+                                    ),
+                                  ),
+                                ),
                               ),
                               if (_showIcon &&
                                   isInitialized &&
@@ -546,7 +546,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                                   child: StreamBuilder<Duration>(
                                     stream: Stream.periodic(
                                       Duration(milliseconds: 100),
-                                      (_) {
+                                          (_) {
                                         return chewieController
                                             .videoPlayerController
                                             .value
@@ -561,16 +561,16 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                                               .videoPlayerController
                                               .value
                                               .duration ??
-                                          Duration.zero;
+                                              Duration.zero;
                                       return SliderTheme(
                                         data: SliderThemeData(),
                                         child: Slider(
                                           value: position.inSeconds.toDouble(),
                                           max:
-                                              duration.inSeconds > 0
-                                                  ? duration.inSeconds
-                                                      .toDouble()
-                                                  : 1.0,
+                                          duration.inSeconds > 0
+                                              ? duration.inSeconds
+                                              .toDouble()
+                                              : 1.0,
                                           onChanged: (value) {
                                             chewieController.seekTo(
                                               Duration(seconds: value.toInt()),
@@ -589,28 +589,28 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                         ),
                       ),
                       Obx(
-                        () =>
-                            controller.isMuted.value
-                                ? Positioned(
-                                  top: 100,
-                                  right: 20,
-                                  child: InkWell(
-                                    onTap: controller.toggleMute,
-                                    child: Container(
-                                      padding: EdgeInsets.all(8),
-                                      decoration: BoxDecoration(
-                                        color: Colors.black.withOpacity(0.6),
-                                        borderRadius: BorderRadius.circular(20),
-                                      ),
-                                      child: Icon(
-                                        Icons.volume_off,
-                                        color: Colors.white,
-                                        size: 24.sp,
-                                      ),
-                                    ),
-                                  ),
-                                )
-                                : SizedBox(),
+                            () =>
+                        controller.isMuted.value
+                            ? Positioned(
+                          top: 100,
+                          right: 20,
+                          child: InkWell(
+                            onTap: controller.toggleMute,
+                            child: Container(
+                              padding: EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: Colors.black.withOpacity(0.6),
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Icon(
+                                Icons.volume_off,
+                                color: Colors.white,
+                                size: 24.sp,
+                              ),
+                            ),
+                          ),
+                        )
+                            : SizedBox(),
                       ),
                       VideoDescriptionWidget(
                         title: videoDetail.title,
@@ -621,7 +621,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                       videoUserDetails(
                         profileController: profileController,
                         professionalProfileController:
-                            professionalProfileController,
+                        professionalProfileController,
                         videoDetail: videoDetail,
                         controller: controller,
                         userId: userId,
@@ -640,16 +640,16 @@ class _VideoReelScreenState extends State<VideoReelScreen>
               Align(
                 alignment: Alignment.topCenter,
                 child: Obx(
-                  () => Container(
-                    margin: EdgeInsets.only(top: 16),
+                      () => Container(
+                    margin: EdgeInsets.only(top: 40),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         if (promoteVideoController
-                                .siteSettings
-                                .value!
-                                .settings!
-                                .allowGeneralVideos ==
+                            .siteSettings
+                            .value!
+                            .settings!
+                            .allowGeneralVideos ==
                             1)
                           GestureDetector(
                             onTap: () async {
@@ -684,13 +684,13 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                                     ),
                                   ],
                                   color:
-                                      controller.selectedType.value == "General"
-                                          ? Colors.white
-                                          : Colors.white.withOpacity(0.5),
+                                  controller.selectedType.value == "General"
+                                      ? Colors.white
+                                      : Colors.white.withOpacity(0.5),
                                   fontWeight:
-                                      controller.selectedType.value == "General"
-                                          ? FontWeight.w500
-                                          : FontWeight.w300,
+                                  controller.selectedType.value == "General"
+                                      ? FontWeight.w500
+                                      : FontWeight.w300,
                                   fontSize: 18,
                                 ),
                               ),
@@ -728,13 +728,13 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                               ],
 
                               color:
-                                  controller.selectedType.value == "Near Me"
-                                      ? Colors.white
-                                      : Colors.white.withOpacity(0.5),
+                              controller.selectedType.value == "Near Me"
+                                  ? Colors.white
+                                  : Colors.white.withOpacity(0.5),
                               fontWeight:
-                                  controller.selectedType.value == "Near Me"
-                                      ? FontWeight.w500
-                                      : FontWeight.w300,
+                              controller.selectedType.value == "Near Me"
+                                  ? FontWeight.w500
+                                  : FontWeight.w300,
                               fontSize: 18,
                             ),
                           ),
@@ -742,10 +742,10 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                         SizedBox(width: 8),
 
                         if (promoteVideoController
-                                .siteSettings
-                                .value!
-                                .settings!
-                                .allowFollowingVideos ==
+                            .siteSettings
+                            .value!
+                            .settings!
+                            .allowFollowingVideos ==
                             1)
                           Padding(
                             padding: const EdgeInsets.only(right: 16.0),
@@ -779,15 +779,15 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                                     ),
                                   ],
                                   color:
-                                      controller.selectedType.value ==
-                                              "Following"
-                                          ? Colors.white
-                                          : Colors.white.withOpacity(0.5),
+                                  controller.selectedType.value ==
+                                      "Following"
+                                      ? Colors.white
+                                      : Colors.white.withOpacity(0.5),
                                   fontWeight:
-                                      controller.selectedType.value ==
-                                              "Following"
-                                          ? FontWeight.w500
-                                          : FontWeight.w300,
+                                  controller.selectedType.value ==
+                                      "Following"
+                                      ? FontWeight.w500
+                                      : FontWeight.w300,
                                   fontSize: 18,
                                 ),
                               ),
@@ -800,7 +800,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
               ),
 
               Positioned(
-                top: Get.height * 0.05,
+                top: Get.height * 0.12,
                 right: isRtl ? null : 16,
                 left: isRtl ? 16 : null,
                 child: Row(
@@ -810,15 +810,15 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                         controller.pauseCurrentVideo();
                         // _handleScreenExit();
                         Get.to(
-                          () => SearchView(
+                              () => SearchView(
                             isGeneral:
-                                controller.selectedType.value == "General"
-                                    ? 1
-                                    : 0,
+                            controller.selectedType.value == "General"
+                                ? 1
+                                : 0,
                             isFollowing:
-                                controller.selectedType.value == "Following"
-                                    ? 1
-                                    : 0,
+                            controller.selectedType.value == "Following"
+                                ? 1
+                                : 0,
                           ),
                         )?.then((_) {
                           controller.restoreVideoState();
@@ -942,7 +942,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                           Icon(Icons.location_on_outlined),
                           SizedBox(width: 10),
                           Obx(
-                            () => Text(
+                                () => Text(
                               controller.currentCountry.value == ""
                                   ? 'Select Country'.tr
                                   : controller.currentCountry.value,
@@ -973,7 +973,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                           Icon(Icons.location_on_outlined),
                           SizedBox(width: 10),
                           Obx(
-                            () => Text(
+                                () => Text(
                               controller.currentCity.value == ""
                                   ? 'Select City'.tr
                                   : controller.currentCity.value,
@@ -996,9 +996,9 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                         controller.currentCity.value == ""
                             ? null
                             : controller.fetchVideos(
-                              city: controller.currentCity.value,
-                              country: controller.currentCountry.value,
-                            );
+                          city: controller.currentCity.value,
+                          country: controller.currentCountry.value,
+                        );
                       },
                     ),
                   ],
@@ -1018,24 +1018,24 @@ class _VideoReelScreenState extends State<VideoReelScreen>
         .collection('reviews')
         .snapshots()
         .map((snapshot) {
-          if (snapshot.docs.isEmpty) return 0.0;
-          double totalRating = 0.0;
-          for (var doc in snapshot.docs) {
-            totalRating += (doc['rating'] as num?)?.toDouble() ?? 0.0;
-          }
+      if (snapshot.docs.isEmpty) return 0.0;
+      double totalRating = 0.0;
+      for (var doc in snapshot.docs) {
+        totalRating += (doc['rating'] as num?)?.toDouble() ?? 0.0;
+      }
 
-          rateVideo(videoId, totalRating / snapshot.docs.length);
-          return totalRating / snapshot.docs.length;
-        });
+      rateVideo(videoId, totalRating / snapshot.docs.length);
+      return totalRating / snapshot.docs.length;
+    });
   }
 
   /// Video widgets with details
   Positioned videoActions(
-    WallVideos videoDetail,
-    SimpleUser? currentUserDetails,
-    User? currentUser,
-    BuildContext context,
-  ) {
+      WallVideos videoDetail,
+      SimpleUser? currentUserDetails,
+      User? currentUser,
+      BuildContext context,
+      ) {
     return Positioned(
       right: 10,
       bottom: Get.height * 0.13,
@@ -1058,10 +1058,10 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                   ),
                   child: StreamBuilder<DocumentSnapshot>(
                     stream:
-                        FirebaseFirestore.instance
-                            .collection('videos')
-                            .doc(videoDetail.id)
-                            .snapshots(),
+                    FirebaseFirestore.instance
+                        .collection('videos')
+                        .doc(videoDetail.id)
+                        .snapshots(),
                     builder: (context, snapshot) {
                       final data =
                           snapshot.data?.data() as Map<String, dynamic>? ?? {};
@@ -1074,25 +1074,25 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                       bool isLiked = likes.contains(userId);
 
                       String formattedLikeCount =
-                          likeCount > 1000
-                              ? '${(likeCount / 1000).toStringAsFixed(1)}K'
-                              : likeCount.toString();
+                      likeCount > 1000
+                          ? '${(likeCount / 1000).toStringAsFixed(1)}K'
+                          : likeCount.toString();
 
                       // Fetch the comment count from the comments subcollection
                       return StreamBuilder<QuerySnapshot>(
                         stream:
-                            FirebaseFirestore.instance
-                                .collection('videos')
-                                .doc(videoDetail.id)
-                                .collection('comments')
-                                .snapshots(),
+                        FirebaseFirestore.instance
+                            .collection('videos')
+                            .doc(videoDetail.id)
+                            .collection('comments')
+                            .snapshots(),
                         builder: (context, commentSnapshot) {
                           int commentCount =
                               commentSnapshot.data?.docs.length ?? 0;
                           String formattedCommentCount =
-                              commentCount > 1000
-                                  ? '${(commentCount / 1000).toStringAsFixed(1)}K'
-                                  : commentCount.toString();
+                          commentCount > 1000
+                              ? '${(commentCount / 1000).toStringAsFixed(1)}K'
+                              : commentCount.toString();
 
                           return Column(
                             mainAxisSize: MainAxisSize.min,
@@ -1103,7 +1103,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                                   final String videoId = videoDetail.id!;
                                   String userId =
                                       currentUserDetails?.id ??
-                                      currentUser!.id!;
+                                          currentUser!.id!;
                                   HapticFeedback.lightImpact();
 
                                   // Optimistic UI update
@@ -1146,11 +1146,11 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                                     controller.pauseCurrentVideo();
                                     String? userId =
                                         currentUserDetails?.id ??
-                                        currentUser!.id;
+                                            currentUser!.id;
                                     String? userImage =
                                         currentUserDetails?.image ??
-                                        currentUser?.image ??
-                                        "";
+                                            currentUser?.image ??
+                                            "";
                                     showCommentsBottomSheetNew(
                                       context,
                                       videoDetail.id!,
@@ -1191,7 +1191,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
 
                               if (videoDetail.takeOrder == 1 &&
                                   (videoDetail.contactPhone?.isNotEmpty ==
-                                          true ||
+                                      true ||
                                       videoDetail.contactEmail?.isNotEmpty ==
                                           true ||
                                       videoDetail.latitude?.isNotEmpty == true))
@@ -1208,7 +1208,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                                     InkWell(
                                       onTap: () {
                                         final businessId =
-                                            videoDetail.frontUserId.toString();
+                                        videoDetail.frontUserId.toString();
                                         final firestore =
                                             FirebaseFirestore.instance;
                                         final docRef = firestore
@@ -1216,14 +1216,14 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                                             .doc(videoDetail.id);
 
                                         firestore.runTransaction((
-                                          transaction,
-                                        ) async {
+                                            transaction,
+                                            ) async {
                                           final docSnapshot = await transaction
                                               .get(docRef);
                                           if (!docSnapshot.exists) {
                                             transaction.set(docRef, {
                                               'businessId':
-                                                  videoDetail.frontUserId,
+                                              videoDetail.frontUserId,
                                               'videoId': videoDetail.id,
                                               'totalClicks': 1,
                                               'userIds': [
@@ -1240,11 +1240,11 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                                             )) {
                                               transaction.update(docRef, {
                                                 'totalClicks':
-                                                    FieldValue.increment(1),
+                                                FieldValue.increment(1),
                                                 'userIds':
-                                                    FieldValue.arrayUnion([
-                                                      currentUserDetails.id,
-                                                    ]),
+                                                FieldValue.arrayUnion([
+                                                  currentUserDetails.id,
+                                                ]),
                                               });
                                             }
                                           }
@@ -1255,10 +1255,10 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                                           context,
                                           website: videoDetail.website ?? "",
                                           phoneNumber:
-                                              videoDetail.contactPhone ?? "",
+                                          videoDetail.contactPhone ?? "",
                                           latitude: videoDetail.latitude ?? "",
                                           longitude:
-                                              videoDetail.longitude ?? "",
+                                          videoDetail.longitude ?? "",
                                           email: videoDetail.contactEmail ?? "",
                                           videoId: videoDetail.id.toString(),
                                         );
@@ -1315,8 +1315,8 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                               currentUserDetails?.id ?? currentUser!.id;
                           String? userImage =
                               currentUserDetails?.image ??
-                              currentUser?.image ??
-                              "";
+                                  currentUser?.image ??
+                                  "";
                           showReviewsBottomSheet(
                             context,
                             videoDetail.id!,
@@ -1339,9 +1339,9 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                               stream: _getAverageRating(videoDetail.id!),
                               builder: (context, snapshot) {
                                 final averageRating =
-                                    snapshot.hasData && snapshot.data! > 0
-                                        ? snapshot.data!.toStringAsFixed(1)
-                                        : "0.0";
+                                snapshot.hasData && snapshot.data! > 0
+                                    ? snapshot.data!.toStringAsFixed(1)
+                                    : "0.0";
                                 return Text(
                                   averageRating,
                                   style: TextStyle(
@@ -1365,10 +1365,10 @@ class _VideoReelScreenState extends State<VideoReelScreen>
 
   // Helper method for static buttons to avoid rebuilding
   Widget _buildStaticButtons(
-    WallVideos videoDetail,
-    String loggedInUserId,
-    BuildContext context,
-  ) {
+      WallVideos videoDetail,
+      String loggedInUserId,
+      BuildContext context,
+      ) {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -1398,59 +1398,59 @@ class _VideoReelScreenState extends State<VideoReelScreen>
         // Save Button
         videoDetail.sponsorType == null
             ? Obx(() {
-              // Check if video is already saved
-              bool isSaved = saveController.savedVideos.any(
+          // Check if video is already saved
+          bool isSaved = saveController.savedVideos.any(
                 (video) => video.id.toString() == videoDetail.id,
-              );
+          );
 
-              return Column(
-                children: [
-                  SizedBox(height: 8),
+          return Column(
+            children: [
+              SizedBox(height: 8),
 
-                  InkWell(
-                    onTap: () async {
-                      if (isSaved) {
-                        // 1. Immediately remove from local list
-                        saveController.savedVideos.removeWhere(
+              InkWell(
+                onTap: () async {
+                  if (isSaved) {
+                    // 1. Immediately remove from local list
+                    saveController.savedVideos.removeWhere(
                           (video) =>
-                              video.id.toString() == videoDetail.id.toString(),
-                        );
+                      video.id.toString() == videoDetail.id.toString(),
+                    );
 
-                        // 2. Then hit API
-                        await saveController.saveVideo(videoDetail.id!);
-                      } else {
-                        // 1. Immediately add to local list
-                        saveController.savedVideos.add(
-                          SavedVideos(
-                            id: videoDetail.id,
-                            title: videoDetail.title,
-                            // Add other fields if needed, or just id is fine for now
-                          ),
-                        );
-
-                        // 2. Then hit API
-                        await saveController.saveVideo(videoDetail.id!);
-                      }
-                    },
-                    child: SizedBox(
-                      height: 20.h,
-                      width: 20.h,
-                      child: SvgPicture.asset(
-                        "assets/icons/bookmark.svg",
-                        fit: BoxFit.fill,
-                        color: isSaved ? ColorUtils.primaryColor : Colors.white,
+                    // 2. Then hit API
+                    await saveController.saveVideo(videoDetail.id!);
+                  } else {
+                    // 1. Immediately add to local list
+                    saveController.savedVideos.add(
+                      SavedVideos(
+                        id: videoDetail.id,
+                        title: videoDetail.title,
+                        // Add other fields if needed, or just id is fine for now
                       ),
-                    ),
+                    );
+
+                    // 2. Then hit API
+                    await saveController.saveVideo(videoDetail.id!);
+                  }
+                },
+                child: SizedBox(
+                  height: 20.h,
+                  width: 20.h,
+                  child: SvgPicture.asset(
+                    "assets/icons/bookmark.svg",
+                    fit: BoxFit.fill,
+                    color: isSaved ? ColorUtils.primaryColor : Colors.white,
                   ),
-                  const SizedBox(height: 2),
-                  Text(
-                    "Save".tr,
-                    style: TextStyle(color: Colors.white, fontSize: 10.sp),
-                  ),
-                  SizedBox(height: 8),
-                ],
-              );
-            })
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                "Save".tr,
+                style: TextStyle(color: Colors.white, fontSize: 10.sp),
+              ),
+              SizedBox(height: 8),
+            ],
+          );
+        })
             : SizedBox.shrink(),
 
         // SizedBox(height: 16),
@@ -1515,10 +1515,10 @@ class _VideoReelScreenState extends State<VideoReelScreen>
   }
 
   void _showMoreOptions(
-    BuildContext context,
-    String videoId,
-    String frontUserId,
-  ) {
+      BuildContext context,
+      String videoId,
+      String frontUserId,
+      ) {
     // _handleScreenExit();
     // controller.pauseCurrentVideo();
     showModalBottomSheet(
@@ -1605,7 +1605,7 @@ class videoUserDetails extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Positioned(
-      top: Get.height * 0.05,
+      top: Get.height * 0.12,
       // left: 10,
       child: SizedBox(
         width: Get.width * 1,
@@ -1614,7 +1614,7 @@ class videoUserDetails extends StatelessWidget {
             Container(
               constraints: BoxConstraints(
                 maxWidth:
-                    Get.width * 0.72, // Maximum width for the entire container
+                Get.width * 0.72, // Maximum width for the entire container
               ),
               decoration: BoxDecoration(
                 color: Colors.transparent, // Transparent to show blur
@@ -1638,13 +1638,13 @@ class videoUserDetails extends StatelessWidget {
                           professionalProfileController.userDetails.value?.user;
                       bool isProfileNull = currentUser == null;
                       bool isFollowing =
-                          isProfileNull
-                              ? profileController.isFollowing(
-                                videoDetail.frontUserId!,
-                              )
-                              : professionalProfileController.isFollowing(
-                                videoDetail.frontUserId!,
-                              );
+                      isProfileNull
+                          ? profileController.isFollowing(
+                        videoDetail.frontUserId!,
+                      )
+                          : professionalProfileController.isFollowing(
+                        videoDetail.frontUserId!,
+                      );
 
                       return Row(
                         mainAxisSize: MainAxisSize.min,
@@ -1671,22 +1671,22 @@ class videoUserDetails extends StatelessWidget {
                                   child: CircleAvatar(
                                     radius: 16.r,
                                     backgroundImage:
-                                        videoDetail.userImage != null &&
-                                                videoDetail
-                                                    .userImage!
-                                                    .isNotEmpty
-                                            ? CachedNetworkImageProvider(
-                                              '${Common.profileImage}/${videoDetail.userImage}',
-                                            )
-                                            : null,
+                                    videoDetail.userImage != null &&
+                                        videoDetail
+                                            .userImage!
+                                            .isNotEmpty
+                                        ? CachedNetworkImageProvider(
+                                      '${Common.profileImage}/${videoDetail.userImage}',
+                                    )
+                                        : null,
                                     child:
-                                        videoDetail.userImage == null ||
-                                                videoDetail.userImage!.isEmpty
-                                            ? Icon(
-                                              Icons.person,
-                                              color: Colors.white,
-                                            )
-                                            : null,
+                                    videoDetail.userImage == null ||
+                                        videoDetail.userImage!.isEmpty
+                                        ? Icon(
+                                      Icons.person,
+                                      color: Colors.white,
+                                    )
+                                        : null,
                                   ),
                                 ),
                                 SizedBox(width: 8),
@@ -1696,7 +1696,7 @@ class videoUserDetails extends StatelessWidget {
                                     Container(
                                       constraints: BoxConstraints(
                                         maxWidth:
-                                            Get.width *
+                                        Get.width *
                                             0.3, // Max width for username
                                       ),
                                       child: Text(
@@ -1706,27 +1706,27 @@ class videoUserDetails extends StatelessWidget {
                                           fontWeight: FontWeight.bold,
                                         ),
                                         overflow:
-                                            TextOverflow
-                                                .ellipsis, // Ellipsis for overflow
+                                        TextOverflow
+                                            .ellipsis, // Ellipsis for overflow
                                       ),
                                     ),
                                     videoDetail.sponsorType != null
                                         ? Text(
-                                          "Sponsored",
-                                          style: TextStyle(
-                                            color: Colors.white,
-                                            fontSize: 10.sp,
-                                            fontWeight: FontWeight.w400,
-                                          ),
-                                        )
+                                      "Sponsored",
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 10.sp,
+                                        fontWeight: FontWeight.w400,
+                                      ),
+                                    )
                                         : Text(
-                                          "${videoDetail.followersCount} ${"Followers".tr}",
-                                          style: TextStyle(
-                                            color: Colors.white,
-                                            fontSize: 10.sp,
-                                            fontWeight: FontWeight.w400,
-                                          ),
-                                        ),
+                                      "${videoDetail.followersCount} ${"Followers".tr}",
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 10.sp,
+                                        fontWeight: FontWeight.w400,
+                                      ),
+                                    ),
                                   ],
                                 ),
                               ],
@@ -1748,8 +1748,8 @@ class videoUserDetails extends StatelessWidget {
                                 } else {
                                   await professionalProfileController
                                       .toggleFollowStatus(
-                                        videoDetail.frontUserId!,
-                                      );
+                                    videoDetail.frontUserId!,
+                                  );
                                 }
 
                                 // Update the follower count based on the action
@@ -1773,7 +1773,7 @@ class videoUserDetails extends StatelessWidget {
                                   borderRadius: BorderRadius.circular(6),
                                   border: Border.all(color: Colors.white),
                                   color:
-                                      isFollowing ? Colors.white : Colors.black,
+                                  isFollowing ? Colors.white : Colors.black,
                                 ),
                                 child: Center(
                                   child: Text(
@@ -1781,9 +1781,9 @@ class videoUserDetails extends StatelessWidget {
                                     style: TextStyle(
                                       fontWeight: FontWeight.w500,
                                       color:
-                                          isFollowing
-                                              ? Colors.black
-                                              : Colors.white,
+                                      isFollowing
+                                          ? Colors.black
+                                          : Colors.white,
                                     ),
                                   ),
                                 ),
@@ -1803,77 +1803,77 @@ class videoUserDetails extends StatelessWidget {
   }
 }
 
-// class videoTitleEtc extends StatelessWidget {
-//   const videoTitleEtc({super.key, required this.videoDetail});
-//
-//   final WallVideos videoDetail;
-//
-//   @override
-//   Widget build(BuildContext context) {
-//     return Positioned(
-//       bottom: Get.height * 0.13,
-//       left: 10,
-//       child: Container(
-//         width: Get.width * 0.75,
-//         child: Column(
-//           crossAxisAlignment: CrossAxisAlignment.start,
-//           children: [
-//             if (videoDetail.title != null && videoDetail.title!.isNotEmpty)
-//               Text(
-//                 videoDetail.title!,
-//                 style: TextStyle(
-//                   color: Colors.white,
-//                   fontWeight: FontWeight.bold,
-//                   fontSize: 16.sp,
-//                 ),
-//                 maxLines: 1,
-//                 overflow: TextOverflow.ellipsis,
-//               ),
-//             if (videoDetail.description != null &&
-//                 videoDetail.description!.isNotEmpty)
-//               Text(
-//                 videoDetail.description!,
-//                 style: TextStyle(color: Colors.white, fontSize: 14.sp),
-//                 maxLines: 1,
-//                 overflow: TextOverflow.ellipsis,
-//               ),
-//             if (videoDetail.tags != null && videoDetail.tags!.isNotEmpty)
-//               Wrap(
-//                 spacing: 6,
-//                 children:
-//                     videoDetail.tags!.split(',').map((tag) {
-//                       final trimmedTag = tag.trim();
-//                       return GestureDetector(
-//                         onTap: () {
-//                           print("hello");
-//                           Get.to(HashTagReels(tag: trimmedTag));
-//                           // Replace with your actual navigation logic
-//                         },
-//                         child: Text(
-//                           "#$trimmedTag",
-//                           style: TextStyle(
-//                             color: ColorUtils.primaryColor,
-//                             fontSize: 14.sp,
-//                           ),
-//                           overflow: TextOverflow.ellipsis,
-//                         ),
-//                       );
-//                     }).toList(),
-//               )
-//             else
-//               Text(
-//                 "#",
-//                 style: TextStyle(
-//                   color: ColorUtils.primaryColor,
-//                   fontSize: 12.sp,
-//                 ),
-//               ),
-//           ],
-//         ),
-//       ),
-//     );
-//   }
-// }
+class videoTitleEtc extends StatelessWidget {
+  const videoTitleEtc({super.key, required this.videoDetail});
+
+  final WallVideos videoDetail;
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned(
+      bottom: Get.height * 0.13,
+      left: 10,
+      child: Container(
+        width: Get.width * 0.75,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (videoDetail.title != null && videoDetail.title!.isNotEmpty)
+              Text(
+                videoDetail.title!,
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16.sp,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            if (videoDetail.description != null &&
+                videoDetail.description!.isNotEmpty)
+              Text(
+                videoDetail.description!,
+                style: TextStyle(color: Colors.white, fontSize: 14.sp),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            if (videoDetail.tags != null && videoDetail.tags!.isNotEmpty)
+              Wrap(
+                spacing: 6,
+                children:
+                videoDetail.tags!.split(',').map((tag) {
+                  final trimmedTag = tag.trim();
+                  return GestureDetector(
+                    onTap: () {
+                      print("hello");
+                      Get.to(HashTagReels(tag: trimmedTag));
+                      // Replace with your actual navigation logic
+                    },
+                    child: Text(
+                      "#$trimmedTag",
+                      style: TextStyle(
+                        color: ColorUtils.primaryColor,
+                        fontSize: 14.sp,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  );
+                }).toList(),
+              )
+            else
+              Text(
+                "#",
+                style: TextStyle(
+                  color: ColorUtils.primaryColor,
+                  fontSize: 12.sp,
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
 
 void showLocationDialog(BuildContext context) {
   final HomeController homeController = Get.find();
@@ -1884,19 +1884,14 @@ void showLocationDialog(BuildContext context) {
 
   Map<String, int> countryMap = {};
   List<String> countryName =
-      profileController.videoUploadSettings.value!.countries!.map((country) {
-        countryMap[country.name!] = country.id!;
-        return country.name!;
-      }).toList();
+  profileController.videoUploadSettings.value!.countries!.map((country) {
+    countryMap[country.name!] = country.id!;
+    return country.name!;
+  }).toList();
 
   // Controller for search field
   final TextEditingController searchController = TextEditingController();
   RxList<String> filteredCountryName = countryName.obs;
-  RxString selectedCountryName =
-      (controller.selectedCountry.value.isNotEmpty
-              ? controller.selectedCountry.value
-              : '')
-          .obs;
 
   // Filter countries based on search input
   void filterCountries(String query) {
@@ -1907,8 +1902,8 @@ void showLocationDialog(BuildContext context) {
           countryName
               .where(
                 (country) =>
-                    country.toLowerCase().contains(query.toLowerCase()),
-              )
+                country.toLowerCase().contains(query.toLowerCase()),
+          )
               .toList();
     }
   }
@@ -1980,35 +1975,46 @@ void showLocationDialog(BuildContext context) {
               height: 240.h,
               child: SingleChildScrollView(
                 child: Obx(
-                  () => Column(
-                    children: List.generate(filteredCountryName.length, (
-                      index,
-                    ) {
-                      String country = filteredCountryName[index];
-                      bool isSelected = selectedCountryName.value == country;
+                      () => Column(
+                    children: List.generate(
+                      filteredCountryName.length,
+                          (index) => InkWell(
+                        onTap: () async {
+                          try {
+                            controller.selectLocation(
+                              filteredCountryName[index],
+                              countryMap[filteredCountryName[index]]!,
+                            );
+                            searchUpdateController.currentCountry.value =
+                            filteredCountryName[index];
 
-                      return InkWell(
-                        onTap: () {
-                          selectedCountryName.value = country;
+                            await cityController.fetchCities(
+                              countryMap[filteredCountryName[index]]!,
+                            );
+                            homeController.currentCountry.value =
+                            filteredCountryName[index];
+                            Get.back(); // Close the country dialog
+                            showCityDialog(context);
+                          } catch (e) {
+                            print('Error selecting country: $e');
+                            Get.snackbar('Error', 'Failed to load cities');
+                          }
                         },
                         child: Padding(
                           padding: EdgeInsets.symmetric(vertical: 12.h),
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              ConstrainedBox(
-                                constraints: BoxConstraints(maxWidth: 200.w),
-                                child: Text(
-                                  country,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    fontSize: 13.sp,
-                                    fontWeight:
-                                        isSelected
-                                            ? FontWeight.bold
-                                            : FontWeight.normal,
-                                    color: Colors.black,
-                                  ),
+                              Text(
+                                filteredCountryName[index],
+                                style: TextStyle(
+                                  fontSize: 13.sp,
+                                  fontWeight:
+                                  controller.selectedCountry.value ==
+                                      filteredCountryName[index]
+                                      ? FontWeight.bold
+                                      : FontWeight.normal,
+                                  color: Colors.black,
                                 ),
                               ),
                               Container(
@@ -2021,67 +2027,22 @@ void showLocationDialog(BuildContext context) {
                                     width: 2,
                                   ),
                                   color:
-                                      isSelected
-                                          ? ColorUtils.primaryColor
-                                          : Colors.white,
+                                  controller.selectedCountry.value ==
+                                      filteredCountryName[index]
+                                      ? ColorUtils.primaryColor
+                                      : Colors.white,
                                 ),
                               ),
                             ],
                           ),
                         ),
-                      );
-                    }),
+                      ),
+                    ),
                   ),
                 ),
               ),
             ),
             SizedBox(height: 20.h),
-
-            /// **Submit Button**
-            Obx(
-              () => ElevatedButton(
-                onPressed:
-                    selectedCountryName.value.isNotEmpty
-                        ? () async {
-                          try {
-                            int? selectedId =
-                                countryMap[selectedCountryName.value];
-                            if (selectedId != null) {
-                              controller.selectLocation(
-                                selectedCountryName.value,
-                                selectedId,
-                              );
-                              searchUpdateController.currentCountry.value =
-                                  selectedCountryName.value;
-                              homeController.currentCountry.value =
-                                  selectedCountryName.value;
-                              await cityController.fetchCities(selectedId);
-                              Get.back(); // Close the country dialog
-                              showCityDialog(context);
-                            }
-                          } catch (e) {
-                            print('Error selecting country: $e');
-                            Get.snackbar('Error', 'Failed to load cities');
-                          }
-                        }
-                        : null,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: ColorUtils.primaryColor,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10.r),
-                  ),
-                  minimumSize: Size(double.infinity, 44.h),
-                ),
-                child: Text(
-                  "Submit".tr,
-                  style: TextStyle(
-                    fontSize: 14.sp,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.white,
-                  ),
-                ),
-              ),
-            ),
           ],
         ),
       ),
@@ -2097,19 +2058,14 @@ void showCityDialog(BuildContext context, {int? initialCity}) {
 
   Map<String, int> cityMap = {};
   List<String> cityName =
-      cityController.cityList.map((city) {
-        cityMap[city.name!] = city.id!;
-        return city.name!;
-      }).toList();
+  cityController.cityList.map((city) {
+    cityMap[city.name!] = city.id!;
+    return city.name!;
+  }).toList();
 
   // Controller for search field
   final TextEditingController searchController = TextEditingController();
   RxList<String> filteredCityName = cityName.obs;
-  RxString selectedCityName =
-      (controller.selectedCity.value.isNotEmpty
-              ? controller.selectedCity.value
-              : '')
-          .obs;
 
   // Set initial selected city based on initialCity parameter
   if (initialCity != null && cityMap.containsValue(initialCity)) {
@@ -2117,11 +2073,13 @@ void showCityDialog(BuildContext context, {int? initialCity}) {
         cityMap.entries
             .firstWhere(
               (entry) => entry.value == initialCity,
-              orElse: () => MapEntry('', -1),
-            )
+          orElse: () => MapEntry('', -1),
+        )
             .key;
     if (initialCityName.isNotEmpty) {
-      selectedCityName.value = initialCityName;
+      controller.selectedCity.value = initialCityName;
+      homeController.currentCity.value = initialCityName;
+      searchUpdateController.currentCity.value = initialCityName;
     }
   }
 
@@ -2140,197 +2098,157 @@ void showCityDialog(BuildContext context, {int? initialCity}) {
   Get.dialog(
     Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20.r)),
-      child: Obx(
-        () => Container(
-          width: 350.w,
-          padding: EdgeInsets.all(16.w),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(20.r),
-          ),
-          child:
-              cityController.isLoading.value
-                  ? Center(child: CircularProgressIndicator())
-                  : Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      /// **Header (Title + Close Button)**
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Row(
+      child: Container(
+        width: 350.w,
+        padding: EdgeInsets.all(16.w),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20.r),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            /// **Header (Title + Close Button)**
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.location_on, color: Colors.black),
+                    SizedBox(width: 8.w),
+                    Text(
+                      "select_city_label".tr,
+                      style: TextStyle(
+                        fontSize: 18.sp,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black,
+                      ),
+                    ),
+                  ],
+                ),
+                InkWell(
+                  onTap: () => Get.back(),
+                  child: Icon(Icons.close, color: Colors.grey),
+                ),
+              ],
+            ),
+            SizedBox(height: 16.h),
+
+            /// **Search Field**
+            TextField(
+              controller: searchController,
+              decoration: InputDecoration(
+                hintText: 'search_city_placeholder'.tr,
+                prefixIcon: Icon(Icons.search, color: Colors.grey),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10.r),
+                  borderSide: BorderSide(color: Colors.grey),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10.r),
+                  borderSide: BorderSide(color: ColorUtils.primaryColor),
+                ),
+                contentPadding: EdgeInsets.symmetric(
+                  vertical: 10.h,
+                  horizontal: 12.w,
+                ),
+              ),
+              onChanged: (value) => filterCities(value),
+            ),
+            SizedBox(height: 16.h),
+
+            /// **Scrollable Location List**
+            Container(
+              height: 230.h,
+              child: SingleChildScrollView(
+                child: Obx(
+                      () => Column(
+                    children: List.generate(
+                      filteredCityName.length,
+                          (index) => InkWell(
+                        onTap: () async {
+                          try {
+                            print(
+                              "Selected City: ${filteredCityName[index]} (ID: ${cityMap[filteredCityName[index]]})",
+                            );
+
+                            homeController.currentCity.value =
+                            filteredCityName[index];
+                            homeController.currentCityId.value =
+                                cityMap[filteredCityName[index]].toString();
+
+                            searchUpdateController.currentCity.value =
+                            filteredCityName[index];
+
+                            controller.selectedCity.value =
+                            filteredCityName[index];
+
+                            print(
+                              "Current City: ${homeController.currentCity.value}",
+                            );
+
+                            // homeController.fetchVideos(
+                            //   city: filteredCityName[index],
+                            //   // cityMap[filteredCityName[index]]!,
+                            // );
+                            // await homeController.fetchVideos(
+                            //   city: filteredCityName[index],
+                            // );
+                            Get.back(); // Close the city dialog
+                          } catch (e) {
+                            print('Error selecting city: $e');
+                            Get.snackbar('Error', 'Failed to fetch videos');
+                          }
+                        },
+                        child: Padding(
+                          padding: EdgeInsets.symmetric(vertical: 12.h),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              Icon(Icons.location_on, color: Colors.black),
-                              SizedBox(width: 8.w),
                               Text(
-                                "select_city_label".tr,
+                                filteredCityName[index],
                                 style: TextStyle(
-                                  fontSize: 18.sp,
-                                  fontWeight: FontWeight.bold,
+                                  fontSize: 13.sp,
+                                  fontWeight:
+                                  controller.selectedCity.value ==
+                                      filteredCityName[index]
+                                      ? FontWeight.bold
+                                      : FontWeight.normal,
                                   color: Colors.black,
+                                ),
+                              ),
+                              Container(
+                                width: 20.w,
+                                height: 20.w,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  border: Border.all(
+                                    color: ColorUtils.primaryColor,
+                                    width: 2,
+                                  ),
+                                  color:
+                                  controller.selectedCity.value ==
+                                      filteredCityName[index]
+                                      ? ColorUtils.primaryColor
+                                      : Colors.white,
                                 ),
                               ),
                             ],
                           ),
-                          InkWell(
-                            onTap: () => Get.back(),
-                            child: Icon(Icons.close, color: Colors.grey),
-                          ),
-                        ],
-                      ),
-                      SizedBox(height: 16.h),
-
-                      /// **Search Field**
-                      TextField(
-                        controller: searchController,
-                        decoration: InputDecoration(
-                          hintText: 'search_city_placeholder'.tr,
-                          prefixIcon: Icon(Icons.search, color: Colors.grey),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(10.r),
-                            borderSide: BorderSide(color: Colors.grey),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(10.r),
-                            borderSide: BorderSide(
-                              color: ColorUtils.primaryColor,
-                            ),
-                          ),
-                          contentPadding: EdgeInsets.symmetric(
-                            vertical: 10.h,
-                            horizontal: 12.w,
-                          ),
-                        ),
-                        onChanged: (value) => filterCities(value),
-                      ),
-                      SizedBox(height: 16.h),
-
-                      /// **Scrollable Location List**
-                      Container(
-                        height: 230.h,
-                        child: SingleChildScrollView(
-                          child: Obx(
-                            () => Column(
-                              children: List.generate(filteredCityName.length, (
-                                index,
-                              ) {
-                                String city = filteredCityName[index];
-                                bool isSelected =
-                                    selectedCityName.value == city;
-
-                                return InkWell(
-                                  onTap: () {
-                                    selectedCityName.value = city;
-                                  },
-                                  child: Padding(
-                                    padding: EdgeInsets.symmetric(
-                                      vertical: 12.h,
-                                    ),
-                                    child: Row(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.spaceBetween,
-                                      children: [
-                                        ConstrainedBox(
-                                          constraints: BoxConstraints(
-                                            maxWidth: 200.w,
-                                          ),
-                                          child: Text(
-                                            city,
-                                            overflow: TextOverflow.ellipsis,
-                                            style: TextStyle(
-                                              fontSize: 13.sp,
-                                              fontWeight:
-                                                  isSelected
-                                                      ? FontWeight.bold
-                                                      : FontWeight.normal,
-                                              color: Colors.black,
-                                            ),
-                                          ),
-                                        ),
-                                        Container(
-                                          width: 20.w,
-                                          height: 20.w,
-                                          decoration: BoxDecoration(
-                                            shape: BoxShape.circle,
-                                            border: Border.all(
-                                              color: ColorUtils.primaryColor,
-                                              width: 2,
-                                            ),
-                                            color:
-                                                isSelected
-                                                    ? ColorUtils.primaryColor
-                                                    : Colors.white,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                );
-                              }),
-                            ),
-                          ),
                         ),
                       ),
-                      SizedBox(height: 20.h),
-
-                      /// **Submit Button**
-                      Obx(
-                        () => ElevatedButton(
-                          onPressed:
-                              selectedCityName.value.isNotEmpty
-                                  ? () async {
-                                    try {
-                                      int? selectedId =
-                                          cityMap[selectedCityName.value];
-                                      if (selectedId != null) {
-                                        print(
-                                          "Selected City: ${selectedCityName.value} (ID: $selectedId)",
-                                        );
-                                        homeController.currentCity.value =
-                                            selectedCityName.value;
-                                        homeController.currentCityId.value =
-                                            selectedId.toString();
-                                        searchUpdateController
-                                            .currentCity
-                                            .value = selectedCityName.value;
-                                        controller.selectedCity.value =
-                                            selectedCityName.value;
-                                        Get.back(); // Close the city dialog
-                                      }
-                                    } catch (e) {
-                                      print('Error selecting city: $e');
-                                      Get.snackbar(
-                                        'Error',
-                                        'Failed to select city',
-                                      );
-                                    }
-                                  }
-                                  : null,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: ColorUtils.primaryColor,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10.r),
-                            ),
-                            minimumSize: Size(double.infinity, 44.h),
-                          ),
-                          child: Text(
-                            "Submit".tr,
-                            style: TextStyle(
-                              fontSize: 14.sp,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.white,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
+                ),
+              ),
+            ),
+            SizedBox(height: 20.h),
+          ],
         ),
       ),
     ),
   );
 }
-
 class VideoDescriptionWidget extends StatefulWidget {
   final String? title;
   final String? description;
@@ -2460,9 +2378,9 @@ class _VideoDescriptionWidgetState extends State<VideoDescriptionWidget>
                         style: TextStyle(color: Colors.white, fontSize: 14.sp),
                         maxLines: _isExpanded ? null : 1,
                         overflow:
-                            _isExpanded
-                                ? TextOverflow.visible
-                                : TextOverflow.ellipsis,
+                        _isExpanded
+                            ? TextOverflow.visible
+                            : TextOverflow.ellipsis,
                       ),
                     ),
                   ),
@@ -2505,27 +2423,27 @@ class _VideoDescriptionWidgetState extends State<VideoDescriptionWidget>
                         spacing: 8.w,
                         runSpacing: 4.h,
                         children:
-                            widget.tags!.split(',').map((tag) {
-                              final trimmedTag = tag.trim();
-                              return InkWell(
-                                onTap: () {
-                                  Get.to(
+                        widget.tags!.split(',').map((tag) {
+                          final trimmedTag = tag.trim();
+                          return InkWell(
+                            onTap: () {
+                              Get.to(
                                     () => SearchView(
-                                      tag: trimmedTag,
-                                      isFollowing: 1,
-                                    ),
-                                  ); // Pass the tapped tag
-                                  //
-                                },
-                                child: Text(
-                                  '#$trimmedTag',
-                                  style: TextStyle(
-                                    color: ColorUtils.primaryColor,
-                                    fontSize: 12.sp,
-                                  ),
+                                  tag: trimmedTag,
+                                  isFollowing: 1,
                                 ),
-                              );
-                            }).toList(),
+                              ); // Pass the tapped tag
+                              //
+                            },
+                            child: Text(
+                              '#$trimmedTag',
+                              style: TextStyle(
+                                color: ColorUtils.primaryColor,
+                                fontSize: 12.sp,
+                              ),
+                            ),
+                          );
+                        }).toList(),
                       ),
                     ),
                   ),

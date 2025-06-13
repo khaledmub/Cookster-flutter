@@ -14,7 +14,7 @@ class NearestBusinessScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final LocationController controller = Get.find();
+    final LocationController controller = Get.put(LocationController());
 
     return Scaffold(
       body: Stack(

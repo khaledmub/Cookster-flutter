@@ -81,6 +81,7 @@ class _NotificationsState extends State<Notifications> {
             ),
             // Scrollable Notification List
             Expanded(child: UpdatesList()),
+            SizedBox(height: 50),
           ],
         ),
       ),
@@ -92,7 +93,7 @@ class UpdatesList extends StatelessWidget {
   UpdatesList({Key? key}) : super(key: key);
 
   final NotificationController notificationController =
-      Get.find<NotificationController>();
+  Get.find<NotificationController>();
 
   @override
   Widget build(BuildContext context) {
@@ -106,10 +107,10 @@ class UpdatesList extends StatelessWidget {
 
       // Show message if no notifications
       if (notificationController
-              .notificationData
-              .value
-              .notifications
-              ?.isEmpty ??
+          .notificationData
+          .value
+          .notifications
+          ?.isEmpty ??
           true) {
         return Center(child: Text("No notifications available".tr));
       }
@@ -118,18 +119,18 @@ class UpdatesList extends StatelessWidget {
       return ListView.separated(
         padding: const EdgeInsets.only(top: 16),
         itemCount:
-            notificationController
-                .notificationData
-                .value
-                .notifications
-                ?.length ??
+        notificationController
+            .notificationData
+            .value
+            .notifications
+            ?.length ??
             0,
         itemBuilder: (context, index) {
           final notification =
-              notificationController
-                  .notificationData
-                  .value
-                  .notifications![index];
+          notificationController
+              .notificationData
+              .value
+              .notifications![index];
           return ListTile(
             leading: CircleAvatar(
               backgroundColor: ColorUtils.primaryColor,
