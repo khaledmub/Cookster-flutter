@@ -2431,7 +2431,8 @@ class _VideoDescriptionWidgetState extends State<VideoDescriptionWidget>
                                   Get.to(
                                         () => SearchView(
                                       tag: trimmedTag,
-                                      isFollowing: 1,
+                                      // isFollowing: 1,
+                                          isGeneral: 1,
                                     ),
                                   );
                                 },

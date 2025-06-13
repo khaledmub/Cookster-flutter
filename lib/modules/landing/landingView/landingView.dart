@@ -586,7 +586,7 @@ class _LandingState extends State<Landing> {
         }
       },
       child: Container(
-        margin: EdgeInsets.only(bottom: 10, right: 0),
+        margin: EdgeInsets.only(bottom: 10, right: 0, left: 20),
         padding: EdgeInsets.all(15),
         decoration: BoxDecoration(
           shape: BoxShape.circle,

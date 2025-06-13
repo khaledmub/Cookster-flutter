@@ -23,7 +23,7 @@ class PromoteVideoView extends StatefulWidget {
 
 class _PromoteVideoViewState extends State<PromoteVideoView> {
   final PromoteVideoController controller = Get.find();
-  final SignUpController signUpController = Get.find();
+  final SignUpController signUpController = Get.put(SignUpController());
   final CityController cityController = Get.put(CityController());
   String _language = 'en'; // Default to English
   // Load language from SharedPreferences
