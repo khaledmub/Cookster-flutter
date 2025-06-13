@@ -138,7 +138,7 @@ class _InitLanguageViewState extends State<InitLanguageView> {
                             onTap: () async {
                               await languageController.applyLanguageChange();
                               await _saveInitLanguage(); // Save initLanguage flag
-                              Get.put(SignUpController(), permanent: true);
+
 
                               // Get.put(OnboardingController(), permanent: true);
                               Get.offAll(() => const OnBoarding());

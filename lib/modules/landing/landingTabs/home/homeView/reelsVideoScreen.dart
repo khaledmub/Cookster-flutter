@@ -2260,7 +2260,8 @@ class VideoDescriptionWidget extends StatefulWidget {
     this.description,
     this.tags,
     this.controller,
-  }) : super();
+    super.key,
+  });
 
   @override
   _VideoDescriptionWidgetState createState() => _VideoDescriptionWidgetState();
@@ -2270,10 +2271,8 @@ class _VideoDescriptionWidgetState extends State<VideoDescriptionWidget>
     with TickerProviderStateMixin {
   bool _isExpanded = false;
   bool _hasOverflow = false;
-
   bool _isTagExpanded = false;
   bool _hasTagOverflow = false;
-
   final TextEditingController _textController = TextEditingController();
 
   @override
@@ -2327,6 +2326,7 @@ class _VideoDescriptionWidgetState extends State<VideoDescriptionWidget>
   @override
   Widget build(BuildContext context) {
     final descriptionStyle = TextStyle(color: Colors.white, fontSize: 14.sp);
+    final tagStyle = TextStyle(color: ColorUtils.primaryColor, fontSize: 12.sp);
 
     return Positioned(
       bottom: Get.height * 0.13,
@@ -2336,7 +2336,6 @@ class _VideoDescriptionWidgetState extends State<VideoDescriptionWidget>
         constraints: BoxConstraints(maxWidth: 270),
         decoration: BoxDecoration(
           color: Colors.black.withOpacity(0.3),
-          // Semi-transparent dark background
           borderRadius: BorderRadius.circular(8),
         ),
         child: Column(
@@ -2375,12 +2374,10 @@ class _VideoDescriptionWidgetState extends State<VideoDescriptionWidget>
                       constraints: BoxConstraints(maxWidth: 250),
                       child: Text(
                         widget.description!,
-                        style: TextStyle(color: Colors.white, fontSize: 14.sp),
+                        style: descriptionStyle,
                         maxLines: _isExpanded ? null : 1,
                         overflow:
-                        _isExpanded
-                            ? TextOverflow.visible
-                            : TextOverflow.ellipsis,
+                        _isExpanded ? TextOverflow.visible : TextOverflow.ellipsis,
                       ),
                     ),
                   ),
@@ -2409,7 +2406,7 @@ class _VideoDescriptionWidgetState extends State<VideoDescriptionWidget>
             if (widget.description != null && widget.description!.isNotEmpty)
               SizedBox(height: 4.h),
 
-            // Tags
+            // Tags with expand/collapse and tap functionality
             if (widget.tags != null && widget.tags!.isNotEmpty)
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -2417,33 +2414,30 @@ class _VideoDescriptionWidgetState extends State<VideoDescriptionWidget>
                   AnimatedSize(
                     duration: Duration(milliseconds: 300),
                     curve: Curves.easeInOut,
+                    alignment: Alignment.topLeft,
                     child: ConstrainedBox(
                       constraints: BoxConstraints(maxWidth: 250),
-                      child: Wrap(
-                        spacing: 8.w,
-                        runSpacing: 4.h,
-                        children:
-                        widget.tags!.split(',').map((tag) {
-                          final trimmedTag = tag.trim();
-                          return InkWell(
-                            onTap: () {
-                              Get.to(
-                                    () => SearchView(
-                                  tag: trimmedTag,
-                                  isFollowing: 1,
-                                ),
-                              ); // Pass the tapped tag
-                              //
-                            },
-                            child: Text(
-                              '#$trimmedTag',
-                              style: TextStyle(
-                                color: ColorUtils.primaryColor,
-                                fontSize: 12.sp,
-                              ),
-                            ),
-                          );
-                        }).toList(),
+                      child: RichText(
+                        maxLines: _isTagExpanded ? null : 1,
+                        overflow: _isTagExpanded ? TextOverflow.visible : TextOverflow.ellipsis,
+                        text: TextSpan(
+                          children: widget.tags!.split(',').map((tag) {
+                            final trimmedTag = tag.trim();
+                            return TextSpan(
+                              text: '#$trimmedTag ',
+                              style: tagStyle,
+                              recognizer: TapGestureRecognizer()
+                                ..onTap = () {
+                                  Get.to(
+                                        () => SearchView(
+                                      tag: trimmedTag,
+                                      isFollowing: 1,
+                                    ),
+                                  );
+                                },
+                            );
+                          }).toList(),
+                        ),
                       ),
                     ),
                   ),
@@ -2471,10 +2465,7 @@ class _VideoDescriptionWidgetState extends State<VideoDescriptionWidget>
             else
               Text(
                 "#",
-                style: TextStyle(
-                  color: ColorUtils.primaryColor,
-                  fontSize: 12.sp,
-                ),
+                style: tagStyle,
               ),
           ],
         ),

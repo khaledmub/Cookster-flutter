@@ -1452,6 +1452,8 @@ class VideoDescriptionWidget extends StatefulWidget {
 class _VideoDescriptionWidgetState extends State<VideoDescriptionWidget> {
   bool _isExpanded = false;
   bool _hasOverflow = false;
+  bool _isTagExpanded = false;
+  bool _hasTagOverflow = false;
   final TextEditingController _textController = TextEditingController();
 
   @override
@@ -1470,9 +1472,6 @@ class _VideoDescriptionWidgetState extends State<VideoDescriptionWidget> {
     _textController.dispose();
     super.dispose();
   }
-
-  bool _isTagExpanded = false;
-  bool _hasTagOverflow = false;
 
   void _checkOverflowOnce() {
     final descriptionStyle = TextStyle(color: Colors.white, fontSize: 14.sp);
@@ -1508,6 +1507,7 @@ class _VideoDescriptionWidgetState extends State<VideoDescriptionWidget> {
   @override
   Widget build(BuildContext context) {
     final descriptionStyle = TextStyle(color: Colors.white, fontSize: 14.sp);
+    final tagStyle = TextStyle(color: ColorUtils.primaryColor, fontSize: 12.sp);
 
     return Positioned(
       bottom: Get.height * 0.13,
@@ -1552,12 +1552,9 @@ class _VideoDescriptionWidgetState extends State<VideoDescriptionWidget> {
                       constraints: BoxConstraints(maxWidth: 250),
                       child: Text(
                         widget.description!,
-                        style: TextStyle(color: Colors.white, fontSize: 14.sp),
+                        style: descriptionStyle,
                         maxLines: _isExpanded ? null : 1,
-                        overflow:
-                            _isExpanded
-                                ? TextOverflow.visible
-                                : TextOverflow.ellipsis,
+                        overflow: _isExpanded ? TextOverflow.visible : TextOverflow.ellipsis,
                       ),
                     ),
                   ),
@@ -1586,7 +1583,7 @@ class _VideoDescriptionWidgetState extends State<VideoDescriptionWidget> {
             if (widget.description != null && widget.description!.isNotEmpty)
               SizedBox(height: 4.h),
 
-            // Tags
+            // Tags with Show More/Show Less
             if (widget.tags != null && widget.tags!.isNotEmpty)
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -1594,22 +1591,14 @@ class _VideoDescriptionWidgetState extends State<VideoDescriptionWidget> {
                   AnimatedSize(
                     duration: Duration(milliseconds: 300),
                     curve: Curves.easeInOut,
+                    alignment: Alignment.topLeft,
                     child: ConstrainedBox(
                       constraints: BoxConstraints(maxWidth: 250),
-                      child: Wrap(
-                        spacing: 8.w,
-                        runSpacing: 4.h,
-                        children:
-                            widget.tags!.split(',').map((tag) {
-                              final trimmedTag = tag.trim();
-                              return Text(
-                                '#$trimmedTag',
-                                style: TextStyle(
-                                  color: ColorUtils.primaryColor,
-                                  fontSize: 12.sp,
-                                ),
-                              );
-                            }).toList(),
+                      child: Text(
+                        widget.tags!.split(',').map((t) => '#${t.trim()}').join(' '),
+                        style: tagStyle,
+                        maxLines: _isTagExpanded ? null : 1,
+                        overflow: _isTagExpanded ? TextOverflow.visible : TextOverflow.ellipsis,
                       ),
                     ),
                   ),
@@ -1637,10 +1626,7 @@ class _VideoDescriptionWidgetState extends State<VideoDescriptionWidget> {
             else
               Text(
                 "#",
-                style: TextStyle(
-                  color: ColorUtils.primaryColor,
-                  fontSize: 12.sp,
-                ),
+                style: tagStyle,
               ),
           ],
         ),
@@ -1648,7 +1634,6 @@ class _VideoDescriptionWidgetState extends State<VideoDescriptionWidget> {
     );
   }
 }
-
 Future<bool> deleteVideo(
   BuildContext context,
   String videoId,

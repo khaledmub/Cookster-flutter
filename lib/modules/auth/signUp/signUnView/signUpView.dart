@@ -59,6 +59,8 @@ class _SignVpViewState extends State<SignVpView> {
 
   late dynamic googleSignInBit = -1;
 
+  final SignUpController signUpController = Get.put(SignUpController());
+
   @override
   void initState() {
     super.initState();
@@ -110,7 +112,6 @@ class _SignVpViewState extends State<SignVpView> {
     super.dispose();
   }
 
-  final SignUpController signUpController = Get.find();
   final CityController cityController = Get.put(CityController());
 
   String getIconPath(int id) {
@@ -133,36 +134,60 @@ class _SignVpViewState extends State<SignVpView> {
     return Obx(() {
       Map<String, int> businessType = {};
       List<String> businessTypeName =
-          signUpController.registrationSettings.value.businessTypes!.values!
-              .map((business) {
-                businessType[business.name!] =
-                    business.id!; // Store id against name
-                return business.name!;
+          signUpController.registrationSettings.value.businessTypes?.values
+              ?.map((business) {
+                if (business.name != null && business.id != null) {
+                  businessType[business.name!] = business.id!;
+                  return business.name!;
+                }
+                return null;
               })
-              .toList();
+              .whereType<String>()
+              .toList() ??
+          [];
 
       Map<String, int> typeOfAccount = {};
       List<String> typeOfAccountName =
-          signUpController.registrationSettings.value.typeOfAccounts!.values!
-              .map((account) {
-                typeOfAccount[account.name!] =
-                    account.id!; // Store id against name
-                return account.name!;
+          signUpController.registrationSettings.value.typeOfAccounts?.values
+              ?.map((account) {
+                if (account.name != null && account.id != null) {
+                  typeOfAccount[account.name!] = account.id!;
+                  return account.name!;
+                }
+                return null;
               })
-              .toList();
+              .whereType<String>()
+              .toList() ??
+          [];
+
       Map<String, int> allCountries = {};
       List<String> countryName =
-          signUpController.registrationSettings.value.countries!.map((country) {
-            allCountries[country.name!] = country.id!; // Store id against name
-            return country.name!;
-          }).toList();
+          signUpController.registrationSettings.value.countries
+              ?.map((country) {
+                if (country.name != null && country.id != null) {
+                  allCountries[country.name!] = country.id!;
+                  return country.name!;
+                }
+                return null;
+              })
+              .whereType<String>()
+              .toList() ??
+          [];
+
       Map<String, int> cities = {};
       List<String> city =
-          cityController.cityList.map((city) {
-            cities[city.name!] = city.id!; // Store id against name
-            return city.name!;
-          }).toList();
-      return signUpController.isSettingsLoading.value
+          cityController.cityList
+              .map((city) {
+                if (city.name != null && city.id != null) {
+                  cities[city.name!] = city.id!;
+                  return city.name!;
+                }
+                return null;
+              })
+              .whereType<String>()
+              .toList() ??
+          [];
+      return signUpController.registrationSettings.value.businessTypes == null
           ? Scaffold(
             body: Column(
               crossAxisAlignment: CrossAxisAlignment.center,
@@ -170,9 +195,14 @@ class _SignVpViewState extends State<SignVpView> {
               children: [
                 Column(
                   children: [
-                    PulseLogoLoader(
-                      logoPath: "assets/images/appIcon.png",
-                      size: 80,
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        PulseLogoLoader(
+                          logoPath: "assets/images/appIcon.png",
+                          size: 80,
+                        ),
+                      ],
                     ),
                   ],
                 ),

@@ -260,9 +260,9 @@ class _MyAppState extends State<MyApp> {
     print("PRINTING THE DEVICE LANGUAGE: ${deviceLanguage}");
 
     // Initialize controllers only once
-    if (!Get.isRegistered<SignUpController>()) {
-      Get.put(SignUpController(), permanent: true);
-    }
+    // if (!Get.isRegistered<SignUpController>()) {
+    //   Get.put(SignUpController(), permanent: true);
+    // }
     if (!Get.isRegistered<NavBarController>()) {
       Get.put(NavBarController(), permanent: true);
     }
