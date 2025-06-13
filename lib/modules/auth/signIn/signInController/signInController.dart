@@ -1,7 +1,9 @@
 import 'dart:convert';
+import 'dart:math';
 import 'package:cookster/appRoutes/appRoutes.dart';
 import 'package:cookster/appUtils/apiEndPoints.dart';
 import 'package:cookster/modules/landing/landingView/landingView.dart';
+import 'package:crypto/crypto.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
@@ -10,6 +12,7 @@ import 'package:get/get.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 
 import '../../../../services/apiClient.dart';
 
@@ -187,6 +190,80 @@ class LogInController extends GetxController {
       ScaffoldMessenger.of(Get.context!).showSnackBar(
         SnackBar(
           content: Text('Something went wrong. Please try again.'),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
+  String _generateNonce([int length = 32]) {
+    const charset =
+        '0123456789ABCDEFGHIJKLMNOPQRSTUVXYZabcdefghijklmnopqrstuvwxyz-._';
+    final random = Random.secure();
+    return List.generate(
+      length,
+      (_) => charset[random.nextInt(charset.length)],
+    ).join();
+  }
+
+  // Create a SHA256 hash of the nonce
+  String _sha256ofString(String input) {
+    final bytes = utf8.encode(input);
+    final digest = sha256.convert(bytes);
+    return digest.toString();
+  }
+
+  Future<void> signInWithApple() async {
+    isLoading.value = true;
+
+    try {
+      // Generate a nonce for security
+      final rawNonce = _generateNonce();
+      final nonce = _sha256ofString(rawNonce);
+
+      // Request Apple Sign-In
+      final appleCredential = await SignInWithApple.getAppleIDCredential(
+        scopes: [
+          AppleIDAuthorizationScopes.email,
+          AppleIDAuthorizationScopes.fullName,
+        ],
+        nonce: nonce,
+      );
+
+      // Create an OAuth credential for Firebase
+      final oauthCredential = OAuthProvider("apple.com").credential(
+        idToken: appleCredential.identityToken,
+        rawNonce: rawNonce,
+
+        accessToken: appleCredential.authorizationCode,
+      );
+
+      // Sign in with Firebase
+      final UserCredential userCredential = await FirebaseAuth.instance
+          .signInWithCredential(oauthCredential);
+
+      // Extract user information
+      final String? email =
+          userCredential.user?.email ?? appleCredential.email ?? '';
+      final String? name =
+          appleCredential.givenName != null &&
+                  appleCredential.familyName != null
+              ? '${appleCredential.givenName} ${appleCredential.familyName}'
+              : userCredential.user?.displayName ?? '';
+
+      emailController.text = email!;
+      userName = name ?? '';
+
+      // Call loginWithEmailUser to handle API and Firestore update
+      await loginWithEmailUser();
+    } catch (error) {
+      print('Apple sign-in error: $error');
+      ScaffoldMessenger.of(Get.context!).showSnackBar(
+        SnackBar(
+          content: Text('apple_signin_failed'.tr),
           backgroundColor: Colors.red,
           behavior: SnackBarBehavior.floating,
         ),

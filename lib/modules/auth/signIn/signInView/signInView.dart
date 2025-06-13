@@ -93,7 +93,7 @@ class _SignInViewState extends State<SignInView> {
                                   buildFormContent(logInController),
                                 ],
                               ),
-                              AppCenterIcon()
+                              AppCenterIcon(),
                             ],
                           ),
                         ),
@@ -249,27 +249,36 @@ class _SignInViewState extends State<SignInView> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                SocialButton(
-                  backgroundColor: Color(0xFF3C79E6).withOpacity(0.2),
-                  iconPath: 'assets/images/google.png',
-                  onTap: () async {
-                    // Get instance of SharedPreferences
-                    final prefs = await SharedPreferences.getInstance();
+                if (Platform.isAndroid) // Only show on iOS devices
+                  SocialButton(
+                    backgroundColor: Color(0xFF3C79E6).withOpacity(0.2),
+                    iconPath: 'assets/images/google.png',
+                    onTap: () async {
+                      // Get instance of SharedPreferences
+                      final prefs = await SharedPreferences.getInstance();
 
-                    // Save 1 to SharedPreferences when the button is tapped
-                    await prefs.setInt('google_sign_in', 1);
+                      // Save 1 to SharedPreferences when the button is tapped
+                      await prefs.setInt('google_sign_in', 1);
 
-                    // Call the Google sign-in function
-                    await logInController.signInWithGoogle();
-                  },
-                ),
-                SizedBox(width: 16),
+                      // Call the Google sign-in function
+                      await logInController.signInWithGoogle();
+                    },
+                  ),
+                if (Platform.isAndroid) // Only show on iOS devices
+                  SizedBox(width: 16),
                 // Spacing between buttons
                 if (Platform.isIOS) // Only show on iOS devices
                   SocialButton(
                     backgroundColor: Colors.black.withOpacity(0.2),
                     iconPath: 'assets/images/apple.png',
-                    onTap: () async {},
+                    onTap: () async {
+                      final prefs = await SharedPreferences.getInstance();
+
+                      // Save 1 to SharedPreferences when the button is tapped
+                      await prefs.setInt('google_sign_in', 1);
+
+                      await logInController.signInWithApple();
+                    },
                   ),
                 // if (Platform.isIOS) SizedBox(width: 16),
                 // // Add spacing if Apple button is shown
