@@ -5,6 +5,8 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_svg/svg.dart';
 import 'package:get/get.dart';
 
+import '../../blockedUsers/blockedUsersView/blockedUsersView.dart';
+
 class TabBarWidget extends StatelessWidget {
   final List<String> tabs = ["Meals", "Drinks", "Desserts", "Others"];
 
@@ -126,4 +128,53 @@ class CustomButtonWidget extends StatelessWidget {
       ),
     );
   }
+}
+void showMoreOptionsProfile(BuildContext context, String userName) {
+  // _handleScreenExit();
+  // controller.pauseCurrentVideo();
+  showModalBottomSheet(
+    context: context,
+    backgroundColor: Colors.white,
+    shape: RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+    ),
+    builder: (context) {
+      return SafeArea(
+        child: Container(
+          padding: EdgeInsets.symmetric(vertical: 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: ColorUtils.grey,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+
+              ListTile(
+                leading: Icon(Icons.block, color: ColorUtils.grey),
+                trailing: Icon(
+                  Icons.chevron_right_rounded,
+                  color: ColorUtils.grey,
+                ),
+                title: Text(
+                  'blocked_users'.tr,
+                  style: TextStyle(color: Colors.black, fontSize: 14.sp),
+                ),
+                onTap: () {
+                  Navigator.pop(context);
+                  Get.to(BlockedUsersScreen(
+                    userName:userName,
+                  ));
+                },
+              ),
+            ],
+          ),
+        ),
+      );
+    },
+  );
 }

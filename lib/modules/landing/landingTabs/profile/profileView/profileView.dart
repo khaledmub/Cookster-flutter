@@ -331,13 +331,22 @@ class _ProfileViewState extends State<ProfileView>
                                       ),
                                     ),
                                   ),
-                                  // SizedBox(width: 16),
-                                  // Expanded(
-                                  //   child: CustomButtonWidget(
-                                  //     icon: "assets/icons/share.svg",
-                                  //     label: "Shared Reels".tr,
-                                  //   ),
-                                  // ),
+                                  SizedBox(width: 16,),
+                                  InkWell(
+                                    onTap: (){
+                                      showMoreOptionsProfile(context, userDetails.name);
+                                    },
+                                    child: Container(
+                                      padding: EdgeInsets.all(8),
+                                      height: 40,
+                                      width: 40,
+                                      decoration: BoxDecoration(
+                                          shape: BoxShape.circle,
+                                          border: Border.all(color: ColorUtils.darkBrown)
+                                      ),
+                                      child: Center(child: SvgPicture.asset(color: ColorUtils.darkBrown, "assets/icons/chevron-down.svg")),
+                                    ),
+                                  )
                                 ],
                               ),
                             ),

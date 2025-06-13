@@ -399,5 +399,11 @@ const Map<String, String> ar = {
   "contact_phone_required": "رقم الهاتف للتواصل مطلوب",
   "payment_cancelled": "تم إلغاء الدفع",
   "show_more": "عرض المزيد",
-  "show_less": "عرض أقل"
+  "show_less": "عرض أقل",
+  "blocked_users": "المستخدمون المحظورون",
+
+  'search_blocked_users': 'ابحث عن المستخدمين المحظورين',
+  'no_blocked_users': 'لا يوجد مستخدمون محظورون',
+  'unblocked': 'تم إلغاء الحظر ',
+  "unblock" : "إلغاء الحظر"
 };

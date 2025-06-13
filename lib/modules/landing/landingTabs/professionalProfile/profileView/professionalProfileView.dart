@@ -479,6 +479,7 @@ class _ProfessionalProfileViewState extends State<ProfessionalProfileView>
                                             ),
                                           ),
                                     ),
+
                                 ],
                               ),
                             ),
@@ -490,6 +491,7 @@ class _ProfessionalProfileViewState extends State<ProfessionalProfileView>
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
                                   Expanded(
+                                 
                                     child: InkWell(
                                       onTap: () {
                                         Get.to(SavedVideosView());
@@ -500,6 +502,25 @@ class _ProfessionalProfileViewState extends State<ProfessionalProfileView>
                                       ),
                                     ),
                                   ),
+
+                                  SizedBox(width: 16,),
+                                  InkWell(
+                                    onTap: (){
+                                      showMoreOptionsProfile(context, userDetails.name);
+                                    },
+                                    child: Container(
+                                      padding: EdgeInsets.all(8),
+                                      height: 40,
+                                      width: 40,
+                                      decoration: BoxDecoration(
+                                        shape: BoxShape.circle,
+                                        border: Border.all(color: ColorUtils.darkBrown)
+                                      ),
+                                      child: Center(child: SvgPicture.asset(color: ColorUtils.darkBrown, "assets/icons/chevron-down.svg")),
+                                    ),
+                                  )
+
+
                                 ],
                               ),
                             ),

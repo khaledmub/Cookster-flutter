@@ -402,9 +402,14 @@ const Map<String, String> en = {
       "They won't be notified that you blocked them. Blocked users can't interact with your content.",
   "bad_word_error": "Entered text contains inappropriate words",
   "Delete Account": "Delete Account",
-  "contact_email_required" : "Contact Email is required",
-  "contact_phone_required" : "Contact Phone is required",
+  "contact_email_required": "Contact Email is required",
+  "contact_phone_required": "Contact Phone is required",
   "payment_cancelled": "Payment cancelled",
-  "show_more" : "Show More",
-  "show_less" : "Show Less",
+  "show_more": "Show More",
+  "show_less": "Show Less",
+  "blocked_users": "Blocked Users",
+  'search_blocked_users': 'Search blocked users',
+  'no_blocked_users': 'No blocked users',
+  'unblocked': 'Unblocked',
+  "unblock" : "Unblock"
 };

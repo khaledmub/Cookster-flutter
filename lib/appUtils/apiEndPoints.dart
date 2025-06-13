@@ -17,6 +17,7 @@ class Common {
 }
 
 class EndPoints {
+  static String blockedUsersList = "blocked_users_list";
   static String blockUser = "block_user";
   static String editVideo = "videos/edit";
   static String followerList = "followers_list";
