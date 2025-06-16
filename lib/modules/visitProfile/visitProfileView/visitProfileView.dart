@@ -57,7 +57,7 @@ class _VisitProfileViewState extends State<VisitProfileView>
 
   final ProfileController profileController = Get.find();
   final ProfessionalProfileController professionalProfileController =
-  Get.find();
+      Get.find();
 
   @override
   void dispose() {
@@ -106,12 +106,12 @@ class _VisitProfileViewState extends State<VisitProfileView>
                 if (user != null) {
                   // Prepare the image provider
                   ImageProvider imageProvider =
-                  user.image != null && user.image!.isNotEmpty
-                      ? CachedNetworkImageProvider(
-                    '${Common.profileImage}/${user.image!}',
-                  )
-                      : const AssetImage('assets/images/sd.png')
-                  as ImageProvider;
+                      user.image != null && user.image!.isNotEmpty
+                          ? CachedNetworkImageProvider(
+                            '${Common.profileImage}/${user.image!}',
+                          )
+                          : const AssetImage('assets/images/sd.png')
+                              as ImageProvider;
 
                   // Show the block confirmation dialog
                   showBlockConfirmationBottomSheet(
@@ -140,15 +140,16 @@ class _VisitProfileViewState extends State<VisitProfileView>
                 }
               }
             },
-            itemBuilder: (context) => [
-              PopupMenuItem<String>(
-                value: 'block',
-                child: Text(
-                  'block'.tr,
-                  style: const TextStyle(color: Colors.red),
-                ),
-              ),
-            ],
+            itemBuilder:
+                (context) => [
+                  PopupMenuItem<String>(
+                    value: 'block',
+                    child: Text(
+                      'block'.tr,
+                      style: const TextStyle(color: Colors.red),
+                    ),
+                  ),
+                ],
           ),
         ],
       ),
@@ -156,7 +157,7 @@ class _VisitProfileViewState extends State<VisitProfileView>
         final user = visitProfileController.visitProfile.value;
         final userDetails = visitProfileController.visitProfile.value?.user;
         final professionalAdditionalData =
-        visitProfileController.visitProfile.value?.getFirstAdditionalData();
+            visitProfileController.visitProfile.value?.getFirstAdditionalData();
         final videoTypes =
             visitProfileController.visitProfile.value?.videoTypes;
 
@@ -210,13 +211,16 @@ class _VisitProfileViewState extends State<VisitProfileView>
                           borderRadius: BorderRadius.circular(14),
                           image: DecorationImage(
                             fit: BoxFit.cover,
-                            image: (userDetails.coverImage != null &&
-                                userDetails.coverImage!.isNotEmpty)
-                                ? CachedNetworkImageProvider(
-                              '${Common.profileImage}/${userDetails.coverImage!}',
-                            )
-                                : const AssetImage('assets/images/placeholder.jpg')
-                            as ImageProvider,
+                            image:
+                                (userDetails.coverImage != null &&
+                                        userDetails.coverImage!.isNotEmpty)
+                                    ? CachedNetworkImageProvider(
+                                      '${Common.profileImage}/${userDetails.coverImage!}',
+                                    )
+                                    : const AssetImage(
+                                          'assets/images/placeholder.jpg',
+                                        )
+                                        as ImageProvider,
                           ),
                         ),
                       ),
@@ -233,16 +237,17 @@ class _VisitProfileViewState extends State<VisitProfileView>
                               border: Border.all(color: Colors.white, width: 2),
                             ),
                             child: ClipOval(
-                              child: userDetails.image == null
-                                  ? Image.asset(
-                                "assets/images/sd.png",
-                                fit: BoxFit.cover,
-                              )
-                                  : CachedNetworkImage(
-                                imageUrl:
-                                '${Common.profileImage}/${userDetails.image!}',
-                                fit: BoxFit.cover,
-                              ),
+                              child:
+                                  userDetails.image == null
+                                      ? Image.asset(
+                                        "assets/images/sd.png",
+                                        fit: BoxFit.cover,
+                                      )
+                                      : CachedNetworkImage(
+                                        imageUrl:
+                                            '${Common.profileImage}/${userDetails.image!}',
+                                        fit: BoxFit.cover,
+                                      ),
                             ),
                           ),
                         ),
@@ -265,21 +270,24 @@ class _VisitProfileViewState extends State<VisitProfileView>
                             border: Border.all(color: ColorUtils.primaryColor),
                           ),
                           child: ClipOval(
-                            child: userDetails.image == null
-                                ? Image.asset(
-                              "assets/images/sd.png",
-                              fit: BoxFit.cover,
-                            )
-                                : CachedNetworkImage(
-                              imageUrl:
-                              '${Common.profileImage}/${userDetails.image!}',
-                              fit: BoxFit.cover,
-                              placeholder: (context, url) => const Center(
-                                child: CircularProgressIndicator(),
-                              ),
-                              errorWidget: (context, url, error) =>
-                              const Icon(Icons.person),
-                            ),
+                            child:
+                                userDetails.image == null
+                                    ? Image.asset(
+                                      "assets/images/sd.png",
+                                      fit: BoxFit.cover,
+                                    )
+                                    : CachedNetworkImage(
+                                      imageUrl:
+                                          '${Common.profileImage}/${userDetails.image!}',
+                                      fit: BoxFit.cover,
+                                      placeholder:
+                                          (context, url) => const Center(
+                                            child: CircularProgressIndicator(),
+                                          ),
+                                      errorWidget:
+                                          (context, url, error) =>
+                                              const Icon(Icons.person),
+                                    ),
                           ),
                         ),
                       ],
@@ -317,7 +325,7 @@ class _VisitProfileViewState extends State<VisitProfileView>
                     label: "Following".tr,
                   ),
                   Obx(
-                        () => ProfileStat(
+                    () => ProfileStat(
                       number: "${localFollowersCount.value}",
                       label: "Followers".tr,
                     ),
@@ -341,25 +349,28 @@ class _VisitProfileViewState extends State<VisitProfileView>
                           professionalAdditionalData.contactPhone!.isNotEmpty)
                         IconButtonWidget(
                           icon: "assets/icons/phone.svg",
-                          onTap: () => _launchPhone(
-                            professionalAdditionalData.contactPhone,
-                          ),
+                          onTap:
+                              () => _launchPhone(
+                                professionalAdditionalData.contactPhone,
+                              ),
                         ),
                       if (professionalAdditionalData.contactEmail != null &&
                           professionalAdditionalData.contactEmail!.isNotEmpty)
                         IconButtonWidget(
                           icon: "assets/icons/whatsapp.svg",
-                          onTap: () => _launchWhatsApp(
-                            professionalAdditionalData.contactPhone,
-                          ),
+                          onTap:
+                              () => _launchWhatsApp(
+                                professionalAdditionalData.contactPhone,
+                              ),
                         ),
                       if (professionalAdditionalData.website != null &&
                           professionalAdditionalData.website!.isNotEmpty)
                         IconButtonWidget(
                           icon: "assets/icons/website.svg",
-                          onTap: () => _launchWebsite(
-                            professionalAdditionalData.website,
-                          ),
+                          onTap:
+                              () => _launchWebsite(
+                                professionalAdditionalData.website,
+                              ),
                         ),
                       if (professionalAdditionalData.latitude != null &&
                           professionalAdditionalData.longitude != null &&
@@ -367,11 +378,15 @@ class _VisitProfileViewState extends State<VisitProfileView>
                           professionalAdditionalData.longitude!.isNotEmpty)
                         IconButtonWidget(
                           icon: "assets/icons/location.svg",
-                          onTap: () => _launchMaps(
-                            double.tryParse(professionalAdditionalData.latitude!),
-                            double.tryParse(
-                                professionalAdditionalData.longitude!),
-                          ),
+                          onTap:
+                              () => _launchMaps(
+                                double.tryParse(
+                                  professionalAdditionalData.latitude!,
+                                ),
+                                double.tryParse(
+                                  professionalAdditionalData.longitude!,
+                                ),
+                              ),
                         ),
                     ],
                   ),
@@ -385,9 +400,12 @@ class _VisitProfileViewState extends State<VisitProfileView>
                   var currentUser =
                       professionalProfileController.userDetails.value?.user;
                   bool isProfileNull = currentUser == null;
-                  bool isFollowing = isProfileNull
-                      ? profileController.isFollowing(widget.userId)
-                      : professionalProfileController.isFollowing(widget.userId);
+                  bool isFollowing =
+                      isProfileNull
+                          ? profileController.isFollowing(widget.userId)
+                          : professionalProfileController.isFollowing(
+                            widget.userId,
+                          );
 
                   return Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16.0),
@@ -395,15 +413,19 @@ class _VisitProfileViewState extends State<VisitProfileView>
                       children: [
                         Expanded(
                           child: AppButton(
-                            isLoading: profileController.isFollowingProcess.value ||
+                            isLoading:
+                                profileController.isFollowingProcess.value ||
                                 professionalProfileController
-                                    .isFollowingProcess.value,
-                            color: isFollowing
-                                ? ColorUtils.greyTextFieldBorderColor
-                                : ColorUtils.primaryColor,
+                                    .isFollowingProcess
+                                    .value,
+                            color:
+                                isFollowing
+                                    ? ColorUtils.greyTextFieldBorderColor
+                                    : ColorUtils.primaryColor,
                             text: isFollowing ? "Following".tr : "follow".tr,
                             onTap: () async {
-                              bool isAuthenticated = await _isUserAuthenticated();
+                              bool isAuthenticated =
+                                  await _isUserAuthenticated();
                               if (!isAuthenticated) {
                                 Get.toNamed(AppRoutes.signIn);
                                 return;
@@ -418,21 +440,18 @@ class _VisitProfileViewState extends State<VisitProfileView>
                                   widget.userId,
                                 );
                               } else {
-                                professionalProfileController.toggleFollowStatus(
-                                    widget.userId);
+                                professionalProfileController
+                                    .toggleFollowStatus(widget.userId);
                               }
                             },
                           ),
                         ),
                         const SizedBox(width: 8),
                         InkWell(
-
                           child: ProfileLikeButton(
-
                             profileId: widget.userId,
                             currentUserId: userId.toString(),
                             controller: visitProfileController,
-
                           ),
                         ),
                       ],
@@ -470,9 +489,10 @@ class _VisitProfileViewState extends State<VisitProfileView>
                                 vertical: 8,
                               ),
                               decoration: BoxDecoration(
-                                color: isSelected
-                                    ? ColorUtils.primaryColor
-                                    : Colors.transparent,
+                                color:
+                                    isSelected
+                                        ? ColorUtils.primaryColor
+                                        : Colors.transparent,
                                 borderRadius: BorderRadius.circular(50.r),
                               ),
                               child: Center(
@@ -500,7 +520,7 @@ class _VisitProfileViewState extends State<VisitProfileView>
                           runSpacing: 8,
                           children: () {
                             final selectedVideoType =
-                            videoTypes[_tabController!.index];
+                                videoTypes[_tabController!.index];
                             if (selectedVideoType.videos == null ||
                                 selectedVideoType.videos!.isEmpty) {
                               return [
@@ -520,39 +540,51 @@ class _VisitProfileViewState extends State<VisitProfileView>
                                 width: 100.w,
                                 height: 133.h,
                                 child: GestureDetector(
-                                  onTap: () {
-                                    Get.to(
-                                      SingleVideoScreen(
-                                        followers:
-                                        '${profileController.followersList.length}',
-                                        frondUserId: video.frontUserId,
-                                        userImage: video.userImage,
-                                        videoId: video.id,
-                                        videoUrl: video.video,
-                                        title: video.title,
-                                        image: video.image,
-                                        allowComments: video.allowComments,
-                                        description: video.description,
-                                        tags: video.tags,
-                                        userName: video.userName,
-                                        createdAt: video.createdAt,
-                                        isImage: video.isImage.toString(),
-                                      ),
-                                    );
+                                  onTap: () async {
+                                    bool isAuthenticated =
+                                        await _isUserAuthenticated();
+
+                                    if (isAuthenticated) {
+                                      Get.to(
+                                        SingleVideoScreen(
+                                          followers:
+                                              '${profileController.followersList.length}',
+                                          frondUserId: video.frontUserId,
+                                          userImage: video.userImage,
+                                          videoId: video.id,
+                                          videoUrl: video.video,
+                                          title: video.title,
+                                          image: video.image,
+                                          allowComments: video.allowComments,
+                                          description: video.description,
+                                          tags: video.tags,
+                                          userName: video.userName,
+                                          createdAt: video.createdAt,
+                                          isImage: video.isImage.toString(),
+                                        ),
+                                      );
+                                    } else {
+                                      Get.toNamed(AppRoutes.signIn);
+                                    }
                                   },
                                   child: Stack(
                                     children: [
                                       Container(
                                         decoration: BoxDecoration(
-                                          borderRadius: BorderRadius.circular(12.r),
+                                          borderRadius: BorderRadius.circular(
+                                            12.r,
+                                          ),
                                           image: DecorationImage(
-                                            image: video.image != null &&
-                                                video.image!.isNotEmpty
-                                                ? CachedNetworkImageProvider(
-                                              '${Common.videoUrl}/${video.image}',
-                                            ) as ImageProvider
-                                                : const AssetImage(
-                                                "assets/images/food1.jpg"),
+                                            image:
+                                                video.image != null &&
+                                                        video.image!.isNotEmpty
+                                                    ? CachedNetworkImageProvider(
+                                                          '${Common.videoUrl}/${video.image}',
+                                                        )
+                                                        as ImageProvider
+                                                    : const AssetImage(
+                                                      "assets/images/food1.jpg",
+                                                    ),
                                             fit: BoxFit.cover,
                                           ),
                                         ),
@@ -597,10 +629,11 @@ class _VisitProfileViewState extends State<VisitProfileView>
                                             ),
                                             const SizedBox(width: 4),
                                             StreamBuilder<DocumentSnapshot>(
-                                              stream: FirebaseFirestore.instance
-                                                  .collection('videos')
-                                                  .doc(video.id)
-                                                  .snapshots(),
+                                              stream:
+                                                  FirebaseFirestore.instance
+                                                      .collection('videos')
+                                                      .doc(video.id)
+                                                      .snapshots(),
                                               builder: (context, snapshot) {
                                                 if (snapshot.connectionState ==
                                                     ConnectionState.waiting) {
@@ -620,16 +653,20 @@ class _VisitProfileViewState extends State<VisitProfileView>
                                                     ),
                                                   );
                                                 }
-                                                final data = snapshot.data!.data()
-                                                as Map<String, dynamic>? ??
+                                                final data =
+                                                    snapshot.data!.data()
+                                                        as Map<
+                                                          String,
+                                                          dynamic
+                                                        >? ??
                                                     {};
                                                 List<dynamic> likes =
                                                     data['likes'] ?? [];
                                                 int likeCount = likes.length;
                                                 String formattedLikeCount =
-                                                likeCount > 1000
-                                                    ? '${(likeCount / 1000).toStringAsFixed(1)}K'
-                                                    : likeCount.toString();
+                                                    likeCount > 1000
+                                                        ? '${(likeCount / 1000).toStringAsFixed(1)}K'
+                                                        : likeCount.toString();
 
                                                 return Text(
                                                   formattedLikeCount,
@@ -748,111 +785,112 @@ void showBlockConfirmationBottomSheet({
       borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
     ),
     backgroundColor: Colors.white,
-    builder: (context) => SafeArea(
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
-        constraints: BoxConstraints(
-          maxWidth: 500,
-          minHeight: 200,
-          maxHeight: MediaQuery.of(context).size.height * 0.5,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            Container(
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.1),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
+    builder:
+        (context) => SafeArea(
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+            constraints: BoxConstraints(
+              maxWidth: 500,
+              minHeight: 200,
+              maxHeight: MediaQuery.of(context).size.height * 0.5,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Container(
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.1),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
                   ),
-                ],
-              ),
-              child: CircleAvatar(
-                radius: 48,
-                backgroundImage: image,
-                backgroundColor: Colors.grey[200],
-              ),
-            ),
-            const SizedBox(height: 20),
-            Text(
-              '${"block".tr} $name?',
-              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                fontWeight: FontWeight.w600,
-                fontSize: 20,
-                letterSpacing: -0.5,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 12),
-            Text(
-              "block_user_description".tr,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: Colors.grey[600],
-                fontSize: 16,
-                height: 1.5,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 32),
-            AnimatedScaleButton(
-              onPressed: () {
-                HapticFeedback.lightImpact();
-                Navigator.pop(context);
-                onBlock();
-              },
-              child: Container(
-                width: double.infinity,
-                height: 52,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [Colors.redAccent, Colors.redAccent.shade700],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
+                  child: CircleAvatar(
+                    radius: 48,
+                    backgroundImage: image,
+                    backgroundColor: Colors.grey[200],
                   ),
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.redAccent.withOpacity(0.3),
-                      blurRadius: 12,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
                 ),
-                child: Center(
+                const SizedBox(height: 20),
+                Text(
+                  '${"block".tr} $name?',
+                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 20,
+                    letterSpacing: -0.5,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  "block_user_description".tr,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: Colors.grey[600],
+                    fontSize: 16,
+                    height: 1.5,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 32),
+                AnimatedScaleButton(
+                  onPressed: () {
+                    HapticFeedback.lightImpact();
+                    Navigator.pop(context);
+                    onBlock();
+                  },
+                  child: Container(
+                    width: double.infinity,
+                    height: 52,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [Colors.redAccent, Colors.redAccent.shade700],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.redAccent.withOpacity(0.3),
+                          blurRadius: 12,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: Center(
+                      child: Text(
+                        'block'.tr,
+                        style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 16,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                AnimatedScaleButton(
+                  onPressed: () {
+                    HapticFeedback.selectionClick();
+                    Navigator.pop(context);
+                  },
                   child: Text(
-                    'block'.tr,
+                    'cancel'.tr,
                     style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w600,
+                      color: Theme.of(context).colorScheme.primary,
                       fontSize: 16,
+                      fontWeight: FontWeight.w500,
                     ),
                   ),
                 ),
-              ),
+              ],
             ),
-            const SizedBox(height: 16),
-            AnimatedScaleButton(
-              onPressed: () {
-                HapticFeedback.selectionClick();
-                Navigator.pop(context);
-              },
-              child: Text(
-                'cancel'.tr,
-                style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                  color: Theme.of(context).colorScheme.primary,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ),
-          ],
+          ),
         ),
-      ),
-    ),
   );
 }
 

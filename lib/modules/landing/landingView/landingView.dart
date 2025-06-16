@@ -429,7 +429,9 @@ class _LandingState extends State<Landing> {
                                 bottom: 0,
                                 left: 0,
                                 right: 0,
-                                child: _buildBottomNavBar(context),
+                                child: SafeArea(
+                                  child: _buildBottomNavBar(context),
+                                ),
                               ),
                             ],
                           );
@@ -645,7 +647,6 @@ class _LandingState extends State<Landing> {
       _showVideoOptions(context);
     }
   }
-
 
   void showExpiredPackageDialog(BuildContext context) {
     AwesomeDialog(
