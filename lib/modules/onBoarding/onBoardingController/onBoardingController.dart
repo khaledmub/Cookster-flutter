@@ -36,7 +36,7 @@ class OnboardingController extends GetxController {
       Get.offAllNamed(AppRoutes.landing);
     } else if (hasCompletedOnboarding) {
       print("Navigating to Sign-In Screen");
-      Get.offAllNamed(AppRoutes.signIn);
+      Get.offAllNamed(AppRoutes.landing);
     } else {
       print("Showing Onboarding Screen");
       fetchOnboardingData();
@@ -51,13 +51,13 @@ class OnboardingController extends GetxController {
       );
     } else {
       await completeOnboarding();
-      Get.offAllNamed(AppRoutes.signIn);
+      Get.offAllNamed(AppRoutes.landing);
     }
   }
 
   void skip() async {
     await completeOnboarding();
-    Get.offAllNamed(AppRoutes.signIn);
+    Get.offAllNamed(AppRoutes.landing);
   }
 
   Future<void> completeOnboarding() async {

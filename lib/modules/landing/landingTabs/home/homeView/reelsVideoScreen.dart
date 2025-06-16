@@ -5,8 +5,10 @@ import 'package:awesome_dialog/awesome_dialog.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:chewie/chewie.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cookster/appRoutes/appRoutes.dart';
 import 'package:cookster/appUtils/apiEndPoints.dart';
 import 'package:cookster/appUtils/appUtils.dart';
+import 'package:cookster/modules/landing/landingController/landingController.dart';
 import 'package:cookster/modules/landing/landingTabs/home/homeController/saveController.dart';
 import 'package:cookster/modules/landing/landingTabs/home/homeModel/userSaveUnsave.dart';
 import 'package:cookster/modules/landing/landingTabs/home/homeModel/videoFeedModel.dart';
@@ -65,6 +67,27 @@ class _VideoReelScreenState extends State<VideoReelScreen>
 
   late SwiperController _swiperController;
   bool _showIcon = false;
+  bool isAuthenticated = false;
+
+  Future<bool> _isUserAuthenticated() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    String? authToken = prefs.getString('auth_token');
+    return authToken != null && authToken.isNotEmpty;
+  }
+
+  Future<void> _checkAuthentication() async {
+    try {
+      bool authStatus = await _isUserAuthenticated();
+      var currentUserDetails = profileController.simpleUserDetails.value?.user;
+      var currentUser = professionalProfileController.userDetails.value?.user;
+      String? id = currentUser?.id ?? currentUserDetails?.id;
+      setState(() {
+        isAuthenticated = authStatus;
+      });
+    } catch (e) {
+      print('Error checking authentication: $e');
+    }
+  }
 
   String _language = 'en'; // Default to English
   // Load language from SharedPreferences
@@ -82,6 +105,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
   void initState() {
     super.initState();
     _loadLanguage();
+    _checkAuthentication();
     WakelockPlus.enable();
     pageController = PageController(initialPage: controller.currentIndex.value);
 
@@ -191,6 +215,8 @@ class _VideoReelScreenState extends State<VideoReelScreen>
   @override
   Widget build(BuildContext context) {
     super.build(context);
+    isAuthenticated = isAuthenticated;
+    print("PRINTING IS AUTHENTICATED ${isAuthenticated}");
     var currentUserDetails = profileController.simpleUserDetails.value?.user;
     var currentUser = professionalProfileController.userDetails.value?.user;
     String? userId = currentUser?.id ?? currentUserDetails?.id;
@@ -323,9 +349,16 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                               1)
                             GestureDetector(
                               onTap: () async {
-                                controller.disposeControllers();
-                                controller.setSelectedType("Following");
-                                controller.fetchVideos();
+                                print(
+                                  "RINTING IS AUTHENTICAT ${isAuthenticated}",
+                                );
+                                if (isAuthenticated) {
+                                  controller.disposeControllers();
+                                  controller.setSelectedType("Following");
+                                  controller.fetchVideos();
+                                } else {
+                                  Get.toNamed(AppRoutes.signIn);
+                                }
                               },
                               child: Text(
                                 "Following".tr,
@@ -625,6 +658,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                         videoDetail: videoDetail,
                         controller: controller,
                         userId: userId,
+                        isAuthenticated: isAuthenticated,
                       ),
                       videoActions(
                         videoDetail,
@@ -751,9 +785,16 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                             padding: const EdgeInsets.only(right: 16.0),
                             child: GestureDetector(
                               onTap: () async {
-                                controller.disposeControllers();
-                                controller.setSelectedType("Following");
-                                controller.fetchVideos();
+                                print(
+                                  "RINTING IS AUTHENTICAT ${isAuthenticated}",
+                                );
+                                if (isAuthenticated) {
+                                  controller.disposeControllers();
+                                  controller.setSelectedType("Following");
+                                  controller.fetchVideos();
+                                } else {
+                                  Get.toNamed(AppRoutes.signIn);
+                                }
                               },
                               child: Text(
                                 "Following".tr,
@@ -1036,6 +1077,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
     User? currentUser,
     BuildContext context,
   ) {
+    bool isAuthenticated = currentUserDetails != null || currentUser != null;
     return Positioned(
       right: 10,
       bottom: Get.height * 0.13,
@@ -1100,6 +1142,10 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                               // Simplified Like Button
                               InkWell(
                                 onTap: () async {
+                                  if (!isAuthenticated) {
+                                    Get.toNamed(AppRoutes.signIn);
+                                    return;
+                                  }
                                   final String videoId = videoDetail.id!;
                                   String userId =
                                       currentUserDetails?.id ??
@@ -1143,6 +1189,10 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                                 SizedBox(height: 8),
                                 InkWell(
                                   onTap: () {
+                                    if (!isAuthenticated) {
+                                      Get.toNamed(AppRoutes.signIn);
+                                      return;
+                                    }
                                     controller.pauseCurrentVideo();
                                     String? userId =
                                         currentUserDetails?.id ??
@@ -1207,6 +1257,10 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                                     ),
                                     InkWell(
                                       onTap: () {
+                                        if (!isAuthenticated) {
+                                          Get.toNamed(AppRoutes.signIn);
+                                          return;
+                                        }
                                         final businessId =
                                             videoDetail.frontUserId.toString();
                                         final firestore =
@@ -1310,6 +1364,10 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                       ),
                       child: InkWell(
                         onTap: () {
+                          if (!isAuthenticated) {
+                            Get.toNamed(AppRoutes.signIn);
+                            return;
+                          }
                           controller.pauseCurrentVideo();
                           String? userId =
                               currentUserDetails?.id ?? currentUser!.id;
@@ -1409,27 +1467,32 @@ class _VideoReelScreenState extends State<VideoReelScreen>
 
                   InkWell(
                     onTap: () async {
-                      if (isSaved) {
-                        // 1. Immediately remove from local list
-                        saveController.savedVideos.removeWhere(
-                          (video) =>
-                              video.id.toString() == videoDetail.id.toString(),
-                        );
+                      if (isAuthenticated) {
+                        if (isSaved) {
+                          // 1. Immediately remove from local list
+                          saveController.savedVideos.removeWhere(
+                            (video) =>
+                                video.id.toString() ==
+                                videoDetail.id.toString(),
+                          );
 
-                        // 2. Then hit API
-                        await saveController.saveVideo(videoDetail.id!);
+                          // 2. Then hit API
+                          await saveController.saveVideo(videoDetail.id!);
+                        } else {
+                          // 1. Immediately add to local list
+                          saveController.savedVideos.add(
+                            SavedVideos(
+                              id: videoDetail.id,
+                              title: videoDetail.title,
+                              // Add other fields if needed, or just id is fine for now
+                            ),
+                          );
+
+                          // 2. Then hit API
+                          await saveController.saveVideo(videoDetail.id!);
+                        }
                       } else {
-                        // 1. Immediately add to local list
-                        saveController.savedVideos.add(
-                          SavedVideos(
-                            id: videoDetail.id,
-                            title: videoDetail.title,
-                            // Add other fields if needed, or just id is fine for now
-                          ),
-                        );
-
-                        // 2. Then hit API
-                        await saveController.saveVideo(videoDetail.id!);
+                        Get.toNamed(AppRoutes.signIn);
                       }
                     },
                     child: SizedBox(
@@ -1461,14 +1524,18 @@ class _VideoReelScreenState extends State<VideoReelScreen>
               InkWell(
                 onTap: () {
                   controller.pauseCurrentVideo();
-                  _showMoreOptions(
-                    context,
-                    videoDetail.id!,
-                    videoDetail.frontUserId!,
-                  );
+                  if (isAuthenticated) {
+                    _showMoreOptions(
+                      context,
+                      videoDetail.id!,
+                      videoDetail.frontUserId!,
+                    );
 
-                  if (mounted) {
-                    controller.restoreVideoState();
+                    if (mounted) {
+                      controller.restoreVideoState();
+                    }
+                  } else {
+                    Get.toNamed(AppRoutes.signIn);
                   }
                 },
                 child: SizedBox(
@@ -1594,6 +1661,7 @@ class videoUserDetails extends StatelessWidget {
     required this.videoDetail,
     required this.controller,
     required this.userId,
+    required this.isAuthenticated,
   });
 
   final ProfileController profileController;
@@ -1601,6 +1669,7 @@ class videoUserDetails extends StatelessWidget {
   final WallVideos videoDetail;
   final HomeController controller;
   final String? userId;
+  final bool isAuthenticated;
 
   @override
   Widget build(BuildContext context) {
@@ -1739,28 +1808,32 @@ class videoUserDetails extends StatelessWidget {
                             InkWell(
                               onTap: () async {
                                 // Store the current following status before the action
-                                bool wasFollowing = isFollowing;
+                                if (isAuthenticated) {
+                                  bool wasFollowing = isFollowing;
 
-                                if (isProfileNull) {
-                                  await profileController.toggleFollowStatus(
-                                    videoDetail.frontUserId!,
-                                  );
-                                } else {
-                                  await professionalProfileController
-                                      .toggleFollowStatus(
-                                        videoDetail.frontUserId!,
-                                      );
-                                }
+                                  if (isProfileNull) {
+                                    await profileController.toggleFollowStatus(
+                                      videoDetail.frontUserId!,
+                                    );
+                                  } else {
+                                    await professionalProfileController
+                                        .toggleFollowStatus(
+                                          videoDetail.frontUserId!,
+                                        );
+                                  }
 
-                                // Update the follower count based on the action
-                                if (wasFollowing) {
-                                  // User unfollowed, decrease count
-                                  videoDetail.followersCount =
-                                      (videoDetail.followersCount ?? 1) - 1;
+                                  // Update the follower count based on the action
+                                  if (wasFollowing) {
+                                    // User unfollowed, decrease count
+                                    videoDetail.followersCount =
+                                        (videoDetail.followersCount ?? 1) - 1;
+                                  } else {
+                                    // User followed, increase count
+                                    videoDetail.followersCount =
+                                        (videoDetail.followersCount ?? 0) + 1;
+                                  }
                                 } else {
-                                  // User followed, increase count
-                                  videoDetail.followersCount =
-                                      (videoDetail.followersCount ?? 0) + 1;
+                                  Get.toNamed(AppRoutes.signIn);
                                 }
                               },
                               child: Container(
@@ -1878,7 +1951,7 @@ class videoTitleEtc extends StatelessWidget {
 void showLocationDialog(BuildContext context) {
   final HomeController homeController = Get.find();
   final VideoAddController controller = Get.find();
-  final ProfileController profileController = Get.find();
+  final NavBarController profileController = Get.find();
   final UserSearchController searchUpdateController = Get.find();
   final CityController cityController = Get.put(CityController());
 

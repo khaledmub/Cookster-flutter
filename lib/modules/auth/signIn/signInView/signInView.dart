@@ -48,63 +48,50 @@ class _SignInViewState extends State<SignInView> {
   @override
   Widget build(BuildContext context) {
     final LogInController logInController = Get.put(LogInController());
-    return PopScope(
-      canPop: false, // Prevent default pop until custom logic is applied
-      onPopInvoked: (didPop) async {
-        // If didPop is true, the pop action was already performed, so skip
-        if (didPop) return;
-
-        final shouldPop = await _showExitConfirmationDialog(context);
-        if (shouldPop) {
-          // Explicitly exit the app if the user confirms
-          SystemNavigator.pop();
-        }
-      },
-      child: Scaffold(
-        appBar: AppBar(
-          backgroundColor: ColorUtils.primaryColor,
-          toolbarHeight: 0,
-          elevation: 0,
-        ),
-        body: LayoutBuilder(
-          builder: (context, constraints) {
-            return SingleChildScrollView(
-              child: ConstrainedBox(
-                constraints: BoxConstraints(minHeight: constraints.maxHeight),
-                child: IntrinsicHeight(
-                  child: Form(
-                    key: logInController.formKey,
-                    child: Column(
-                      children: [
-                        Expanded(
-                          child: Stack(
-                            children: [
-                              // Background
-                              Container(
-                                decoration: const BoxDecoration(
-                                  gradient: ColorUtils.goldGradient,
-                                ),
+    return Scaffold(
+      appBar: AppBar(
+        backgroundColor: ColorUtils.primaryColor,
+        toolbarHeight: 0,
+        elevation: 0,
+      ),
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          return SingleChildScrollView(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minHeight: constraints.maxHeight),
+              child: IntrinsicHeight(
+                child: Form(
+                  key: logInController.formKey,
+                  child: Column(
+                    children: [
+                      Expanded(
+                        child: Stack(
+                          children: [
+                            // Background
+                            Container(
+                              decoration: const BoxDecoration(
+                                gradient: ColorUtils.goldGradient,
                               ),
-                              // Main content
-                              Column(
-                                children: [
-                                  SizedBox(height: 2.h),
-                                  // your header and content
-                                  buildFormContent(logInController),
-                                ],
-                              ),
-                              AppCenterIcon(),
-                            ],
-                          ),
+                            ),
+                            // Main content
+                            Column(
+                              children: [
+                                SizedBox(height: 2.h),
+                                // your header and content
+                                buildFormContent(logInController),
+                              ],
+                            ),
+                            AppCenterIcon(),
+                          ],
                         ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
                 ),
               ),
-            );
-          },
-        ),
+            ),
+          );
+        },
       ),
     );
   }

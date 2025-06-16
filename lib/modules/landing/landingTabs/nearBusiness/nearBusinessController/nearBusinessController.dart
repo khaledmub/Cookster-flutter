@@ -99,10 +99,10 @@ class LocationController extends GetxController {
 
           await fetchNearestBusinesses();
         } else {
-          Get.snackbar('Error', 'Failed to get location: $e');
+          // Get.snackbar('Error', 'Failed to get location: $e');
         }
       } catch (fallbackError) {
-        Get.snackbar('Error', 'Failed to get location: $fallbackError');
+        // Get.snackbar('Error', 'Failed to get location: $fallbackError');
       }
     } finally {
       isLoading.value = false;
@@ -126,7 +126,7 @@ class LocationController extends GetxController {
 
       // Validate coordinates
       if (lat == 0.0 || lng == 0.0) {
-        Get.snackbar('Error', 'Invalid location coordinates.');
+        // Get.snackbar('Error', 'Invalid location coordinates.');
         return;
       }
 
@@ -146,16 +146,16 @@ class LocationController extends GetxController {
         nearestBusinesses.value = NearBusinessModel.fromJson(data);
         isRadiusCardVisible.value = false;
       } else {
-        Get.snackbar(
-          'Error',
-          'Failed to fetch nearest businesses: ${response.statusCode}',
-        );
+        // Get.snackbar(
+        //   'Error',
+        //   'Failed to fetch nearest businesses: ${response.statusCode}',
+        // );
       }
     } catch (e) {
       if (e.toString().contains('timeout')) {
-        Get.snackbar('Error', 'Request timed out. Please check your internet connection.');
+        // Get.snackbar('Error', 'Request timed out. Please check your internet connection.');
       } else {
-        Get.snackbar('Error', 'Failed to fetch nearest businesses: $e');
+        // Get.snackbar('Error', 'Failed to fetch nearest businesses: $e');
       }
     } finally {
       isLoading.value = false;

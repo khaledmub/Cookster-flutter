@@ -15,6 +15,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:get/get.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../../../appRoutes/appRoutes.dart';
 import '../../../appUtils/colorUtils.dart';
 import '../../../basicVideoEditor/basicVideoEditor.dart';
 import '../../../cameraScreen.dart';
@@ -53,6 +54,24 @@ class _LandingState extends State<Landing> {
   final VideoAddController videoAddController = Get.put(VideoAddController());
 
   final ImagePicker _picker = ImagePicker();
+
+  Future<bool> _isUserAuthenticated() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    String? authToken = prefs.getString('auth_token');
+    return authToken != null && authToken.isNotEmpty;
+  }
+
+  // Add this method to handle authentication required actions
+  Future<void> _handleAuthRequiredAction(VoidCallback action) async {
+    bool isAuthenticated = await _isUserAuthenticated();
+
+    if (isAuthenticated) {
+      action(); // Execute the action if authenticated
+    } else {
+      // Navigate to sign in page
+      Get.toNamed(AppRoutes.signIn); // Make sure you have this route defined
+    }
+  }
 
   void showUploadingDialog(BuildContext context) {
     AwesomeDialog(
@@ -210,7 +229,7 @@ class _LandingState extends State<Landing> {
                 onTap: () async {
                   Navigator.pop(context);
                   controller.pauseCurrentVideo();
-          
+
                   try {
                     // Pick a file from gallery
                     final XFile? pickedFile = await ImagePicker().pickMedia(
@@ -218,25 +237,26 @@ class _LandingState extends State<Landing> {
                       maxWidth: 1920,
                       maxHeight: 1080,
                     );
-          
+
                     if (pickedFile != null) {
                       // Determine file type
                       final fileType = pickedFile.path.toLowerCase();
-          
+
                       if (fileType.endsWith('.jpg') ||
                           fileType.endsWith('.jpeg') ||
                           fileType.endsWith('.png') ||
                           fileType.endsWith('.webp')) {
                         // Image selected
                         await Get.to(
-                              () => ImageEditScreen(imagePath: pickedFile.path),
+                          () => ImageEditScreen(imagePath: pickedFile.path),
                         );
                       } else if (fileType.endsWith('.mp4') ||
                           fileType.endsWith('.avi') ||
                           fileType.endsWith('.mov')) {
                         // Video selected
                         await Get.to(
-                              () => VideoTextEditor(videoFile: File(pickedFile.path)),
+                          () =>
+                              VideoTextEditor(videoFile: File(pickedFile.path)),
                         );
                       } else {
                         // Unsupported file type
@@ -275,10 +295,10 @@ class _LandingState extends State<Landing> {
                   Navigator.pop(context);
                   // controller.handleNavigation();
                   controller.pauseCurrentVideo();
-          
+
                   // Get available cameras first
                   final cameras = await availableCameras();
-          
+
                   Get.to(CameraScreen(cameras: cameras))?.then((_) {
                     controller.restoreVideoState();
                   });
@@ -371,53 +391,53 @@ class _LandingState extends State<Landing> {
           }
         },
         child:
-        profileController.isLoading.value ||
-            professionalProfileController.isLoading.value
-            ? Scaffold(
-          body: Center(
-            child: PulseLogoLoader(
-              logoPath: "assets/images/appIconC.png",
-            ),
-          ),
-        )
-            : Scaffold(
-          resizeToAvoidBottomInset: false,
-          body: FutureBuilder<List<Widget>>(
-            future: _screens(context),
-            builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return Center(
-                  child: PulseLogoLoader(
-                    logoPath: "assets/images/appIcon.png",
-                    size: 80,
+            profileController.isLoading.value ||
+                    professionalProfileController.isLoading.value
+                ? Scaffold(
+                  body: Center(
+                    child: PulseLogoLoader(
+                      logoPath: "assets/images/appIconC.png",
+                    ),
                   ),
-                );
-              } else if (snapshot.hasError) {
-                return Center(child: Text("Error loading screens"));
-              } else {
-                return Obx(() {
-                  return Stack(
-                    clipBehavior: Clip.none,
-                    children: [
-                      // Main content - Remove the inner Obx here
-                      snapshot.data![navBarController
-                          .selectedIndex
-                          .value],
+                )
+                : Scaffold(
+                  resizeToAvoidBottomInset: false,
+                  body: FutureBuilder<List<Widget>>(
+                    future: _screens(context),
+                    builder: (context, snapshot) {
+                      if (snapshot.connectionState == ConnectionState.waiting) {
+                        return Center(
+                          child: PulseLogoLoader(
+                            logoPath: "assets/images/appIcon.png",
+                            size: 80,
+                          ),
+                        );
+                      } else if (snapshot.hasError) {
+                        return Center(child: Text("Error loading screens"));
+                      } else {
+                        return Obx(() {
+                          return Stack(
+                            clipBehavior: Clip.none,
+                            children: [
+                              // Main content - Remove the inner Obx here
+                              snapshot.data![navBarController
+                                  .selectedIndex
+                                  .value],
 
-                      // Bottom Navigation Bar
-                      Positioned(
-                        bottom: 0,
-                        left: 0,
-                        right: 0,
-                        child: _buildBottomNavBar(context),
-                      ),
-                    ],
-                  );
-                });
-              }
-            },
-          ),
-        ),
+                              // Bottom Navigation Bar
+                              Positioned(
+                                bottom: 0,
+                                left: 0,
+                                right: 0,
+                                child: _buildBottomNavBar(context),
+                              ),
+                            ],
+                          );
+                        });
+                      }
+                    },
+                  ),
+                ),
       );
     });
   }
@@ -431,9 +451,9 @@ class _LandingState extends State<Landing> {
           height: 60.h,
           decoration: BoxDecoration(
             color:
-            navBarController.selectedIndex.value == 0
-                ? Colors.black.withOpacity(0.15)
-                : Colors.white,
+                navBarController.selectedIndex.value == 0
+                    ? Colors.black.withOpacity(0.15)
+                    : Colors.white,
             border: Border(
               top: BorderSide(color: Colors.grey.withOpacity(0.2), width: 0.5),
             ),
@@ -487,19 +507,20 @@ class _LandingState extends State<Landing> {
     required int index,
     required BuildContext context,
   }) {
-    // Calculate isSelected here for better reactivity
     final isSelected = navBarController.selectedIndex.value == index;
     final isHomeTab = navBarController.selectedIndex.value == 0;
 
     return InkWell(
-      onTap: () {
-        if (navBarController.selectedIndex.value == 0 && index != 0) {
-          controller.handleNavigation();
-        } else if (index == 0) {
-          controller.restoreVideoState();
+      onTap: () async {
+        // Check if the tab requires authentication (Add=2, Notifications=2, Profile=3)
+        // Note: Add button is handled separately in _buildAddButton
+        if (index == 2 || index == 3) {
+          await _handleAuthRequiredAction(() {
+            _performTabNavigation(index);
+          });
+        } else {
+          _performTabNavigation(index);
         }
-        controller.pauseCurrentVideo();
-        navBarController.changeTab(index);
       },
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -508,9 +529,9 @@ class _LandingState extends State<Landing> {
             padding: EdgeInsets.symmetric(horizontal: 16, vertical: 6),
             decoration: BoxDecoration(
               color:
-              isSelected
-                  ? ColorUtils.primaryColor.withOpacity(0.3)
-                  : Colors.transparent,
+                  isSelected
+                      ? ColorUtils.primaryColor.withOpacity(0.3)
+                      : Colors.transparent,
               borderRadius: BorderRadius.circular(20),
             ),
             child: SvgPicture.asset(
@@ -536,6 +557,17 @@ class _LandingState extends State<Landing> {
     );
   }
 
+  // Extract the tab navigation logic into a separate method
+  void _performTabNavigation(int index) {
+    if (navBarController.selectedIndex.value == 0 && index != 0) {
+      controller.handleNavigation();
+    } else if (index == 0) {
+      controller.restoreVideoState();
+    }
+    controller.pauseCurrentVideo();
+    navBarController.changeTab(index);
+  }
+
   Color _getIconColor(bool isSelected, bool isHomeTab) {
     if (isHomeTab) {
       return isSelected ? ColorUtils.primaryColor : Colors.white;
@@ -554,36 +586,10 @@ class _LandingState extends State<Landing> {
 
   Widget _buildAddButton(BuildContext context) {
     return InkWell(
-      onTap: () {
-        if (professionalProfileController.userDetails.value != null &&
-            professionalProfileController.userDetails.value!.subscription !=
-                null &&
-            professionalProfileController
-                .userDetails
-                .value!
-                .subscription!
-                .endDate !=
-                null) {
-          try {
-            DateTime endDate = DateTime.parse(
-              professionalProfileController
-                  .userDetails
-                  .value!
-                  .subscription!
-                  .endDate!,
-            );
-            if (endDate.isAfter(DateTime.now())) {
-              _showVideoOptions(context);
-            } else {
-              showExpiredPackageDialog(context);
-            }
-          } catch (e) {
-            print("Invalid date format: $e");
-            showExpiredPackageDialog(context);
-          }
-        } else {
-          _showVideoOptions(context);
-        }
+      onTap: () async {
+        await _handleAuthRequiredAction(() {
+          _handleAddButtonLogic(context);
+        });
       },
       child: Container(
         margin: EdgeInsets.only(bottom: 10, right: 0, left: 20),
@@ -607,6 +613,39 @@ class _LandingState extends State<Landing> {
       ),
     );
   }
+
+  // Extract the add button logic into a separate method
+  void _handleAddButtonLogic(BuildContext context) {
+    if (professionalProfileController.userDetails.value != null &&
+        professionalProfileController.userDetails.value!.subscription != null &&
+        professionalProfileController
+                .userDetails
+                .value!
+                .subscription!
+                .endDate !=
+            null) {
+      try {
+        DateTime endDate = DateTime.parse(
+          professionalProfileController
+              .userDetails
+              .value!
+              .subscription!
+              .endDate!,
+        );
+        if (endDate.isAfter(DateTime.now())) {
+          _showVideoOptions(context);
+        } else {
+          showExpiredPackageDialog(context);
+        }
+      } catch (e) {
+        print("Invalid date format: $e");
+        showExpiredPackageDialog(context);
+      }
+    } else {
+      _showVideoOptions(context);
+    }
+  }
+
 
   void showExpiredPackageDialog(BuildContext context) {
     AwesomeDialog(

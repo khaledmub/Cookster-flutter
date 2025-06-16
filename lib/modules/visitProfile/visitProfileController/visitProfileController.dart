@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:cookster/appUtils/apiEndPoints.dart';
 import 'package:like_button/like_button.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../../../appRoutes/appRoutes.dart';
 import '../../../appUtils/colorUtils.dart';
 import '../../../services/apiClient.dart';
 import '../visitProfileModel/visitProfileModel.dart';
@@ -138,7 +140,6 @@ class VisitProfileController extends GetxController {
       isLoading.value = false;
     }
   }
-
 }
 
 class ProfileLikeButton extends StatelessWidget {
@@ -153,11 +154,17 @@ class ProfileLikeButton extends StatelessWidget {
     required this.controller,
   }) : super(key: key);
 
+  Future<bool> _isUserAuthenticated() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    String? authToken = prefs.getString('auth_token');
+    return authToken != null && authToken.isNotEmpty;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Obx(() {
       return Container(
-        padding: EdgeInsets.all(8),
+        padding: const EdgeInsets.all(8),
         decoration: BoxDecoration(
           shape: BoxShape.circle,
           border: Border.all(color: ColorUtils.primaryColor),
@@ -165,11 +172,15 @@ class ProfileLikeButton extends StatelessWidget {
         child: Center(
           child: LikeButton(
             likeCountPadding: EdgeInsets.zero,
-
             padding: EdgeInsets.zero,
             size: 30,
             isLiked: controller.isLikedByCurrentUser.value,
             onTap: (isLiked) async {
+              bool isAuthenticated = await _isUserAuthenticated();
+              if (!isAuthenticated) {
+                Get.toNamed(AppRoutes.signIn);
+                return isLiked; // Return current state to prevent like action
+              }
               final result = await controller.toggleProfileLike(
                 profileId,
                 currentUserId,
