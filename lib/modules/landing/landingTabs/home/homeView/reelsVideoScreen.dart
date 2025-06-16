@@ -204,14 +204,14 @@ class _VideoReelScreenState extends State<VideoReelScreen>
       child: Scaffold(
         backgroundColor: Colors.black,
         body: Obx(() {
-          // if (controller.isLoading.value) {
-          //   return Center(
-          //     child: PulseLogoLoader(
-          //       logoPath: "assets/images/appIcon.png",
-          //       size: 80,
-          //     ),
-          //   );
-          // }
+          if (controller.isLoading.value) {
+            return Center(
+              child: PulseLogoLoader(
+                logoPath: "assets/images/appIcon.png",
+                size: 80,
+              ),
+            );
+          }
 
           if (controller.videoFeed.value.videos == null ||
               controller.videoFeed.value.videos!.isEmpty) {

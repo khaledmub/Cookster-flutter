@@ -16,6 +16,7 @@ import 'package:http_parser/http_parser.dart';
 import '../../../../../appUtils/colorUtils.dart';
 import '../../../../../loaders/pulseLoader.dart';
 import '../../../../../services/apiClient.dart';
+import '../../../../auth/signUp/registrationSettingsModel/registrationModel.dart';
 import '../../add/videoUploadSettingsModel/videoUploadSettingsModel.dart';
 import '../profileModel/profileModel.dart';
 import '../profileModel/simpleUserProfileModel.dart';
@@ -39,6 +40,7 @@ class ProfileController extends GetxController {
   var selectCountryId = "".obs;
   var selectedCityId = "".obs;
   var selectedAccountType = "".obs;
+  var isSettingsLoading = false.obs;
 
   var cityId = -1.obs;
   var profileLikesCount = 0.obs;
@@ -248,10 +250,10 @@ class ProfileController extends GetxController {
             prefs.getBool('onboarding_completed') ?? false;
         String language =
             prefs.getString('language') ??
-                'en'; // Default to 'en' as per ApiClient
+            'en'; // Default to 'en' as per ApiClient
         String selectedLanguage =
             prefs.getString('selectedLanguage') ??
-                'English'; // Default to 'English' as per LanguageController
+            'English'; // Default to 'English' as per LanguageController
         bool initLanguage = prefs.getBool('initLanguage') ?? false;
 
         // Clear all preferences
@@ -283,7 +285,6 @@ class ProfileController extends GetxController {
       print("Error logging out: $e");
     }
   }
-
 
   Future<void> getVideoUploadSettings() async {
     try {
@@ -393,6 +394,7 @@ class ProfileController extends GetxController {
     }
     return null; // Password is valid
   }
+
   String? validatePhoneNumber(String? value) {
     if (value == null || value.isEmpty) {
       return 'phone_required_error'.tr;
@@ -432,8 +434,8 @@ class ProfileController extends GetxController {
       );
 
       request.headers['Authorization'] = 'Bearer $token';
-      request.headers['Accept-Language'] = language; // Add Accept-Language header
-
+      request.headers['Accept-Language'] =
+          language; // Add Accept-Language header
 
       // Add only non-null fields
       if (name?.isNotEmpty ?? false) request.fields['name'] = name!;
@@ -467,9 +469,8 @@ class ProfileController extends GetxController {
 
         String updatedName = data['user']['name'];
         String? updatedImage = data['user']['image']; // Can be null
-        String successMessage = data['message'] ?? 'Profile updated successfully.';
-
-
+        String successMessage =
+            data['message'] ?? 'Profile updated successfully.';
 
         print("PRINTING SUCCESS MESSAGE: ${successMessage}");
 
@@ -543,10 +544,10 @@ class ProfileController extends GetxController {
   }
 
   @override
-  void onInit() {
+  void onInit() async {
     super.onInit();
-    getUserDetails();
-    getVideoUploadSettings();
+    await getUserDetails();
+    await getVideoUploadSettings();
   }
 
   // @override

@@ -142,17 +142,23 @@ class SignUpController extends GetxController {
   }
 
   String? validateDOB(String? value) {
+    // Allow empty or null values
     if (value == null || value.isEmpty) {
-      return 'dob_empty_error'.tr;
+      return null;
     }
+
+    // Validate format
     final dobRegex = RegExp(r'^\d{4}-\d{2}-\d{2}$');
     if (!dobRegex.hasMatch(value)) {
       return 'dob_format_error'.tr;
     }
+
+    // Validate date and age
     try {
       DateTime dob = DateTime.parse(value);
       DateTime today = DateTime.now();
       DateTime minAgeDate = today.subtract(Duration(days: 365 * 18));
+
       if (dob.isAfter(today)) {
         return 'dob_future_error'.tr;
       } else if (dob.isAfter(minAgeDate)) {
@@ -161,6 +167,7 @@ class SignUpController extends GetxController {
     } catch (e) {
       return 'Invalid date';
     }
+
     return null;
   }
 
@@ -178,9 +185,7 @@ class SignUpController extends GetxController {
   bool validateBusinessTypeFields() {
     if (nameController.text.trim().isEmpty ||
         emailController.text.trim().isEmpty ||
-        passwordController.text.trim().isEmpty ||
-        selectCountryId.value.trim().isEmpty ||
-        selectedCityId.value.trim().isEmpty) {
+        passwordController.text.trim().isEmpty ) {
       return false;
     }
     if (selectedProfileId.value == 1) {
@@ -297,15 +302,15 @@ class SignUpController extends GetxController {
       );
     }
 
-    if (validateCountry() != null) {
-      isValid = false;
-      print('Step 7: Country validation failed, isValid set to $isValid');
-    }
-
-    if (validateCity() != null) {
-      isValid = false;
-      print('Step 8: City validation failed, isValid set to $isValid');
-    }
+    // if (validateCountry() != null) {
+    //   isValid = false;
+    //   print('Step 7: Country validation failed, isValid set to $isValid');
+    // }
+    //
+    // if (validateCity() != null) {
+    //   isValid = false;
+    //   print('Step 8: City validation failed, isValid set to $isValid');
+    // }
 
     if (validateName(nameController.text) != null) {
       // nameError.value = validateName(nameController.text)!;
@@ -398,9 +403,9 @@ class SignUpController extends GetxController {
       if (selectedProfileId.value != 1) "phone": phoneController.text,
       "name": nameController.text,
       "password": passwordController.text,
-      "dob": dobController.text,
-      "country": selectCountryId.value,
-      "city": selectedCityId.value,
+      // "dob": dobController.text,
+      // "country": selectCountryId.value,
+      // "city": selectedCityId.value,
       "business_type": businessType.value,
       "contact_phone": contactPhoneController.text,
       "contact_email": contactEmailController.text,
@@ -676,7 +681,7 @@ class SignUpController extends GetxController {
   Future<void> handleFormSubmission() async {
     bool isValid = await validateRegister();
 
-    print("Are you looking here ");
+    print("Are you looking here and there ");
 
     print(isSubscriptionRequired);
 

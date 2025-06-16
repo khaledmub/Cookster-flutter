@@ -19,6 +19,7 @@ import '../../../../../../appUtils/colorUtils.dart';
 import '../../../../../../loaders/pulseLoader.dart';
 import '../../../../../../services/apiClient.dart';
 import '../../../../../auth/signUp/signUpController/cityController.dart';
+import '../../../../../promoteVideo/promoteVideoController/promoteVideoController.dart';
 import '../../profileControlller/profileController.dart';
 
 class EditProfileView extends StatefulWidget {
@@ -30,6 +31,8 @@ class EditProfileView extends StatefulWidget {
 
 class _EditProfileViewState extends State<EditProfileView> {
   final ProfileController profileController = Get.find();
+  final PromoteVideoController controller = Get.find();
+
   final _formKey = GlobalKey<FormState>();
 
   late String initialName;
@@ -510,83 +513,95 @@ class _EditProfileViewState extends State<EditProfileView> {
                         ),
                       ),
 
-                    if (userDetails.dob != null)
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                        child: CustomTextField(
-                          validator: profileController.dobValidator,
-                          label: "dob".tr,
-                          hintText: "Enter Date of Birth",
-                          iconPath: "assets/icons/calendar.svg",
-                          controller: profileController.birthdayController,
-                          readOnly: true,
-                          // User manually text enter na kar sake
-                          onTap: () async {
-                            print(profileController.birthdayController.text);
-                            // Define the date range for the picker
-                            final DateTime firstDate = DateTime(1900);
-                            final DateTime lastDate = DateTime.now();
+                    Obx(() {
+                      // Check if registrationSettings and entities are valid
 
-                            // Get the user's existing DOB from the controller
-                            DateTime initialDate;
-                            String? currentDob =
-                                profileController.birthdayController.text;
+                      if (controller
+                                  .entityDetails
+                                  .value['subscription_required'] !=
+                              1 &&
+                          controller.entityDetails.value['is_sponsored'] != 1) {
+                        // Explicit int comparison for boolean
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                          child: CustomTextField(
+                            validator: profileController.dobValidator,
+                            label: "dob".tr,
+                            hintText: "Enter Date of Birth",
+                            iconPath: "assets/icons/calendar.svg",
+                            controller: profileController.birthdayController,
+                            readOnly: true,
+                            // Prevent manual text entry
+                            onTap: () async {
+                              print(
+                                "Current DOB: ${profileController.birthdayController.text}",
+                              );
 
-                            print(currentDob);
+                              // Define the date range for the picker
+                              final DateTime firstDate = DateTime(1900);
+                              final DateTime lastDate = DateTime.now();
 
-                            if (currentDob.isNotEmpty) {
-                              try {
-                                // Try parsing the DOB with both possible formats
+                              // Get the user's existing DOB from the controller
+                              DateTime initialDate;
+                              String currentDob =
+                                  profileController.birthdayController.text;
+
+                              if (currentDob.isNotEmpty) {
                                 try {
-                                  // First try 'yyyy-MM-dd' format
+                                  // Try parsing the DOB with 'yyyy-MM-dd' format
                                   initialDate = DateFormat(
                                     'yyyy-MM-dd',
                                   ).parseStrict(currentDob);
                                 } catch (e) {
-                                  // If 'yyyy-MM-dd' fails, try 'dd-MM-yyyy' format
-                                  initialDate = DateFormat(
-                                    'dd-MM-yyyy',
-                                  ).parseStrict(currentDob);
+                                  try {
+                                    // Fallback to 'dd-MM-yyyy' format
+                                    initialDate = DateFormat(
+                                      'dd-MM-yyyy',
+                                    ).parseStrict(currentDob);
+                                  } catch (e) {
+                                    print("Error parsing DOB: $e");
+                                    // Default to 18 years ago if parsing fails
+                                    initialDate = DateTime.now().subtract(
+                                      Duration(days: 18 * 365),
+                                    );
+                                  }
                                 }
 
                                 // Ensure the parsed date is within the valid range
                                 if (initialDate.isBefore(firstDate)) {
-                                  initialDate =
-                                      firstDate; // Set to firstDate if too early
+                                  initialDate = firstDate;
                                 } else if (initialDate.isAfter(lastDate)) {
-                                  initialDate =
-                                      lastDate; // Set to lastDate if too late
+                                  initialDate = lastDate;
                                 }
-                              } catch (e) {
-                                print("Error parsing DOB: $e");
-                                // Fallback to January 1, 2000 if parsing fails
-                                initialDate = DateTime(2000, 1, 1);
+                              } else {
+                                // Default to 18 years ago if no DOB is set
+                                initialDate = DateTime.now().subtract(
+                                  Duration(days: 18 * 365),
+                                );
                               }
-                            } else {
-                              // If no DOB is set, default to January 1, 2000
-                              initialDate = DateTime(2000, 1, 1);
-                            }
 
-                            DateTime? pickedDate = await showDatePicker(
-                              context: context,
-                              initialDate: initialDate,
-                              // Use the validated initial date
-                              firstDate: firstDate,
-                              // 1900-01-01
-                              lastDate: lastDate, // Today's date
-                            );
+                              DateTime? pickedDate = await showDatePicker(
+                                context: context,
+                                initialDate: initialDate,
+                                firstDate: firstDate,
+                                lastDate: lastDate,
+                              );
 
-                            if (pickedDate != null) {
-                              // Format date to yyyy-MM-dd format
-                              String formattedDate = DateFormat(
-                                'yyyy-MM-dd',
-                              ).format(pickedDate);
-                              profileController.birthdayController.text =
-                                  formattedDate;
-                            }
-                          },
-                        ),
-                      ),
+                              if (pickedDate != null) {
+                                // Format date to yyyy-MM-dd format
+                                String formattedDate = DateFormat(
+                                  'yyyy-MM-dd',
+                                ).format(pickedDate);
+                                profileController.birthdayController.text =
+                                    formattedDate;
+                              }
+                            },
+                          ),
+                        );
+                      }
+                      // Return an empty widget if the condition is false
+                      return const SizedBox.shrink();
+                    }),
 
                     InkWell(
                       onTap: () {
