@@ -100,7 +100,7 @@ class _SignInViewState extends State<SignInView> {
                                   ),
                                   child: Icon(
                                     Icons.language,
-                                    color: Colors.white,
+                                    color: ColorUtils.darkBrown,
                                     size: 30,
                                   ),
                                 ),
