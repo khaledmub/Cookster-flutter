@@ -1,4 +1,5 @@
 import 'package:cookster/appUtils/apiEndPoints.dart';
+import 'package:cookster/loaders/pulseLoader.dart';
 import 'package:cookster/modules/visitProfile/visitProfileView/visitProfileView.dart';
 import 'package:custom_info_window/custom_info_window.dart';
 import 'package:flutter/material.dart';
@@ -14,39 +15,62 @@ class NearestBusinessScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final LocationController controller = Get.put(LocationController());
+    final LocationController controller = Get.put(
+      LocationController(),
+      permanent: true,
+    );
 
     return Scaffold(
-      body: Stack(
-        children: [
-          // Full-screen Google Map
-          GoogleMapWithBusinessImages(controller: controller),
-
-          // SafeArea for status bar and controls
-          SafeArea(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+      body: Obx(() {
+        return controller.isLoading.value
+            ? Column(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Spacer(),
-
-                // Bottom control panel
-                Obx(
-                  () =>
-                      controller.isLoading.value
-                          ? const Center(child: CircularProgressIndicator())
-                          : AnimatedSwitcher(
-                            duration: const Duration(milliseconds: 300),
-                            child:
-                                controller.isRadiusCardVisible.value
-                                    ? _buildBottomControls(controller, context)
-                                    : const SizedBox.shrink(),
-                          ),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    PulseLogoLoader(logoPath: "assets/images/appLogo.png"),
+                  ],
                 ),
               ],
-            ),
-          ),
-        ],
-      ),
+            )
+            : Stack(
+              children: [
+                // Full-screen Google Map
+                GoogleMapWithBusinessImages(controller: controller),
+
+                // SafeArea for status bar and controls
+                SafeArea(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Spacer(),
+
+                      // Bottom control panel
+                      Obx(
+                        () =>
+                            controller.isLoading.value
+                                ? const Center(
+                                  child: CircularProgressIndicator(),
+                                )
+                                : AnimatedSwitcher(
+                                  duration: const Duration(milliseconds: 300),
+                                  child:
+                                      controller.isRadiusCardVisible.value
+                                          ? _buildBottomControls(
+                                            controller,
+                                            context,
+                                          )
+                                          : const SizedBox.shrink(),
+                                ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            );
+      }),
       floatingActionButton: Padding(
         padding: const EdgeInsets.only(bottom: 100.0),
         child: FloatingActionButton(

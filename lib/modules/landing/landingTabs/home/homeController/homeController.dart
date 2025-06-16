@@ -129,13 +129,13 @@ class HomeController extends GetxController with WidgetsBindingObserver {
       );
 
       currentCity.value =
-          placemarks.isNotEmpty
-              ? (placemarks[0].locality ?? 'Unknown').trim()
-              : 'Unknown';
+      placemarks.isNotEmpty
+          ? (placemarks[0].locality ?? 'Unknown').trim()
+          : 'Unknown';
       currentCountry.value =
-          placemarks.isNotEmpty
-              ? (placemarks[0].country ?? 'Unknown').trim()
-              : 'Unknown';
+      placemarks.isNotEmpty
+          ? (placemarks[0].country ?? 'Unknown').trim()
+          : 'Unknown';
 
       hasLocationBeenFetched.value = true;
       print(
@@ -174,7 +174,7 @@ class HomeController extends GetxController with WidgetsBindingObserver {
 
         // Remove blocked user's videos from the current video list
         _removeBlockedUserVideos(userId);
-
+        disposeControllers();
         // Refresh the video feed
         await fetchVideos();
       } else {
@@ -223,9 +223,9 @@ class HomeController extends GetxController with WidgetsBindingObserver {
 
     // Remove videos from blocked user
     List<WallVideos> updatedVideos =
-        videoFeed.value.videos!
-            .where((video) => video.frontUserId != blockedUserId)
-            .toList();
+    videoFeed.value.videos!
+        .where((video) => video.frontUserId != blockedUserId)
+        .toList();
 
     // Update the video feed
     videoFeed.value = VideoFeed(
@@ -278,9 +278,9 @@ class HomeController extends GetxController with WidgetsBindingObserver {
 
   // Helper method to adjust current index after video removal
   void _adjustCurrentIndexAfterRemoval(
-    String? currentVideoId,
-    List<WallVideos> updatedVideos,
-  ) {
+      String? currentVideoId,
+      List<WallVideos> updatedVideos,
+      ) {
     if (currentVideoId == null || updatedVideos.isEmpty) {
       currentIndex.value = 0;
       return;
@@ -288,7 +288,7 @@ class HomeController extends GetxController with WidgetsBindingObserver {
 
     // Try to find the current video in the updated list
     int newIndex = updatedVideos.indexWhere(
-      (video) => video.id == currentVideoId,
+          (video) => video.id == currentVideoId,
     );
 
     if (newIndex != -1) {
@@ -346,7 +346,7 @@ class HomeController extends GetxController with WidgetsBindingObserver {
           error.value = "Failed to load videos: ${response.statusCode}";
         }
       } else if (selectedType.value == "Following") {
-        print('Fetching videos for General');
+        print('Fetching videos for Following');
         final response = await ApiClient.postRequest(EndPoints.getVideos, {
           "is_following": 1,
         });
@@ -388,8 +388,8 @@ class HomeController extends GetxController with WidgetsBindingObserver {
             'Using cached location - City: $selectedCity, Country: $selectedCountry',
           );
         } else {
-          // Fetch location only if not already fetched
-          await _fetchLocationOnce();
+          // Enhanced location fetching with iOS-specific handling
+          await _fetchLocationWithIOSSupport();
 
           if (error.value.isNotEmpty) {
             isLoading.value = false;
@@ -432,9 +432,124 @@ class HomeController extends GetxController with WidgetsBindingObserver {
       }
     } catch (e) {
       error.value = "Error: $e";
+      print("Exception in fetchVideos: $e");
     } finally {
       isLoading.value = false;
       update();
+    }
+  }
+
+// Enhanced location fetching method with iOS-specific handling
+  Future<void> _fetchLocationWithIOSSupport() async {
+    try {
+      // Check if location services are enabled
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        error.value = "Location services are disabled. Please enable location services.";
+        return;
+      }
+
+      // Check and request location permissions with iOS-specific handling
+      LocationPermission permission = await Geolocator.checkPermission();
+
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied) {
+          error.value = "Location permissions are denied. Please allow location access in settings.";
+          return;
+        }
+      }
+
+      if (permission == LocationPermission.deniedForever) {
+        error.value = "Location permissions are permanently denied. Please enable location access in device settings.";
+        return;
+      }
+
+      // Get current position with iOS-optimized settings
+      Position position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+        timeLimit: Duration(seconds: 15), // Timeout for iOS
+      ).timeout(
+        Duration(seconds: 20),
+        onTimeout: () {
+          throw TimeoutException('Location request timed out', Duration(seconds: 20));
+        },
+      );
+
+      print('Location obtained: ${position.latitude}, ${position.longitude}');
+
+      // Get location details using reverse geocoding
+      List<Placemark> placemarks = await placemarkFromCoordinates(
+        position.latitude,
+        position.longitude,
+      ).timeout(
+        Duration(seconds: 10),
+        onTimeout: () {
+          throw TimeoutException('Geocoding request timed out', Duration(seconds: 10));
+        },
+      );
+
+      if (placemarks.isNotEmpty) {
+        Placemark place = placemarks[0];
+
+        // Handle iOS-specific placemark data
+        currentCity.value = place.locality ??
+            place.subAdministrativeArea ??
+            place.administrativeArea ??
+            'Unknown City';
+
+        currentCountry.value = place.country ?? 'Unknown Country';
+
+        hasLocationBeenFetched.value = true;
+
+        print('City: ${currentCity.value}');
+        print('Country: ${currentCountry.value}');
+
+        // Clear any previous errors
+        error.value = '';
+      } else {
+        error.value = "Unable to determine location details";
+      }
+
+    } on TimeoutException catch (e) {
+      error.value = "Location request timed out. Please check your internet connection.";
+      print('Location timeout: $e');
+    } on LocationServiceDisabledException catch (e) {
+      error.value = "Location services are disabled. Please enable location services.";
+      print('Location service disabled: $e');
+    } on PermissionDeniedException catch (e) {
+      error.value = "Location permission denied. Please allow location access.";
+      print('Permission denied: $e');
+    } catch (e) {
+      error.value = "Failed to get location: $e";
+      print('Location error: $e');
+
+      // Fallback: Try to use last known position for iOS
+      try {
+        Position? lastPosition = await Geolocator.getLastKnownPosition();
+        if (lastPosition != null) {
+          print('Using last known position: ${lastPosition.latitude}, ${lastPosition.longitude}');
+
+          List<Placemark> placemarks = await placemarkFromCoordinates(
+            lastPosition.latitude,
+            lastPosition.longitude,
+          );
+
+          if (placemarks.isNotEmpty) {
+            Placemark place = placemarks[0];
+            currentCity.value = place.locality ??
+                place.subAdministrativeArea ??
+                place.administrativeArea ??
+                'Unknown City';
+            currentCountry.value = place.country ?? 'Unknown Country';
+            hasLocationBeenFetched.value = true;
+            error.value = ''; // Clear error if fallback succeeds
+            print('Fallback location - City: ${currentCity.value}, Country: ${currentCountry.value}');
+          }
+        }
+      } catch (fallbackError) {
+        print('Fallback location also failed: $fallbackError');
+      }
     }
   }
 
@@ -465,18 +580,18 @@ class HomeController extends GetxController with WidgetsBindingObserver {
 
     _videoControllers = List.generate(
       videoFeed.value.videos!.length,
-      (index) => null,
+          (index) => null,
     );
     _chewieControllers.value = List.generate(
       videoFeed.value.videos!.length,
-      (index) => null,
+          (index) => null,
     );
   }
 
   Future<void> initializeControllerAtIndex(
-    int index, {
-    int retryCount = 3,
-  }) async {
+      int index, {
+        int retryCount = 3,
+      }) async {
     if (index < 0 || index >= videoFeed.value.videos!.length) return;
 
     if (_videoControllers[index] != null &&
@@ -605,9 +720,9 @@ class HomeController extends GetxController with WidgetsBindingObserver {
   }
 
   Future<void> recreateControllerAtIndex(
-    int index, {
-    int retryCount = 3,
-  }) async {
+      int index, {
+        int retryCount = 3,
+      }) async {
     if (index < 0 || index >= videoFeed.value.videos!.length) return;
 
     disposeControllerAtIndex(index);
@@ -673,7 +788,7 @@ class HomeController extends GetxController with WidgetsBindingObserver {
         if (attempts >= retryCount) {
           print("Max retries reached for index $index. Giving up.");
           error.value =
-              "Failed to load video at index $index after $retryCount attempts: $e";
+          "Failed to load video at index $index after $retryCount attempts: $e";
           return;
         }
         await Future.delayed(Duration(milliseconds: 500));

@@ -13,6 +13,11 @@ class LocationController extends GetxController {
   var nearestBusinesses = NearBusinessModel().obs;
   var isRadiusCardVisible = false.obs;
 
+  // Cache for location to avoid repeated API calls
+  Position? _cachedPosition;
+  DateTime? _lastLocationUpdate;
+  static const int _locationCacheMinutes = 5; // Cache location for 5 minutes
+
   void toggleRadiusCardVisibility() {
     isRadiusCardVisible.value = !isRadiusCardVisible.value;
   }
@@ -25,11 +30,25 @@ class LocationController extends GetxController {
 
   Future<void> getCurrentLocation() async {
     try {
-      isLoading(true);
+      isLoading.value = true;
 
+      // Check if we have a cached location that's still valid
+      if (_cachedPosition != null &&
+          _lastLocationUpdate != null &&
+          DateTime.now().difference(_lastLocationUpdate!).inMinutes < _locationCacheMinutes) {
+
+        latitude.value = _cachedPosition!.latitude;
+        longitude.value = _cachedPosition!.longitude;
+
+        // Fetch businesses with cached location
+        await fetchNearestBusinesses();
+        return;
+      }
+
+      // Quick permission and service check
       bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
       if (!serviceEnabled) {
-        Get.snackbar('Error', 'Location services are disabled');
+        Get.snackbar('Error', 'Location services are disabled. Please enable them.');
         return;
       }
 
@@ -37,29 +56,56 @@ class LocationController extends GetxController {
       if (permission == LocationPermission.denied) {
         permission = await Geolocator.requestPermission();
         if (permission == LocationPermission.denied) {
-          Get.snackbar('Error', 'Location permissions are denied');
+          Get.snackbar('Error', 'Location permissions are denied.');
           return;
         }
       }
 
       if (permission == LocationPermission.deniedForever) {
-        Get.snackbar('Error', 'Location permissions are permanently denied');
+        Get.snackbar(
+          'Error',
+          'Location permissions are permanently denied. Please enable them in settings.',
+        );
         return;
       }
 
+      // Get location with optimized settings for speed
       Position position = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.medium, // Optimized for performance
+        desiredAccuracy: LocationAccuracy.low, // Faster but less accurate
+        timeLimit: Duration(seconds: 10), // Timeout after 10 seconds
       );
 
+      // Cache the position
+      _cachedPosition = position;
+      _lastLocationUpdate = DateTime.now();
+
+      // Update latitude and longitude
       latitude.value = position.latitude;
       longitude.value = position.longitude;
 
-      // Optionally, fetch businesses on initial location fetch
+      // Fetch nearest businesses
       await fetchNearestBusinesses();
     } catch (e) {
-      Get.snackbar('Error', 'Failed to get location: $e');
+      // If getCurrentPosition fails, try getLastKnownPosition as fallback
+      try {
+        Position? lastPosition = await Geolocator.getLastKnownPosition();
+        if (lastPosition != null) {
+          latitude.value = lastPosition.latitude;
+          longitude.value = lastPosition.longitude;
+
+          // Cache the fallback position
+          _cachedPosition = lastPosition;
+          _lastLocationUpdate = DateTime.now();
+
+          await fetchNearestBusinesses();
+        } else {
+          Get.snackbar('Error', 'Failed to get location: $e');
+        }
+      } catch (fallbackError) {
+        Get.snackbar('Error', 'Failed to get location: $fallbackError');
+      }
     } finally {
-      isLoading(false);
+      isLoading.value = false;
     }
   }
 
@@ -69,21 +115,35 @@ class LocationController extends GetxController {
     double? customRadius,
   }) async {
     try {
-      isLoading(true);
+      // Don't show loading if we're just updating radius
+      if (customRadius == null) {
+        isLoading.value = true;
+      }
 
       final lat = customLatitude ?? latitude.value;
       final lng = customLongitude ?? longitude.value;
       final rad = customRadius ?? radius.value;
 
+      // Validate coordinates
+      if (lat == 0.0 || lng == 0.0) {
+        Get.snackbar('Error', 'Invalid location coordinates.');
+        return;
+      }
+
+      // Add timeout to API call
       final response = await ApiClient.postRequest(
-        '${EndPoints.nearedBusiness}',
+        EndPoints.nearedBusiness,
         {'latitude': lat, 'longitude': lng, 'radius': rad},
+      ).timeout(
+        Duration(seconds: 15), // 15 second timeout
+        onTimeout: () {
+          throw Exception('Request timeout');
+        },
       );
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         nearestBusinesses.value = NearBusinessModel.fromJson(data);
-        // Hide the radius card on successful submission
         isRadiusCardVisible.value = false;
       } else {
         Get.snackbar(
@@ -92,13 +152,59 @@ class LocationController extends GetxController {
         );
       }
     } catch (e) {
-      Get.snackbar('Error', 'Failed to fetch nearest businesses: $e');
+      if (e.toString().contains('timeout')) {
+        Get.snackbar('Error', 'Request timed out. Please check your internet connection.');
+      } else {
+        Get.snackbar('Error', 'Failed to fetch nearest businesses: $e');
+      }
     } finally {
-      isLoading(false);
+      isLoading.value = false;
     }
   }
 
   void updateRadius(double newRadius) {
-    radius.value = newRadius; // Only update the radius value
+    radius.value = newRadius;
+    // Immediately fetch businesses with new radius without showing loading
+    fetchNearestBusinesses(customRadius: newRadius);
+  }
+
+  // Method to force refresh location (bypass cache)
+  Future<void> refreshLocation() async {
+    _cachedPosition = null;
+    _lastLocationUpdate = null;
+    await getCurrentLocation();
+  }
+
+  // Method to get location without fetching businesses (for quick location updates)
+  Future<void> getLocationOnly() async {
+    try {
+      if (_cachedPosition != null &&
+          _lastLocationUpdate != null &&
+          DateTime.now().difference(_lastLocationUpdate!).inMinutes < _locationCacheMinutes) {
+
+        latitude.value = _cachedPosition!.latitude;
+        longitude.value = _cachedPosition!.longitude;
+        return;
+      }
+
+      Position position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.low,
+        timeLimit: Duration(seconds: 5),
+      );
+
+      _cachedPosition = position;
+      _lastLocationUpdate = DateTime.now();
+      latitude.value = position.latitude;
+      longitude.value = position.longitude;
+    } catch (e) {
+      // Try last known position
+      Position? lastPosition = await Geolocator.getLastKnownPosition();
+      if (lastPosition != null) {
+        latitude.value = lastPosition.latitude;
+        longitude.value = lastPosition.longitude;
+        _cachedPosition = lastPosition;
+        _lastLocationUpdate = DateTime.now();
+      }
+    }
   }
 }
