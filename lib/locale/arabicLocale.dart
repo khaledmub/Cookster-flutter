@@ -405,5 +405,6 @@ const Map<String, String> ar = {
   'search_blocked_users': 'ابحث عن المستخدمين المحظورين',
   'no_blocked_users': 'لا يوجد مستخدمون محظورون',
   'unblocked': 'تم إلغاء الحظر ',
-  "unblock" : "إلغاء الحظر"
+  "unblock" : "إلغاء الحظر",
+  "chat_support" : "دعم الدردشة"
 };

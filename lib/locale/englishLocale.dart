@@ -411,5 +411,6 @@ const Map<String, String> en = {
   'search_blocked_users': 'Search blocked users',
   'no_blocked_users': 'No blocked users',
   'unblocked': 'Unblocked',
-  "unblock" : "Unblock"
+  "unblock": "Unblock",
+  "chat_support": "Chat Support",
 };
