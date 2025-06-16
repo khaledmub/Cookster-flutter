@@ -5,6 +5,8 @@ import 'package:cookster/appRoutes/appRoutes.dart';
 import 'package:cookster/appUtils/appCenterIcon.dart';
 import 'package:cookster/appUtils/appUtils.dart';
 import 'package:cookster/modules/auth/signIn/signInController/signInController.dart';
+import 'package:cookster/modules/initLanguageSelection/initLanguageView.dart';
+import 'package:cookster/modules/selectLanguage/selectLanguageView/selectLanguageView.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -82,6 +84,28 @@ class _SignInViewState extends State<SignInView> {
                               ],
                             ),
                             AppCenterIcon(),
+                            Align(
+                              alignment: Alignment.topRight,
+                              child: InkWell(
+                                onTap: () {
+                                  Get.to(SelectLanguageView());
+                                },
+                                child: Container(
+                                  margin: EdgeInsets.symmetric(vertical: 6.h),
+                                  height: 50.h,
+                                  width: 50.h,
+                                  decoration: BoxDecoration(
+                                    // color: Colors.white,
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: Icon(
+                                    Icons.language,
+                                    color: Colors.white,
+                                    size: 30,
+                                  ),
+                                ),
+                              ),
+                            ),
                           ],
                         ),
                       ),
