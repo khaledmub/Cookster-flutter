@@ -5,6 +5,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_svg/svg.dart';
 import 'package:get/get.dart';
 
+import '../../../tawkLiveChat/tawkLiveChat.dart';
 import '../../blockedUsers/blockedUsersView/blockedUsersView.dart';
 
 class TabBarWidget extends StatelessWidget {
@@ -139,7 +140,11 @@ class CustomButtonWidget extends StatelessWidget {
   }
 }
 
-void showMoreOptionsProfile(BuildContext context, String userName) {
+void showMoreOptionsProfile(
+  BuildContext context,
+  String userName,
+  String userEmail,
+) {
   // _handleScreenExit();
   // controller.pauseCurrentVideo();
   showModalBottomSheet(
@@ -176,9 +181,24 @@ void showMoreOptionsProfile(BuildContext context, String userName) {
                 ),
                 onTap: () {
                   Navigator.pop(context);
-                  Get.to(BlockedUsersScreen(
-                    userName:userName,
-                  ));
+                  Get.to(BlockedUsersScreen(userName: userName));
+                },
+              ),
+              ListTile(
+                leading: Icon(Icons.support_agent, color: ColorUtils.grey),
+                trailing: Icon(
+                  Icons.chevron_right_rounded,
+                  color: ColorUtils.grey,
+                ),
+                title: Text(
+                  'chat_support'.tr,
+                  style: TextStyle(color: Colors.black, fontSize: 14.sp),
+                ),
+                onTap: () {
+                  Navigator.pop(context);
+                  Get.to(
+                    LiveTawkChat(userName: userName, userEmail: userEmail),
+                  );
                 },
               ),
             ],

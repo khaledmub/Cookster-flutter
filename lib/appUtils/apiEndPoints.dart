@@ -1,9 +1,11 @@
 class Common {
-  // static String baseUrl = "https://beta.cookster.org/public/api/";
-  static String baseUrl = "http://192.168.1.11/cookster_admin/public/api/";
-  // static String imageBaseUrl = "https://beta.cookster.org/public/storage/";
-  static String imageBaseUrl =
-      "http://192.168.1.11/cookster_admin/public/storage/";
+  static String baseUrl = "https://beta.cookster.org/public/api/";
+
+  // static String baseUrl = "http://192.168.1.11/cookster_admin/public/api/";
+  static String imageBaseUrl = "https://beta.cookster.org/public/storage/";
+
+  // static String imageBaseUrl =
+  //     "http://192.168.1.11/cookster_admin/public/storage/";
   static String imageScreen = "${imageBaseUrl}screens";
   static String profileImage = "${imageBaseUrl}front_users";
   static String audioThumbnail = "${imageBaseUrl}audios";

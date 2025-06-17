@@ -506,7 +506,11 @@ class _ProfessionalProfileViewState extends State<ProfessionalProfileView>
                                   SizedBox(width: 16,),
                                   InkWell(
                                     onTap: (){
-                                      showMoreOptionsProfile(context, userDetails.name);
+                                      showMoreOptionsProfile(
+                                        context,
+                                        userDetails.name,
+                                        userDetails.email,
+                                      );
                                     },
                                     child: Container(
                                       padding: EdgeInsets.all(8),

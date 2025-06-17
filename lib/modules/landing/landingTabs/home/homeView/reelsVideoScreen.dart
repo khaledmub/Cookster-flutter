@@ -1451,6 +1451,9 @@ class _VideoReelScreenState extends State<VideoReelScreen>
               "share".tr,
               style: TextStyle(color: Colors.white, fontSize: 10.sp),
             ),
+            SizedBox(height: 8),
+
+
           ],
         ),
 
@@ -1464,7 +1467,6 @@ class _VideoReelScreenState extends State<VideoReelScreen>
 
               return Column(
                 children: [
-                  SizedBox(height: 8),
 
                   InkWell(
                     onTap: () async {
