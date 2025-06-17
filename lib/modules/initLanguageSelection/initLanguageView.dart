@@ -67,11 +67,11 @@ class _InitLanguageViewState extends State<InitLanguageView> {
 
               // Main content
               Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.center,
+                // mainAxisAlignment: MainAxisAlignment.center,
+                // crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   Container(
-                    margin: EdgeInsets.symmetric(horizontal: 16),
+                    margin: EdgeInsets.symmetric(horizontal: 16, vertical: 90),
                     decoration: BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(40.r),
@@ -175,7 +175,7 @@ class _InitLanguageViewState extends State<InitLanguageView> {
               isSelected
                   ? ColorUtils.primaryColor
                   : Colors.yellow.withOpacity(0.4),
-          borderRadius: BorderRadius.circular(50),
+          borderRadius: BorderRadius.circular(20),
         ),
         child: Column(
           children: [

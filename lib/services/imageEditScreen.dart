@@ -234,6 +234,8 @@ class _ImageEditScreenState extends State<ImageEditScreen> {
                       customTextStyles: customTextStyles,
                       showSelectFontStyleBottomBar: true,
                       showTextAlignButton: true,
+
+                      // showTextAlignButton: true,
                     ),
                   ),
                   callbacks: ProImageEditorCallbacks(

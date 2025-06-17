@@ -19,9 +19,8 @@ class LiveTawkChat extends StatelessWidget {
         toolbarHeight: 0,
       ),
       body: Tawk(
-
         directChatLink:
-            'https://tawk.to/chat/684ffce6e1d1cb191104095d/1its77pm3',
+            'https://tawk.to/chat/684ffce6e1d1cb191104095d/1its77pm3?lang=ar',
         visitor: TawkVisitor(name: userName, email: userEmail),
         onLoad: () {
           print('Hello Tawk!');

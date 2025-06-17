@@ -230,6 +230,7 @@ class _OnBoardingState extends State<OnBoarding> {
                           textAlign: TextAlign.center,
                           style: TextStyle(
                             fontSize: isRtl ? 40.sp : 50.sp,
+                            color: ColorUtils.darkBrown,
                             // fontWeight: FontWeight.w500,
                             fontFamily: isRtl ? "Aref" : "Signature",
                           ),
@@ -267,33 +268,42 @@ class _OnBoardingState extends State<OnBoarding> {
                     () =>
                         controller.currentPage.value < onboardingData.length - 1
                             ? InkWell(
-                              onTap: () {
-                                controller.skip();
-                              },
+                              onTap: controller.skip,
                               child: Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 12,
-                                  vertical: 4,
-                                ),
+                                width: 80, // Specific width
+                                height: 35, // Specific height
+                                // padding: EdgeInsets.symmetric(
+                                //   horizontal: 12.w,
+                                //   vertical: 4.h,
+                                // ),
                                 decoration: BoxDecoration(
                                   color: Colors.white,
                                   borderRadius: BorderRadius.circular(20.r),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.grey.withOpacity(0.2),
+                                      blurRadius: 4.r,
+                                      offset: Offset(0, 2.h),
+                                    ),
+                                  ],
                                 ),
                                 child: Row(
                                   mainAxisSize: MainAxisSize.min,
+                                  mainAxisAlignment: MainAxisAlignment.center, // Center content in container
                                   children: [
                                     Text(
                                       "Skip".tr,
                                       style: TextStyle(
-                                        fontSize: 14.sp,
-                                        fontWeight: FontWeight.w700,
+                                        fontSize: 12.sp,
+                                        fontWeight: FontWeight.w500,
+                                        color: Colors.black,
                                       ),
                                     ),
+                                    // SizedBox(width: 4.w),
                                     Icon(
-                                      isRtl
-                                          ? Icons.chevron_right_rounded
-                                          : Icons.chevron_right_rounded,
+                                      isRtl ? Icons.chevron_left_rounded : Icons.chevron_right_rounded,
                                       size: 18.sp,
+                                      color: Colors.black,
                                     ),
                                   ],
                                 ),

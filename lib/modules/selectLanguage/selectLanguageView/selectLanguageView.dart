@@ -49,150 +49,132 @@ class _SelectLanguageViewState extends State<SelectLanguageView> {
       ),
       body: SizedBox(
         height: Get.height,
-        child: SingleChildScrollView(
-          child: Stack(
-            children: [
-              // Background Gradient
-              Container(
-                height: Get.height,
-                decoration: const BoxDecoration(
-                  gradient: ColorUtils.goldGradient,
-                ),
+        child: Stack(
+          children: [
+            // Background Gradient
+            Container(
+              height: Get.height,
+              decoration: const BoxDecoration(
+                gradient: ColorUtils.goldGradient,
               ),
+            ),
 
-              // Your main content goes here
-              Column(
-                spacing: 12.h,
-                crossAxisAlignment: CrossAxisAlignment.center,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Stack(
-                    children: [
-                      // Back Button on the Left
-                      Positioned(
-                        // Conditionally set left or right based on language
-                        left: isRtl ? null : 16,
-                        right: isRtl ? 16 : null,
-                        top: 20,
-                        // Assuming .h is from a package like flutter_screenutil, replace with 20 if not using it
-                        child: GestureDetector(
-                          behavior: HitTestBehavior.opaque,
-                          onTap: () {
-                            try {
-                              print("Tapped");
-                              Get.back();
-                            } catch (e) {
-                              print(e);
-                            }
-                          },
-                          child: Container(
-                            height: 40,
-                            width: 40,
-                            decoration: const BoxDecoration(
-                              color: Color(0xFFE6BE00),
-                              shape: BoxShape.circle,
-                            ),
-                            child: Center(
-                              child: Icon(
-                                // Use right chevron for Arabic, left chevron for English
-                                isRtl
-                                    ? Icons.arrow_back
+            // Your main content goes here
+            Column(
+              spacing: 12.h,
 
-                                    : Icons.arrow_back
-,
-                                color: ColorUtils.darkBrown,
-                                size: 24,
-                              ),
-                            ),
+              children: [
+                Container(
+                  margin: EdgeInsets.symmetric(horizontal: 16, vertical: 90),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(40.r),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 32.0),
+                    child: Column(
+                      spacing: 10.h,
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        SizedBox(height: 20.h),
+                        Text(
+                          "Language Selection".tr,
+                          style: TextStyle(
+                            color: ColorUtils.darkBrown,
+                            fontSize: 26.sp,
+                            fontWeight: FontWeight.w500,
                           ),
                         ),
-                      ),
-
-
-                      // Center Logo
-                     AppCenterIcon()
-                    ],
-                  ),
-                  Container(
-                    margin: EdgeInsets.symmetric(horizontal: 16),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(40.r),
-                    ),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 32.0),
-                      child: Column(
-                        spacing: 10.h,
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          SizedBox(height: 20.h),
-                          Text(
-                            "Language Selection".tr,
-                            style: TextStyle(
-                              color: ColorUtils.darkBrown,
-                              fontSize: 26.sp,
-                              fontWeight: FontWeight.w500,
-                            ),
+                        Text(
+                          'changeLanguageDescription'.tr,
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: Colors.black,
+                            fontSize: 12.sp,
+                            fontWeight: FontWeight.w400,
                           ),
-                          Text(
-                            'changeLanguageDescription'.tr,
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              color: Colors.black,
-                              fontSize: 12.sp,
-                              fontWeight: FontWeight.w400,
-                            ),
-                          ),
-                          Obx(
-                            () => _buildLanguageOption(
-                              language: "English".tr,
-                              imagePath: "assets/icons/english.svg",
-                              isSelected:
-                                  languageController
-                                      .selectedTempLanguage
-                                      .value ==
+                        ),
+                        Obx(
+                          () => _buildLanguageOption(
+                            language: "English".tr,
+                            imagePath: "assets/icons/english.svg",
+                            isSelected:
+                                languageController.selectedTempLanguage.value ==
+                                "English",
+                            onTap:
+                                () => languageController.selectLanguage(
                                   "English",
-                              onTap:
-                                  () => languageController.selectLanguage(
-                                    "English",
-                                  ),
-                            ),
+                                ),
                           ),
+                        ),
 
-                          Obx(
-                            () => _buildLanguageOption(
-                              language: "Arabic".tr,
-                              imagePath: "assets/icons/arabic.svg",
-                              isSelected:
-                                  languageController
-                                      .selectedTempLanguage
-                                      .value ==
-                                  "Arabic",
-                              onTap:
-                                  () => languageController.selectLanguage(
-                                    "Arabic",
-                                  ),
-                            ),
+                        Obx(
+                          () => _buildLanguageOption(
+                            language: "Arabic".tr,
+                            imagePath: "assets/icons/arabic.svg",
+                            isSelected:
+                                languageController.selectedTempLanguage.value ==
+                                "Arabic",
+                            onTap:
+                                () =>
+                                    languageController.selectLanguage("Arabic"),
                           ),
-                          SizedBox(height: 4),
+                        ),
+                        SizedBox(height: 4),
 
-                          AppButton(
-                            text: "Save".tr,
-                            onTap: () async {
-                              await languageController.applyLanguageChange();
-                              Get.offAll(Landing());
-                            },
-                          ),
-                          SizedBox(height: 20.h),
-                        ],
-                      ),
+                        AppButton(
+                          text: "Save".tr,
+                          onTap: () async {
+                            await languageController.applyLanguageChange();
+                            Get.offAll(Landing());
+                          },
+                        ),
+                        SizedBox(height: 20.h),
+                      ],
                     ),
                   ),
-                ],
+                ),
+              ],
+            ),
+            Positioned(
+              // Conditionally set left or right based on language
+              left: isRtl ? null : 16,
+              right: isRtl ? 16 : null,
+              top: 20,
+              // Assuming .h is from a package like flutter_screenutil, replace with 20 if not using it
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () {
+                  try {
+                    print("Tapped");
+                    Get.back();
+                  } catch (e) {
+                    print(e);
+                  }
+                },
+                child: Container(
+                  height: 40,
+                  width: 40,
+                  decoration: const BoxDecoration(
+                    color: Color(0xFFE6BE00),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Center(
+                    child: Icon(
+                      // Use right chevron for Arabic, left chevron for English
+                      isRtl ? Icons.arrow_back : Icons.arrow_back,
+                      color: ColorUtils.darkBrown,
+                      size: 24,
+                    ),
+                  ),
+                ),
               ),
-            ],
-          ),
+            ),
+
+            // Center Logo
+            AppCenterIcon(),
+          ],
         ),
       ),
     );
@@ -214,7 +196,7 @@ class _SelectLanguageViewState extends State<SelectLanguageView> {
               isSelected
                   ? ColorUtils.primaryColor
                   : Colors.yellow.withOpacity(0.4),
-          borderRadius: BorderRadius.circular(50),
+          borderRadius: BorderRadius.circular(20),
         ),
         child: Column(
           children: [

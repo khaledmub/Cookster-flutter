@@ -176,8 +176,8 @@ void showMoreOptionsProfile(
                 },
               ),
               ListTile(
-                leading: Icon(Icons.block, color: ColorUtils.grey),
-                trailing: Icon(Icons.support_agent, color: ColorUtils.grey),
+                leading: Icon(Icons.support_agent, color: ColorUtils.grey),
+                trailing: Icon(Icons.chevron_right_rounded, color: ColorUtils.grey),
                 title: Text(
                   'chat_support'.tr,
                   style: TextStyle(color: Colors.black, fontSize: 14.sp),

@@ -922,10 +922,10 @@ class _SearchViewState extends State<SearchView>
     );
   }
 
-
-
   void showLocationDialog(BuildContext context, {int? initialCountryId}) {
     final VideoAddController controller = Get.find();
+    final HomeController homeController = Get.find();
+
     final ProfileController profileController = Get.find();
     final CityController cityController = Get.find<CityController>();
     final UserSearchController searchControllerNew = Get.find();
@@ -934,26 +934,29 @@ class _SearchViewState extends State<SearchView>
 
     Map<String, int> countryMap = {};
     List<String> countryName =
-    profileController.videoUploadSettings.value!.countries!.map((country) {
-      countryMap[country.name!] = country.id!;
-      return country.name!;
-    }).toList();
+        profileController.videoUploadSettings.value!.countries!.map((country) {
+          countryMap[country.name!] = country.id!;
+          return country.name!;
+        }).toList();
 
     // Controller for search field
     final TextEditingController searchController = TextEditingController();
     RxList<String> filteredCountryName = countryName.obs;
-    RxString selectedCountryName = (controller.selectedCountry.value.isNotEmpty
-        ? controller.selectedCountry.value
-        : '').obs;
+    RxString selectedCountryName =
+        (controller.selectedCountry.value.isNotEmpty
+                ? controller.selectedCountry.value
+                : '')
+            .obs;
 
     // Set the initial selected country if provided
     if (initialCountryId != null) {
-      String? countryNameForId = countryMap.entries
-          .firstWhere(
-            (entry) => entry.value == initialCountryId,
-        orElse: () => MapEntry('', 0),
-      )
-          .key;
+      String? countryNameForId =
+          countryMap.entries
+              .firstWhere(
+                (entry) => entry.value == initialCountryId,
+                orElse: () => MapEntry('', 0),
+              )
+              .key;
       if (countryNameForId.isNotEmpty) {
         selectedCountryName.value = countryNameForId;
       }
@@ -964,15 +967,21 @@ class _SearchViewState extends State<SearchView>
       if (query.isEmpty) {
         filteredCountryName.value = countryName;
       } else {
-        filteredCountryName.value = countryName
-            .where((country) => country.toLowerCase().contains(query.toLowerCase()))
-            .toList();
+        filteredCountryName.value =
+            countryName
+                .where(
+                  (country) =>
+                      country.toLowerCase().contains(query.toLowerCase()),
+                )
+                .toList();
       }
     }
 
     Get.dialog(
       Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20.r)),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20.r),
+        ),
         child: Container(
           width: 350.w,
           padding: EdgeInsets.all(16.w),
@@ -1037,56 +1046,67 @@ class _SearchViewState extends State<SearchView>
                 height: 230.h,
                 child: SingleChildScrollView(
                   child: Obx(
-                        () => Column(
-                      children: List.generate(
-                        filteredCountryName.length,
-                            (index) {
-                          String country = filteredCountryName[index];
-                          bool isSelected = selectedCountryName.value == country;
+                    () => Column(
+                      children: List.generate(filteredCountryName.length, (
+                        index,
+                      ) {
+                        String country = filteredCountryName[index];
+                        bool isSelected = selectedCountryName.value == country;
 
-                          return InkWell(
-                            onTap: () {
-                              selectedCountryName.value = country;
-                            },
-                            child: Padding(
-                              padding: EdgeInsets.symmetric(vertical: 12.h),
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
-                                  ConstrainedBox(
-                                    constraints: BoxConstraints(maxWidth: 200.w),
-                                    child: Text(
-                                      country,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: TextStyle(
-                                        fontSize: 13.sp,
-                                        fontWeight: isSelected
-                                            ? FontWeight.bold
-                                            : FontWeight.normal,
-                                        color: Colors.black,
+                        return Column(
+                          children: [
+                            InkWell(
+                              onTap: () {
+                                selectedCountryName.value = country;
+                              },
+                              child: Padding(
+                                padding: EdgeInsets.symmetric(vertical: 12.h),
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    ConstrainedBox(
+                                      constraints: BoxConstraints(maxWidth: 200.w),
+                                      child: Text(
+                                        country,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                          fontSize: 13.sp,
+                                          fontWeight:
+                                              isSelected
+                                                  ? FontWeight.bold
+                                                  : FontWeight.normal,
+                                          color: Colors.black,
+                                        ),
                                       ),
                                     ),
-                                  ),
-                                  Container(
-                                    width: 20.w,
-                                    height: 20.w,
-                                    decoration: BoxDecoration(
-                                      shape: BoxShape.circle,
-                                      border: Border.all(
-                                        color: ColorUtils.primaryColor,
-                                        width: 2,
+                                    Container(
+                                      width: 20.w,
+                                      height: 20.w,
+                                      decoration: BoxDecoration(
+                                        shape: BoxShape.circle,
+                                        border: Border.all(
+                                          color: ColorUtils.primaryColor,
+                                          width: 2,
+                                        ),
+                                        color:
+                                            isSelected
+                                                ? ColorUtils.primaryColor
+                                                : Colors.white,
                                       ),
-                                      color: isSelected
-                                          ? ColorUtils.primaryColor
-                                          : Colors.white,
                                     ),
-                                  ),
-                                ],
+                                  ],
+                                ),
                               ),
                             ),
-                          );
-                        },
-                      ),
+                            if (index < filteredCountryName.length - 1)
+                              Divider(
+                                height: 1.h,
+                                thickness: 1.r,
+                                color: Colors.grey.shade300,
+                              ),
+                          ],
+                        );
+                      }),
                     ),
                   ),
                 ),
@@ -1095,20 +1115,27 @@ class _SearchViewState extends State<SearchView>
 
               /// **Submit Button**
               Obx(
-                    () => ElevatedButton(
-                  onPressed: selectedCountryName.value.isNotEmpty
-                      ? () async {
-                    int? selectedId = countryMap[selectedCountryName.value];
-                    if (selectedId != null) {
-                      searchControllerNew.currentCountry.value = selectedCountryName.value;
-                      controller.selectLocation(
-                          selectedCountryName.value, selectedId);
-                      await cityController.fetchCities(selectedId);
-                      Get.back(); // Close the country dialog
-                      showCityDialog(context);
-                    }
-                  }
-                      : null,
+                () => ElevatedButton(
+                  onPressed:
+                      selectedCountryName.value.isNotEmpty
+                          ? () async {
+                            int? selectedId =
+                                countryMap[selectedCountryName.value];
+                            if (selectedId != null) {
+                              searchControllerNew.currentCountry.value =
+                                  selectedCountryName.value;
+                              controller.selectLocation(
+                                selectedCountryName.value,
+                                selectedId,
+                              );
+                              homeController.currentCountry.value =
+                                  selectedCountryName.value;
+                              await cityController.fetchCities(selectedId);
+                              Get.back(); // Close the country dialog
+                              showCityDialog(context);
+                            }
+                          }
+                          : null,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: ColorUtils.primaryColor,
                     shape: RoundedRectangleBorder(
@@ -1132,8 +1159,6 @@ class _SearchViewState extends State<SearchView>
       ),
     );
   }
-
-
 
   void showCityDialog(BuildContext context, {int? initialCity}) {
     final VideoAddController controller = Get.find();
@@ -1268,55 +1293,66 @@ class _SearchViewState extends State<SearchView>
                                     bool isSelected =
                                         selectedCityName.value == city;
 
-                                    return InkWell(
-                                      onTap: () {
-                                        selectedCityName.value = city;
-                                      },
-                                      child: Padding(
-                                        padding: EdgeInsets.symmetric(
-                                          vertical: 12.h,
-                                        ),
-                                        child: Row(
-                                          mainAxisAlignment:
-                                              MainAxisAlignment.spaceBetween,
-                                          children: [
-                                            ConstrainedBox(
-                                              constraints: BoxConstraints(
-                                                maxWidth: 200.w,
-                                              ),
-                                              child: Text(
-                                                city,
-                                                overflow: TextOverflow.ellipsis,
-                                                style: TextStyle(
-                                                  fontSize: 13.sp,
-                                                  fontWeight:
-                                                      isSelected
-                                                          ? FontWeight.bold
-                                                          : FontWeight.normal,
-                                                  color: Colors.black,
-                                                ),
-                                              ),
+                                    return Column(
+                                      children: [
+                                        InkWell(
+                                          onTap: () {
+                                            selectedCityName.value = city;
+                                          },
+                                          child: Padding(
+                                            padding: EdgeInsets.symmetric(
+                                              vertical: 12.h,
                                             ),
-                                            Container(
-                                              width: 20.w,
-                                              height: 20.w,
-                                              decoration: BoxDecoration(
-                                                shape: BoxShape.circle,
-                                                border: Border.all(
-                                                  color:
-                                                      ColorUtils.primaryColor,
-                                                  width: 2,
+                                            child: Row(
+                                              mainAxisAlignment:
+                                                  MainAxisAlignment.spaceBetween,
+                                              children: [
+                                                ConstrainedBox(
+                                                  constraints: BoxConstraints(
+                                                    maxWidth: 200.w,
+                                                  ),
+                                                  child: Text(
+                                                    city,
+                                                    overflow: TextOverflow.ellipsis,
+                                                    style: TextStyle(
+                                                      fontSize: 13.sp,
+                                                      fontWeight:
+                                                          isSelected
+                                                              ? FontWeight.bold
+                                                              : FontWeight.normal,
+                                                      color: Colors.black,
+                                                    ),
+                                                  ),
                                                 ),
-                                                color:
-                                                    isSelected
-                                                        ? ColorUtils
-                                                            .primaryColor
-                                                        : Colors.white,
-                                              ),
+                                                Container(
+                                                  width: 20.w,
+                                                  height: 20.w,
+                                                  decoration: BoxDecoration(
+                                                    shape: BoxShape.circle,
+                                                    border: Border.all(
+                                                      color:
+                                                          ColorUtils.primaryColor,
+                                                      width: 2,
+                                                    ),
+                                                    color:
+                                                        isSelected
+                                                            ? ColorUtils
+                                                                .primaryColor
+                                                            : Colors.white,
+                                                  ),
+                                                ),
+                                              ],
                                             ),
-                                          ],
+                                          ),
                                         ),
-                                      ),
+
+                                        if (index < filteredCityName.length - 1)
+                                          Divider(
+                                            height: 1.h,
+                                            thickness: 1.r,
+                                            color: Colors.grey.shade300,
+                                          ),
+                                      ],
                                     );
                                   },
                                 ),
@@ -1346,8 +1382,11 @@ class _SearchViewState extends State<SearchView>
                                               .value = selectedCityName.value;
                                           controller.selectedCity.value =
                                               selectedCityName.value;
-                                          homeController.currentCity.value = selectedCityName.value;
-                                          homeUpdateController.currentCity.value = selectedCityName.value;
+                                          homeController.currentCity.value =
+                                              selectedCityName.value;
+                                          homeUpdateController
+                                              .currentCity
+                                              .value = selectedCityName.value;
 
                                           Get.back(); // Close the city dialog
                                         }

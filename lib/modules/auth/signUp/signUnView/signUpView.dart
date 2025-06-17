@@ -1782,48 +1782,61 @@ void showCountrySelectionDialog(
                       String country = filteredCountryName[index];
                       bool isSelected = selectedCountryName.value == country;
 
-                      return InkWell(
-                        onTap: () {
-                          selectedCountryName.value = country;
-                        },
-                        child: Padding(
-                          padding: EdgeInsets.symmetric(vertical: 12.h),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              ConstrainedBox(
-                                constraints: BoxConstraints(maxWidth: 200.w),
-                                child: Text(
-                                  country,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    fontSize: 13.sp,
-                                    fontWeight:
-                                        isSelected
-                                            ? FontWeight.bold
-                                            : FontWeight.normal,
-                                    color: Colors.black,
+                      return Column(
+                        children: [
+                          InkWell(
+                            onTap: () {
+                              selectedCountryName.value = country;
+                            },
+                            child: Padding(
+                              padding: EdgeInsets.symmetric(vertical: 12.h),
+                              child: Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  ConstrainedBox(
+                                    constraints: BoxConstraints(
+                                      maxWidth: 200.w,
+                                    ),
+                                    child: Text(
+                                      country,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        fontSize: 13.sp,
+                                        fontWeight:
+                                            isSelected
+                                                ? FontWeight.bold
+                                                : FontWeight.normal,
+                                        color: Colors.black,
+                                      ),
+                                    ),
                                   ),
-                                ),
-                              ),
-                              Container(
-                                width: 20.w,
-                                height: 20.w,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  border: Border.all(
-                                    color: ColorUtils.primaryColor,
-                                    width: 2,
+                                  Container(
+                                    width: 20.w,
+                                    height: 20.w,
+                                    decoration: BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      border: Border.all(
+                                        color: ColorUtils.primaryColor,
+                                        width: 2,
+                                      ),
+                                      color:
+                                          isSelected
+                                              ? ColorUtils.primaryColor
+                                              : Colors.white,
+                                    ),
                                   ),
-                                  color:
-                                      isSelected
-                                          ? ColorUtils.primaryColor
-                                          : Colors.white,
-                                ),
+                                ],
                               ),
-                            ],
+                            ),
                           ),
-                        ),
+                          if (index < filteredCountryName.length - 1)
+                            Divider(
+                              height: 1.h,
+                              thickness: 1.r,
+                              color: Colors.grey.shade300,
+                            ),
+                        ],
                       );
                     }),
                   ),
@@ -1982,48 +1995,61 @@ void showCitySelectionDialog(
                       String cityName = filteredCityName[index];
                       bool isSelected = selectedCityName.value == cityName;
 
-                      return InkWell(
-                        onTap: () {
-                          selectedCityName.value = cityName;
-                        },
-                        child: Padding(
-                          padding: EdgeInsets.symmetric(vertical: 12.h),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              ConstrainedBox(
-                                constraints: BoxConstraints(maxWidth: 200.w),
-                                child: Text(
-                                  cityName,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    fontSize: 13.sp,
-                                    fontWeight:
-                                        isSelected
-                                            ? FontWeight.bold
-                                            : FontWeight.normal,
-                                    color: Colors.black,
+                      return Column(
+                        children: [
+                          InkWell(
+                            onTap: () {
+                              selectedCityName.value = cityName;
+                            },
+                            child: Padding(
+                              padding: EdgeInsets.symmetric(vertical: 12.h),
+                              child: Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  ConstrainedBox(
+                                    constraints: BoxConstraints(
+                                      maxWidth: 200.w,
+                                    ),
+                                    child: Text(
+                                      cityName,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        fontSize: 13.sp,
+                                        fontWeight:
+                                            isSelected
+                                                ? FontWeight.bold
+                                                : FontWeight.normal,
+                                        color: Colors.black,
+                                      ),
+                                    ),
                                   ),
-                                ),
-                              ),
-                              Container(
-                                width: 20.w,
-                                height: 20.w,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  border: Border.all(
-                                    color: ColorUtils.primaryColor,
-                                    width: 2,
+                                  Container(
+                                    width: 20.w,
+                                    height: 20.w,
+                                    decoration: BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      border: Border.all(
+                                        color: ColorUtils.primaryColor,
+                                        width: 2,
+                                      ),
+                                      color:
+                                          isSelected
+                                              ? ColorUtils.primaryColor
+                                              : Colors.white,
+                                    ),
                                   ),
-                                  color:
-                                      isSelected
-                                          ? ColorUtils.primaryColor
-                                          : Colors.white,
-                                ),
+                                ],
                               ),
-                            ],
+                            ),
                           ),
-                        ),
+                          if (index < filteredCityName.length - 1)
+                            Divider(
+                              height: 1.h,
+                              thickness: 1.r,
+                              color: Colors.grey.shade300,
+                            ),
+                        ],
                       );
                     }),
                   ),
