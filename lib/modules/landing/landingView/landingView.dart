@@ -53,12 +53,27 @@ class _LandingState extends State<Landing> {
 
   final VideoAddController videoAddController = Get.put(VideoAddController());
 
-  final ImagePicker _picker = ImagePicker();
-
   Future<bool> _isUserAuthenticated() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     String? authToken = prefs.getString('auth_token');
     return authToken != null && authToken.isNotEmpty;
+  }
+
+  Future<void> fetchUserDetails() async {
+    bool isAuthenticated = await _isUserAuthenticated();
+    if (isAuthenticated) {
+      int entity = await getEntity();
+      if (entity == 2) {
+        // Fetch from ProfessionalProfileController
+        await professionalProfileController.getUserDetails();
+      } else {
+        // Fetch from ProfileController
+        await profileController.getUserDetails();
+      }
+    } else {
+      // Handle unauthenticated user (e.g., redirect to sign-in)
+      // Get.toNamed(AppRoutes.signIn);
+    }
   }
 
   // Add this method to handle authentication required actions
@@ -72,27 +87,6 @@ class _LandingState extends State<Landing> {
       Get.toNamed(AppRoutes.signIn); // Make sure you have this route defined
     }
   }
-
-  void showUploadingDialog(BuildContext context) {
-    AwesomeDialog(
-      context: context,
-      dialogType: DialogType.warning,
-      // Change to error, info, success if needed
-      animType: AnimType.scale,
-      title: "Warning",
-      desc: "Already Uploading Video",
-      dismissOnTouchOutside: false,
-      btnOkText: "OK",
-      btnOkColor: Colors.orange,
-      btnOkOnPress: () {},
-    ).show();
-  }
-
-  // Variables to track the position of the draggable progress indicator
-  RxDouble _dragX = 10.0.obs;
-
-  // Slightly offset from the left edge
-  RxDouble _dragY = (Get.height / 2 - 40.h).obs;
 
   // Center vertically, adjust for widget height
   Future<void> _pickImage(BuildContext context, ImageSource source) async {
@@ -113,38 +107,6 @@ class _LandingState extends State<Landing> {
     Get.to(CameraCaptureScreen(cameras: cameras))?.then((_) {
       controller.restoreVideoState(); // Restore video state after returning
     });
-  }
-
-  Future<void> _pickVideo(BuildContext context, ImageSource source) async {
-    // Check if a video is already uploading
-    if (videoAddController.isVideoUploading.value) {
-      AwesomeDialog(
-        context: context,
-        dialogType: DialogType.info,
-        animType: AnimType.scale,
-        title: "Upload in Progress",
-        desc: "Already uploading a video... Please wait!",
-        btnOkText: "OK",
-        btnOkOnPress: () {
-          Navigator.pop(context);
-        },
-        btnOkColor: ColorUtils.primaryColor,
-      ).show();
-      return; // Exit the function if an upload is in progress
-    }
-
-    try {
-      final XFile? video = await _picker.pickVideo(source: source);
-      if (video != null) {
-        File videoFile = File(video.path);
-        controller.handleNavigation();
-        await Get.to(() => VideoTextEditor(videoFile: videoFile))?.then((_) {
-          controller.restoreVideoState();
-        });
-      }
-    } catch (e) {
-      print('Error picking video: $e');
-    }
   }
 
   Future<int> getEntity() async {
@@ -370,6 +332,7 @@ class _LandingState extends State<Landing> {
   void initState() {
     super.initState();
     navBarController.selectedIndex.value = widget.initialIndex;
+    fetchUserDetails();
   }
 
   @override

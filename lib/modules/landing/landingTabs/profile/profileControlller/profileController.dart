@@ -546,8 +546,8 @@ class ProfileController extends GetxController {
   @override
   void onInit() async {
     super.onInit();
-    await getUserDetails();
-    await getVideoUploadSettings();
+    // await getUserDetails();
+    // await getVideoUploadSettings();
   }
 
   // @override

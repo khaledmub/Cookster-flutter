@@ -12,7 +12,7 @@ class SaveController extends GetxController {
   @override
   void onInit() {
     super.onInit();
-    getSavedVideos();
+    // getSavedVideos();
   }
 
   /// Save a video

@@ -21,6 +21,7 @@ import '../../../../../loaders/pulseLoader.dart';
 import '../../../../../services/apiClient.dart';
 import '../../../../promoteVideo/promoteVideoModel/promoteVideoModel.dart';
 import '../../profile/profileControlller/profileController.dart';
+import '../videoUploadSettingsModel/videoUploadSettingsModel.dart';
 
 enum VisibilityOption { public, onlyFollowers, private }
 
@@ -1085,11 +1086,12 @@ class VideoAddController extends GetxController {
     titleController.text = videoTitle.value;
     descriptionController.text = videoDescription.value;
     _loadBadWords();
-    await fetchSiteSettings();
+    // await fetchSiteSettings();
     print("Fetching entities");
     await fetchEntity();
     super.onInit();
   }
+
 
   @override
   void dispose() {

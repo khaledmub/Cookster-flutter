@@ -104,8 +104,7 @@ class _VideoPreviewScreenState extends State<VideoPreviewScreen> {
                               ),
                               child: Center(
                                 child: Icon(
-                                  Icons.arrow_back
-,
+                                  Icons.arrow_back,
                                   color: ColorUtils.darkBrown,
                                   size: 24,
                                 ),
@@ -113,7 +112,7 @@ class _VideoPreviewScreenState extends State<VideoPreviewScreen> {
                             ),
                           ),
                         ),
-                        AppCenterIcon()
+                        AppCenterIcon(),
                       ],
                     ),
                   ),

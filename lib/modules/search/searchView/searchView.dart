@@ -17,6 +17,7 @@ import '../../../appUtils/appUtils.dart';
 import '../../../appUtils/colorUtils.dart';
 import '../../../loaders/pulseLoader.dart';
 import '../../auth/signUp/signUpController/cityController.dart';
+import '../../landing/landingController/landingController.dart';
 import '../../landing/landingTabs/add/videoAddController/videoAddController.dart';
 import '../../landing/landingTabs/home/homeController/homeController.dart';
 import '../../landing/landingTabs/profile/profileControlller/profileController.dart';
@@ -923,10 +924,11 @@ class _SearchViewState extends State<SearchView>
   }
 
   void showLocationDialog(BuildContext context, {int? initialCountryId}) {
-    final VideoAddController controller = Get.find();
-    final HomeController homeController = Get.find();
+    final NavBarController profileController = Get.find();
 
-    final ProfileController profileController = Get.find();
+    final HomeController homeController = Get.find();
+    final VideoAddController controller = Get.find();
+
     final CityController cityController = Get.find<CityController>();
     final UserSearchController searchControllerNew = Get.find();
 
@@ -947,7 +949,6 @@ class _SearchViewState extends State<SearchView>
                 ? controller.selectedCountry.value
                 : '')
             .obs;
-
     // Set the initial selected country if provided
     if (initialCountryId != null) {
       String? countryNameForId =
@@ -1062,10 +1063,13 @@ class _SearchViewState extends State<SearchView>
                               child: Padding(
                                 padding: EdgeInsets.symmetric(vertical: 12.h),
                                 child: Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
                                   children: [
                                     ConstrainedBox(
-                                      constraints: BoxConstraints(maxWidth: 200.w),
+                                      constraints: BoxConstraints(
+                                        maxWidth: 200.w,
+                                      ),
                                       child: Text(
                                         country,
                                         overflow: TextOverflow.ellipsis,
@@ -1305,7 +1309,8 @@ class _SearchViewState extends State<SearchView>
                                             ),
                                             child: Row(
                                               mainAxisAlignment:
-                                                  MainAxisAlignment.spaceBetween,
+                                                  MainAxisAlignment
+                                                      .spaceBetween,
                                               children: [
                                                 ConstrainedBox(
                                                   constraints: BoxConstraints(
@@ -1313,13 +1318,15 @@ class _SearchViewState extends State<SearchView>
                                                   ),
                                                   child: Text(
                                                     city,
-                                                    overflow: TextOverflow.ellipsis,
+                                                    overflow:
+                                                        TextOverflow.ellipsis,
                                                     style: TextStyle(
                                                       fontSize: 13.sp,
                                                       fontWeight:
                                                           isSelected
                                                               ? FontWeight.bold
-                                                              : FontWeight.normal,
+                                                              : FontWeight
+                                                                  .normal,
                                                       color: Colors.black,
                                                     ),
                                                   ),
@@ -1331,7 +1338,8 @@ class _SearchViewState extends State<SearchView>
                                                     shape: BoxShape.circle,
                                                     border: Border.all(
                                                       color:
-                                                          ColorUtils.primaryColor,
+                                                          ColorUtils
+                                                              .primaryColor,
                                                       width: 2,
                                                     ),
                                                     color:
