@@ -169,19 +169,28 @@ class _UploadVideoStep1State extends State<UploadVideoStep1> {
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    Obx((){
+                      return Text("${videoAddController.videoTitle.value.characters.length}/70");
+                    }),
                     Obx(
-                      () => Text(
-                        videoAddController.videoTitle.value.isEmpty
-                            ? "video_title_here".tr
-                            : videoAddController.videoTitle.value,
-                        style: TextStyle(
-                          color: Colors.black,
-                          fontWeight: FontWeight.w700,
-                          fontSize: 14.sp,
+                      () => Container(
+                        width: Get.width * 0.55,
+                        child: Text(
+                          maxLines: 3,
+                          overflow: TextOverflow.ellipsis,
+                          videoAddController.videoTitle.value.isEmpty
+                              ? "video_title_here".tr
+                              : videoAddController.videoTitle.value,
+                          style: TextStyle(
+                            color: Colors.black,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 14.sp,
+                          ),
                         ),
                       ),
                     ),
                     const SizedBox(height: 8),
+
                     Obx(
                       () => IntrinsicWidth(
                         child: Container(
@@ -230,28 +239,48 @@ class _UploadVideoStep1State extends State<UploadVideoStep1> {
                       fontWeight: FontWeight.w700,
                     ),
                   ),
-                  AppUtils.customPasswordTextField(
-                    fieldKey: titleKey,
-                    controller: videoAddController.titleController,
-                    labelText: "enter_video_title".tr,
-                    validator: (value) {
-                      // Check for empty input
-                      if (value == null || value.isEmpty) {
-                        return "video_title_error".tr;
-                      }
-                      // Check for bad words
-                      final badWordError = videoAddController.checkBadWords(
-                        context,
-                        value,
-                      );
-                      if (badWordError != null) {
-                        return badWordError;
-                      }
-                      return null;
-                    },
-                    onChanged: (value) {
-                      videoAddController.updateTitle(value);
-                    },
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      AppUtils.customPasswordTextField(
+                        fieldKey: titleKey,
+                        controller: videoAddController.titleController,
+                        labelText: "enter_video_title".tr,
+                        // maxLength: 70, // Enforces 70-character limit and prevents further typing
+                        // decoration: InputDecoration(
+                        //   labelText: "enter_video_title".tr,
+                        //   hintText: "video_title_hint".tr, // Optional hint
+                        //   counterStyle: TextStyle(
+                        //     color: Colors.grey,
+                        //     fontSize: 12,
+                        //   ),
+                        // ),
+                        validator: (value) {
+                          // Check for empty input
+                          if (value == null || value.isEmpty) {
+                            return "video_title_error".tr;
+                          }
+                          // Check for maximum length of 70 characters (redundant with maxLength but kept for custom error)
+                          if (value.length > 70) {
+                            return "video_title_length_error".tr;
+                          }
+                          // Check for bad words
+                          final badWordError = videoAddController.checkBadWords(
+                            context,
+                            value,
+                          );
+                          if (badWordError != null) {
+                            return badWordError;
+                          }
+                          return null;
+                        },
+                        onChanged: (value) {
+                          videoAddController.updateTitle(value);
+                          // No need for manual rebuild since maxLength handles counter
+                        },
+                      ),
+
+                    ],
                   ),
 
                   Text(

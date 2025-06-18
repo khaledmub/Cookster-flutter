@@ -645,7 +645,7 @@ class _EditProfessionalProfileViewState
                         margin: EdgeInsets.symmetric(horizontal: 16),
                         padding: EdgeInsets.symmetric(
                           horizontal: 12.w,
-                          vertical: 14.h,
+                          vertical: 8.h,
                         ),
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(12),
@@ -657,21 +657,43 @@ class _EditProfessionalProfileViewState
                         child: Row(
                           children: [
                             SvgPicture.asset("assets/icons/state.svg"),
-                            SizedBox(width: 16),
+                            SizedBox(width: 8),
 
-                            Text(
-                              profileController.selectCountryId.value.isEmpty
-                                  ? "Select your country".tr
-                                  : countryName.firstWhere(
-                                    (name) =>
-                                        allCountries[name].toString() ==
-                                        profileController.selectCountryId.value,
-                                    orElse: () => "Select your country".tr,
+                            dir.Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  "country".tr,
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    // Responsive font size using flutter_screenutil
+                                    // color: ColorUtils.greyTextFieldBorderColor, // Match border color
+                                    fontWeight:
+                                        FontWeight
+                                            .w400, // Medium weight for readability
+                                    // height: 1.5, // Line height for better spacing
                                   ),
-                              style: TextStyle(
-                                fontSize: 14.sp,
-                                color: Colors.black,
-                              ),
+                                ),
+                                Text(
+                                  profileController
+                                          .selectCountryId
+                                          .value
+                                          .isEmpty
+                                      ? "Select your country".tr
+                                      : countryName.firstWhere(
+                                        (name) =>
+                                            allCountries[name].toString() ==
+                                            profileController
+                                                .selectCountryId
+                                                .value,
+                                        orElse: () => "Select your country".tr,
+                                      ),
+                                  style: TextStyle(
+                                    fontSize: 14.sp,
+                                    color: Colors.black,
+                                  ),
+                                ),
+                              ],
                             ),
                             Spacer(),
                             Icon(Icons.keyboard_arrow_down_rounded, size: 18),
@@ -695,7 +717,7 @@ class _EditProfessionalProfileViewState
                         margin: EdgeInsets.symmetric(horizontal: 16),
                         padding: EdgeInsets.symmetric(
                           horizontal: 12.w,
-                          vertical: 14.h,
+                          vertical: 8.h,
                         ),
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(12),
@@ -707,21 +729,41 @@ class _EditProfessionalProfileViewState
                         child: Row(
                           children: [
                             SvgPicture.asset("assets/icons/state.svg"),
-                            SizedBox(width: 16),
+                            SizedBox(width: 8),
 
-                            Text(
-                              profileController.selectedCityId.value.isEmpty
-                                  ? "Select your city".tr
-                                  : cityName.firstWhere(
-                                    (name) =>
-                                        allCities[name].toString() ==
-                                        profileController.selectedCityId.value,
-                                    orElse: () => "Select your city".tr,
+                            dir.Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  "City".tr,
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    // Responsive font size using flutter_screenutil
+                                    // color: ColorUtils.greyTextFieldBorderColor, // Match border color
+                                    fontWeight:
+                                        FontWeight
+                                            .w400, // Medium weight for readability
+                                    // height: 1.5, // Line height for better spacing
                                   ),
-                              style: TextStyle(
-                                fontSize: 14.sp,
-                                color: Colors.black,
-                              ),
+                                ),
+                                Container(
+                                  width: Get.width * 0.6, // Set your desired maximum width here
+                                  child: Text(
+                                    profileController.selectedCityId.value.isEmpty
+                                        ? "Select your city"
+                                        : cityName.firstWhere(
+                                          (name) => allCities[name].toString() == profileController.selectedCityId.value,
+                                      orElse: () => "Select your city",
+                                    ),
+                                    style: TextStyle(
+                                      fontSize: 14.sp,
+                                      color: Colors.black,
+                                    ),
+                                    overflow: TextOverflow.ellipsis, // Adds ellipsis when text exceeds width
+                                    maxLines: 1, // Restricts text to a single line
+                                  ),
+                                ),
+                              ],
                             ),
                             Spacer(),
                             Icon(Icons.keyboard_arrow_down_rounded, size: 18),
@@ -1150,10 +1192,13 @@ void showProfileCountrySelectionDialog(
                             child: Padding(
                               padding: EdgeInsets.symmetric(vertical: 12.h),
                               child: Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
                                 children: [
                                   ConstrainedBox(
-                                    constraints: BoxConstraints(maxWidth: 200.w),
+                                    constraints: BoxConstraints(
+                                      maxWidth: 200.w,
+                                    ),
                                     child: Text(
                                       country,
                                       overflow: TextOverflow.ellipsis,
@@ -1268,7 +1313,7 @@ void showProfileCitySelectionDialog(
   List<String> cityName,
   String? selectedCityName, {
   int? cityId,
-})  {
+}) {
   final ProfessionalProfileController profileController = Get.find();
 
   final TextEditingController searchController = TextEditingController();
@@ -1401,10 +1446,13 @@ void showProfileCitySelectionDialog(
                             child: Padding(
                               padding: EdgeInsets.symmetric(vertical: 12.h),
                               child: Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
                                 children: [
                                   ConstrainedBox(
-                                    constraints: BoxConstraints(maxWidth: 200.w),
+                                    constraints: BoxConstraints(
+                                      maxWidth: 200.w,
+                                    ),
                                     child: Text(
                                       city,
                                       overflow: TextOverflow.ellipsis,

@@ -258,7 +258,12 @@ class _ImageEditScreenState extends State<ImageEditScreen> {
               ),
             ],
           ),
-          Positioned(left: 50, top: 40, child: AudioSelector()),
+          Positioned(
+            left: 50,
+            top: 10,
+            // right: 50,
+            child: SafeArea(child: AudioSelector()),
+          ),
         ],
       ),
     );

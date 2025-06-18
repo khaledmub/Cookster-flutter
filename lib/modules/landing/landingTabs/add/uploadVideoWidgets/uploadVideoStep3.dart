@@ -250,7 +250,15 @@ class uploadVideoStep3 extends StatelessWidget {
                   // final country = controller.selectedCountry.value;
                   final city = controller.selectedCity.value;
 
-                  return Text(city);
+                  return Container(
+                    width: Get.width * 0.35,
+
+                    child: Text(
+                      city,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  );
                 }),
                 SizedBox(width: 8),
                 Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey),

@@ -208,7 +208,8 @@ class _UploadVideoStep2State extends State<UploadVideoStep2> {
                             focusNode: tagFocusNode,
                             validator: (value) {
                               if (value != null && value.isNotEmpty) {
-                                final badWordError = videoAddController.checkBadWords(context, value);
+                                final badWordError = videoAddController
+                                    .checkBadWords(context, value);
                                 if (badWordError != null) {
                                   return badWordError;
                                 }
@@ -232,9 +233,11 @@ class _UploadVideoStep2State extends State<UploadVideoStep2> {
                             },
                             onSubmitted: (value) {
                               final cleanedValue = value.trim();
-                              final badWordError = videoAddController.checkBadWords(context, cleanedValue);
+                              final badWordError = videoAddController
+                                  .checkBadWords(context, cleanedValue);
 
-                              if (cleanedValue.isNotEmpty && badWordError == null) {
+                              if (cleanedValue.isNotEmpty &&
+                                  badWordError == null) {
                                 videoAddController.addTag(cleanedValue);
                               }
 
@@ -283,7 +286,7 @@ class _UploadVideoStep2State extends State<UploadVideoStep2> {
                                     child: Text(
                                       "tag_limit_error".tr,
                                       style: TextStyle(
-                                        color: Colors.red,
+                                        color: Colors.orange,
                                         fontSize: 14,
                                         fontWeight: FontWeight.bold,
                                       ),

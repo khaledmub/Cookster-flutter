@@ -194,6 +194,9 @@ class PromoteVideoController extends GetxController {
 
   Future<bool> initiatePayment(String videoId, BuildContext context) async {
     try {
+      // Set loading state to true at the start
+      isLoading.value = true;
+
       final orderId = "PRO_${DateTime.now().millisecondsSinceEpoch}";
 
       String response = await Payment.makepaymentService(
@@ -242,12 +245,15 @@ class PromoteVideoController extends GetxController {
         print("PRINTING THE RESULT: $result");
 
         if (result == "successful") {
-          promoteVideo(videoId, context, paymentParams);
-          return true;
+          // Call promoteVideo and pass isLoading management to it
+          bool success = await promoteVideo(videoId, context, paymentParams);
+          // isLoading is managed in promoteVideo, so no need to set it here
+          return success;
         } else {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text("form_unknown_error".tr)));
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text("form_unknown_error".tr)),
+          );
+          isLoading.value = false; // Reset loading state on failure
           return false;
         }
       } else {
@@ -255,19 +261,20 @@ class PromoteVideoController extends GetxController {
       }
     } catch (e) {
       print("PRINTING ERROR: $e");
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text("payment_cancelled".tr)));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("payment_cancelled".tr)),
+      );
+      isLoading.value = false; // Reset loading state on error
       return false;
     }
   }
 
   Future<bool> promoteVideo(
-    String videoId,
-    BuildContext context,
-    Map<String, String> paymentParams,
-  ) async {
-    isLoading.value = true;
+      String videoId,
+      BuildContext context,
+      Map<String, String> paymentParams,
+      ) async {
+    // isLoading is already true from initiatePayment, no need to set it again
     try {
       validationErrors.clear();
       final sponsorType = selectedVideoType.value == "Basic" ? 1 : 2;
@@ -279,18 +286,16 @@ class PromoteVideoController extends GetxController {
         "days": getDays(videoId),
         "total_price": calculateTotalPrice(videoId),
         "discount_applied":
-            entityDetails.value['subscription_required'] == 1
-                ? (siteSettings.value?.settings?.sponsorVideoDiscount is num
-                    ? siteSettings.value!.settings!.sponsorVideoDiscount
-                        .toDouble()
-                    : double.tryParse(
-                          siteSettings.value?.settings?.sponsorVideoDiscount
-                                  ?.toString() ??
-                              "0",
-                        ) ??
-                        0.0)
-                : 0.0,
-
+        entityDetails.value['subscription_required'] == 1
+            ? (siteSettings.value?.settings?.sponsorVideoDiscount is num
+            ? siteSettings.value!.settings!.sponsorVideoDiscount.toDouble()
+            : double.tryParse(
+          siteSettings.value?.settings?.sponsorVideoDiscount
+              ?.toString() ??
+              "0",
+        ) ??
+            0.0)
+            : 0.0,
         // Add payment parameters to the payload
         "PaymentId": paymentParams["PaymentId"],
         "TranId": paymentParams["TranId"],
@@ -325,12 +330,12 @@ class PromoteVideoController extends GetxController {
           ),
         );
 
-        isLoading.value = false;
+        isLoading.value = false; // Reset loading state on success
         return true;
       } else {
         final responseData = jsonDecode(response.body);
-
         print(responseData);
+
         if (responseData['status'] == false) {
           if (responseData['errors'] != null &&
               responseData['errors'].isNotEmpty) {
@@ -347,52 +352,42 @@ class PromoteVideoController extends GetxController {
             };
           }
 
-          if (validationErrors.isNotEmpty) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(
-                  validationErrors.value['general']?.first ??
-                      validationErrors.values.first.first,
-                ),
-                backgroundColor: Colors.red,
-                behavior: SnackBarBehavior.floating,
-              ),
-            );
-
-          }
-        } else {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(
                 validationErrors.value['general']?.first ??
-                    validationErrors.values.first.first,
+                    'An error occurred.',
               ),
               backgroundColor: Colors.red,
               behavior: SnackBarBehavior.floating,
             ),
           );
-
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('An unexpected error occurred.'),
+              backgroundColor: Colors.red,
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
         }
+
         print(
           "Failed to promote video: ${response.statusCode} - ${response.body}",
         );
-        isLoading.value = false;
+        isLoading.value = false; // Reset loading state on failure
         return false;
       }
     } catch (e) {
       print("Error promoting video: $e");
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            validationErrors.value['general']?.first ??
-                validationErrors.values.first.first,
-          ),
+          content: Text('An unexpected error occurred.'),
           backgroundColor: Colors.red,
           behavior: SnackBarBehavior.floating,
         ),
       );
-
-      isLoading.value = false;
+      isLoading.value = false; // Reset loading state on error
       return false;
     }
   }

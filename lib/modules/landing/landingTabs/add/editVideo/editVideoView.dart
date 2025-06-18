@@ -443,9 +443,15 @@ class _EditVideoViewState extends State<EditVideoView> {
                                           if (value == null || value.isEmpty) {
                                             return "video_title_error".tr;
                                           }
+                                          // Check for maximum length of 70 characters (redundant with maxLength but kept for custom error)
+                                          if (value.length > 70) {
+                                            return "video_title_length_error".tr;
+                                          }
                                           // Check for bad words
-                                          final badWordError = controller
-                                              .checkBadWords(context, value);
+                                          final badWordError = controller.checkBadWords(
+                                            context,
+                                            value,
+                                          );
                                           if (badWordError != null) {
                                             return badWordError;
                                           }
@@ -1207,16 +1213,21 @@ class _EditVideoViewState extends State<EditVideoView> {
                 ),
                 Spacer(),
                 Obx(
-                  () => Text(
-                    controller.selectedCity.value.isEmpty
-                        ? "select_city_label".tr
-                        : controller.selectedCity.value,
-                    style: TextStyle(
-                      fontSize: 14.sp,
-                      color:
-                          controller.selectedCity.value.isEmpty
-                              ? Colors.grey
-                              : Colors.black,
+                  () => Container(
+                    width: Get.width * 0.35,
+                    child: Text(
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      controller.selectedCity.value.isEmpty
+                          ? "select_city_label".tr
+                          : controller.selectedCity.value,
+                      style: TextStyle(
+                        fontSize: 14.sp,
+                        color:
+                            controller.selectedCity.value.isEmpty
+                                ? Colors.grey
+                                : Colors.black,
+                      ),
                     ),
                   ),
                 ),

@@ -214,6 +214,10 @@ class _VideoReelScreenState extends State<VideoReelScreen>
 
   @override
   Widget build(BuildContext context) {
+    SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
+      statusBarIconBrightness: Brightness.light, // White icons ke liye
+      statusBarColor: Colors.transparent, // Optional: Status bar background color
+    ));
     super.build(context);
     isAuthenticated = isAuthenticated;
     print("PRINTING IS AUTHENTICATED ${isAuthenticated}");
@@ -418,6 +422,8 @@ class _VideoReelScreenState extends State<VideoReelScreen>
 
                       Row(
                         children: [
+
+                          if(controller.selectedType.value == "Near Me")
                           Expanded(
                             child: AppButton(
                               text: "Change Location",
