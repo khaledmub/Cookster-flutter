@@ -413,4 +413,8 @@ const Map<String, String> en = {
   'unblocked': 'Unblocked',
   "unblock": "Unblock",
   "chat_support": "Chat Support",
+  "basic_description":
+      "Basic Sponsored videos are promoted to users in selected cities, even if they do not follow the video uploader. Sponsored videos appear after every few normal videos to boost visibility and reach a wider audience.",
+  "premium_description":
+      "Premium Sponsored Videos receive the highest visibility. They are promoted more aggressively and appear alongside or after multiple sponsored videos. Ideal for brands or creators who want maximum exposure in selected cities.",
 };

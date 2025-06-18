@@ -707,7 +707,6 @@ class _ProfileViewState extends State<ProfileView>
                                                             color:
                                                                 Colors
                                                                     .white, // Keep white color for icon
-                                                            // size: 20.sp, // Slightly larger icon for visibility, responsive size
                                                           ),
                                                         ),
                                                       ),

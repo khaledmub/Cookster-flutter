@@ -86,52 +86,262 @@ class SponsorBox extends StatelessWidget {
           ),
           SizedBox(height: 12.h),
           Obx(
-            () => Container(
-              padding: EdgeInsets.symmetric(horizontal: 12.w),
-              decoration: BoxDecoration(
-                border: Border.all(color: ColorUtils.grey),
-                borderRadius: BorderRadius.circular(8.r),
-              ),
-              child: DropdownButton<String>(
-                value: controller.selectedVideoType.value,
-                isExpanded: true,
-                underline: SizedBox(),
-                icon: Icon(Icons.arrow_drop_down, color: ColorUtils.darkBrown),
-                items: [
-                  DropdownMenuItem<String>(
-                    value: 'Basic',
-                    child: Text(
-                      controller.siteSettings.value != null &&
-                              controller.siteSettings.value!.settings != null
-                          ? '${"Basic".tr} - ${controller.siteSettings.value!.settings!.currencySymbol} ${controller.siteSettings.value!.settings!.basicSponsoredVideoPrice ?? 0}'
-                          : 'Basic - SAR Loading...',
-                      style: TextStyle(
-                        fontSize: 14.sp,
-                        color: ColorUtils.darkBrown,
-                      ),
+                () => Column(
+              children: [
+                // Basic Sponsored Video Card
+                Container(
+                  margin: EdgeInsets.only(bottom: 16.h),
+                  decoration: BoxDecoration(
+                    color: controller.selectedVideoType.value == 'Basic'
+                        ? ColorUtils.darkBrown.withOpacity(0.05)
+                        : Colors.white,
+                    border: Border.all(
+                      color: controller.selectedVideoType.value == 'Basic'
+                          ? ColorUtils.darkBrown
+                          : ColorUtils.grey.withOpacity(0.3),
+                      width: controller.selectedVideoType.value == 'Basic' ? 2 : 1,
                     ),
-                  ),
-                  DropdownMenuItem<String>(
-                    value: 'Premium',
-                    child: Text(
-                      controller.siteSettings.value != null &&
-                              controller.siteSettings.value!.settings != null
-                          ? '${"Premium".tr} - ${controller.siteSettings.value!.settings!.currencySymbol} ${controller.siteSettings.value!.settings!.premiumSponsoredVideoPrice ?? 0}'
-                          : 'Premium - SAR Loading...',
-                      style: TextStyle(
-                        fontSize: 14.sp,
-                        color: ColorUtils.darkBrown,
+                    borderRadius: BorderRadius.circular(12.r),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.05),
+                        blurRadius: 8,
+                        offset: Offset(0, 2),
                       ),
-                    ),
+                    ],
                   ),
-                ],
+                  child: InkWell(
+                    onTap: () => controller.setVideoType('Basic'),
+                    borderRadius: BorderRadius.circular(12.r),
+                    child: Padding(
+                      padding: EdgeInsets.all(16.w),
+                      child: Row(
+                        children: [
 
-                onChanged: (String? newValue) {
-                  if (newValue != null) {
-                    controller.setVideoType(newValue);
-                  }
-                },
-              ),
+                          // Content
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                // Title and Price Row with Radio Button
+                                Row(
+                                  children: [
+                                    // Custom Radio Button
+
+
+                                    // Title and Price Column
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          // Title with Badge
+                                          Row(
+                                            children: [
+                                              Text(
+                                                "Basic".tr,
+                                                style: TextStyle(
+                                                  fontSize: 16.sp,
+                                                  color: ColorUtils.darkBrown,
+                                                  fontWeight: FontWeight.w700,
+                                                ),
+                                              ),
+                                              SizedBox(width: 8.w),
+
+                                            ],
+                                          ),
+
+                                          // SizedBox(height: 4.h),
+
+                                          // Price
+                                          Text(
+                                            controller.siteSettings.value != null &&
+                                                controller.siteSettings.value!.settings != null
+                                                ? '${controller.siteSettings.value!.settings!.currencySymbol} ${controller.siteSettings.value!.settings!.basicSponsoredVideoPrice ?? 0}'
+                                                : 'SAR Loading...',
+                                            style: TextStyle(
+                                              fontSize: 18.sp,
+                                              color: ColorUtils.darkBrown,
+                                              fontWeight: FontWeight.w800,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    Container(
+                                      width: 20.w,
+                                      height: 20.h,
+                                      decoration: BoxDecoration(
+                                        shape: BoxShape.circle,
+                                        border: Border.all(
+                                          color: controller.selectedVideoType.value == 'Basic'
+                                              ? ColorUtils.darkBrown
+                                              : ColorUtils.grey,
+                                          width: 2,
+                                        ),
+                                        color: controller.selectedVideoType.value == 'Basic'
+                                            ? ColorUtils.darkBrown
+                                            : Colors.transparent,
+                                      ),
+                                      child: controller.selectedVideoType.value == 'Basic'
+                                          ? Icon(
+                                        Icons.check,
+                                        size: 12.sp,
+                                        color: Colors.white,
+                                      )
+                                          : null,
+                                    ),
+
+                                  ],
+                                ),
+
+                                // SizedBox(height: 12.h),
+
+                                // Description
+                                Text(
+                                  textAlign: TextAlign.justify,
+                                  "basic_description".tr,
+                                  style: TextStyle(
+                                    fontSize: 12.sp,
+                                    color: ColorUtils.darkBrown.withOpacity(0.7),
+                                    height: 1.4,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+
+                // Premium Sponsored Video Card
+                Container(
+                  decoration: BoxDecoration(
+                    color: controller.selectedVideoType.value == 'Premium'
+                        ? ColorUtils.darkBrown.withOpacity(0.05)
+                        : Colors.white,
+                    border: Border.all(
+                      color: controller.selectedVideoType.value == 'Premium'
+                          ? ColorUtils.darkBrown
+                          : ColorUtils.grey.withOpacity(0.3),
+                      width: controller.selectedVideoType.value == 'Premium' ? 2 : 1,
+                    ),
+                    borderRadius: BorderRadius.circular(12.r),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.05),
+                        blurRadius: 8,
+                        offset: Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: InkWell(
+                    onTap: () => controller.setVideoType('Premium'),
+                    borderRadius: BorderRadius.circular(12.r),
+                    child: Padding(
+                      padding: EdgeInsets.all(16.w),
+                      child: Row(
+                        children: [
+
+                          // Content
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                // Title and Price Row with Radio Button
+                                Row(
+                                  children: [
+                                    // Custom Radio Button
+
+
+
+                                    // Title and Price Column
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          // Title with Badge
+                                          Row(
+                                            children: [
+                                              Text(
+                                                "Premium".tr,
+                                                style: TextStyle(
+                                                  fontSize: 16.sp,
+                                                  color: ColorUtils.darkBrown,
+                                                  fontWeight: FontWeight.w700,
+                                                ),
+                                              ),
+
+                                            ],
+                                          ),
+
+                                          // SizedBox(height: 4.h),
+
+                                          // Price
+                                          Text(
+                                            controller.siteSettings.value != null &&
+                                                controller.siteSettings.value!.settings != null
+                                                ? '${controller.siteSettings.value!.settings!.currencySymbol} ${controller.siteSettings.value!.settings!.premiumSponsoredVideoPrice ?? 0}'
+                                                : 'SAR Loading...',
+                                            style: TextStyle(
+                                              fontSize: 18.sp,
+                                              color: ColorUtils.darkBrown,
+                                              fontWeight: FontWeight.w800,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+
+                                    Container(
+                                      width: 20.w,
+                                      height: 20.h,
+                                      decoration: BoxDecoration(
+                                        shape: BoxShape.circle,
+                                        border: Border.all(
+                                          color: controller.selectedVideoType.value == 'Premium'
+                                              ? ColorUtils.darkBrown
+                                              : ColorUtils.grey,
+                                          width: 2,
+                                        ),
+                                        color: controller.selectedVideoType.value == 'Premium'
+                                            ? ColorUtils.darkBrown
+                                            : Colors.transparent,
+                                      ),
+                                      child: controller.selectedVideoType.value == 'Premium'
+                                          ? Icon(
+                                        Icons.check,
+                                        size: 12.sp,
+                                        color: Colors.white,
+                                      )
+                                          : null,
+                                    ),
+                                  ],
+                                ),
+
+                                // SizedBox(height: 10.h),
+
+                                // Description
+                                Text(
+                                  textAlign: TextAlign.justify,
+                                  "premium_description".tr,
+                                  style: TextStyle(
+
+                                    fontSize: 12.sp,
+                                    color: ColorUtils.darkBrown.withOpacity(0.7),
+                                    height: 1.4,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
           SizedBox(height: 10.h),

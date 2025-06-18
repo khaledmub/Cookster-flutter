@@ -65,7 +65,47 @@ class _PromoteVideoViewState extends State<PromoteVideoView> {
           SingleChildScrollView(
             child: Column(
               children: [
-                SizedBox(height: 80.h),
+                Stack(
+                  children: [
+                    Positioned(
+                      // Conditionally set left or right based on language
+                      left: isRtl ? null : 16,
+                      right: isRtl ? 16 : null,
+                      top: 20,
+                      // Assuming .h is from a package like flutter_screenutil, replace with 20 if not using it
+                      child: GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTap: () {
+                          try {
+                            print("Tapped");
+                            Get.back();
+                          } catch (e) {
+                            print(e);
+                          }
+                        },
+                        child: Container(
+                          height: 40,
+                          width: 40,
+                          decoration: const BoxDecoration(
+                            color: Color(0xFFE6BE00),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Center(
+                            child: Icon(
+                              // Use right chevron for Arabic, left chevron for English
+                              isRtl ? Icons.arrow_back : Icons.arrow_back,
+                              color: ColorUtils.darkBrown,
+                              size: 24,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    AppCenterIcon(),
+                    Text(""),
+                  ],
+                ),
+
                 Text(
                   'promote_your_video'.tr,
                   style: TextStyle(
@@ -181,81 +221,363 @@ class _PromoteVideoViewState extends State<PromoteVideoView> {
                                       ),
                                       SizedBox(height: 10.h),
                                       Obx(
-                                        () => Container(
-                                          padding: EdgeInsets.symmetric(
-                                            horizontal: 12.w,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            border: Border.all(
-                                              color: ColorUtils.grey,
-                                            ),
-                                            borderRadius: BorderRadius.circular(
-                                              8.r,
-                                            ),
-                                          ),
-                                          child: DropdownButton<String>(
-                                            value:
-                                                controller
-                                                    .selectedVideoType
-                                                    .value,
-                                            isExpanded: true,
-                                            underline: SizedBox(),
-                                            icon: Icon(
-                                              Icons.arrow_drop_down,
-                                              color: ColorUtils.darkBrown,
-                                            ),
-                                            items: [
-                                              DropdownMenuItem<String>(
-                                                value: 'Basic',
-                                                child: Text(
-                                                  controller
-                                                                  .siteSettings
-                                                                  .value !=
-                                                              null &&
-                                                          controller
-                                                                  .siteSettings
-                                                                  .value!
-                                                                  .settings !=
-                                                              null
-                                                      ? '${"Basic".tr} - ${controller.siteSettings.value!.settings!.currencySymbol} ${controller.siteSettings.value!.settings!.basicSponsoredVideoPrice ?? 0}'
-                                                      : 'Basic - SAR Loading...',
-                                                  style: TextStyle(
-                                                    fontSize: 14.sp,
-                                                    color: ColorUtils.darkBrown,
+                                        () => Column(
+                                          children: [
+                                            // Basic Sponsored Video Card
+                                            Container(
+                                              margin: EdgeInsets.only(
+                                                bottom: 16.h,
+                                              ),
+                                              decoration: BoxDecoration(
+                                                color:
+                                                    controller
+                                                                .selectedVideoType
+                                                                .value ==
+                                                            'Basic'
+                                                        ? ColorUtils.darkBrown
+                                                            .withOpacity(0.05)
+                                                        : Colors.white,
+                                                border: Border.all(
+                                                  color:
+                                                      controller
+                                                                  .selectedVideoType
+                                                                  .value ==
+                                                              'Basic'
+                                                          ? ColorUtils.darkBrown
+                                                          : ColorUtils.grey
+                                                              .withOpacity(0.3),
+                                                  width:
+                                                      controller
+                                                                  .selectedVideoType
+                                                                  .value ==
+                                                              'Basic'
+                                                          ? 2
+                                                          : 1,
+                                                ),
+                                                borderRadius:
+                                                    BorderRadius.circular(12.r),
+                                                boxShadow: [
+                                                  BoxShadow(
+                                                    color: Colors.black
+                                                        .withOpacity(0.05),
+                                                    blurRadius: 8,
+                                                    offset: Offset(0, 2),
+                                                  ),
+                                                ],
+                                              ),
+                                              child: InkWell(
+                                                onTap:
+                                                    () => controller
+                                                        .setVideoType('Basic'),
+                                                borderRadius:
+                                                    BorderRadius.circular(12.r),
+                                                child: Padding(
+                                                  padding: EdgeInsets.all(16.w),
+                                                  child: Row(
+                                                    children: [
+                                                      // Content
+                                                      Expanded(
+                                                        child: Column(
+                                                          crossAxisAlignment:
+                                                              CrossAxisAlignment
+                                                                  .start,
+                                                          children: [
+                                                            // Title and Price Row with Radio Button
+                                                            Row(
+                                                              children: [
+                                                                // Custom Radio Button
+
+                                                                // Title and Price Column
+                                                                Expanded(
+                                                                  child: Column(
+                                                                    crossAxisAlignment:
+                                                                        CrossAxisAlignment
+                                                                            .start,
+                                                                    children: [
+                                                                      // Title with Badge
+                                                                      Row(
+                                                                        children: [
+                                                                          Text(
+                                                                            "Basic".tr,
+                                                                            style: TextStyle(
+                                                                              fontSize:
+                                                                                  16.sp,
+                                                                              color:
+                                                                                  ColorUtils.darkBrown,
+                                                                              fontWeight:
+                                                                                  FontWeight.w700,
+                                                                            ),
+                                                                          ),
+                                                                          SizedBox(
+                                                                            width:
+                                                                                8.w,
+                                                                          ),
+                                                                        ],
+                                                                      ),
+
+                                                                      // SizedBox(height: 4.h),
+
+                                                                      // Price
+                                                                      Text(
+                                                                        controller.siteSettings.value !=
+                                                                                    null &&
+                                                                                controller.siteSettings.value!.settings !=
+                                                                                    null
+                                                                            ? '${controller.siteSettings.value!.settings!.currencySymbol} ${controller.siteSettings.value!.settings!.basicSponsoredVideoPrice ?? 0}'
+                                                                            : 'SAR Loading...',
+                                                                        style: TextStyle(
+                                                                          fontSize:
+                                                                              18.sp,
+                                                                          color:
+                                                                              ColorUtils.darkBrown,
+                                                                          fontWeight:
+                                                                              FontWeight.w800,
+                                                                        ),
+                                                                      ),
+                                                                    ],
+                                                                  ),
+                                                                ),
+                                                                Container(
+                                                                  width: 20.w,
+                                                                  height: 20.h,
+                                                                  decoration: BoxDecoration(
+                                                                    shape:
+                                                                        BoxShape
+                                                                            .circle,
+                                                                    border: Border.all(
+                                                                      color:
+                                                                          controller.selectedVideoType.value ==
+                                                                                  'Basic'
+                                                                              ? ColorUtils.darkBrown
+                                                                              : ColorUtils.grey,
+                                                                      width: 2,
+                                                                    ),
+                                                                    color:
+                                                                        controller.selectedVideoType.value ==
+                                                                                'Basic'
+                                                                            ? ColorUtils.darkBrown
+                                                                            : Colors.transparent,
+                                                                  ),
+                                                                  child:
+                                                                      controller.selectedVideoType.value ==
+                                                                              'Basic'
+                                                                          ? Icon(
+                                                                            Icons.check,
+                                                                            size:
+                                                                                12.sp,
+                                                                            color:
+                                                                                Colors.white,
+                                                                          )
+                                                                          : null,
+                                                                ),
+                                                              ],
+                                                            ),
+
+                                                            // SizedBox(height: 12.h),
+
+                                                            // Description
+                                                            Text(
+                                                              textAlign:
+                                                                  TextAlign
+                                                                      .justify,
+                                                              "basic_description"
+                                                                  .tr,
+                                                              style: TextStyle(
+                                                                fontSize: 12.sp,
+                                                                color: ColorUtils
+                                                                    .darkBrown
+                                                                    .withOpacity(
+                                                                      0.7,
+                                                                    ),
+                                                                height: 1.4,
+                                                              ),
+                                                            ),
+                                                          ],
+                                                        ),
+                                                      ),
+                                                    ],
                                                   ),
                                                 ),
                                               ),
-                                              DropdownMenuItem<String>(
-                                                value: 'Premium',
-                                                child: Text(
-                                                  controller
-                                                                  .siteSettings
-                                                                  .value !=
-                                                              null &&
-                                                          controller
-                                                                  .siteSettings
-                                                                  .value!
-                                                                  .settings !=
-                                                              null
-                                                      ? '${"Premium".tr} - ${controller.siteSettings.value!.settings!.currencySymbol} ${controller.siteSettings.value!.settings!.premiumSponsoredVideoPrice ?? 0}'
-                                                      : 'Premium - SAR Loading...',
-                                                  style: TextStyle(
-                                                    fontSize: 14.sp,
-                                                    color: ColorUtils.darkBrown,
+                                            ),
+
+                                            // Premium Sponsored Video Card
+                                            Container(
+                                              decoration: BoxDecoration(
+                                                color:
+                                                    controller
+                                                                .selectedVideoType
+                                                                .value ==
+                                                            'Premium'
+                                                        ? ColorUtils.darkBrown
+                                                            .withOpacity(0.05)
+                                                        : Colors.white,
+                                                border: Border.all(
+                                                  color:
+                                                      controller
+                                                                  .selectedVideoType
+                                                                  .value ==
+                                                              'Premium'
+                                                          ? ColorUtils.darkBrown
+                                                          : ColorUtils.grey
+                                                              .withOpacity(0.3),
+                                                  width:
+                                                      controller
+                                                                  .selectedVideoType
+                                                                  .value ==
+                                                              'Premium'
+                                                          ? 2
+                                                          : 1,
+                                                ),
+                                                borderRadius:
+                                                    BorderRadius.circular(12.r),
+                                                boxShadow: [
+                                                  BoxShadow(
+                                                    color: Colors.black
+                                                        .withOpacity(0.05),
+                                                    blurRadius: 8,
+                                                    offset: Offset(0, 2),
+                                                  ),
+                                                ],
+                                              ),
+                                              child: InkWell(
+                                                onTap:
+                                                    () =>
+                                                        controller.setVideoType(
+                                                          'Premium',
+                                                        ),
+                                                borderRadius:
+                                                    BorderRadius.circular(12.r),
+                                                child: Padding(
+                                                  padding: EdgeInsets.all(16.w),
+                                                  child: Row(
+                                                    children: [
+                                                      // Content
+                                                      Expanded(
+                                                        child: Column(
+                                                          crossAxisAlignment:
+                                                              CrossAxisAlignment
+                                                                  .start,
+                                                          children: [
+                                                            // Title and Price Row with Radio Button
+                                                            Row(
+                                                              children: [
+                                                                // Custom Radio Button
+
+                                                                // Title and Price Column
+                                                                Expanded(
+                                                                  child: Column(
+                                                                    crossAxisAlignment:
+                                                                        CrossAxisAlignment
+                                                                            .start,
+                                                                    children: [
+                                                                      // Title with Badge
+                                                                      Row(
+                                                                        children: [
+                                                                          Text(
+                                                                            "Premium".tr,
+                                                                            style: TextStyle(
+                                                                              fontSize:
+                                                                                  16.sp,
+                                                                              color:
+                                                                                  ColorUtils.darkBrown,
+                                                                              fontWeight:
+                                                                                  FontWeight.w700,
+                                                                            ),
+                                                                          ),
+                                                                        ],
+                                                                      ),
+
+                                                                      // SizedBox(height: 4.h),
+
+                                                                      // Price
+                                                                      Text(
+                                                                        controller.siteSettings.value !=
+                                                                                    null &&
+                                                                                controller.siteSettings.value!.settings !=
+                                                                                    null
+                                                                            ? '${controller.siteSettings.value!.settings!.currencySymbol} ${controller.siteSettings.value!.settings!.premiumSponsoredVideoPrice ?? 0}'
+                                                                            : 'SAR Loading...',
+                                                                        style: TextStyle(
+                                                                          fontSize:
+                                                                              18.sp,
+                                                                          color:
+                                                                              ColorUtils.darkBrown,
+                                                                          fontWeight:
+                                                                              FontWeight.w800,
+                                                                        ),
+                                                                      ),
+                                                                    ],
+                                                                  ),
+                                                                ),
+
+                                                                Container(
+                                                                  width: 20.w,
+                                                                  height: 20.h,
+                                                                  decoration: BoxDecoration(
+                                                                    shape:
+                                                                        BoxShape
+                                                                            .circle,
+                                                                    border: Border.all(
+                                                                      color:
+                                                                          controller.selectedVideoType.value ==
+                                                                                  'Premium'
+                                                                              ? ColorUtils.darkBrown
+                                                                              : ColorUtils.grey,
+                                                                      width: 2,
+                                                                    ),
+                                                                    color:
+                                                                        controller.selectedVideoType.value ==
+                                                                                'Premium'
+                                                                            ? ColorUtils.darkBrown
+                                                                            : Colors.transparent,
+                                                                  ),
+                                                                  child:
+                                                                      controller.selectedVideoType.value ==
+                                                                              'Premium'
+                                                                          ? Icon(
+                                                                            Icons.check,
+                                                                            size:
+                                                                                12.sp,
+                                                                            color:
+                                                                                Colors.white,
+                                                                          )
+                                                                          : null,
+                                                                ),
+                                                              ],
+                                                            ),
+
+                                                            // SizedBox(height: 10.h),
+
+                                                            // Description
+                                                            Text(
+                                                              textAlign:
+                                                                  TextAlign
+                                                                      .justify,
+                                                              "premium_description"
+                                                                  .tr,
+                                                              style: TextStyle(
+                                                                fontSize: 12.sp,
+                                                                color: ColorUtils
+                                                                    .darkBrown
+                                                                    .withOpacity(
+                                                                      0.7,
+                                                                    ),
+                                                                height: 1.4,
+                                                              ),
+                                                            ),
+                                                          ],
+                                                        ),
+                                                      ),
+                                                    ],
                                                   ),
                                                 ),
                                               ),
-                                            ],
-                                            onChanged: (String? newValue) {
-                                              if (newValue != null) {
-                                                controller.setVideoType(
-                                                  newValue,
-                                                );
-                                              }
-                                            },
-                                          ),
+                                            ),
+                                          ],
                                         ),
                                       ),
+
                                       SizedBox(height: 10.h),
                                       Column(
                                         crossAxisAlignment:
@@ -596,41 +918,6 @@ class _PromoteVideoViewState extends State<PromoteVideoView> {
               ],
             ),
           ),
-          Positioned(
-            // Conditionally set left or right based on language
-            left: isRtl ? null : 16,
-            right: isRtl ? 16 : null,
-            top: 20,
-            // Assuming .h is from a package like flutter_screenutil, replace with 20 if not using it
-            child: GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: () {
-                try {
-                  print("Tapped");
-                  Get.back();
-                } catch (e) {
-                  print(e);
-                }
-              },
-              child: Container(
-                height: 40,
-                width: 40,
-                decoration: const BoxDecoration(
-                  color: Color(0xFFE6BE00),
-                  shape: BoxShape.circle,
-                ),
-                child: Center(
-                  child: Icon(
-                    // Use right chevron for Arabic, left chevron for English
-                    isRtl ? Icons.arrow_back : Icons.arrow_back,
-                    color: ColorUtils.darkBrown,
-                    size: 24,
-                  ),
-                ),
-              ),
-            ),
-          ),
-          AppCenterIcon(),
         ],
       ),
     );
@@ -741,48 +1028,61 @@ class _PromoteVideoViewState extends State<PromoteVideoView> {
                         String country = filteredCountryName[index];
                         bool isSelected = selectedCountryName.value == country;
 
-                        return InkWell(
-                          onTap: () {
-                            selectedCountryName.value = country;
-                          },
-                          child: Padding(
-                            padding: EdgeInsets.symmetric(vertical: 12.h),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                ConstrainedBox(
-                                  constraints: BoxConstraints(maxWidth: 200.w),
-                                  child: Text(
-                                    country,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: TextStyle(
-                                      fontSize: 13.sp,
-                                      fontWeight:
-                                          isSelected
-                                              ? FontWeight.bold
-                                              : FontWeight.normal,
-                                      color: Colors.black,
+                        return Column(
+                          children: [
+                            InkWell(
+                              onTap: () {
+                                selectedCountryName.value = country;
+                              },
+                              child: Padding(
+                                padding: EdgeInsets.symmetric(vertical: 12.h),
+                                child: Row(
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    ConstrainedBox(
+                                      constraints: BoxConstraints(
+                                        maxWidth: 200.w,
+                                      ),
+                                      child: Text(
+                                        country,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                          fontSize: 13.sp,
+                                          fontWeight:
+                                              isSelected
+                                                  ? FontWeight.bold
+                                                  : FontWeight.normal,
+                                          color: Colors.black,
+                                        ),
+                                      ),
                                     ),
-                                  ),
-                                ),
-                                Container(
-                                  width: 20.w,
-                                  height: 20.w,
-                                  decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    border: Border.all(
-                                      color: ColorUtils.primaryColor,
-                                      width: 2,
+                                    Container(
+                                      width: 20.w,
+                                      height: 20.w,
+                                      decoration: BoxDecoration(
+                                        shape: BoxShape.circle,
+                                        border: Border.all(
+                                          color: ColorUtils.primaryColor,
+                                          width: 2,
+                                        ),
+                                        color:
+                                            isSelected
+                                                ? ColorUtils.primaryColor
+                                                : Colors.white,
+                                      ),
                                     ),
-                                    color:
-                                        isSelected
-                                            ? ColorUtils.primaryColor
-                                            : Colors.white,
-                                  ),
+                                  ],
                                 ),
-                              ],
+                              ),
                             ),
-                          ),
+                            if (index < filteredCountryName.length - 1)
+                              Divider(
+                                height: 1.h,
+                                thickness: 1.r,
+                                color: Colors.grey.shade300,
+                              ),
+                          ],
                         );
                       }),
                     ),
@@ -939,56 +1239,73 @@ class _PromoteVideoViewState extends State<PromoteVideoView> {
                                       city,
                                     );
 
-                                    return InkWell(
-                                      onTap: () {
-                                        if (isSelected) {
-                                          selectedCities.remove(city);
-                                        } else {
-                                          selectedCities.add(city);
-                                        }
-                                      },
-                                      child: Padding(
-                                        padding: EdgeInsets.symmetric(
-                                          vertical: 12.h,
-                                        ),
-                                        child: Row(
-                                          mainAxisAlignment:
-                                              MainAxisAlignment.spaceBetween,
-                                          children: [
-                                            ConstrainedBox(
-                                              constraints: BoxConstraints(
-                                                maxWidth: 200.w,
-                                              ),
-                                              child: Text(
-                                                city,
-                                                overflow: TextOverflow.ellipsis,
-                                                style: TextStyle(
-                                                  fontSize: 13.sp,
-                                                  fontWeight:
-                                                      isSelected
-                                                          ? FontWeight.bold
-                                                          : FontWeight.normal,
-                                                  color: Colors.black,
+                                    return Column(
+                                      children: [
+                                        InkWell(
+                                          onTap: () {
+                                            if (isSelected) {
+                                              selectedCities.remove(city);
+                                            } else {
+                                              selectedCities.add(city);
+                                            }
+                                          },
+                                          child: Padding(
+                                            padding: EdgeInsets.symmetric(
+                                              vertical: 12.h,
+                                            ),
+                                            child: Row(
+                                              mainAxisAlignment:
+                                                  MainAxisAlignment
+                                                      .spaceBetween,
+                                              children: [
+                                                ConstrainedBox(
+                                                  constraints: BoxConstraints(
+                                                    maxWidth: 200.w,
+                                                  ),
+                                                  child: Text(
+                                                    city,
+                                                    overflow:
+                                                        TextOverflow.ellipsis,
+                                                    style: TextStyle(
+                                                      fontSize: 13.sp,
+                                                      fontWeight:
+                                                          isSelected
+                                                              ? FontWeight.bold
+                                                              : FontWeight
+                                                                  .normal,
+                                                      color: Colors.black,
+                                                    ),
+                                                  ),
                                                 ),
-                                              ),
+                                                Checkbox(
+                                                  value: isSelected,
+                                                  onChanged: (bool? value) {
+                                                    if (value != null) {
+                                                      if (value) {
+                                                        selectedCities.add(
+                                                          city,
+                                                        );
+                                                      } else {
+                                                        selectedCities.remove(
+                                                          city,
+                                                        );
+                                                      }
+                                                    }
+                                                  },
+                                                  activeColor:
+                                                      ColorUtils.primaryColor,
+                                                ),
+                                              ],
                                             ),
-                                            Checkbox(
-                                              value: isSelected,
-                                              onChanged: (bool? value) {
-                                                if (value != null) {
-                                                  if (value) {
-                                                    selectedCities.add(city);
-                                                  } else {
-                                                    selectedCities.remove(city);
-                                                  }
-                                                }
-                                              },
-                                              activeColor:
-                                                  ColorUtils.primaryColor,
-                                            ),
-                                          ],
+                                          ),
                                         ),
-                                      ),
+                                        if (index < filteredCityName.length - 1)
+                                          Divider(
+                                            height: 1.h,
+                                            thickness: 1.r,
+                                            color: Colors.grey.shade300,
+                                          ),
+                                      ],
                                     );
                                   },
                                 ),
