@@ -52,6 +52,7 @@ class SignUpController extends GetxController {
   final TextEditingController contactEmailController = TextEditingController();
   final TextEditingController websiteController = TextEditingController();
   var businessType = "".obs;
+  final RxBool isPaymentLoading = false.obs;
   var accountType = "".obs;
   var selectCountryId = "".obs;
   var selectedCityId = "".obs;
@@ -185,7 +186,7 @@ class SignUpController extends GetxController {
   bool validateBusinessTypeFields() {
     if (nameController.text.trim().isEmpty ||
         emailController.text.trim().isEmpty ||
-        passwordController.text.trim().isEmpty ) {
+        passwordController.text.trim().isEmpty) {
       return false;
     }
     if (selectedProfileId.value == 1) {

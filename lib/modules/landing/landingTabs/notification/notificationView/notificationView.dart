@@ -117,7 +117,7 @@ class UpdatesList extends StatelessWidget {
 
       // Build scrollable list of notifications
       return ListView.separated(
-        padding: const EdgeInsets.only(top: 16),
+        padding: const EdgeInsets.only(top: 16, bottom: 70),
         itemCount:
         notificationController
             .notificationData

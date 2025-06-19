@@ -29,6 +29,7 @@ import 'package:flutter_svg/svg.dart';
 import 'package:flutter_swiper_plus/flutter_swiper_plus.dart';
 import 'package:get/get.dart';
 import 'package:like_button/like_button.dart';
+import 'package:pro_image_editor/core/platform/io/io_helper.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
@@ -214,10 +215,13 @@ class _VideoReelScreenState extends State<VideoReelScreen>
 
   @override
   Widget build(BuildContext context) {
-    SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
-      statusBarIconBrightness: Brightness.light, // White icons ke liye
-      statusBarColor: Colors.transparent, // Optional: Status bar background color
-    ));
+    SystemChrome.setSystemUIOverlayStyle(
+      const SystemUiOverlayStyle(
+        statusBarIconBrightness: Brightness.light, // White icons ke liye
+        statusBarColor:
+            Colors.transparent, // Optional: Status bar background color
+      ),
+    );
     super.build(context);
     isAuthenticated = isAuthenticated;
     print("PRINTING IS AUTHENTICATED ${isAuthenticated}");
@@ -302,7 +306,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                                 ),
                               ),
                             ),
-                          SizedBox(width: 16),
+                          SizedBox(width: 20),
                           GestureDetector(
                             onTap: () {
                               controller.disposeControllers();
@@ -344,7 +348,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                               ),
                             ),
                           ),
-                          SizedBox(width: 16),
+                          SizedBox(width: 20),
                           if (promoteVideoController
                                   .siteSettings
                                   .value!
@@ -422,16 +426,15 @@ class _VideoReelScreenState extends State<VideoReelScreen>
 
                       Row(
                         children: [
-
-                          if(controller.selectedType.value == "Near Me")
-                          Expanded(
-                            child: AppButton(
-                              text: "Change Location",
-                              onTap: () {
-                                _showBottomSheet(context);
-                              },
+                          if (controller.selectedType.value == "Near Me")
+                            Expanded(
+                              child: AppButton(
+                                text: "Change Location",
+                                onTap: () {
+                                  _showBottomSheet(context);
+                                },
+                              ),
                             ),
-                          ),
                           // SizedBox(width: 8),
                           //
                           // Expanded(
@@ -736,7 +739,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                               ),
                             ),
                           ),
-                        SizedBox(width: 8),
+                        SizedBox(width: 20),
                         GestureDetector(
                           onTap: () {
                             controller.disposeControllers();
@@ -779,7 +782,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                             ),
                           ),
                         ),
-                        SizedBox(width: 8),
+                        SizedBox(width: 20),
 
                         if (promoteVideoController
                                 .siteSettings
@@ -847,7 +850,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
               ),
 
               Positioned(
-                top: Get.height * 0.12,
+                top: Platform.isAndroid ? Get.height * 0.1 : Get.height * 0.12,
                 right: isRtl ? null : 16,
                 left: isRtl ? 16 : null,
                 child: Row(
@@ -1458,8 +1461,6 @@ class _VideoReelScreenState extends State<VideoReelScreen>
               style: TextStyle(color: Colors.white, fontSize: 10.sp),
             ),
             SizedBox(height: 8),
-
-
           ],
         ),
 
@@ -1473,7 +1474,6 @@ class _VideoReelScreenState extends State<VideoReelScreen>
 
               return Column(
                 children: [
-
                   InkWell(
                     onTap: () async {
                       if (isAuthenticated) {
@@ -1683,7 +1683,7 @@ class videoUserDetails extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Positioned(
-      top: Get.height * 0.12,
+      top: Platform.isAndroid ? Get.height * 0.1 : Get.height * 0.12,
       // left: 10,
       child: SizedBox(
         width: Get.width * 1,

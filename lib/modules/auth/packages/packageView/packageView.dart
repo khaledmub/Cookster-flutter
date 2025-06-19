@@ -8,7 +8,6 @@ import 'package:get/get.dart';
 import 'package:carousel_slider/carousel_slider.dart';
 import 'package:flutter_widget_from_html/flutter_widget_from_html.dart';
 import 'package:urwaypayment/urwaypayment.dart';
-
 import '../../../../appUtils/colorUtils.dart';
 import 'package:flutter/material.dart' as dir;
 
@@ -20,7 +19,7 @@ class PackagesScreen extends StatefulWidget {
 class _PackagesScreenState extends State<PackagesScreen> {
   final SignUpController signUpController = Get.put(SignUpController());
   final CarouselSliderController _carouselController =
-      CarouselSliderController();
+  CarouselSliderController();
   int _currentIndex = 0;
 
   @override
@@ -99,38 +98,39 @@ class _PackagesScreenState extends State<PackagesScreen> {
                         },
                       ),
                       items:
-                          packages
-                              .map((package) => _buildPackageCard(package))
-                              .toList(),
+                      packages
+                          .map((package) => _buildPackageCard(package))
+                          .toList(),
                     ),
                   ),
                   SizedBox(height: 12.h),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children:
-                        packages.asMap().entries.map((entry) {
-                          final index = entry.key;
-                          return Container(
-                            width: _currentIndex == index ? 12.w : 8.w,
-                            height: _currentIndex == index ? 12.w : 8.w,
-                            margin: EdgeInsets.symmetric(horizontal: 4.w),
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color:
-                                  _currentIndex == index
-                                      ? ColorUtils.darkBrown
-                                      : ColorUtils.secondaryColor,
-                            ),
-                          );
-                        }).toList(),
+                    packages.asMap().entries.map((entry) {
+                      final index = entry.key;
+                      return Container(
+                        width: _currentIndex == index ? 12.w : 8.w,
+                        height: _currentIndex == index ? 12.w : 8.w,
+                        margin: EdgeInsets.symmetric(horizontal: 4.w),
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color:
+                          _currentIndex == index
+                              ? ColorUtils.darkBrown
+                              : ColorUtils.secondaryColor,
+                        ),
+                      );
+                    }).toList(),
                   ),
                   SizedBox(height: 20.h),
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16.0),
                     child: AppButton(
                       isLoading:
-                          signUpController.isLoading.value ||
-                          signUpController.isProfileCreating.value,
+                      signUpController.isLoading.value ||
+                          signUpController.isProfileCreating.value ||
+                          signUpController.isPaymentLoading.value, // Added payment loading state
                       text: "activate_now".tr,
                       onTap: () async {
                         if (signUpController
@@ -143,14 +143,14 @@ class _PackagesScreenState extends State<PackagesScreen> {
                           print("EXECUTING THE PAYMENT PROCESS");
                           // First initiate payment
                           Map<String, dynamic>? paymentResult =
-                              await initiatePayment(context);
+                          await initiatePayment(context);
 
                           if (paymentResult != null &&
                               paymentResult['success'] == true) {
                             // If payment is successful, then submit the form with payment parameters
                             signUpController.submitForm(
                               packageId:
-                                  signUpController.selectedPackageId.value,
+                              signUpController.selectedPackageId.value,
                               paymentParams: paymentResult['paymentParams'],
                             );
                           } else {
@@ -169,13 +169,13 @@ class _PackagesScreenState extends State<PackagesScreen> {
             ),
             Positioned(
               left:
-                  Directionality.of(context) == dir.TextDirection.rtl
-                      ? null
-                      : 16,
+              Directionality.of(context) == dir.TextDirection.rtl
+                  ? null
+                  : 16,
               right:
-                  Directionality.of(context) == dir.TextDirection.rtl
-                      ? 16
-                      : null,
+              Directionality.of(context) == dir.TextDirection.rtl
+                  ? 16
+                  : null,
               top: 20.h,
               child: GestureDetector(
                 behavior: HitTestBehavior.opaque,
@@ -197,7 +197,7 @@ class _PackagesScreenState extends State<PackagesScreen> {
                   child: Center(
                     child: Icon(
                       Directionality.of(context) == dir.TextDirection.rtl
-                          ? Icons.arrow_back
+                          ? Icons.arrow_forward
                           : Icons.arrow_back,
                       color: ColorUtils.darkBrown,
                       size: 24,
@@ -228,11 +228,12 @@ class _PackagesScreenState extends State<PackagesScreen> {
 
   Future<Map<String, dynamic>?> initiatePayment(BuildContext context) async {
     try {
+      signUpController.isPaymentLoading.value = true; // Set loading state
       final orderId = "SUB_${DateTime.now().millisecondsSinceEpoch}";
       final selectedPackage = signUpController.packagesList.value.packages!
           .firstWhere(
             (package) => package.id == signUpController.selectedPackageId.value,
-          );
+      );
 
       String response = await Payment.makepaymentService(
         context: context,
@@ -280,8 +281,10 @@ class _PackagesScreenState extends State<PackagesScreen> {
         print("PRINTING THE RESULT: $result");
 
         if (result == "successful") {
+          signUpController.isPaymentLoading.value = false; // Reset loading state
           return {'success': true, 'paymentParams': paymentParams};
         } else {
+          signUpController.isPaymentLoading.value = false; // Reset loading state
           ScaffoldMessenger.of(
             context,
           ).showSnackBar(SnackBar(content: Text("form_unknown_error".tr)));
@@ -292,6 +295,7 @@ class _PackagesScreenState extends State<PackagesScreen> {
       }
     } catch (e) {
       print("PRINTING ERROR: $e");
+      signUpController.isPaymentLoading.value = false; // Reset loading state
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text("payment_cancelled".tr)));
@@ -327,9 +331,9 @@ class _PackagesScreenState extends State<PackagesScreen> {
             ),
           ),
           color:
-              package.title == 'Best Seller'
-                  ? Colors.orange.shade100
-                  : Colors.white,
+          package.title == 'Best Seller'
+              ? Colors.orange.shade100
+              : Colors.white,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisAlignment: MainAxisAlignment.start,

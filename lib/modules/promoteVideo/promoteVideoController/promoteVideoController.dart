@@ -91,7 +91,7 @@ class PromoteVideoController extends GetxController {
         final jsonData = jsonDecode(response.body);
         siteSettings.value = SiteSettings.fromJson(jsonData);
         print(
-          "Site Settings Fetched: ${siteSettings.value?.settings?.toJson()}",
+          "Site here Settings Fetched: ${siteSettings.value?.settings?.toJson()}",
         );
       } else {
         print("Failed to fetch site settings: ${response.statusCode}");

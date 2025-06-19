@@ -13,6 +13,7 @@ class ChangePlanController extends GetxController {
   var isLoading = false.obs;
   var selectedPackageId = ''.obs;
   var isProfileCreating = false.obs;
+  var isPaymentLoading = false.obs;
 
   @override
   void onInit() {

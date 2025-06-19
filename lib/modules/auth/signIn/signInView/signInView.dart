@@ -32,12 +32,22 @@ class _SignInViewState extends State<SignInView> {
   late FocusNode passwordFocusNode;
   final _emailKey = GlobalKey<FormFieldState>();
   final _passwordFieldKey = GlobalKey<FormFieldState>();
+  String _language = 'en'; // Default to English
+  // Load language from SharedPreferences
+  Future<void> _loadLanguage() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _language =
+          prefs.getString('language') ?? 'en'; // Default to 'en' if not set
+    });
+  }
 
   @override
   void initState() {
     super.initState();
     emailFocusNode = FocusNode();
     passwordFocusNode = FocusNode();
+    _loadLanguage();
   }
 
   @override
@@ -49,6 +59,8 @@ class _SignInViewState extends State<SignInView> {
 
   @override
   Widget build(BuildContext context) {
+    bool isRtl = _language == 'ar';
+
     final LogInController logInController = Get.put(LogInController());
     return Scaffold(
       appBar: AppBar(
@@ -83,9 +95,44 @@ class _SignInViewState extends State<SignInView> {
                                 buildFormContent(logInController),
                               ],
                             ),
+
+                            Positioned(
+                              left: isRtl ? null : 16,
+                              right: isRtl ? 16 : null,
+                              top: 10.h,
+                              child: GestureDetector(
+                                behavior: HitTestBehavior.opaque,
+                                onTap: () {
+                                  try {
+                                    print("Tapped");
+                                    Get.back();
+                                  } catch (e) {
+                                    print(e);
+                                  }
+                                },
+                                child: Container(
+                                  height: 40,
+                                  width: 40,
+                                  decoration: const BoxDecoration(
+                                    color: Color(0xFFE6BE00),
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: Center(
+                                    child: Icon(
+                                      isRtl
+                                          ? Icons.arrow_back
+                                          : Icons.arrow_back,
+                                      color: ColorUtils.darkBrown,
+                                      size: 24,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
                             AppCenterIcon(),
-                            Align(
-                              alignment: Alignment.topRight,
+                            Positioned(
+                              right: isRtl ? null : 16,
+                              left: isRtl ? 16 : null,
                               child: InkWell(
                                 onTap: () {
                                   Get.to(SelectLanguageView());

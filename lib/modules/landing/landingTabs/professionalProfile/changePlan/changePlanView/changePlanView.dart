@@ -162,7 +162,9 @@ class _ChangePlanViewState extends State<ChangePlanView> {
                       child: AppButton(
                         isLoading:
                             changePlanController.isLoading.value ||
-                            changePlanController.isProfileCreating.value,
+                            changePlanController.isProfileCreating.value ||
+                            changePlanController.isPaymentLoading.value,
+                        // Added payment loading state
                         text: "activate_now".tr,
                         onTap: () async {
                           if (changePlanController
@@ -242,6 +244,7 @@ class _ChangePlanViewState extends State<ChangePlanView> {
 
   Future<Map<String, dynamic>?> initiatePayment(BuildContext context) async {
     try {
+      changePlanController.isPaymentLoading.value = true; // Set loading state
       final orderId = "SUB_${DateTime.now().millisecondsSinceEpoch}";
       final selectedPackage = changePlanController.packagesList.value.packages!
           .firstWhere(
@@ -295,8 +298,12 @@ class _ChangePlanViewState extends State<ChangePlanView> {
         print("PRINTING THE RESULT: $result");
 
         if (result == "successful") {
+          changePlanController.isPaymentLoading.value =
+              false; // Reset loading state
           return {'success': true, 'paymentParams': paymentParams};
         } else {
+          changePlanController.isPaymentLoading.value =
+              false; // Reset loading state
           ScaffoldMessenger.of(
             context,
           ).showSnackBar(SnackBar(content: Text("form_unknown_error".tr)));
@@ -307,6 +314,8 @@ class _ChangePlanViewState extends State<ChangePlanView> {
       }
     } catch (e) {
       print("PRINTING ERROR: $e");
+      changePlanController.isPaymentLoading.value =
+          false; // Reset loading state
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text("payment_cancelled".tr)));
