@@ -56,27 +56,41 @@ class VideoAddController extends GetxController {
 
   Future<void> _loadBadWords() async {
     try {
-      // Load Arabic bad words
-      final arabicData = await DefaultAssetBundle.of(
-        Get.context!,
-      ).loadString('assets/bad_words_arabic.txt');
-      _badWordsArabic =
-          arabicData
-              .split('\n')
-              .map((word) => word.trim().toLowerCase())
-              .where((word) => word.isNotEmpty)
-              .toList();
+      // Load Arabic bad words from remote URL
+      final arabicResponse = await http.get(
+        Uri.parse('https://beta.cookster.org/public/badwords/ar.txt'),
+      );
 
-      // Load English bad words
-      final englishData = await DefaultAssetBundle.of(
-        Get.context!,
-      ).loadString('assets/bad_words_english.txt');
-      _badWordsEnglish =
-          englishData
-              .split('\n')
-              .map((word) => word.trim().toLowerCase())
-              .where((word) => word.isNotEmpty)
-              .toList();
+      if (arabicResponse.statusCode == 200) {
+        final arabicData = arabicResponse.body;
+        _badWordsArabic =
+            arabicData
+                .split('\n')
+                .map((word) => word.trim().toLowerCase())
+                .where((word) => word.isNotEmpty)
+                .toList();
+      } else {
+        print('Failed to load Arabic bad words: ${arabicResponse.statusCode}');
+      }
+
+      // Load English bad words from remote URL
+      final englishResponse = await http.get(
+        Uri.parse('https://beta.cookster.org/public/badwords/en.txt'),
+      );
+
+      if (englishResponse.statusCode == 200) {
+        final englishData = englishResponse.body;
+        _badWordsEnglish =
+            englishData
+                .split('\n')
+                .map((word) => word.trim().toLowerCase())
+                .where((word) => word.isNotEmpty)
+                .toList();
+      } else {
+        print(
+          'Failed to load English bad words: ${englishResponse.statusCode}',
+        );
+      }
     } catch (e) {
       print('Error loading bad words: $e');
     }

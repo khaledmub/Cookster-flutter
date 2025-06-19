@@ -56,7 +56,7 @@ class PromoteVideoController extends GetxController {
     if (selectedCities.length > 0) {
       validationErrors["cities"] = [];
     } else {
-      validationErrors["cities"] = ["Please select at least one city".tr];
+      validationErrors["cities"] = ["select_target_city_error".tr];
     }
     print(
       "Selected Cities: ${selectedCities.toList()} (IDs: ${selectedCityIds.toList()})",
@@ -200,6 +200,7 @@ class PromoteVideoController extends GetxController {
       final orderId = "PRO_${DateTime.now().millisecondsSinceEpoch}";
 
       String response = await Payment.makepaymentService(
+
         context: context,
         country: selectedCountry.value,
         action: "1",

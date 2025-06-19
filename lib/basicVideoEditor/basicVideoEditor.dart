@@ -1237,6 +1237,7 @@ class _VideoTextEditorState extends State<VideoTextEditor> {
                               color: Colors.white,
                               fontSize: 18,
                             ),
+                            textInputAction: TextInputAction.done, // Shows "Done" or "Enter" button on the keyboard
                             decoration: InputDecoration(
                               hintText: "type_text".tr,
                               hintStyle: TextStyle(color: Colors.grey),
@@ -1726,7 +1727,9 @@ class _VideoTextEditorState extends State<VideoTextEditor> {
                                   // Sticker button (hidden when cropping)
                                   if (!_isCropping)
                                     InkWell(
-                                      onTap: _fetchStickers,
+                                      onTap: (){
+                                        _fetchStickers();
+                                      },
                                       child: SvgPicture.asset(
                                         height: 30,
                                         "assets/icons/sticker.svg",
@@ -1738,7 +1741,11 @@ class _VideoTextEditorState extends State<VideoTextEditor> {
                                   // Text button (hidden when cropping)
                                   if (!_isCropping)
                                     InkWell(
-                                      onTap: _startAddingText,
+                                      onTap: (){
+                                        _startAddingText();
+                                        if(videoFilterController.isFilterListVisible.value = false)
+                                          videoFilterController.isFilterListVisible.value == true;
+                                      },
                                       child: SvgPicture.asset(
                                         height: 30,
                                         "assets/icons/text.svg",
@@ -1751,6 +1758,9 @@ class _VideoTextEditorState extends State<VideoTextEditor> {
                                   InkWell(
                                     onTap: () {
                                       videoFilterController.toggleFilterList();
+                                      _textController.clear();
+                                      _isTypingText = false;
+                                      _textFocusNode.unfocus();
                                     },
                                     child: SvgPicture.asset(
                                       height: 30,
