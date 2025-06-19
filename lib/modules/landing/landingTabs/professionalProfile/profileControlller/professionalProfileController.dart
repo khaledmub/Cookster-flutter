@@ -706,6 +706,6 @@ class ProfessionalProfileController extends GetxController {
   void onInit() {
     super.onInit();
     // getUserDetails();
-    // getVideoUploadSettings();
+    getVideoUploadSettings();
   }
 }

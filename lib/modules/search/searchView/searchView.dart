@@ -13,6 +13,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:get/get.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../../appRoutes/appRoutes.dart';
 import '../../../appUtils/appUtils.dart';
 import '../../../appUtils/colorUtils.dart';
 import '../../../loaders/pulseLoader.dart';
@@ -38,6 +39,12 @@ class _SearchViewState extends State<SearchView>
   late TabController _tabController;
   TextEditingController _searchController = TextEditingController();
   final UserSearchController searchController = Get.find();
+
+  Future<bool> _isUserAuthenticated() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    String? authToken = prefs.getString('auth_token');
+    return authToken != null && authToken.isNotEmpty;
+  }
 
   // Debounce timer for search
   Timer? _debounce;
@@ -420,31 +427,42 @@ class _SearchViewState extends State<SearchView>
                           itemBuilder: (context, index) {
                             var video = videosList[index];
                             return InkWell(
-                              onTap: () {
-                                Get.to(
-                                  SingleVideoScreen(
-                                    followers: video.followersCount.toString(),
-                                    frondUserId: video.frontUserId,
-                                    userImage: video.userImage,
-                                    videoId: video.id,
-                                    videoUrl: video.video,
-                                    title: video.title,
-                                    image: video.image,
-                                    allowComments: video.allowComments,
-                                    description: video.description,
-                                    tags: video.tags,
-                                    userName: video.userName,
-                                    createdAt: video.createdAt,
-                                    contactEmail: video.contactEmail,
-                                    contactPhone: video.contactPhone,
-                                    latitude: video.latitude,
-                                    longitude: video.longitude,
-                                    takeOrder: video.takeOrder.toString(),
-                                    website: video.website,
-                                    isImage: video.isImage.toString(),
-                                  ),
-                                );
+                              onTap: () async {
+                                bool isAuthenticated =
+                                    await _isUserAuthenticated();
+                                if (isAuthenticated) {
+                                  Get.to(
+                                    SingleVideoScreen(
+                                      followers:
+                                          video.followersCount.toString(),
+                                      frondUserId: video.frontUserId,
+                                      userImage: video.userImage,
+                                      videoId: video.id,
+                                      videoUrl: video.video,
+                                      title: video.title,
+                                      image: video.image,
+                                      allowComments: video.allowComments,
+                                      description: video.description,
+                                      tags: video.tags,
+                                      userName: video.userName,
+                                      createdAt: video.createdAt,
+                                      contactEmail: video.contactEmail,
+                                      contactPhone: video.contactPhone,
+                                      latitude: video.latitude,
+                                      longitude: video.longitude,
+                                      takeOrder: video.takeOrder.toString(),
+                                      website: video.website,
+                                      isImage: video.isImage.toString(),
+                                    ),
+                                  );
+                                } else {
+                                  // Navigate to sign in page
+                                  Get.toNamed(
+                                    AppRoutes.signIn,
+                                  ); // Make sure you have this route defined
+                                }
                               },
+
                               child: ClipRRect(
                                 borderRadius: BorderRadius.circular(10),
                                 child: Stack(
@@ -578,8 +596,17 @@ class _SearchViewState extends State<SearchView>
                           itemBuilder: (context, index) {
                             var chef = chefsList[index];
                             return InkWell(
-                              onTap: () {
-                                Get.to(VisitProfileView(userId: chef.id!));
+                              onTap: () async {
+                                bool isAuthenticated =
+                                    await _isUserAuthenticated();
+                                if (isAuthenticated) {
+                                  Get.to(VisitProfileView(userId: chef.id!));
+                                } else {
+                                  // Navigate to sign in page
+                                  Get.toNamed(
+                                    AppRoutes.signIn,
+                                  ); // Make sure you have this route defined
+                                }
                               },
                               child: Container(
                                 margin: EdgeInsets.only(left: 16),
@@ -680,8 +707,19 @@ class _SearchViewState extends State<SearchView>
                           itemBuilder: (context, index) {
                             var business = businessList[index];
                             return InkWell(
-                              onTap: () {
-                                Get.to(VisitProfileView(userId: business.id!));
+                              onTap: () async {
+                                bool isAuthenticated =
+                                    await _isUserAuthenticated();
+                                if (isAuthenticated) {
+                                  Get.to(
+                                    VisitProfileView(userId: business.id!),
+                                  );
+                                } else {
+                                  // Navigate to sign in page
+                                  Get.toNamed(
+                                    AppRoutes.signIn,
+                                  ); // Make sure you have this route defined
+                                }
                               },
                               child: Container(
                                 margin: EdgeInsets.only(left: 16),
