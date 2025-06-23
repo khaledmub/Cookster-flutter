@@ -1,25 +1,15 @@
+import 'dart:async';
+
 import 'package:app_links/app_links.dart';
-import 'package:cached_network_image/cached_network_image.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cookster/modules/singleVideoVisit/singleVideoController/singleVisitVideoController.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:flutter_svg/svg.dart';
 import 'package:get/get.dart';
-import 'package:like_button/like_button.dart';
-import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:video_player/video_player.dart';
 
 import '../../appUtils/apiEndPoints.dart';
-import '../../appUtils/colorUtils.dart';
 import '../../loaders/pulseLoader.dart';
 import '../landing/landingTabs/home/homeController/addCommentControllr.dart';
-import '../landing/landingTabs/home/homeView/commentScreen.dart';
-import '../landing/landingTabs/reportContent/reportContentView/reportContentView.dart';
-import '../search/searchView/searchView.dart';
-import '../visitProfile/visitProfileView/visitProfileView.dart';
 
 class SingleVisitVideo extends StatefulWidget {
   const SingleVisitVideo({super.key});
@@ -31,6 +21,7 @@ class SingleVisitVideo extends StatefulWidget {
 class _SingleVideoVisitState extends State<SingleVisitVideo> {
   final AppLinks _appLinks = AppLinks();
   String? _currentVideoId;
+  String? _lastProcessedVideoId; // Track the last processed video ID
   String? _initializedVideoUrl; // Track which video URL is initialized
   final SingleVisitVideoController _singleVisitVideoController = Get.put(
     SingleVisitVideoController(),
@@ -46,50 +37,41 @@ class _SingleVideoVisitState extends State<SingleVisitVideo> {
 
   String? _userId;
   String? _userImage;
+  StreamSubscription<Uri>? _linkSubscription; // Store the stream subscription
 
   @override
   void initState() {
     super.initState();
 
-    // Reset videoId and controller state
-    _resetState();
-
     // Initialize empty video controller to avoid errors
     _videoController = VideoPlayerController.networkUrl(Uri.parse(''))
       ..addListener(() {
-        setState(() {
-          _isBuffering = _videoController.value.isBuffering;
-        });
+        if (mounted) {
+          setState(() {
+            _isBuffering = _videoController.value.isBuffering;
+          });
+        }
       });
 
+    // Reset state and fetch user ID
+    _resetState();
     _fetchUserIdFromStorage();
 
-    // Handle deep link initialization
-    _handleDeepLinkInitialization();
+    // Handle deep link initialization and fetch video
+    _handleDeepLink();
   }
 
   void _resetState() {
-    setState(() {
-      _currentVideoId = null;
-      _initializedVideoUrl = null;
-      _isVideoInitialized = false;
-      _showIcon = false;
-      _isBuffering = false;
-    });
-    _singleVisitVideoController.resetVideoContent(); // Reset controller state
-  }
-
-  Future<void> _handleDeepLinkInitialization() async {
-    // Parse initial deep link
-    await _parseInitialDeepLink();
-
-    // Set up listener for future deep links
-    _listenForDeepLinks();
-
-    // If videoId is set from initial deep link, fetch the video
-    if (_currentVideoId != null) {
-      _singleVisitVideoController.fetchSingleVideo(_currentVideoId!);
+    if (mounted) {
+      setState(() {
+        _currentVideoId = null;
+        _initializedVideoUrl = null;
+        _isVideoInitialized = false;
+        _showIcon = false;
+        _isBuffering = false;
+      });
     }
+    _singleVisitVideoController.resetVideoContent(); // Reset controller state
   }
 
   Future<void> _fetchUserIdFromStorage() async {
@@ -97,17 +79,26 @@ class _SingleVideoVisitState extends State<SingleVisitVideo> {
     String? storeUserId = prefs.getString('user_id');
     String? storeUserImage = prefs.getString('user_image');
 
-    if (storeUserId != null) {
+    if (storeUserId != null && mounted) {
       setState(() {
         _userId = storeUserId;
         _userImage = storeUserImage;
       });
-      print("Fetched User ID from SharedPreferences: $_userId");
+      print("Fetched user ID: $_userId");
     }
+  }
+
+  Future<void> _handleDeepLink() async {
+    // Parse initial deep link
+    await _parseInitialDeepLink();
+
+    // Set up listener for future deep links
+    _listenForDeepLinks();
   }
 
   @override
   void dispose() {
+    _linkSubscription?.cancel(); // Cancel the deep link stream subscription
     _videoController.dispose();
     super.dispose();
   }
@@ -117,10 +108,7 @@ class _SingleVideoVisitState extends State<SingleVisitVideo> {
       final Uri? initialUri = await _appLinks.getInitialLink();
       if (initialUri != null) {
         print("Initial deep link found: $initialUri");
-        // Schedule deep link processing after build
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          _processDeepLink(initialUri);
-        });
+        _processDeepLink(initialUri);
       } else {
         print("No initial deep link found");
       }
@@ -130,15 +118,11 @@ class _SingleVideoVisitState extends State<SingleVisitVideo> {
   }
 
   void _listenForDeepLinks() {
-    _appLinks.uriLinkStream.listen(
+    _linkSubscription = _appLinks.uriLinkStream.listen(
       (uri) {
         if (uri != null) {
           print("New deep link received: $uri");
-          // Schedule deep link processing after build
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            _resetState(); // Reset state before processing new deep link
-            _processDeepLink(uri);
-          });
+          _processDeepLink(uri);
         }
       },
       onError: (error) {
@@ -148,26 +132,27 @@ class _SingleVideoVisitState extends State<SingleVisitVideo> {
   }
 
   void _processDeepLink(Uri uri) {
-    print("Processing Deep Link: $uri");
+    print("User entered screen with deep link Uri: $uri");
     print("URI Path: ${uri.path}");
     print("URI Query Parameters: ${uri.queryParameters}");
 
-    // Check if this is the correct path for single video
     if (uri.path == '/visitSingleVideo' ||
         uri.path.contains('visitSingleVideo')) {
       String? urlVideoId = uri.queryParameters['id'];
-      print("Extracted video ID from URL: $urlVideoId");
+      print("Extracted video ID from Uri: $urlVideoId");
 
       if (urlVideoId != null && urlVideoId.isNotEmpty) {
-        if (urlVideoId != _currentVideoId) {
+        // Check if the video ID is different from the last processed one
+        if (urlVideoId != _lastProcessedVideoId && mounted) {
           setState(() {
             _currentVideoId = urlVideoId;
+            _lastProcessedVideoId = urlVideoId; // Update last processed ID
             _initializedVideoUrl = null; // Reset to force re-initialization
           });
           print("Updated Video ID from deep link: $_currentVideoId");
           _singleVisitVideoController.fetchSingleVideo(_currentVideoId!);
         } else {
-          print("Video ID is same as current, no need to reload");
+          print("Ignoring duplicate deep link for video ID: $urlVideoId");
         }
       } else {
         print("No video ID found in deep link query parameters");
@@ -178,24 +163,15 @@ class _SingleVideoVisitState extends State<SingleVisitVideo> {
   }
 
   void _initializeVideoIfNeeded(String videoUrl) {
-    // Only initialize if the video URL has changed
-    if (_initializedVideoUrl == videoUrl) {
+    if (_initializedVideoUrl == videoUrl && _isVideoInitialized) {
       return; // Video is already initialized with this URL
     }
 
-    // Schedule the initialization after the current build is complete
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _initializeVideo(videoUrl);
-    });
+    _initializeVideo(videoUrl);
   }
 
   void _initializeVideo(String videoUrl) {
-    if (_videoController.value.isInitialized &&
-        _videoController.dataSource == videoUrl) {
-      return; // Avoid reinitializing if URL doesn't change
-    }
-
-    _videoController.dispose();
+    _videoController.dispose(); // Dispose previous controller
     _videoController =
         VideoPlayerController.networkUrl(Uri.parse(videoUrl))
           ..addListener(() {
@@ -212,8 +188,8 @@ class _SingleVideoVisitState extends State<SingleVisitVideo> {
                     _isVideoInitialized = true;
                     _initializedVideoUrl = videoUrl; // Track initialized URL
                   });
-                  _videoController.setLooping(true); // Set video to loop
-                  _videoController.play(); // Auto-play the video
+                  _videoController.setLooping(true);
+                  _videoController.play();
                 }
               })
               .catchError((error) {
@@ -228,21 +204,23 @@ class _SingleVideoVisitState extends State<SingleVisitVideo> {
   }
 
   void _togglePlayPause() {
-    setState(() {
-      if (_videoController.value.isPlaying) {
-        _videoController.pause();
-      } else {
-        _videoController.play();
-      }
-      _showIcon = true; // Show icon on tap
-      Future.delayed(const Duration(seconds: 1), () {
-        if (mounted) {
-          setState(() {
-            _showIcon = false; // Hide icon after 1 second
-          });
+    if (mounted) {
+      setState(() {
+        if (_videoController.value.isPlaying) {
+          _videoController.pause();
+        } else {
+          _videoController.play();
         }
+        _showIcon = true;
+        Future.delayed(const Duration(seconds: 1), () {
+          if (mounted) {
+            setState(() {
+              _showIcon = false;
+            });
+          }
+        });
       });
-    });
+    }
   }
 
   @override
@@ -269,7 +247,6 @@ class _SingleVideoVisitState extends State<SingleVisitVideo> {
             ),
           );
         } else {
-          // Schedule video initialization instead of calling it directly
           final videoUrl = "${Common.videoUrl}/${data.video!}";
           _initializeVideoIfNeeded(videoUrl);
 
@@ -277,7 +254,7 @@ class _SingleVideoVisitState extends State<SingleVisitVideo> {
             children: [
               Positioned.fill(
                 child: GestureDetector(
-                  onTap: _togglePlayPause, // Toggle play/pause on tap
+                  onTap: _togglePlayPause,
                   child: Stack(
                     alignment: Alignment.center,
                     children: [
@@ -288,7 +265,7 @@ class _SingleVideoVisitState extends State<SingleVisitVideo> {
                         PulseLogoLoader(
                           logoPath: "assets/images/appIcon.png",
                           size: 80,
-                        ), // Show buffering indicator
+                        ),
                       if (_isVideoInitialized && _showIcon)
                         Icon(
                           _videoController.value.isPlaying

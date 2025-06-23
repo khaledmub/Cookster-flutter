@@ -9,58 +9,64 @@ class SingleVisitVideoController extends GetxController {
   var isLoading = true.obs;
   var singleVideoContent = SingleVideoDetail().obs;
   String? _currentVideoId; // Track the current video ID
+  String? _latestRequestedVideoId; // Track the latest requested video ID
 
   @override
   void onInit() {
     super.onInit();
-    // Reset video content when the controller is initialized
     resetVideoContent();
   }
 
   void resetVideoContent() {
     singleVideoContent.value = SingleVideoDetail();
     _currentVideoId = null;
+    _latestRequestedVideoId = null;
     isLoading.value = true;
   }
 
   Future<void> fetchSingleVideo(String videoId) async {
-    // Avoid fetching if the video ID is the same as the current one
     if (_currentVideoId == videoId && singleVideoContent.value.video != null) {
       print("Same video ID ($videoId), skipping fetch");
       return;
     }
 
     final endPoint = '${EndPoints.singleVideoDetails}?id=$videoId';
-
     print("=========PRINTING THE VIDEO ID=========");
     print(videoId);
 
     try {
-      // Reset content before fetching new data
       resetVideoContent();
       _currentVideoId = videoId;
+      _latestRequestedVideoId = videoId; // Track the latest request
 
       var response = await ApiClient.getRequest(endPoint);
 
-      // Print the response status code and body
       print("Response Status Code: ${response.statusCode}");
       print("Response Body: ${response.body}");
+
+      // Only process the response if it matches the latest requested video ID
+      if (_latestRequestedVideoId != videoId) {
+        print("Ignoring response for outdated video ID: $videoId");
+        return;
+      }
 
       if (response.statusCode == 200) {
         var responseData = json.decode(response.body);
         singleVideoContent.value = SingleVideoDetail.fromJson(responseData);
       } else if (response.statusCode == 401) {
-        Get.offAllNamed(
-          AppRoutes.signIn,
-        ); // Navigate to the login screen and clear the stack
+        Get.offAllNamed(AppRoutes.signIn);
       } else {
         Get.snackbar("Error", "Failed to load video details.");
       }
     } catch (e) {
       print("Error fetching video details: $e");
-      Get.snackbar("Error", "An error occurred while fetching video details.");
+      if (_latestRequestedVideoId == videoId) {
+        Get.snackbar("Error", "An error occurred while fetching video details.");
+      }
     } finally {
-      isLoading.value = false;
+      if (_latestRequestedVideoId == videoId) {
+        isLoading.value = false;
+      }
     }
   }
 }

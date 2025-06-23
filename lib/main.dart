@@ -21,6 +21,9 @@ import 'modules/landing/landingController/landingController.dart';
 final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
     FlutterLocalNotificationsPlugin();
 
+
+
+
 Future<void> requestNotificationPermission() async {
   // Check if the platform is Android 13+ (API 33+)
   if (Platform.isAndroid) {
@@ -136,7 +139,7 @@ class _MyAppState extends State<MyApp> {
   @override
   void initState() {
     super.initState();
-    // _initDeepLinks();
+    _initDeepLinks();
     _listenForConnectivity();
 
     // Track if we're starting with no internet
@@ -144,6 +147,33 @@ class _MyAppState extends State<MyApp> {
   }
 
   /// **🔹 Initialize Deep Links**
+  void _initDeepLinks() async {
+    _appLinks = AppLinks();
+    // Handle cold start
+    final Uri? initialLink = await _appLinks.getInitialLink();
+    if (initialLink != null) {
+      _handlingDeepLink = true;
+      _handleIncomingDeepLink(initialLink);
+    }
+
+    // Handle app opened from background
+    _appLinks.uriLinkStream.listen((Uri? uri) {
+      if (uri != null) {
+        _handleIncomingDeepLink(uri);
+      }
+    });
+  }
+
+  void _handleIncomingDeepLink(Uri uri) {
+    final path = uri.path;
+    final videoId = uri.queryParameters['id']; // e.g., ?id=123
+
+    if (path.startsWith('/visitSingleVideo') && videoId != null) {
+      Get.toNamed('/visitSingleVideo', arguments: {'id': videoId});
+    }
+
+    _handlingDeepLink = false;
+  }
 
   /// **🔹 Listen for Internet Connectivity Changes**
   void _listenForConnectivity() {

@@ -186,13 +186,13 @@ class _VideoCommentsScreenState extends State<VideoCommentsScreen> {
 
   // Format timestamp to Instagram-like format (e.g., "a moment ago")
   String _formatTimestamp(Timestamp? timestamp) {
-    if (timestamp == null) return 'just now';
+    if (timestamp == null) return 'just_now'.tr;
     final now = DateTime.now();
     final date = timestamp.toDate();
     final difference = now.difference(date);
 
     if (difference.inSeconds < 60) {
-      return 'a moment ago';
+      return 'a_moment_ago'.tr;
     } else if (difference.inMinutes < 60) {
       return '${difference.inMinutes}m';
     } else if (difference.inHours < 24) {
@@ -493,7 +493,7 @@ class _VideoCommentsScreenState extends State<VideoCommentsScreen> {
                                                   children: [
                                                     Icon(Icons.reply),
                                                     Text(
-                                                      'Reply',
+                                                      'Reply'.tr,
                                                       style: TextStyle(
                                                         fontSize: 12.sp,
                                                         color: Colors.grey,
@@ -537,7 +537,7 @@ class _VideoCommentsScreenState extends State<VideoCommentsScreen> {
                                             bottom: 4.h,
                                           ),
                                           child: Text(
-                                            '${replies.length} reply',
+                                            '${replies.length} ${"Reply".tr}',
                                             style: TextStyle(
                                               fontSize: 12.sp,
                                               color: Colors.grey,
@@ -737,7 +737,7 @@ class _VideoCommentsScreenState extends State<VideoCommentsScreen> {
                                                                       left: 4.w,
                                                                     ),
                                                                 child: Text(
-                                                                  '${replyData['likes']?.length ?? 0} Like',
+                                                                  '${replyData['likes']?.length ?? 0} ${"Like".tr}',
                                                                   style: TextStyle(
                                                                     fontSize:
                                                                         12.sp,
@@ -786,7 +786,8 @@ class _VideoCommentsScreenState extends State<VideoCommentsScreen> {
                                                                           .reply,
                                                                     ),
                                                                     Text(
-                                                                      'Reply',
+                                                                      'Reply'
+                                                                          .tr,
                                                                       style: TextStyle(
                                                                         fontSize:
                                                                             12.sp,
