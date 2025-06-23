@@ -335,8 +335,9 @@ const Map<String, String> ar = {
   "passwords_do_not_match": "كلمات المرور غير متطابقة",
   "cities": "مدن",
   'view': 'عرض',
-  "package_expired": "انتهت صلاحية الحزمة",
-  "your_package_has_been_expired": "لقد انتهت صلاحية حزمتك",
+  "package_expired": "الاشتراك منتهي",
+  "your_package_has_been_expired":
+      "لقد انتهت اشتراكك. نتيجة لذلك، لم تعد مقاطع الفيديو الخاصة بك مرئية للمستخدمين الآخرين، ولا يمكنك رفع محتوى جديد.",
   "renew": "تجديد",
   "exit_app": "الخروج من التطبيق",
   "are_you_sure_you_want_to_exit_the_app":
@@ -412,5 +413,5 @@ const Map<String, String> ar = {
   "premium_description":
       "تحصل الفيديوهات الممولة المميزة على أعلى مستوى من الظهور. يتم الترويج لها بشكل مكثف وتظهر بجانب أو بعد عدة فيديوهات ممولة. وهي مثالية للعلامات التجارية أو المبدعين الذين يرغبون في أقصى قدر من الانتشار في المدن المحددة.",
   "country": "البلد",
-  "video_title_length_error": "يجب ألا يتجاوز العنوان 70 حرفًا"
+  "video_title_length_error": "يجب ألا يتجاوز العنوان 70 حرفًا",
 };

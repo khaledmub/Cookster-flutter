@@ -342,8 +342,9 @@ const Map<String, String> en = {
   "passwords_do_not_match": "Passwords do not match",
   "cities": "Cities",
   "view": "View",
-  "package_expired": "Package Expired",
-  "your_package_has_been_expired": "Your package has been expired",
+  "package_expired": "Subscription Expired",
+  "your_package_has_been_expired":
+      "Your subscription has expired. As a result, your videos are no longer visible to other users, and you are unable to upload new content.",
   "renew": "Renew",
   "exit_app": "Exit App",
   "are_you_sure_you_want_to_exit_the_app":
@@ -418,5 +419,5 @@ const Map<String, String> en = {
   "premium_description":
       "Premium Sponsored Videos receive the highest visibility. They are promoted more aggressively and appear alongside or after multiple sponsored videos. Ideal for brands or creators who want maximum exposure in selected cities.",
   "country": "Country",
-  "video_title_length_error": "Title must not exceed 70 characters"
+  "video_title_length_error": "Title must not exceed 70 characters",
 };

@@ -250,8 +250,8 @@ class uploadVideoStep3 extends StatelessWidget {
                   // final country = controller.selectedCountry.value;
                   final city = controller.selectedCity.value;
 
-                  return Container(
-                    width: Get.width * 0.35,
+                  return ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 100),
 
                     child: Text(
                       city,

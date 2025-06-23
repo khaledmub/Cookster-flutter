@@ -23,7 +23,9 @@
         <!-- WhatsApp -->
         <intent>
             <action android:name="android.intent.action.VIEW" />
-            <data android:scheme="https" android:host="wa.me" />
+            <data
+                android:host="wa.me"
+                android:scheme="https" />
         </intent>
         <!-- Email -->
         <intent>
@@ -33,18 +35,20 @@
         <!-- Google Maps -->
         <intent>
             <action android:name="android.intent.action.VIEW" />
-            <data android:scheme="https" android:host="www.google.com" />
+            <data
+                android:host="www.google.com"
+                android:scheme="https" />
         </intent>
     </queries>
 
     <application
         android:name="${applicationName}"
-        android:usesCleartextTraffic="true"
         android:allowBackup="false"
         android:fullBackupContent="false"
         android:icon="@mipmap/launcher_icon"
         android:label="Cookster"
-        android:largeHeap="true">
+        android:largeHeap="true"
+        android:usesCleartextTraffic="true">
         <activity
             android:name=".MainActivity"
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
@@ -68,48 +72,37 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
-            <!-- Universal Links / App Links (HTTP/HTTPS) -->
+
+            <!-- Specific path for singleVideo - HTTPS -->
             <intent-filter android:autoVerify="true">
                 <action android:name="android.intent.action.VIEW" />
-
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-
                 <data
-                    android:host="cookster.com"
-                    android:scheme="http" />
-                <data
-                    android:host="cookster.com"
-                    android:scheme="https" />
+                    android:scheme="https"
+                    android:host="cookster.org"
+                    android:pathPrefix="/visitSingleVideo" />
             </intent-filter>
 
-            <!-- Specific path for singleVideo -->
-            <intent-filter>
+            <!-- Specific path for singleVideo - HTTP -->
+            <intent-filter android:autoVerify="true">
                 <action android:name="android.intent.action.VIEW" />
-
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-
                 <data
-                    android:host="cookster.com"
-                    android:pathPrefix="/visitSingleVideo"
-                    android:scheme="https" />
-                <data
-                    android:host="cookster.com"
-                    android:pathPrefix="/singleVideo"
-                    android:scheme="http" />
+                    android:scheme="http"
+                    android:host="cookster.org"
+                    android:pathPrefix="/visitSingleVideo" />
             </intent-filter>
 
-            <!-- Custom URI scheme -->
+            <!-- Custom URI scheme (optional - for cookster://visitSingleVideo) -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
-
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-
                 <data
-                    android:host="singlevideo"
-                    android:scheme="cookster" />
+                    android:scheme="cookster"
+                    android:host="visitSingleVideo" />
             </intent-filter>
 
         </activity>

@@ -867,7 +867,7 @@ class _SignVpViewState extends State<SignVpView> {
                                               child: Row(
                                                 children: [
                                                   SvgPicture.asset(
-                                                    "assets/icons/state.svg",
+                                                    "assets/icons/earth.svg",
                                                   ),
                                                   SizedBox(width: 8.w),
                                                   Obx(
@@ -984,7 +984,7 @@ class _SignVpViewState extends State<SignVpView> {
                                               child: Row(
                                                 children: [
                                                   SvgPicture.asset(
-                                                    "assets/icons/state.svg",
+                                                    "assets/icons/earth.svg",
                                                   ),
                                                   SizedBox(width: 8.w),
                                                   Obx(
@@ -1721,7 +1721,7 @@ void showCountrySelectionDialog(
                 Row(
                   children: [
                     SvgPicture.asset(
-                      "assets/icons/state.svg",
+                      "assets/icons/earth.svg",
                       width: 24.w,
                       height: 24.w,
                     ),
@@ -1935,7 +1935,7 @@ void showCitySelectionDialog(
                 Row(
                   children: [
                     SvgPicture.asset(
-                      "assets/icons/state.svg",
+                      "assets/icons/earth.svg",
                       width: 24.w,
                       height: 24.w,
                     ),

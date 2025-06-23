@@ -1024,13 +1024,20 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                           Icon(Icons.location_on_outlined),
                           SizedBox(width: 10),
                           Obx(
-                            () => Text(
-                              controller.currentCity.value == ""
-                                  ? 'Select City'.tr
-                                  : controller.currentCity.value,
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w500,
+                            () => ConstrainedBox(
+                              constraints: const BoxConstraints(maxWidth: 250),
+                              // Set your desired maximum width
+                              child: Text(
+                                controller.currentCity.value == ""
+                                    ? 'Select City'.tr
+                                    : controller.currentCity.value,
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                                overflow:
+                                    TextOverflow
+                                        .ellipsis, // Show ellipsis if text exceeds maxWidth
                               ),
                             ),
                           ),
@@ -1572,7 +1579,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
     _handleScreenExit();
     try {
       final String videoId = videoDetail.id!;
-      final String webUrl = "https://cookster.com/visitSingleVideo?id=$videoId";
+      final String webUrl = "https://cookster.org/visitSingleVideo?id=$videoId";
       final String shareMessage =
           'Check out this amazing video on Cookster!\n$webUrl';
       await Share.share(shareMessage, subject: 'Cookster Video');

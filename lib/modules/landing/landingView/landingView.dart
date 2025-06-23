@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'dart:ui';
+
 import 'package:awesome_dialog/awesome_dialog.dart';
 import 'package:camera/camera.dart';
 import 'package:cookster/loaders/pulseLoader.dart';
@@ -15,6 +16,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:get/get.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
 import '../../../appRoutes/appRoutes.dart';
 import '../../../appUtils/colorUtils.dart';
 import '../../../basicVideoEditor/basicVideoEditor.dart';
@@ -28,7 +30,6 @@ import '../landingTabs/add/videoAddController/videoAddController.dart';
 import '../landingTabs/home/homeController/homeController.dart';
 import '../landingTabs/home/homeController/saveController.dart';
 import '../landingTabs/home/homeView/reelsVideoScreen.dart';
-import '../landingTabs/nearBusiness/nearBusinessController/nearBusinessController.dart';
 import '../landingTabs/nearBusiness/newBusinessView/nearBusinessView.dart';
 import '../landingTabs/professionalProfile/profileControlller/professionalProfileController.dart';
 import '../landingTabs/professionalProfile/profileView/professionalProfileView.dart';
@@ -338,6 +339,34 @@ class _LandingState extends State<Landing> {
   @override
   Widget build(BuildContext context) {
     return Obx(() {
+      // Safely check if subscription is expired
+      RxBool isExpired = RxBool(false); // Default to false
+
+      final subscriptionEndDate =
+          professionalProfileController
+              .userDetails
+              .value
+              ?.subscription
+              ?.endDate;
+
+      if (subscriptionEndDate != null) {
+        try {
+          isExpired.value = DateTime.now().isAfter(
+            DateTime.parse(subscriptionEndDate),
+          );
+        } catch (e) {
+          // Handle parsing error, if any
+          isExpired.value = false; // Assume not expired if parsing fails
+        }
+      }
+
+      // Show dialog if expired, using Future.delayed to avoid build issues
+      if (isExpired.value) {
+        Future.delayed(Duration.zero, () {
+          showExpiredPackageDialog(context);
+        });
+      }
+
       return PopScope(
         canPop: false,
         onPopInvoked: (didPop) async {
@@ -382,7 +411,7 @@ class _LandingState extends State<Landing> {
                           return Stack(
                             clipBehavior: Clip.none,
                             children: [
-                              // Main content - Remove the inner Obx here
+                              // Main content
                               snapshot.data![navBarController
                                   .selectedIndex
                                   .value],

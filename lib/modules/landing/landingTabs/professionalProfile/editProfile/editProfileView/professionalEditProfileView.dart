@@ -342,7 +342,7 @@ class _EditProfessionalProfileViewState
                       .value
                       ?.formSettings
                       ?.businessTypes;
-        
+
               if (userDetails == null || additionalSettings == null) {
                 return SizedBox(
                   height: MediaQuery.of(context).size.height,
@@ -362,7 +362,7 @@ class _EditProfessionalProfileViewState
                   ),
                 );
               }
-        
+
               Map<String, int> allCountries = {};
               List<String> countryName =
                   countries?.map<String>((country) {
@@ -370,7 +370,7 @@ class _EditProfessionalProfileViewState
                     return country.name!;
                   }).toList() ??
                   [];
-        
+
               String? selectedCountryName =
                   allCountries.entries
                       .firstWhere(
@@ -382,14 +382,14 @@ class _EditProfessionalProfileViewState
                   selectedCountryName.isEmpty) {
                 selectedCountryName = null;
               }
-        
+
               Map<String, int> allCities = {};
               List<String> cityName =
                   cities.map<String>((city) {
                     allCities[city.name!] = city.id!;
                     return city.name!;
                   }).toList();
-        
+
               String? selectedCityName =
                   allCities.entries
                       .firstWhere(
@@ -401,7 +401,7 @@ class _EditProfessionalProfileViewState
                   selectedCityName.isEmpty) {
                 selectedCityName = null;
               }
-        
+
               Map<String, int> allMenuItems = {};
               List<String> menuItemName =
                   businessTypes?.values?.map<String>((menu) {
@@ -409,11 +409,12 @@ class _EditProfessionalProfileViewState
                     return menu.name!;
                   }).toList() ??
                   [];
-        
+
               String? selectedMenuItem =
                   allMenuItems.entries
                       .firstWhere(
-                        (entry) => entry.value == additionalSettings.businessType,
+                        (entry) =>
+                            entry.value == additionalSettings.businessType,
                         orElse: () => const MapEntry('', 0),
                       )
                       .key;
@@ -421,7 +422,7 @@ class _EditProfessionalProfileViewState
                   selectedMenuItem.isEmpty) {
                 selectedMenuItem = null;
               }
-        
+
               return Stack(
                 children: [
                   Column(
@@ -474,12 +475,15 @@ class _EditProfessionalProfileViewState
                                                                 CircularProgressIndicator(),
                                                           ),
                                                       errorWidget:
-                                                          (context, url, error) =>
-                                                              const Icon(
-                                                                Icons.error,
-                                                                size: 40,
-                                                                color: Colors.red,
-                                                              ),
+                                                          (
+                                                            context,
+                                                            url,
+                                                            error,
+                                                          ) => const Icon(
+                                                            Icons.error,
+                                                            size: 40,
+                                                            color: Colors.red,
+                                                          ),
                                                     ),
                                           ),
                                 );
@@ -535,7 +539,7 @@ class _EditProfessionalProfileViewState
                           ),
                         ),
                       ),
-        
+
                       IgnorePointer(
                         child: Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 16.0),
@@ -547,7 +551,7 @@ class _EditProfessionalProfileViewState
                           ),
                         ),
                       ),
-        
+
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 16.0),
                         child: CustomTextField(
@@ -575,7 +579,7 @@ class _EditProfessionalProfileViewState
                           controller: profileController.passwordController,
                         ),
                       ),
-        
+
                       if (entity == 2)
                         Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 16.0),
@@ -603,9 +607,8 @@ class _EditProfessionalProfileViewState
                                       closedBorderRadius: BorderRadius.circular(
                                         8,
                                       ),
-                                      expandedBorderRadius: BorderRadius.circular(
-                                        8,
-                                      ),
+                                      expandedBorderRadius:
+                                          BorderRadius.circular(8),
                                       closedFillColor: Colors.transparent,
                                       closedSuffixIcon: const Icon(
                                         Icons.keyboard_arrow_down_rounded,
@@ -629,7 +632,7 @@ class _EditProfessionalProfileViewState
                             ),
                           ),
                         ),
-        
+
                       InkWell(
                         onTap: () {
                           showProfileCountrySelectionDialog(
@@ -657,24 +660,14 @@ class _EditProfessionalProfileViewState
                           ),
                           child: Row(
                             children: [
-                              SvgPicture.asset("assets/icons/state.svg"),
+                              SvgPicture.asset("assets/icons/earth.svg"),
                               SizedBox(width: 8),
-        
+
                               dir.Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text(
-                                    "country".tr,
-                                    style: TextStyle(
-                                      fontSize: 13,
-                                      // Responsive font size using flutter_screenutil
-                                      // color: ColorUtils.greyTextFieldBorderColor, // Match border color
-                                      fontWeight:
-                                          FontWeight
-                                              .w400, // Medium weight for readability
-                                      // height: 1.5, // Line height for better spacing
-                                    ),
-                                  ),
+                                  DynamicStyledText(text: "country".tr),
+
                                   Text(
                                     profileController
                                             .selectCountryId
@@ -687,7 +680,8 @@ class _EditProfessionalProfileViewState
                                               profileController
                                                   .selectCountryId
                                                   .value,
-                                          orElse: () => "Select your country".tr,
+                                          orElse:
+                                              () => "Select your country".tr,
                                         ),
                                     style: TextStyle(
                                       fontSize: 14.sp,
@@ -729,39 +723,39 @@ class _EditProfessionalProfileViewState
                           ),
                           child: Row(
                             children: [
-                              SvgPicture.asset("assets/icons/state.svg"),
+                              SvgPicture.asset("assets/icons/earth.svg"),
                               SizedBox(width: 8),
-        
+
                               dir.Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text(
-                                    "City".tr,
-                                    style: TextStyle(
-                                      fontSize: 13,
-                                      // Responsive font size using flutter_screenutil
-                                      // color: ColorUtils.greyTextFieldBorderColor, // Match border color
-                                      fontWeight:
-                                          FontWeight
-                                              .w400, // Medium weight for readability
-                                      // height: 1.5, // Line height for better spacing
-                                    ),
-                                  ),
+                                  DynamicStyledText(text: "city".tr),
+
                                   Container(
-                                    width: Get.width * 0.6, // Set your desired maximum width here
+                                    width: Get.width * 0.6,
+                                    // Set your desired maximum width here
                                     child: Text(
-                                      profileController.selectedCityId.value.isEmpty
+                                      profileController
+                                              .selectedCityId
+                                              .value
+                                              .isEmpty
                                           ? "Select your city"
                                           : cityName.firstWhere(
-                                            (name) => allCities[name].toString() == profileController.selectedCityId.value,
-                                        orElse: () => "Select your city",
-                                      ),
+                                            (name) =>
+                                                allCities[name].toString() ==
+                                                profileController
+                                                    .selectedCityId
+                                                    .value,
+                                            orElse: () => "Select your city",
+                                          ),
                                       style: TextStyle(
                                         fontSize: 14.sp,
                                         color: Colors.black,
                                       ),
-                                      overflow: TextOverflow.ellipsis, // Adds ellipsis when text exceeds width
-                                      maxLines: 1, // Restricts text to a single line
+                                      overflow: TextOverflow.ellipsis,
+                                      // Adds ellipsis when text exceeds width
+                                      maxLines:
+                                          1, // Restricts text to a single line
                                     ),
                                   ),
                                 ],
@@ -772,7 +766,7 @@ class _EditProfessionalProfileViewState
                           ),
                         ),
                       ),
-        
+
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 16.0),
                         child: CustomTextField(
@@ -783,7 +777,7 @@ class _EditProfessionalProfileViewState
                           controller: profileController.contactPhoneController,
                         ),
                       ),
-        
+
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 16.0),
                         child: CustomTextField(
@@ -794,7 +788,7 @@ class _EditProfessionalProfileViewState
                           controller: profileController.contactEmailController,
                         ),
                       ),
-        
+
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 16.0),
                         child: CustomTextField(
@@ -821,7 +815,7 @@ class _EditProfessionalProfileViewState
                                       initialLongitude: double.parse(
                                         profileController.longitude,
                                       ),
-        
+
                                       initialAddress:
                                           profileController
                                                   .locationController
@@ -842,14 +836,14 @@ class _EditProfessionalProfileViewState
                                         result['longitude'];
                                     profileController.locationController.text =
                                         result['address'];
-        
+
                                     print('LATITUDE: ${result['latitude']}');
                                     print('LONGITUDE: ${result['longitude']}');
                                   } else {
                                     print("error");
                                   }
                                 },
-        
+
                                 child: IgnorePointer(
                                   child: CustomTextField(
                                     validator:
@@ -865,7 +859,7 @@ class _EditProfessionalProfileViewState
                             ],
                           ),
                         ),
-        
+
                       InkWell(
                         onTap: () {
                           Get.toNamed(AppRoutes.selectLanguage);
@@ -885,7 +879,7 @@ class _EditProfessionalProfileViewState
                           margin: const EdgeInsets.symmetric(horizontal: 16),
                           child: Row(
                             children: [
-                              SvgPicture.asset("assets/icons/earth.svg"),
+                              SvgPicture.asset("assets/icons/language.svg"),
                               SizedBox(width: 16.w),
                               Text("Change Language".tr),
                               const Spacer(),
@@ -912,13 +906,13 @@ class _EditProfessionalProfileViewState
                                 // Call the delete_account API
                                 final response =
                                     await ApiClient.postDeleteAccount({});
-        
+
                                 print(response.body);
-        
+
                                 if (response.statusCode == 200) {
                                   SharedPreferences prefs =
                                       await SharedPreferences.getInstance();
-        
+
                                   // Store the onboarding_completed, language, and selectedLanguage values before clearing
                                   bool onboardingCompleted =
                                       prefs.getBool('onboarding_completed') ??
@@ -931,10 +925,10 @@ class _EditProfessionalProfileViewState
                                       'English'; // Default to 'English' as per LanguageController
                                   bool initLanguage =
                                       prefs.getBool('initLanguage') ?? false;
-        
+
                                   // Clear all preferences
                                   await prefs.clear();
-        
+
                                   // Restore the onboarding_completed, language, and selectedLanguage values
                                   await prefs.setBool(
                                     'onboarding_completed',
@@ -949,7 +943,7 @@ class _EditProfessionalProfileViewState
                                     'initLanguage',
                                     initLanguage,
                                   );
-        
+
                                   // Clear in-memory user data
                                   profileController.userDetails.value =
                                       null; // Assuming this is defined elsewhere
@@ -959,7 +953,7 @@ class _EditProfessionalProfileViewState
                                       .clear(); // Assuming this is defined elsewhere
                                   profileController.followingList
                                       .clear(); // Assuming this is defined elsewhere
-        
+
                                   // Reinitialize ApiClient language
                                   await ApiClient.initLanguage();
                                   // Navigate to SignIn screen
@@ -1012,8 +1006,12 @@ class _EditProfessionalProfileViewState
                                 style: TextStyle(color: Colors.white),
                               ),
                               Spacer(),
-                              Directionality.of(context) == dir.TextDirection.rtl
-                                  ? Icon(Icons.arrow_forward, color: Colors.white)
+                              Directionality.of(context) ==
+                                      dir.TextDirection.rtl
+                                  ? Icon(
+                                    Icons.arrow_forward,
+                                    color: Colors.white,
+                                  )
                                   : Icon(
                                     Icons.arrow_forward,
                                     color: Colors.white,
@@ -1022,7 +1020,7 @@ class _EditProfessionalProfileViewState
                           ),
                         ),
                       ),
-        
+
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 16.0),
                         child: AppButton(

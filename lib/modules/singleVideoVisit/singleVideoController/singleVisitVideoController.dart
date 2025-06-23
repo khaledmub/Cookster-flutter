@@ -8,15 +8,37 @@ import '../singleVideoModel/singleVisitVideoModel.dart';
 class SingleVisitVideoController extends GetxController {
   var isLoading = true.obs;
   var singleVideoContent = SingleVideoDetail().obs;
+  String? _currentVideoId; // Track the current video ID
+
+  @override
+  void onInit() {
+    super.onInit();
+    // Reset video content when the controller is initialized
+    resetVideoContent();
+  }
+
+  void resetVideoContent() {
+    singleVideoContent.value = SingleVideoDetail();
+    _currentVideoId = null;
+    isLoading.value = true;
+  }
 
   Future<void> fetchSingleVideo(String videoId) async {
+    // Avoid fetching if the video ID is the same as the current one
+    if (_currentVideoId == videoId && singleVideoContent.value.video != null) {
+      print("Same video ID ($videoId), skipping fetch");
+      return;
+    }
+
     final endPoint = '${EndPoints.singleVideoDetails}?id=$videoId';
 
     print("=========PRINTING THE VIDEO ID=========");
     print(videoId);
 
     try {
-      isLoading.value = true;
+      // Reset content before fetching new data
+      resetVideoContent();
+      _currentVideoId = videoId;
 
       var response = await ApiClient.getRequest(endPoint);
 

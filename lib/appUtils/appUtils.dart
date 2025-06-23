@@ -249,6 +249,7 @@ class _CustomTextFieldState extends State<CustomTextField> {
                 enabledBorder: InputBorder.none,
                 hintText: widget.hintText.tr,
                 labelText: widget.label.tr,
+
                 suffixIcon:
                     widget.isPassword
                         ? IconButton(
@@ -266,6 +267,63 @@ class _CustomTextFieldState extends State<CustomTextField> {
           ),
         ],
       ),
+    );
+  }
+
+
+}
+
+
+
+class DynamicStyledText extends StatelessWidget {
+  final String text;
+  final Set<MaterialState> states; // To simulate MaterialState conditions
+
+  const DynamicStyledText({
+    super.key,
+    required this.text,
+    this.states = const {}, // Default to empty states
+  });
+
+  TextStyle _resolveTextStyle(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    // Base text style, matching provided fontSize and fontWeight
+    TextStyle baseStyle = theme.textTheme.bodySmall?.copyWith(
+      fontSize: 12, // Responsive font size with flutter_screenutil
+
+    ) ??
+        TextStyle(
+          // fontSize: 12,
+
+        );
+
+    // Resolve TextStyle based on states
+    if (states.contains(MaterialState.disabled)) {
+      return baseStyle.copyWith(color: theme.colorScheme.onSurface.withOpacity(0.38));
+    }
+    if (states.contains(MaterialState.error)) {
+      if (states.contains(MaterialState.focused)) {
+        return baseStyle.copyWith(color: theme.colorScheme.error);
+      }
+      if (states.contains(MaterialState.hovered)) {
+        return baseStyle.copyWith(color: theme.colorScheme.onErrorContainer);
+      }
+      return baseStyle.copyWith(color: theme.colorScheme.error);
+    }
+    if (states.contains(MaterialState.focused)) {
+      return baseStyle.copyWith(color: theme.colorScheme.primary);
+    }
+    if (states.contains(MaterialState.hovered)) {
+      return baseStyle.copyWith(color: theme.colorScheme.onSurfaceVariant);
+    }
+    return baseStyle.copyWith(color: theme.colorScheme.onSurfaceVariant);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      text.tr, // Apply translation using GetX
+      style: _resolveTextStyle(context),
     );
   }
 }

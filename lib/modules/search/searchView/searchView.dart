@@ -930,13 +930,17 @@ class _SearchViewState extends State<SearchView>
                         Icon(Icons.location_on_outlined),
                         SizedBox(width: 10),
                         Obx(
-                          () => Text(
-                            searchController.currentCity.value == ""
-                                ? 'select_city_dialog_label'.tr
-                                : searchController.currentCity.value,
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w500,
+                              () => ConstrainedBox(
+                            constraints: const BoxConstraints(maxWidth: 250), // Set your desired maximum width
+                            child: Text(
+                              searchController.currentCity.value == ""
+                                  ? 'select_city_dialog_label'.tr
+                                  : searchController.currentCity.value,
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w500,
+                              ),
+                              overflow: TextOverflow.ellipsis, // Show ellipsis if text exceeds maxWidth
                             ),
                           ),
                         ),

@@ -619,7 +619,7 @@ class _EditProfileViewState extends State<EditProfileView> {
                         child: Container(
                           margin: EdgeInsets.symmetric(horizontal: 16),
                           padding: EdgeInsets.symmetric(
-                            horizontal: 12.w,
+                            horizontal: 10.w,
                             vertical: 8.h,
                           ),
                           decoration: BoxDecoration(
@@ -634,21 +634,14 @@ class _EditProfileViewState extends State<EditProfileView> {
         
                               Row(
                                 children: [
-                                  SvgPicture.asset("assets/icons/state.svg"),
-                                  SizedBox(width: 8),
+                                  SvgPicture.asset("assets/icons/earth.svg",),
+                                  SizedBox(width: 8,),
+
         
                                   dir.Column(
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
-                                      Text(
-                                        "country".tr,
-                                        style: TextStyle(
-                                          fontSize: 13, // Responsive font size using flutter_screenutil
-                                          // color: ColorUtils.greyTextFieldBorderColor, // Match border color
-                                          fontWeight: FontWeight.w400, // Medium weight for readability
-                                          // height: 1.5, // Line height for better spacing
-                                        ),
-                                      ),
+                                      DynamicStyledText(text: "country".tr,),
                                       Text(
                                         profileController.selectCountryId.value.isEmpty
                                             ? "Select your country"
@@ -688,7 +681,7 @@ class _EditProfileViewState extends State<EditProfileView> {
                         child: Container(
                           margin: EdgeInsets.symmetric(horizontal: 16),
                           padding: EdgeInsets.symmetric(
-                            horizontal: 12.w,
+                            horizontal: 10.w,
                             vertical: 8.h,
                           ),
                           decoration: BoxDecoration(
@@ -700,21 +693,15 @@ class _EditProfileViewState extends State<EditProfileView> {
                           ),
                           child: Row(
                             children: [
-                              SvgPicture.asset("assets/icons/state.svg"),
-                              SizedBox(width: 8),
-        
+                              SvgPicture.asset("assets/icons/earth.svg"),
+                              SizedBox(width: 8,),
+
+
                               dir.Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text(
-                                    "city".tr,
-                                    style: TextStyle(
-                                      fontSize: 13, // Responsive font size using flutter_screenutil
-                                      // color: ColorUtils.greyTextFieldBorderColor, // Match border color
-                                      fontWeight: FontWeight.w400, // Medium weight for readability
-                                      // height: 1.5, // Line height for better spacing
-                                    ),
-                                  ),
+                                  DynamicStyledText(text: "city".tr,),
+
                                   Container(
                                     width: Get.width * 0.6, // Set your desired maximum width here
                                     child: Text(
@@ -808,8 +795,8 @@ class _EditProfileViewState extends State<EditProfileView> {
                           margin: EdgeInsets.symmetric(horizontal: 16),
                           child: Row(
                             children: [
-                              SvgPicture.asset("assets/icons/earth.svg"),
-                              SizedBox(width: 16.w),
+                              SvgPicture.asset("assets/icons/language.svg"),
+                              SizedBox(width: 8),
                               Text("Change Language".tr),
                               Spacer(),
                               Directionality.of(context) == rtl.TextDirection.rtl

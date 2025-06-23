@@ -2,7 +2,6 @@ import 'dart:io';
 
 import 'package:app_links/app_links.dart';
 import 'package:cookster/appUtils/colorUtils.dart';
-import 'package:cookster/modules/auth/signUp/signUpController/signUpController.dart';
 import 'package:cookster/services/flutterNotificationService.dart';
 import 'package:cookster/services/notificationServices.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -18,12 +17,9 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import 'appRoutes/appRoutes.dart';
 import 'locale/localizationServices.dart';
 import 'modules/landing/landingController/landingController.dart';
-import 'modules/landing/landingTabs/add/videoAddController/videoAddController.dart';
-import 'modules/onBoarding/onBoardingController/onBoardingController.dart';
-import 'modules/promoteVideo/promoteVideoController/promoteVideoController.dart';
 
 final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
-FlutterLocalNotificationsPlugin();
+    FlutterLocalNotificationsPlugin();
 
 Future<void> requestNotificationPermission() async {
   // Check if the platform is Android 13+ (API 33+)
@@ -73,7 +69,7 @@ void main() async {
   FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
 
   NotificationSettings settings =
-  await FirebaseMessaging.instance.requestPermission();
+      await FirebaseMessaging.instance.requestPermission();
   if (settings.authorizationStatus == AuthorizationStatus.authorized) {
   } else if (settings.authorizationStatus == AuthorizationStatus.provisional) {
   } else {}
@@ -91,13 +87,13 @@ void main() async {
 
   // Set default locale based on saved preference or English
   Locale initialLocale =
-  savedLang == "Arabic"
-      ? LocalizationService.arabic
-      : LocalizationService.english;
+      savedLang == "Arabic"
+          ? LocalizationService.arabic
+          : LocalizationService.english;
 
   // Check internet connection
   List<ConnectivityResult> connectivityResult =
-  await Connectivity().checkConnectivity();
+      await Connectivity().checkConnectivity();
   bool hasInternet = connectivityResult != ConnectivityResult.none;
 
   runApp(MyApp(initialLocale: initialLocale, hasInternet: hasInternet));
@@ -140,7 +136,7 @@ class _MyAppState extends State<MyApp> {
   @override
   void initState() {
     super.initState();
-    _initDeepLinks();
+    // _initDeepLinks();
     _listenForConnectivity();
 
     // Track if we're starting with no internet
@@ -148,60 +144,14 @@ class _MyAppState extends State<MyApp> {
   }
 
   /// **🔹 Initialize Deep Links**
-  void _initDeepLinks() async {
-    _appLinks = AppLinks();
-
-    // Listen for deep links when the app is running
-    _appLinks.uriLinkStream.listen((Uri? uri) {
-      if (uri != null) {
-        _handleDeepLink(uri);
-      }
-    });
-
-    // Check if the app was launched via a deep link
-    Uri? initialUri = await _appLinks.getInitialLink();
-    if (initialUri != null) {
-      _handlingDeepLink = true;
-      _handleDeepLink(initialUri);
-    }
-  }
-
-  /// **🔹 Handle Deep Link Navigation**
-  void _handleDeepLink(Uri uri) {
-    String path = uri.path;
-    Map<String, String> queryParams = uri.queryParameters;
-
-    print("Deep Link Received: $path");
-    print("Query Parameters: $queryParams");
-
-    if (path.contains("/visitSingleVideo")) {
-      String? videoId = queryParams['id'];
-      if (videoId != null) {
-        print("Video ID: $videoId");
-        // Get.put(OnboardingController(), permanent: true);
-
-        // // Navigate to the single video page with the id parameter
-        // Get.offAllNamed(
-        //   AppRoutes.visitSingleVideo,
-        //   arguments: {'videoId': videoId},
-        // );
-      } else {
-        // If no id is provided, still navigate but without arguments
-        // Get.offAllNamed(
-        //   AppRoutes.visitSingleVideo,
-        //   arguments: {'videoId': videoId},
-        // );
-      }
-    }
-  }
 
   /// **🔹 Listen for Internet Connectivity Changes**
   void _listenForConnectivity() {
     Connectivity().onConnectivityChanged.listen((
-        List<ConnectivityResult> results,
-        ) {
+      List<ConnectivityResult> results,
+    ) {
       bool hasInternet = results.any(
-            (result) => result != ConnectivityResult.none,
+        (result) => result != ConnectivityResult.none,
       );
 
       // Only handle connectivity navigation if we're not handling a deep link
@@ -241,7 +191,8 @@ class _MyAppState extends State<MyApp> {
   void _handleInternetLost() {
     // Save current route before going to no internet screen
     String? currentRoute = Get.currentRoute;
-    if (currentRoute != AppRoutes.noInternet && currentRoute != AppRoutes.splash) {
+    if (currentRoute != AppRoutes.noInternet &&
+        currentRoute != AppRoutes.splash) {
       _lastRouteBeforeNoInternet = currentRoute;
     }
 
@@ -301,22 +252,22 @@ class _MyAppState extends State<MyApp> {
             }),
           ],
           initialRoute:
-          _handlingDeepLink
-              ? null
-              : (widget.hasInternet
-              ? AppRoutes.splash
-              : AppRoutes.noInternet),
+              _handlingDeepLink
+                  ? null
+                  : (widget.hasInternet
+                      ? AppRoutes.splash
+                      : AppRoutes.noInternet),
           getPages: AppRoutes.pages,
           builder: (context, child) {
             return MediaQuery(
-              data: MediaQuery.of(context).copyWith(
-                textScaler: const TextScaler.linear(1.0),
-              ),
+              data: MediaQuery.of(
+                context,
+              ).copyWith(textScaler: const TextScaler.linear(1.0)),
               child: Directionality(
                 textDirection:
-                Get.locale?.languageCode == 'ar'
-                    ? TextDirection.rtl
-                    : TextDirection.ltr,
+                    Get.locale?.languageCode == 'ar'
+                        ? TextDirection.rtl
+                        : TextDirection.ltr,
                 child: child!,
               ),
             );
