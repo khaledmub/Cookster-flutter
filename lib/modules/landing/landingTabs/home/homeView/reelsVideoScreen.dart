@@ -582,7 +582,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                                 ),
                               if (videoDetail.isImage == 0 && isInitialized)
                                 Positioned(
-                                  bottom: 70,
+                                  bottom: Platform.isAndroid ? 70 : 100,
                                   left: 0.0,
                                   right: 0.0,
                                   child: StreamBuilder<Duration>(
@@ -850,7 +850,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
               ),
 
               Positioned(
-                top: Platform.isAndroid ? Get.height * 0.1 : Get.height * 0.12,
+                top: Get.height * 0.1,
                 right: isRtl ? null : 16,
                 left: isRtl ? 16 : null,
                 child: Row(
@@ -1090,7 +1090,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
     bool isAuthenticated = currentUserDetails != null || currentUser != null;
     return Positioned(
       right: 10,
-      bottom: Get.height * 0.13,
+      bottom: Platform.isAndroid ? Get.height * 0.13 : Get.height * 0.16,
       child: Column(
         children: [
           Container(
@@ -1683,8 +1683,8 @@ class videoUserDetails extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Positioned(
-      top: Platform.isAndroid ? Get.height * 0.1 : Get.height * 0.12,
-      // left: 10,
+      top: Get.height * 0.1,
+      left: 10,
       child: SizedBox(
         width: Get.width * 1,
         child: Stack(
@@ -1893,7 +1893,7 @@ class videoTitleEtc extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Positioned(
-      bottom: Get.height * 0.13,
+      bottom: Platform.isAndroid ? Get.height * 0.13 : Get.height * 0.2,
       left: 10,
       child: Container(
         width: Get.width * 0.75,
@@ -2522,7 +2522,7 @@ class _VideoDescriptionWidgetState extends State<VideoDescriptionWidget>
     final tagStyle = TextStyle(color: ColorUtils.primaryColor, fontSize: 12.sp);
 
     return Positioned(
-      bottom: Get.height * 0.13,
+      bottom: Platform.isAndroid ? Get.height * 0.13 : Get.height * 0.16,
       left: 10,
       child: Container(
         padding: EdgeInsets.all(8),
