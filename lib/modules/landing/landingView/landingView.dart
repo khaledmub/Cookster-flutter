@@ -1,6 +1,8 @@
+import 'dart:developer';
 import 'dart:io';
 import 'dart:ui';
 
+import 'package:app_links/app_links.dart';
 import 'package:awesome_dialog/awesome_dialog.dart';
 import 'package:camera/camera.dart';
 import 'package:cookster/loaders/pulseLoader.dart';
@@ -54,6 +56,8 @@ class _LandingState extends State<Landing> {
 
   final VideoAddController videoAddController = Get.put(VideoAddController());
 
+  final AppLinks appLinks = AppLinks();
+
   Future<bool> _isUserAuthenticated() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     String? authToken = prefs.getString('auth_token');
@@ -65,36 +69,24 @@ class _LandingState extends State<Landing> {
     if (isAuthenticated) {
       int entity = await getEntity();
       if (entity == 2) {
-        // Fetch from ProfessionalProfileController
         await professionalProfileController.getUserDetails();
       } else {
-        // Fetch from ProfileController
         await profileController.getUserDetails();
       }
-    } else {
-      // Handle unauthenticated user (e.g., redirect to sign-in)
-      // Get.toNamed(AppRoutes.signIn);
     }
   }
 
-  // Add this method to handle authentication required actions
   Future<void> _handleAuthRequiredAction(VoidCallback action) async {
     bool isAuthenticated = await _isUserAuthenticated();
-
     if (isAuthenticated) {
-      action(); // Execute the action if authenticated
+      action();
     } else {
-      // Navigate to sign in page
-      Get.toNamed(AppRoutes.signIn); // Make sure you have this route defined
+      Get.toNamed(AppRoutes.signIn);
     }
   }
 
-  // Center vertically, adjust for widget height
   Future<void> _pickImage(BuildContext context, ImageSource source) async {
-    // controller.handleNavigation();
-    controller.pauseCurrentVideo(); // Pause any ongoing video
-
-    // Get available cameras first
+    controller.pauseCurrentVideo();
     final cameras = await availableCameras();
     if (cameras.isEmpty) {
       Get.snackbar(
@@ -104,9 +96,8 @@ class _LandingState extends State<Landing> {
       );
       return;
     }
-
     Get.to(CameraCaptureScreen(cameras: cameras))?.then((_) {
-      controller.restoreVideoState(); // Restore video state after returning
+      controller.restoreVideoState();
     });
   }
 
@@ -119,19 +110,15 @@ class _LandingState extends State<Landing> {
   }
 
   final ProfileController profileController = Get.put(ProfileController());
-
   final ProfessionalProfileController professionalProfileController = Get.put(
     ProfessionalProfileController(),
   );
-
   final UserSearchController searchController = Get.put(UserSearchController());
 
   Future<List<Widget>> _screens(BuildContext context) async {
     int entity = await getEntity();
     return [
       VideoReelScreen(),
-      // VideoRecorderScreen(),
-      // Container(),
       NearestBusinessScreen(),
       Notifications(),
       entity == 2 ? ProfessionalProfileView() : ProfileView(),
@@ -192,37 +179,29 @@ class _LandingState extends State<Landing> {
                 onTap: () async {
                   Navigator.pop(context);
                   controller.pauseCurrentVideo();
-
                   try {
-                    // Pick a file from gallery
                     final XFile? pickedFile = await ImagePicker().pickMedia(
                       imageQuality: 80,
                       maxWidth: 1920,
                       maxHeight: 1080,
                     );
-
                     if (pickedFile != null) {
-                      // Determine file type
                       final fileType = pickedFile.path.toLowerCase();
-
                       if (fileType.endsWith('.jpg') ||
                           fileType.endsWith('.jpeg') ||
                           fileType.endsWith('.png') ||
                           fileType.endsWith('.webp')) {
-                        // Image selected
                         await Get.to(
                           () => ImageEditScreen(imagePath: pickedFile.path),
                         );
                       } else if (fileType.endsWith('.mp4') ||
                           fileType.endsWith('.avi') ||
                           fileType.endsWith('.mov')) {
-                        // Video selected
                         await Get.to(
                           () =>
                               VideoTextEditor(videoFile: File(pickedFile.path)),
                         );
                       } else {
-                        // Unsupported file type
                         Get.snackbar(
                           'Error'.tr,
                           'Unsupported file type'.tr,
@@ -233,7 +212,6 @@ class _LandingState extends State<Landing> {
                       }
                     }
                   } catch (e) {
-                    // Handle any errors during file picking
                     Get.snackbar(
                       'Error'.tr,
                       'Failed to pick file'.tr,
@@ -242,12 +220,10 @@ class _LandingState extends State<Landing> {
                       colorText: Colors.white,
                     );
                   } finally {
-                    // Restore video state
                     controller.restoreVideoState();
                   }
                 },
               ),
-              // SizedBox(height: 10),
               ListTile(
                 leading: Icon(CupertinoIcons.camera, color: Colors.black87),
                 title: Text(
@@ -256,19 +232,13 @@ class _LandingState extends State<Landing> {
                 ),
                 onTap: () async {
                   Navigator.pop(context);
-                  // controller.handleNavigation();
                   controller.pauseCurrentVideo();
-
-                  // Get available cameras first
                   final cameras = await availableCameras();
-
                   Get.to(CameraScreen(cameras: cameras))?.then((_) {
                     controller.restoreVideoState();
                   });
-                  // _pickVideo(context, ImageSource.camera);
                 },
               ),
-              // SizedBox(height: 10),
               ListTile(
                 leading: Icon(CupertinoIcons.photo, color: Colors.black87),
                 title: Text(
@@ -277,7 +247,6 @@ class _LandingState extends State<Landing> {
                 ),
                 onTap: () async {
                   Navigator.pop(context);
-                  // controller.handleNavigation();
                   _pickImage(context, ImageSource.camera).then((_) {
                     controller.restoreVideoState();
                   });
@@ -290,23 +259,18 @@ class _LandingState extends State<Landing> {
     );
   }
 
-  // Handle back button press
   Future<bool> _onWillPop() async {
-    // If not on home screen (index 0), navigate to home
     if (navBarController.selectedIndex.value != 0) {
       navBarController.changeTab(0);
       controller.restoreVideoState();
-      return false; // Don't exit the app
+      return false;
     } else {
-      // Show exit confirmation dialog
       return await _showExitConfirmationDialog(context);
     }
   }
 
-  // Show exit confirmation dialog
   Future<bool> _showExitConfirmationDialog(BuildContext context) async {
     bool shouldExit = false;
-
     await AwesomeDialog(
       context: context,
       dialogType: DialogType.question,
@@ -325,7 +289,6 @@ class _LandingState extends State<Landing> {
       },
       dismissOnTouchOutside: false,
     ).show();
-
     return shouldExit;
   }
 
@@ -334,44 +297,80 @@ class _LandingState extends State<Landing> {
     super.initState();
     navBarController.selectedIndex.value = widget.initialIndex;
     fetchUserDetails();
+
+    // Handle initial deep link
+    appLinks.getInitialLink().then((uri) {
+      if (uri != null) {
+        final videoId = uri.queryParameters['id'];
+        if (videoId != null) {
+          log('Initial deep link with video ID: $videoId');
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (Get.currentRoute == AppRoutes.singleVisitVideo &&
+                Get.arguments == videoId) {
+              // Already on SingleVisitVideo with the same videoId, do nothing
+              return;
+            }
+            Get.toNamed(AppRoutes.singleVisitVideo, arguments: videoId);
+          });
+        }
+      }
+    });
+
+    // Handle deep links while app is running
+    appLinks.uriLinkStream.listen(
+      (uri) {
+        final videoId = uri.queryParameters['id'];
+        if (videoId != null) {
+          log('Stream deep link with video ID: $videoId');
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (Get.currentRoute == AppRoutes.singleVisitVideo &&
+                Get.arguments == videoId) {
+              // Already on SingleVisitVideo with the same videoId, do nothing
+              return;
+            }
+            Get.toNamed(AppRoutes.singleVisitVideo, arguments: videoId);
+          });
+        }
+      },
+      onError: (error) {
+        log('Deep link stream error: $error');
+        Get.snackbar(
+          'Error',
+          'Invalid deep link',
+          snackPosition: SnackPosition.BOTTOM,
+        );
+      },
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Obx(() {
-      // Safely check if subscription is expired
-      RxBool isExpired = RxBool(false); // Default to false
-
+      RxBool isExpired = RxBool(false);
       final subscriptionEndDate =
           professionalProfileController
               .userDetails
               .value
               ?.subscription
               ?.endDate;
-
       if (subscriptionEndDate != null) {
         try {
           isExpired.value = DateTime.now().isAfter(
             DateTime.parse(subscriptionEndDate),
           );
         } catch (e) {
-          // Handle parsing error, if any
-          isExpired.value = false; // Assume not expired if parsing fails
+          isExpired.value = false;
         }
       }
-
-      // Show dialog if expired, using Future.delayed to avoid build issues
       if (isExpired.value) {
         Future.delayed(Duration.zero, () {
           showExpiredPackageDialog(context);
         });
       }
-
       return PopScope(
         canPop: false,
         onPopInvoked: (didPop) async {
           if (didPop) return;
-
           if (navBarController.selectedIndex.value != 0) {
             navBarController.changeTab(0);
             controller.restoreVideoState();
@@ -411,12 +410,9 @@ class _LandingState extends State<Landing> {
                           return Stack(
                             clipBehavior: Clip.none,
                             children: [
-                              // Main content
                               snapshot.data![navBarController
                                   .selectedIndex
                                   .value],
-
-                              // Bottom Navigation Bar
                               Positioned(
                                 bottom: 0,
                                 left: 0,
@@ -506,8 +502,6 @@ class _LandingState extends State<Landing> {
 
     return InkWell(
       onTap: () async {
-        // Check if the tab requires authentication (Add=2, Notifications=2, Profile=3)
-        // Note: Add button is handled separately in _buildAddButton
         if (index == 2 || index == 3) {
           await _handleAuthRequiredAction(() {
             _performTabNavigation(index);
@@ -551,7 +545,6 @@ class _LandingState extends State<Landing> {
     );
   }
 
-  // Extract the tab navigation logic into a separate method
   void _performTabNavigation(int index) {
     if (navBarController.selectedIndex.value == 0 && index != 0) {
       controller.handleNavigation();
@@ -572,7 +565,7 @@ class _LandingState extends State<Landing> {
 
   Color _getTextColor(bool isSelected, bool isHomeTab) {
     if (isHomeTab) {
-      return Colors.white; // Always white on home tab
+      return Colors.white;
     } else {
       return isSelected ? ColorUtils.primaryColor : ColorUtils.grey;
     }
@@ -608,7 +601,6 @@ class _LandingState extends State<Landing> {
     );
   }
 
-  // Extract the add button logic into a separate method
   void _handleAddButtonLogic(BuildContext context) {
     if (professionalProfileController.userDetails.value != null &&
         professionalProfileController.userDetails.value!.subscription != null &&
@@ -651,7 +643,6 @@ class _LandingState extends State<Landing> {
       btnOkColor: ColorUtils.primaryColor,
       btnOkOnPress: () {
         Get.to(ChangePlanView());
-        // Add renewal logic here
       },
       dismissOnTouchOutside: false,
     ).show();

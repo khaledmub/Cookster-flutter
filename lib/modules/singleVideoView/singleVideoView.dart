@@ -860,7 +860,7 @@ class _SingleVideoScreenState extends State<SingleVideoScreen>
     );
   }
 
-  Stream<double> _getAverageRating(String videoId) {
+  Stream<double> _getAverageRating(String videoId)  {
     return FirebaseFirestore.instance
         .collection('videos')
         .doc(videoId)
