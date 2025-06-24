@@ -43,6 +43,28 @@ class NearestBusinessScreen extends StatelessWidget {
                 // Full-screen Google Map
                 GoogleMapWithBusinessImages(controller: controller),
 
+                InkWell(
+                  onTap: (){
+                    controller.getCurrentLocation();
+                  },
+                  child: Container(
+                    margin: EdgeInsets.symmetric(horizontal: 16, vertical: 50),
+                    padding: EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.05),
+                          blurRadius: 10,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                      shape: BoxShape.circle,
+                      color: ColorUtils.primaryColor,
+                    ),
+                    child: Icon(Icons.refresh, color: Colors.white),
+                  ),
+                ),
+
                 // SafeArea for status bar and controls
                 SafeArea(
                   child: Column(
@@ -74,7 +96,9 @@ class NearestBusinessScreen extends StatelessWidget {
               ],
             );
       }),
-      floatingActionButton: Padding(
+      floatingActionButton:
+      controller.isLocationAllowed.value ?
+      Padding(
         padding: const EdgeInsets.only(bottom: 100.0),
         child: FloatingActionButton(
           onPressed: controller.toggleRadiusCardVisibility,
@@ -92,14 +116,14 @@ class NearestBusinessScreen extends StatelessWidget {
             ),
           ),
         ),
-      ),
+      ) : SizedBox.shrink()
     );
   }
 
   Widget _buildBottomControls(
-      LocationController controller,
-      BuildContext context,
-      ) {
+    LocationController controller,
+    BuildContext context,
+  ) {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 100),
       padding: const EdgeInsets.all(16),
@@ -123,7 +147,8 @@ class NearestBusinessScreen extends StatelessWidget {
             child: IconButton(
               icon: const Icon(Icons.close, color: Colors.black54),
               onPressed: () {
-                controller.isRadiusCardVisible.value = false; // Close panel without fetching
+                controller.isRadiusCardVisible.value =
+                    false; // Close panel without fetching
               },
             ),
           ),
@@ -140,13 +165,16 @@ class NearestBusinessScreen extends StatelessWidget {
                 ),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
                 decoration: BoxDecoration(
                   color: Colors.amber.shade100,
                   borderRadius: BorderRadius.circular(16),
                 ),
                 child: Obx(
-                      () => Text(
+                  () => Text(
                     '${controller.radius.value.round()} km',
                     style: TextStyle(
                       color: Colors.amber.shade800,
@@ -159,7 +187,7 @@ class NearestBusinessScreen extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           Obx(
-                () => SliderTheme(
+            () => SliderTheme(
               data: SliderThemeData(
                 activeTrackColor: Colors.amber.shade600,
                 inactiveTrackColor: Colors.grey.shade200,
@@ -186,7 +214,8 @@ class NearestBusinessScreen extends StatelessWidget {
                 await controller.fetchNearestBusinesses(closeRadiusCard: true);
               },
               style: ElevatedButton.styleFrom(
-                backgroundColor: ColorUtils.primaryColor, // Ensure ColorUtils is defined
+                backgroundColor: ColorUtils.primaryColor,
+                // Ensure ColorUtils is defined
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 shape: RoundedRectangleBorder(
@@ -201,7 +230,10 @@ class NearestBusinessScreen extends StatelessWidget {
                   const SizedBox(width: 8),
                   Text(
                     'Find Business'.tr,
-                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ],
               ),
