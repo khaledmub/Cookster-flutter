@@ -1692,6 +1692,7 @@ class videoUserDetails extends StatelessWidget {
     return Positioned(
       top: Get.height * 0.1,
       left: 10,
+      right: 10,
       child: SizedBox(
         width: Get.width * 1,
         child: Stack(

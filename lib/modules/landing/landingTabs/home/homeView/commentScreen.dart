@@ -452,7 +452,7 @@ class _VideoCommentsScreenState extends State<VideoCommentsScreen> {
                                                         left: 4.w,
                                                       ),
                                                       child: Text(
-                                                        '${commentData['likes']?.length ?? 0} ${commentData['likes']?.length == 1 ? 'Like' : 'Likes'}',
+                                                        '${commentData['likes']?.length ?? 0} ${commentData['likes']?.length == 1 ? 'Like'.tr : 'Likes'.tr}',
                                                         style: TextStyle(
                                                           fontSize: 12.sp,
                                                           color: Colors.grey,
@@ -534,6 +534,7 @@ class _VideoCommentsScreenState extends State<VideoCommentsScreen> {
                                         Padding(
                                           padding: EdgeInsets.only(
                                             left: 60.w,
+                                            right: 60.w,
                                             bottom: 4.h,
                                           ),
                                           child: Text(
@@ -737,7 +738,7 @@ class _VideoCommentsScreenState extends State<VideoCommentsScreen> {
                                                                       left: 4.w,
                                                                     ),
                                                                 child: Text(
-                                                                  '${replyData['likes']?.length ?? 0} ${"Like".tr}',
+                                                                  '${replyData['likes']?.length ?? 0} ${"Likes".tr}',
                                                                   style: TextStyle(
                                                                     fontSize:
                                                                         12.sp,
@@ -839,11 +840,15 @@ class _VideoCommentsScreenState extends State<VideoCommentsScreen> {
                       // Show "Reply to: [Username]" with a cross icon if replying
                       if (_replyingToCommentId != null)
                         Padding(
-                          padding: EdgeInsets.only(bottom: 8.h, left: 16.w),
+                          padding: EdgeInsets.only(
+                            bottom: 8.h,
+                            left: 16.w,
+                            right: 16.w,
+                          ),
                           child: Row(
                             children: [
                               Text(
-                                'Reply to: $_replyingToUsername',
+                                '${"reply_to".tr} $_replyingToUsername',
                                 style: TextStyle(
                                   fontSize: 14.sp,
                                   color: Colors.grey,
@@ -927,7 +932,7 @@ class _VideoCommentsScreenState extends State<VideoCommentsScreen> {
                                         hintText:
                                             _replyingToCommentId == null
                                                 ? 'write_a_comment'.tr
-                                                : 'Write a reply...'.tr,
+                                                : 'write_a_reply'.tr,
                                         border: InputBorder.none,
                                       ),
                                       onSubmitted: (value) {

@@ -9,6 +9,8 @@ const Map<String, String> en = {
   "Reply": "Reply",
   "Like": "Like",
   "write_a_comment": "Write a comment ...",
+  "write_a_reply": "Write a reply ...",
+  "reply_to": "Reply to:",
   "Email": "Email",
   "Skip": "Skip",
   "Next": "Next",
@@ -297,7 +299,7 @@ const Map<String, String> en = {
   "search_followers_following": "Search followers and following",
   "enter_email": "Enter your email to receive an OTP for password reset.",
   "otp_sent":
-      "OTP sent to your email. Enter it below to reset your password.\n For testing purpose OTP is: 12345",
+      "OTP sent to your email. Enter it below to reset your password.",
   "enter_new_password": "Enter your new password.",
   "reset_password": "Reset Password",
   "verify_otp": "Verify OTP",
@@ -385,6 +387,7 @@ const Map<String, String> en = {
   "sign_in": "Sign In",
   "dob": "DOB",
   "please_select_business_type": "Please select a business type.",
+  "please_select_account_type": "Please select a account type.",
   "search_not_found_result":
       "We couldn't find any matches for your search. Please try different keywords.We couldn't find any matches for your search. Please try different keywords.",
   "no_music": "No Music",
@@ -420,4 +423,9 @@ const Map<String, String> en = {
       "Premium Sponsored Videos receive the highest visibility. They are promoted more aggressively and appear alongside or after multiple sponsored videos. Ideal for brands or creators who want maximum exposure in selected cities.",
   "country": "Country",
   "video_title_length_error": "Title must not exceed 70 characters",
+  // 'location_access_required': 'Location Access Required',
+  'location_description':
+  'We need your location to find nearby businesses. Please enable location services or grant permission.',
+  'allow_location': 'Allow Location',
+  'open_settings': 'Open Settings',
 };

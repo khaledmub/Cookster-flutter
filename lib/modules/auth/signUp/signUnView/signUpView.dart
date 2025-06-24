@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:cookster/appUtils/appCenterIcon.dart';
 import 'package:cookster/modules/auth/signUp/registrationSettingsModel/registrationModel.dart';
 import 'package:cookster/modules/auth/signUp/signUpController/cityController.dart';
@@ -1353,7 +1351,7 @@ class _SignVpViewState extends State<SignVpView> {
                                                             signUpController
                                                                     .accountTypeError
                                                                     .value =
-                                                                'please_select_business_type'
+                                                                'please_select_account_type'
                                                                     .tr;
                                                           }
                                                           return null;

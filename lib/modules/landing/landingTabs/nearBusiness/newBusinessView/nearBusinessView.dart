@@ -7,6 +7,7 @@ import 'package:get/get.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../../../../appUtils/colorUtils.dart';
+import '../allowLocationView.dart';
 import '../nearBusinessController/nearBusinessController.dart';
 import '../nearBusinessModel/nearBusinessModel.dart';
 
@@ -22,7 +23,9 @@ class NearestBusinessScreen extends StatelessWidget {
 
     return Scaffold(
       body: Obx(() {
-        return controller.isLoading.value
+        return !controller.isLocationAllowed.value
+            ? AllowLocationScreen() // Show AllowLocationScreen if location not allowed
+            : controller.isLoading.value
             ? Column(
               crossAxisAlignment: CrossAxisAlignment.center,
               mainAxisAlignment: MainAxisAlignment.center,
@@ -94,9 +97,9 @@ class NearestBusinessScreen extends StatelessWidget {
   }
 
   Widget _buildBottomControls(
-    LocationController controller,
-    BuildContext context,
-  ) {
+      LocationController controller,
+      BuildContext context,
+      ) {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 100),
       padding: const EdgeInsets.all(16),
@@ -114,29 +117,36 @@ class NearestBusinessScreen extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
+          // Optional: Close button
+          Align(
+            alignment: Alignment.topRight,
+            child: IconButton(
+              icon: const Icon(Icons.close, color: Colors.black54),
+              onPressed: () {
+                controller.isRadiusCardVisible.value = false; // Close panel without fetching
+              },
+            ),
+          ),
           // Radius control
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
                 'Search Radius'.tr,
-                style: TextStyle(
+                style: const TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
                   color: Colors.black87,
                 ),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 6,
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 decoration: BoxDecoration(
                   color: Colors.amber.shade100,
                   borderRadius: BorderRadius.circular(16),
                 ),
                 child: Obx(
-                  () => Text(
+                      () => Text(
                     '${controller.radius.value.round()} km',
                     style: TextStyle(
                       color: Colors.amber.shade800,
@@ -149,7 +159,7 @@ class NearestBusinessScreen extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           Obx(
-            () => SliderTheme(
+                () => SliderTheme(
               data: SliderThemeData(
                 activeTrackColor: Colors.amber.shade600,
                 inactiveTrackColor: Colors.grey.shade200,
@@ -162,21 +172,21 @@ class NearestBusinessScreen extends StatelessWidget {
                 value: controller.radius.value,
                 min: 1,
                 max: 50,
-
                 onChanged: controller.updateRadius,
               ),
             ),
           ),
-
           // Find Businesses button
           const SizedBox(height: 16),
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
-              onPressed: controller.fetchNearestBusinesses,
-              // This triggers the API call
+              onPressed: () async {
+                // Fetch businesses and close the radius card
+                await controller.fetchNearestBusinesses(closeRadiusCard: true);
+              },
               style: ElevatedButton.styleFrom(
-                backgroundColor: ColorUtils.primaryColor,
+                backgroundColor: ColorUtils.primaryColor, // Ensure ColorUtils is defined
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 shape: RoundedRectangleBorder(
@@ -187,11 +197,11 @@ class NearestBusinessScreen extends StatelessWidget {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.search, size: 20),
-                  SizedBox(width: 8),
+                  const Icon(Icons.search, size: 20),
+                  const SizedBox(width: 8),
                   Text(
                     'Find Business'.tr,
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
                   ),
                 ],
               ),

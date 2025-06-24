@@ -169,9 +169,7 @@ class _UploadVideoStep1State extends State<UploadVideoStep1> {
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Obx((){
-                      return Text("${videoAddController.videoTitle.value.characters.length}/70");
-                    }),
+
                     Obx(
                       () => Container(
                         width: Get.width * 0.55,
@@ -279,6 +277,16 @@ class _UploadVideoStep1State extends State<UploadVideoStep1> {
                           // No need for manual rebuild since maxLength handles counter
                         },
                       ),
+                      Obx((){
+                        return Row(
+                          mainAxisAlignment: MainAxisAlignment.end,
+                          children: [
+                            Text(
+                              textAlign: TextAlign.end,
+                              "${videoAddController.videoTitle.value.characters.length}/70", style: TextStyle(fontSize: 12),),
+                          ],
+                        );
+                      }),
 
                     ],
                   ),

@@ -438,17 +438,19 @@ class _EditVideoViewState extends State<EditVideoView> {
                                             ),
                                           ),
                                         ),
+                                        maxLength: 70,
+                                        // Optional: to enforce limit at input level
+                                        onChanged: (value) {
+                                          controller.videoTitle.value = value;
+                                        },
                                         validator: (value) {
-                                          // Check for empty input
                                           if (value == null || value.isEmpty) {
                                             return "video_title_error".tr;
                                           }
-                                          // Check for maximum length of 70 characters (redundant with maxLength but kept for custom error)
                                           if (value.length > 70) {
                                             return "video_title_length_error"
                                                 .tr;
                                           }
-                                          // Check for bad words
                                           final badWordError = controller
                                               .checkBadWords(context, value);
                                           if (badWordError != null) {
@@ -457,6 +459,8 @@ class _EditVideoViewState extends State<EditVideoView> {
                                           return null;
                                         },
                                       ),
+
+                                      // Character Count Display
 
                                       // Description field with validation
                                       TextFormField(
@@ -1171,19 +1175,23 @@ class _EditVideoViewState extends State<EditVideoView> {
                 ),
                 Spacer(),
                 Obx(
-                      () => ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 100), // Set your desired maximum width
+                  () => ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 100),
+                    // Set your desired maximum width
                     child: Text(
                       controller.selectedCountry.value.isEmpty
                           ? "select_country_label".tr
                           : controller.selectedCountry.value,
                       style: TextStyle(
                         fontSize: 14.sp,
-                        color: controller.selectedCountry.value.isEmpty
-                            ? Colors.grey
-                            : Colors.black,
+                        color:
+                            controller.selectedCountry.value.isEmpty
+                                ? Colors.grey
+                                : Colors.black,
                       ),
-                      overflow: TextOverflow.ellipsis, // Show ellipsis if text exceeds maxWidth
+                      overflow:
+                          TextOverflow
+                              .ellipsis, // Show ellipsis if text exceeds maxWidth
                     ),
                   ),
                 ),
@@ -1215,21 +1223,26 @@ class _EditVideoViewState extends State<EditVideoView> {
                 ),
                 Spacer(),
                 Obx(
-                  () =>  Text(
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    controller.selectedCity.value.isEmpty
-                        ? "select_city_label".tr
-                        : controller.selectedCity.value,
-                    style: TextStyle(
-                      fontSize: 14.sp,
-                      color:
+                  () => Container(
+                    constraints: BoxConstraints(maxWidth: 150),
+                    // Set your desired max width
+                    child: Text(
                       controller.selectedCity.value.isEmpty
-                          ? Colors.grey
-                          : Colors.black,
+                          ? "select_city_label".tr
+                          : controller.selectedCity.value,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 14.sp,
+                        color:
+                            controller.selectedCity.value.isEmpty
+                                ? Colors.grey
+                                : Colors.black,
+                      ),
                     ),
                   ),
                 ),
+
                 SizedBox(width: 8),
                 Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey),
               ],
