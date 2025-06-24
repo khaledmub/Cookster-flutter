@@ -299,8 +299,6 @@ class _LandingState extends State<Landing> {
     super.initState();
     navBarController.selectedIndex.value = widget.initialIndex;
     fetchUserDetails();
-
-    // Handle initial deep link
   }
 
   @override
