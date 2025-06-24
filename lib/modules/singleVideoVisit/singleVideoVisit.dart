@@ -20,9 +20,11 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:video_player/video_player.dart';
 import '../../services/apiClient.dart';
+import '../landing/landingTabs/home/homeController/addCommentControllr.dart';
 import '../landing/landingTabs/home/homeView/reelsVideoScreen.dart';
 import '../landing/landingTabs/reportContent/reportContentView/reportContentView.dart';
 import '../landing/landingView/landingView.dart';
+import '../singleVideoView/singleVideoView.dart' hide VideoDescriptionWidget;
 
 class SingleVisitVideo extends StatefulWidget {
   final String videoId; // Required URL parameter
@@ -46,6 +48,7 @@ class _SingleVideoVisitState extends State<SingleVisitVideo>
   bool _isMuted = false;
   bool _showPlayPauseIcon = false;
   String? _frontUserId; // Store the user ID from SharedPreferences
+  String? _frontUserImage; // Store the user ID from SharedPreferences
   String _language = 'en'; // Default to English
   bool _hasInitializedPlayer = false;
 
@@ -81,8 +84,13 @@ class _SingleVideoVisitState extends State<SingleVisitVideo>
     final prefs = await SharedPreferences.getInstance();
     setState(() {
       _frontUserId = prefs.getString('user_id');
+      _frontUserImage = prefs.getString('user_image');
     });
   }
+
+  final VideoCommentsController videoCommentsController = Get.put(
+    VideoCommentsController(),
+  );
 
   Future<void> _initializePlayer() async {
     if (_hasInitializedPlayer) return;
@@ -281,7 +289,7 @@ class _SingleVideoVisitState extends State<SingleVisitVideo>
                     _isInitializing || _videoPlayerController == null
                         ? SizedBox.shrink()
                         :
-
+                    video.isImage == 1 ? SizedBox.shrink() :
 
                     EnhancedSeekBar(controller: _videoPlayerController!),
               ),
@@ -349,6 +357,7 @@ class _SingleVideoVisitState extends State<SingleVisitVideo>
                   ),
                 ),
               ),
+
               VideoDescriptionWidget(
                 title: video.title,
                 description: video.description,
@@ -372,6 +381,20 @@ class _SingleVideoVisitState extends State<SingleVisitVideo>
                       ),
                       child: Column(
                         children: [
+                          VideoLikesWidget(
+                            videoId: widget.videoId ?? '',
+                            userId: _frontUserId ?? '',
+                            videoCommentsController: videoCommentsController,
+                          ),
+                          SizedBox(height: 8),
+
+                          if (video.allowComments == 1)
+                            VideoCommentsWidget(
+                              videoId: widget.videoId ?? '',
+                              userId: _frontUserId ?? '',
+                              userImage: _frontUserImage ?? '',
+                            ),
+
                           InkWell(
                             onTap: () {
                               if (widget.videoId.isNotEmpty) {
@@ -382,6 +405,7 @@ class _SingleVideoVisitState extends State<SingleVisitVideo>
                               children: [
                                 SizedBox(
                                   height: 20.h,
+
                                   width: 20.h,
                                   child: SvgPicture.asset(
                                     "assets/icons/share.svg",

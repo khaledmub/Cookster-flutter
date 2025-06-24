@@ -40,34 +40,37 @@ class Video {
   String? updatedAt;
   String? videoTypeName;
   String? userName;
+  dynamic isImage;
   String? userImage;
   int? followersCount;
   int? followingCount;
 
-  Video(
-      {this.id,
-        this.systemId,
-        this.frontUserId,
-        this.title,
-        this.videoType,
-        this.description,
-        this.tags,
-        this.menu,
-        this.publishType,
-        this.takeOrder,
-        this.allowComments,
-        this.location,
-        this.image,
-        this.video,
-        this.state,
-        this.status,
-        this.createdAt,
-        this.updatedAt,
-        this.videoTypeName,
-        this.userName,
-        this.userImage,
-        this.followersCount,
-        this.followingCount});
+  Video({
+    this.id,
+    this.systemId,
+    this.frontUserId,
+    this.title,
+    this.videoType,
+    this.description,
+    this.tags,
+    this.menu,
+    this.publishType,
+    this.takeOrder,
+    this.allowComments,
+    this.isImage,
+    this.location,
+    this.image,
+    this.video,
+    this.state,
+    this.status,
+    this.createdAt,
+    this.updatedAt,
+    this.videoTypeName,
+    this.userName,
+    this.userImage,
+    this.followersCount,
+    this.followingCount,
+  });
 
   Video.fromJson(Map<String, dynamic> json) {
     id = json['id'];
@@ -88,6 +91,7 @@ class Video {
     status = json['status'];
     createdAt = json['created_at'];
     updatedAt = json['updated_at'];
+    isImage = json['is_image'];
     videoTypeName = json['video_type_name'];
     userName = json['user_name'];
     userImage = json['user_image'];
@@ -104,9 +108,11 @@ class Video {
     data['video_type'] = this.videoType;
     data['description'] = this.description;
     data['tags'] = this.tags;
+
     data['menu'] = this.menu;
     data['publish_type'] = this.publishType;
     data['take_order'] = this.takeOrder;
+    data['is_image'] = this.isImage;
     data['allow_comments'] = this.allowComments;
     data['location'] = this.location;
     data['image'] = this.image;
