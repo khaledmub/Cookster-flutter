@@ -128,6 +128,7 @@ class MyApp extends StatefulWidget {
 }
 
 class _MyAppState extends State<MyApp> {
+  final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
   late final AppLinks _appLinks;
   bool _handlingDeepLink = false;
   bool _wasOnNoInternetScreen = false;
@@ -222,6 +223,7 @@ class _MyAppState extends State<MyApp> {
       builder: (context, child) {
         return GetMaterialApp(
           debugShowCheckedModeBanner: false,
+          navigatorKey: _navigatorKey, // Assign unique key
           title: 'Cookster',
           translations: LocalizationService(),
           locale: widget.initialLocale,

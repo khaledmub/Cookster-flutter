@@ -24,18 +24,18 @@ class AppRoutes {
   static const String noInternet = '/noInternet';
   static const String search = '/search';
   static const String singleVideo = '/singleVideo';
-  static const singleVisitVideo = '/single-visit-video';
-  // static const String visitSingleVideo = '/visitSingleVideo';
+  // static const singleVisitVideo = '/single-visit-video';
+  // static const String singleVisitVideo = '/visitSingleVideo';
   static const String packages = '/packages';
 
   static List<GetPage> pages = [
     GetPage(name: packages, page: () => PackagesScreen()),
-    GetPage(
-      name: singleVisitVideo,
-      page: () => SingleVisitVideo(
-        videoId: Get.arguments, // you can fetch it directly here
-      ),
-    ),
+    // GetPage(
+    //   name: singleVisitVideo,
+    //   page: () => SingleVisitVideo(
+    //     videoId: Get.arguments, // you can fetch it directly here
+    //   ),
+    // ),
     // GetPage(name: visitSingleVideo, page: () => SingleVisitVideo()),
     GetPage(name: singleVideo, page: () => SingleVideoScreen(videoUrl: '')),
     GetPage(name: search, page: () => SearchView()),

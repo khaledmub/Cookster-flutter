@@ -10,6 +10,7 @@ import 'package:cookster/modules/landing/landingTabs/notification/notificationVi
 import 'package:cookster/modules/landing/landingTabs/professionalProfile/changePlan/changePlanView/changePlanView.dart';
 import 'package:cookster/modules/landing/landingTabs/profile/profileControlller/profileController.dart';
 import 'package:cookster/modules/landing/landingTabs/profile/profileView/profileView.dart';
+import 'package:cookster/modules/singleVideoVisit/singleVideoModel/singleVisitVideoModel.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -27,6 +28,7 @@ import '../../../captuteImage.dart';
 import '../../../services/imageEditScreen.dart';
 import '../../promoteVideo/promoteVideoController/promoteVideoController.dart';
 import '../../search/searchController/searchController.dart';
+import '../../singleVideoVisit/singleVideoVisit.dart';
 import '../landingController/landingController.dart';
 import '../landingTabs/add/videoAddController/videoAddController.dart';
 import '../landingTabs/home/homeController/homeController.dart';
@@ -299,18 +301,23 @@ class _LandingState extends State<Landing> {
     fetchUserDetails();
 
     // Handle initial deep link
-    appLinks.getInitialLink().then((uri) {
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    appLinks.getInitialLink().then((uri) async {
+      bool isAuthenticated = await _isUserAuthenticated();
       if (uri != null) {
         final videoId = uri.queryParameters['id'];
         if (videoId != null) {
           log('Initial deep link with video ID: $videoId');
           WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (Get.currentRoute == AppRoutes.singleVisitVideo &&
-                Get.arguments == videoId) {
-              // Already on SingleVisitVideo with the same videoId, do nothing
-              return;
-            }
-            Get.toNamed(AppRoutes.singleVisitVideo, arguments: videoId);
+            isAuthenticated
+                ? Get.to(
+                  () => SingleVisitVideo(videoId: videoId),
+                  arguments: videoId,
+                )
+                : Get.to(AppRoutes.signIn);
           });
         }
       }
@@ -318,18 +325,25 @@ class _LandingState extends State<Landing> {
 
     // Handle deep links while app is running
     appLinks.uriLinkStream.listen(
-      (uri) {
+      (uri) async {
         final videoId = uri.queryParameters['id'];
-        if (videoId != null) {
+        if (videoId != null && videoId.isNotEmpty) {
+          bool isAuthenticated = await _isUserAuthenticated();
+
           log('Stream deep link with video ID: $videoId');
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (Get.currentRoute == AppRoutes.singleVisitVideo &&
-                Get.arguments == videoId) {
-              // Already on SingleVisitVideo with the same videoId, do nothing
-              return;
-            }
-            Get.toNamed(AppRoutes.singleVisitVideo, arguments: videoId);
-          });
+          isAuthenticated
+              ? Get.to(
+                () => SingleVisitVideo(videoId: videoId),
+                arguments: videoId,
+              )
+              : Get.toNamed(AppRoutes.signIn);
+        } else {
+          log('Invalid or missing video ID');
+          Get.snackbar(
+            'Error',
+            'Invalid video ID in deep link',
+            snackPosition: SnackPosition.BOTTOM,
+          );
         }
       },
       onError: (error) {
@@ -341,10 +355,6 @@ class _LandingState extends State<Landing> {
         );
       },
     );
-  }
-
-  @override
-  Widget build(BuildContext context) {
     return Obx(() {
       RxBool isExpired = RxBool(false);
       final subscriptionEndDate =
