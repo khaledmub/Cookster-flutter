@@ -44,7 +44,7 @@ class NearestBusinessScreen extends StatelessWidget {
                 GoogleMapWithBusinessImages(controller: controller),
 
                 InkWell(
-                  onTap: (){
+                  onTap: () {
                     controller.getCurrentLocation();
                   },
                   child: Container(
@@ -96,27 +96,29 @@ class NearestBusinessScreen extends StatelessWidget {
               ],
             );
       }),
-      floatingActionButton:
-      controller.isLocationAllowed.value ?
-      Padding(
-        padding: const EdgeInsets.only(bottom: 100.0),
-        child: FloatingActionButton(
-          onPressed: controller.toggleRadiusCardVisibility,
-          backgroundColor: ColorUtils.primaryColor,
-          shape: const CircleBorder(),
-          child: Obx(
-            () => AnimatedCrossFade(
-              firstChild: const Icon(Icons.tune, color: Colors.white),
-              secondChild: const Icon(Icons.close, color: Colors.white),
-              crossFadeState:
-                  controller.isRadiusCardVisible.value
-                      ? CrossFadeState.showSecond
-                      : CrossFadeState.showFirst,
-              duration: const Duration(milliseconds: 200),
-            ),
-          ),
-        ),
-      ) : SizedBox.shrink()
+      floatingActionButton: Obx(() {
+        return controller.isLocationAllowed.value
+            ? Padding(
+              padding: const EdgeInsets.only(bottom: 100.0),
+              child: FloatingActionButton(
+                onPressed: controller.toggleRadiusCardVisibility,
+                backgroundColor: ColorUtils.primaryColor,
+                shape: const CircleBorder(),
+                child: Obx(
+                  () => AnimatedCrossFade(
+                    firstChild: const Icon(Icons.tune, color: Colors.white),
+                    secondChild: const Icon(Icons.close, color: Colors.white),
+                    crossFadeState:
+                        controller.isRadiusCardVisible.value
+                            ? CrossFadeState.showSecond
+                            : CrossFadeState.showFirst,
+                    duration: const Duration(milliseconds: 200),
+                  ),
+                ),
+              ),
+            )
+            : SizedBox.shrink();
+      }),
     );
   }
 
