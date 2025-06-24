@@ -27,8 +27,10 @@ import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_svg/svg.dart';
 import 'package:flutter_swiper_plus/flutter_swiper_plus.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:get/get.dart';
 import 'package:like_button/like_button.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:pro_image_editor/core/platform/io/io_helper.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -248,7 +250,10 @@ class _VideoReelScreenState extends State<VideoReelScreen>
           }
 
           if (controller.videoFeed.value.videos == null ||
-              controller.videoFeed.value.videos!.isEmpty) {
+              controller.videoFeed.value.videos!.isEmpty ||
+              (controller.selectedType.value == "Near Me" &&
+                  (!controller.isLocationServiceEnabled.value ||
+                      !controller.isLocationPermissionGranted.value))) {
             return Stack(
               children: [
                 Align(
@@ -447,50 +452,80 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                           //   ),
                           // ),
                           SizedBox(width: 8),
-                          Padding(
-                            padding: const EdgeInsets.only(right: 16.0),
-
-                            child: InkWell(
-                              onTap: () {
-                                // controller.pauseCurrentVideo();
-                                // _handleScreenExit();
-                                Get.to(
-                                  () => SearchView(
-                                    isGeneral:
-                                        controller.selectedType.value ==
-                                                "General"
-                                            ? 1
-                                            : 0,
-                                  ),
-                                )?.then((_) {
-                                  controller.restoreVideoState();
-                                });
-                              },
-                              child: Container(
-                                decoration: BoxDecoration(
-                                  color: Colors.transparent,
-                                  // Transparent to show blur
-                                  borderRadius: BorderRadius.circular(50),
+                          InkWell(
+                            onTap: () {
+                              // controller.pauseCurrentVideo();
+                              // _handleScreenExit();
+                              Get.to(
+                                () => SearchView(
+                                  isGeneral:
+                                      controller.selectedType.value == "General"
+                                          ? 1
+                                          : 0,
                                 ),
-                                child: ClipRRect(
-                                  borderRadius: BorderRadius.circular(50),
-                                  child: BackdropFilter(
-                                    filter: ImageFilter.blur(
-                                      sigmaX: 10.0,
-                                      sigmaY: 10.0,
-                                    ), // Blur effect
-                                    child: Container(
-                                      padding: EdgeInsets.all(14),
-                                      decoration: BoxDecoration(
-                                        color: ColorUtils.primaryColor,
-                                        // Blue tint
-                                        borderRadius: BorderRadius.circular(50),
-                                      ),
-                                      child: Icon(
-                                        Icons.search,
-                                        color: Colors.black,
-                                        size: 24.sp,
-                                      ),
+                              )?.then((_) {
+                                controller.restoreVideoState();
+                              });
+                            },
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color: Colors.transparent,
+                                // Transparent to show blur
+                                borderRadius: BorderRadius.circular(50),
+                              ),
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(50),
+                                child: BackdropFilter(
+                                  filter: ImageFilter.blur(
+                                    sigmaX: 10.0,
+                                    sigmaY: 10.0,
+                                  ), // Blur effect
+                                  child: Container(
+                                    padding: EdgeInsets.all(14),
+                                    decoration: BoxDecoration(
+                                      color: ColorUtils.primaryColor,
+                                      // Blue tint
+                                      borderRadius: BorderRadius.circular(50),
+                                    ),
+                                    child: Icon(
+                                      Icons.search,
+                                      color: Colors.black,
+                                      size: 24.sp,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                          SizedBox(width: 8),
+                          InkWell(
+                            onTap: () {
+                              controller.fetchVideos();
+                            },
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color: Colors.transparent,
+                                // Transparent to show blur
+                                borderRadius: BorderRadius.circular(50),
+                              ),
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(50),
+                                child: BackdropFilter(
+                                  filter: ImageFilter.blur(
+                                    sigmaX: 10.0,
+                                    sigmaY: 10.0,
+                                  ), // Blur effect
+                                  child: Container(
+                                    padding: EdgeInsets.all(14),
+                                    decoration: BoxDecoration(
+                                      color: ColorUtils.primaryColor,
+                                      // Blue tint
+                                      borderRadius: BorderRadius.circular(50),
+                                    ),
+                                    child: Icon(
+                                      Icons.refresh,
+                                      color: Colors.black,
+                                      size: 24.sp,
                                     ),
                                   ),
                                 ),

@@ -16,7 +16,6 @@ import '../../../../appRoutes/appRoutes.dart';
 import '../../../../appUtils/appUtils.dart';
 import '../../../../appUtils/colorUtils.dart';
 import '../../../../loaders/pulseLoader.dart';
-import '../../authSocailButton.dart';
 import '../signUpWidgets/selectLocation.dart';
 
 class SignVpView extends StatefulWidget {
@@ -869,31 +868,43 @@ class _SignVpViewState extends State<SignVpView> {
                                                   ),
                                                   SizedBox(width: 8.w),
                                                   Obx(
-                                                    () => Text(
-                                                      signUpController
-                                                              .selectCountryId
-                                                              .value
-                                                              .isEmpty
-                                                          ? "Select your country"
-                                                              .tr
-                                                          : countryName.firstWhere(
-                                                            (name) =>
-                                                                allCountries[name]
-                                                                    .toString() ==
-                                                                signUpController
-                                                                    .selectCountryId
-                                                                    .value,
-                                                            orElse:
-                                                                () =>
-                                                                    "Select your country"
-                                                                        .tr,
+                                                    () => Container(
+                                                      constraints:
+                                                          BoxConstraints(
+                                                            maxWidth: 200.w,
                                                           ),
-                                                      style: TextStyle(
-                                                        fontSize: 14.sp,
-                                                        color: Colors.black,
+                                                      // Adjust width as needed
+                                                      child: Text(
+                                                        signUpController
+                                                                .selectCountryId
+                                                                .value
+                                                                .isEmpty
+                                                            ? "Select your country"
+                                                                .tr
+                                                            : countryName.firstWhere(
+                                                              (name) =>
+                                                                  allCountries[name]
+                                                                      .toString() ==
+                                                                  signUpController
+                                                                      .selectCountryId
+                                                                      .value,
+                                                              orElse:
+                                                                  () =>
+                                                                      "Select your country"
+                                                                          .tr,
+                                                            ),
+                                                        maxLines: 1,
+                                                        overflow:
+                                                            TextOverflow
+                                                                .ellipsis,
+                                                        style: TextStyle(
+                                                          fontSize: 14.sp,
+                                                          color: Colors.black,
+                                                        ),
                                                       ),
                                                     ),
                                                   ),
+
                                                   Spacer(),
                                                   Icon(
                                                     Icons
@@ -986,31 +997,43 @@ class _SignVpViewState extends State<SignVpView> {
                                                   ),
                                                   SizedBox(width: 8.w),
                                                   Obx(
-                                                    () => Text(
-                                                      signUpController
-                                                              .selectedCityId
-                                                              .value
-                                                              .isEmpty
-                                                          ? "Select your city"
-                                                              .tr
-                                                          : city.firstWhere(
-                                                            (name) =>
-                                                                cities[name]
-                                                                    .toString() ==
-                                                                signUpController
-                                                                    .selectedCityId
-                                                                    .value,
-                                                            orElse:
-                                                                () =>
-                                                                    "Select your city"
-                                                                        .tr,
+                                                    () => Container(
+                                                      constraints:
+                                                          BoxConstraints(
+                                                            maxWidth: 200.w,
                                                           ),
-                                                      style: TextStyle(
-                                                        fontSize: 14.sp,
-                                                        color: Colors.black,
+                                                      // Adjust max width as needed
+                                                      child: Text(
+                                                        signUpController
+                                                                .selectedCityId
+                                                                .value
+                                                                .isEmpty
+                                                            ? "Select your city"
+                                                                .tr
+                                                            : city.firstWhere(
+                                                              (name) =>
+                                                                  cities[name]
+                                                                      .toString() ==
+                                                                  signUpController
+                                                                      .selectedCityId
+                                                                      .value,
+                                                              orElse:
+                                                                  () =>
+                                                                      "Select your city"
+                                                                          .tr,
+                                                            ),
+                                                        maxLines: 1,
+                                                        overflow:
+                                                            TextOverflow
+                                                                .ellipsis,
+                                                        style: TextStyle(
+                                                          fontSize: 14.sp,
+                                                          color: Colors.black,
+                                                        ),
                                                       ),
                                                     ),
                                                   ),
+
                                                   Spacer(),
                                                   Icon(
                                                     Icons

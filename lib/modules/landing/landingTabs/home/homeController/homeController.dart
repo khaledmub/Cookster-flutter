@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:get/get.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:video_player/video_player.dart';
 import 'package:chewie/chewie.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
@@ -49,9 +50,14 @@ class HomeController extends GetxController with WidgetsBindingObserver {
 
   List<ChewieController?> get chewieControllers => _chewieControllers;
 
+  // New reactive variables for location checks
+  var isLocationServiceEnabled = true.obs; // Default to true until checked
+  var isLocationPermissionGranted = false.obs; // Default to false until checked
+
   @override
   void onInit() {
     super.onInit();
+    checkLocationStatus();
     WidgetsBinding.instance.addObserver(this);
     if (videoFeed.value.videos != null && videoFeed.value.videos!.isNotEmpty) {
       prepareControllersIfNeeded().then((_) {
@@ -60,6 +66,17 @@ class HomeController extends GetxController with WidgetsBindingObserver {
     } else {
       fetchVideos();
     }
+  }
+
+  Future<void> checkLocationStatus() async {
+    isLocationServiceEnabled.value =
+        !await Permission.location.serviceStatus.isDisabled;
+    isLocationPermissionGranted.value =
+        await Permission.location.status.isGranted;
+
+    print(
+      'Location Service Enabled: ${isLocationServiceEnabled.value}, Location Permission Granted: ${isLocationPermissionGranted.value}',
+    );
   }
 
   @override
@@ -324,6 +341,8 @@ class HomeController extends GetxController with WidgetsBindingObserver {
 
     print("I am there to fetch videos");
 
+    print(selectedType.value);
+
     try {
       if (selectedType.value == "General") {
         print('Fetching videos for General');
@@ -351,7 +370,6 @@ class HomeController extends GetxController with WidgetsBindingObserver {
           "is_following": 1,
         });
 
-
         print("PRINTING RESPONSE OF VIDEOS");
         print(response.body);
         if (response.statusCode == 200) {
@@ -371,7 +389,8 @@ class HomeController extends GetxController with WidgetsBindingObserver {
         } else {
           error.value = "Failed to load videos: ${response.statusCode}";
         }
-      } else {
+      } else if (selectedType.value == "Near Me") {
+        print("Check there if you are");
         String selectedCity;
         String selectedCountry;
 
@@ -415,6 +434,9 @@ class HomeController extends GetxController with WidgetsBindingObserver {
           'city': selectedCity,
           'country': selectedCountry,
         });
+
+        print("Hello Sachal");
+        print(response.body);
 
         if (response.statusCode == 200) {
           var jsonData = jsonDecode(response.body);
