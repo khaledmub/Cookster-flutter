@@ -194,13 +194,26 @@ class PromoteVideoController extends GetxController {
 
   Future<bool> initiatePayment(String videoId, BuildContext context) async {
     try {
+      if (selectedCountry.value.isEmpty) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text("select_country_error".tr)));
+        return false;
+      }
+
+      // Check if selectedCityIds is empty
+      if (selectedCityIds.isEmpty) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text("select_city_error".tr)));
+        return false;
+      }
       // Set loading state to true at the start
       isLoading.value = true;
 
       final orderId = "PRO_${DateTime.now().millisecondsSinceEpoch}";
 
       String response = await Payment.makepaymentService(
-
         context: context,
         country: selectedCountry.value,
         action: "1",
@@ -251,9 +264,9 @@ class PromoteVideoController extends GetxController {
           // isLoading is managed in promoteVideo, so no need to set it here
           return success;
         } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text("form_unknown_error".tr)),
-          );
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text("form_unknown_error".tr)));
           isLoading.value = false; // Reset loading state on failure
           return false;
         }
@@ -262,19 +275,19 @@ class PromoteVideoController extends GetxController {
       }
     } catch (e) {
       print("PRINTING ERROR: $e");
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("payment_cancelled".tr)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text("payment_cancelled".tr)));
       isLoading.value = false; // Reset loading state on error
       return false;
     }
   }
 
   Future<bool> promoteVideo(
-      String videoId,
-      BuildContext context,
-      Map<String, String> paymentParams,
-      ) async {
+    String videoId,
+    BuildContext context,
+    Map<String, String> paymentParams,
+  ) async {
     // isLoading is already true from initiatePayment, no need to set it again
     try {
       validationErrors.clear();
@@ -287,16 +300,17 @@ class PromoteVideoController extends GetxController {
         "days": getDays(videoId),
         "total_price": calculateTotalPrice(videoId),
         "discount_applied":
-        entityDetails.value['subscription_required'] == 1
-            ? (siteSettings.value?.settings?.sponsorVideoDiscount is num
-            ? siteSettings.value!.settings!.sponsorVideoDiscount.toDouble()
-            : double.tryParse(
-          siteSettings.value?.settings?.sponsorVideoDiscount
-              ?.toString() ??
-              "0",
-        ) ??
-            0.0)
-            : 0.0,
+            entityDetails.value['subscription_required'] == 1
+                ? (siteSettings.value?.settings?.sponsorVideoDiscount is num
+                    ? siteSettings.value!.settings!.sponsorVideoDiscount
+                        .toDouble()
+                    : double.tryParse(
+                          siteSettings.value?.settings?.sponsorVideoDiscount
+                                  ?.toString() ??
+                              "0",
+                        ) ??
+                        0.0)
+                : 0.0,
         // Add payment parameters to the payload
         "PaymentId": paymentParams["PaymentId"],
         "TranId": paymentParams["TranId"],
