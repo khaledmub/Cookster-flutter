@@ -981,6 +981,8 @@ class _EditProfessionalProfileViewState
                                 );
                               }
                             },
+                            btnCancelColor: const Color(0xFF00CA71),
+                            btnOkColor: Colors.red,
                             btnOkText: 'ok'.tr,
                             btnCancelText: 'cancel'.tr,
                           ).show();

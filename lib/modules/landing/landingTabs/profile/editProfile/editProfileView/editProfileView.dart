@@ -232,7 +232,7 @@ class _EditProfileViewState extends State<EditProfileView> {
                       .value
                       ?.formSettings
                       ?.countries;
-        
+
               var accountTypes =
                   profileController.simpleUserDetails.value != null &&
                           profileController
@@ -253,7 +253,7 @@ class _EditProfileViewState extends State<EditProfileView> {
                           .typeOfAccount!
                           .values
                       : [];
-        
+
               print('userDetails: $userDetails, countries: $countries');
               var cities = cityController.cityList;
               if (userDetails == null)
@@ -278,7 +278,7 @@ class _EditProfileViewState extends State<EditProfileView> {
                     return country.name!;
                   }).toList() ??
                   [];
-        
+
               String? selectedCountryName =
                   allCountries.entries
                       .firstWhere(
@@ -290,23 +290,24 @@ class _EditProfileViewState extends State<EditProfileView> {
                   selectedCountryName.isEmpty) {
                 selectedCountryName = null;
               }
-        
+
               // Populate account types
               Map<String, int> allTypeOfAccount = {};
               List<String> typeOfAccountName =
                   accountTypes != null
                       ? accountTypes.map<String>((accountType) {
-                        if (accountType.name != null && accountType.id != null) {
+                        if (accountType.name != null &&
+                            accountType.id != null) {
                           allTypeOfAccount[accountType.name!] = accountType.id!;
                         }
                         return accountType.name ?? '';
                       }).toList()
                       : [];
-        
+
               print(
                 'allTypeOfAccount: $allTypeOfAccount, typeOfAccountName: $typeOfAccountName',
               );
-        
+
               String? selectedTypeOfAccountName =
                   allTypeOfAccount.entries
                       .firstWhere(
@@ -337,14 +338,14 @@ class _EditProfileViewState extends State<EditProfileView> {
                   selectedTypeOfAccountName.isEmpty) {
                 selectedTypeOfAccountName = null;
               }
-        
+
               Map<String, int> allCities = {};
               List<String> cityName =
                   cities.map<String>((city) {
                     allCities[city.name!] = city.id!;
                     return city.name!;
                   }).toList();
-        
+
               String? selectedCityName =
                   allCities.entries
                       .firstWhere(
@@ -356,7 +357,7 @@ class _EditProfileViewState extends State<EditProfileView> {
                   selectedCityName.isEmpty) {
                 selectedCityName = null;
               }
-        
+
               return Stack(
                 children: [
                   Column(
@@ -412,12 +413,15 @@ class _EditProfileViewState extends State<EditProfileView> {
                                                                 CircularProgressIndicator(),
                                                           ),
                                                       errorWidget:
-                                                          (context, url, error) =>
-                                                              Icon(
-                                                                Icons.error,
-                                                                size: 40,
-                                                                color: Colors.red,
-                                                              ),
+                                                          (
+                                                            context,
+                                                            url,
+                                                            error,
+                                                          ) => Icon(
+                                                            Icons.error,
+                                                            size: 40,
+                                                            color: Colors.red,
+                                                          ),
                                                     ),
                                           ),
                                 );
@@ -472,7 +476,7 @@ class _EditProfileViewState extends State<EditProfileView> {
                           ),
                         ),
                       ),
-        
+
                       if (userDetails.phone != null)
                         Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 16.0),
@@ -484,7 +488,7 @@ class _EditProfileViewState extends State<EditProfileView> {
                             controller: profileController.phoneNumberController,
                           ),
                         ),
-        
+
                       if (googleSignInBit == 0)
                         Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 16.0),
@@ -513,18 +517,21 @@ class _EditProfileViewState extends State<EditProfileView> {
                             controller: profileController.passwordController,
                           ),
                         ),
-        
+
                       Obx(() {
                         // Check if registrationSettings and entities are valid
-        
+
                         if (controller
                                     .entityDetails
                                     .value['subscription_required'] !=
                                 1 &&
-                            controller.entityDetails.value['is_sponsored'] != 1) {
+                            controller.entityDetails.value['is_sponsored'] !=
+                                1) {
                           // Explicit int comparison for boolean
                           return Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16.0,
+                            ),
                             child: CustomTextField(
                               validator: profileController.dobValidator,
                               label: "dob".tr,
@@ -537,16 +544,16 @@ class _EditProfileViewState extends State<EditProfileView> {
                                 print(
                                   "Current DOB: ${profileController.birthdayController.text}",
                                 );
-        
+
                                 // Define the date range for the picker
                                 final DateTime firstDate = DateTime(1900);
                                 final DateTime lastDate = DateTime.now();
-        
+
                                 // Get the user's existing DOB from the controller
                                 DateTime initialDate;
                                 String currentDob =
                                     profileController.birthdayController.text;
-        
+
                                 if (currentDob.isNotEmpty) {
                                   try {
                                     // Try parsing the DOB with 'yyyy-MM-dd' format
@@ -567,7 +574,7 @@ class _EditProfileViewState extends State<EditProfileView> {
                                       );
                                     }
                                   }
-        
+
                                   // Ensure the parsed date is within the valid range
                                   if (initialDate.isBefore(firstDate)) {
                                     initialDate = firstDate;
@@ -580,14 +587,14 @@ class _EditProfileViewState extends State<EditProfileView> {
                                     Duration(days: 18 * 365),
                                   );
                                 }
-        
+
                                 DateTime? pickedDate = await showDatePicker(
                                   context: context,
                                   initialDate: initialDate,
                                   firstDate: firstDate,
                                   lastDate: lastDate,
                                 );
-        
+
                                 if (pickedDate != null) {
                                   // Format date to yyyy-MM-dd format
                                   String formattedDate = DateFormat(
@@ -603,7 +610,7 @@ class _EditProfileViewState extends State<EditProfileView> {
                         // Return an empty widget if the condition is false
                         return const SizedBox.shrink();
                       }),
-        
+
                       InkWell(
                         onTap: () {
                           showProfileCountrySelectionDialog(
@@ -631,25 +638,31 @@ class _EditProfileViewState extends State<EditProfileView> {
                           ),
                           child: dir.Column(
                             children: [
-        
                               Row(
                                 children: [
-                                  SvgPicture.asset("assets/icons/earth.svg",),
-                                  SizedBox(width: 8,),
+                                  SvgPicture.asset("assets/icons/earth.svg"),
+                                  SizedBox(width: 8),
 
-        
                                   dir.Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
-                                      DynamicStyledText(text: "country".tr,),
+                                      DynamicStyledText(text: "country".tr),
                                       Text(
-                                        profileController.selectCountryId.value.isEmpty
+                                        profileController
+                                                .selectCountryId
+                                                .value
+                                                .isEmpty
                                             ? "Select your country"
                                             : countryName.firstWhere(
                                               (name) =>
-                                                  allCountries[name].toString() ==
-                                                  profileController.selectCountryId.value,
-                                              orElse: () => "Select your country",
+                                                  allCountries[name]
+                                                      .toString() ==
+                                                  profileController
+                                                      .selectCountryId
+                                                      .value,
+                                              orElse:
+                                                  () => "Select your country",
                                             ),
                                         style: TextStyle(
                                           fontSize: 14.sp,
@@ -659,7 +672,10 @@ class _EditProfileViewState extends State<EditProfileView> {
                                     ],
                                   ),
                                   Spacer(),
-                                  Icon(Icons.keyboard_arrow_down_rounded, size: 18),
+                                  Icon(
+                                    Icons.keyboard_arrow_down_rounded,
+                                    size: 18,
+                                  ),
                                 ],
                               ),
                             ],
@@ -694,29 +710,38 @@ class _EditProfileViewState extends State<EditProfileView> {
                           child: Row(
                             children: [
                               SvgPicture.asset("assets/icons/earth.svg"),
-                              SizedBox(width: 8,),
-
+                              SizedBox(width: 8),
 
                               dir.Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  DynamicStyledText(text: "city".tr,),
+                                  DynamicStyledText(text: "city".tr),
 
                                   Container(
-                                    width: Get.width * 0.6, // Set your desired maximum width here
+                                    width: Get.width * 0.6,
+                                    // Set your desired maximum width here
                                     child: Text(
-                                      profileController.selectedCityId.value.isEmpty
+                                      profileController
+                                              .selectedCityId
+                                              .value
+                                              .isEmpty
                                           ? "Select your city"
                                           : cityName.firstWhere(
-                                            (name) => allCities[name].toString() == profileController.selectedCityId.value,
-                                        orElse: () => "Select your city",
-                                      ),
+                                            (name) =>
+                                                allCities[name].toString() ==
+                                                profileController
+                                                    .selectedCityId
+                                                    .value,
+                                            orElse: () => "Select your city",
+                                          ),
                                       style: TextStyle(
                                         fontSize: 14.sp,
                                         color: Colors.black,
                                       ),
-                                      overflow: TextOverflow.ellipsis, // Adds ellipsis when text exceeds width
-                                      maxLines: 1, // Restricts text to a single line
+                                      overflow: TextOverflow.ellipsis,
+                                      // Adds ellipsis when text exceeds width
+                                      maxLines:
+                                          1, // Restricts text to a single line
                                     ),
                                   ),
                                 ],
@@ -727,7 +752,7 @@ class _EditProfileViewState extends State<EditProfileView> {
                           ),
                         ),
                       ),
-        
+
                       if (typeOfAccountName.isNotEmpty)
                         Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 16.0),
@@ -763,7 +788,8 @@ class _EditProfileViewState extends State<EditProfileView> {
                             initialItem: selectedTypeOfAccountName,
                             onChanged: (String? selectedValue) {
                               if (selectedValue != null) {
-                                int? selectedId = allTypeOfAccount[selectedValue];
+                                int? selectedId =
+                                    allTypeOfAccount[selectedValue];
                                 if (selectedId != null) {
                                   profileController.selectedAccountType.value =
                                       selectedId.toString();
@@ -775,7 +801,7 @@ class _EditProfileViewState extends State<EditProfileView> {
                             },
                           ),
                         ),
-        
+
                       InkWell(
                         onTap: () {
                           Get.toNamed(AppRoutes.selectLanguage);
@@ -799,7 +825,8 @@ class _EditProfileViewState extends State<EditProfileView> {
                               SizedBox(width: 8),
                               Text("Change Language".tr),
                               Spacer(),
-                              Directionality.of(context) == rtl.TextDirection.rtl
+                              Directionality.of(context) ==
+                                      rtl.TextDirection.rtl
                                   ? Icon(Icons.arrow_forward)
                                   : Icon(Icons.arrow_forward),
                             ],
@@ -822,13 +849,13 @@ class _EditProfileViewState extends State<EditProfileView> {
                                 // Call the delete_account API
                                 final response =
                                     await ApiClient.postDeleteAccount({});
-        
+
                                 print(response.body);
-        
+
                                 if (response.statusCode == 200) {
                                   SharedPreferences prefs =
                                       await SharedPreferences.getInstance();
-        
+
                                   // Store the onboarding_completed, language, and selectedLanguage values before clearing
                                   bool onboardingCompleted =
                                       prefs.getBool('onboarding_completed') ??
@@ -841,10 +868,10 @@ class _EditProfileViewState extends State<EditProfileView> {
                                       'English'; // Default to 'English' as per LanguageController
                                   bool initLanguage =
                                       prefs.getBool('initLanguage') ?? false;
-        
+
                                   // Clear all preferences
                                   await prefs.clear();
-        
+
                                   // Restore the onboarding_completed, language, and selectedLanguage values
                                   await prefs.setBool(
                                     'onboarding_completed',
@@ -859,7 +886,7 @@ class _EditProfileViewState extends State<EditProfileView> {
                                     'initLanguage',
                                     initLanguage,
                                   );
-        
+
                                   // Clear in-memory user data
                                   profileController.userDetails.value =
                                       null; // Assuming this is defined elsewhere
@@ -869,7 +896,7 @@ class _EditProfileViewState extends State<EditProfileView> {
                                       .clear(); // Assuming this is defined elsewhere
                                   profileController.followingList
                                       .clear(); // Assuming this is defined elsewhere
-        
+
                                   // Reinitialize ApiClient language
                                   await ApiClient.initLanguage();
                                   // Navigate to SignIn screen
@@ -897,6 +924,8 @@ class _EditProfileViewState extends State<EditProfileView> {
                                 );
                               }
                             },
+                            btnCancelColor: const Color(0xFF00CA71),
+                            btnOkColor: Colors.red,
                             btnOkText: 'ok'.tr,
                             btnCancelText: 'cancel'.tr,
                           ).show();
@@ -922,8 +951,12 @@ class _EditProfileViewState extends State<EditProfileView> {
                                 style: TextStyle(color: Colors.white),
                               ),
                               Spacer(),
-                              Directionality.of(context) == dir.TextDirection.rtl
-                                  ? Icon(Icons.arrow_forward, color: Colors.white)
+                              Directionality.of(context) ==
+                                      dir.TextDirection.rtl
+                                  ? Icon(
+                                    Icons.arrow_forward,
+                                    color: Colors.white,
+                                  )
                                   : Icon(
                                     Icons.arrow_forward,
                                     color: Colors.white,
@@ -932,7 +965,7 @@ class _EditProfileViewState extends State<EditProfileView> {
                           ),
                         ),
                       ),
-        
+
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 16.0),
                         child: AppButton(
@@ -1104,10 +1137,13 @@ void showProfileCountrySelectionDialog(
                             child: Padding(
                               padding: EdgeInsets.symmetric(vertical: 12.h),
                               child: Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
                                 children: [
                                   ConstrainedBox(
-                                    constraints: BoxConstraints(maxWidth: 200.w),
+                                    constraints: BoxConstraints(
+                                      maxWidth: 200.w,
+                                    ),
                                     child: Text(
                                       country,
                                       overflow: TextOverflow.ellipsis,
@@ -1356,10 +1392,13 @@ void showProfileCitySelectionDialog(
                             child: Padding(
                               padding: EdgeInsets.symmetric(vertical: 12.h),
                               child: Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
                                 children: [
                                   ConstrainedBox(
-                                    constraints: BoxConstraints(maxWidth: 200.w),
+                                    constraints: BoxConstraints(
+                                      maxWidth: 200.w,
+                                    ),
                                     child: Text(
                                       city,
                                       overflow: TextOverflow.ellipsis,

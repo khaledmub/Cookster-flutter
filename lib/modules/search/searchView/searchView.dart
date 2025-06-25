@@ -873,93 +873,101 @@ class _SearchViewState extends State<SearchView>
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (BuildContext context) {
-        return StatefulBuilder(
-          builder: (BuildContext context, StateSetter setModalState) {
-            return Container(
-              color: Colors.white,
-              padding: EdgeInsets.all(20),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    'Filter'.tr,
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                  ),
-                  SizedBox(height: 20),
-                  InkWell(
-                    onTap: () {
-                      showLocationDialog(context);
-                    },
-                    child: Row(
-                      children: [
-                        Icon(Icons.location_on_outlined),
-                        SizedBox(width: 10),
-                        Obx(
-                          () => Text(
-                            searchController.currentCountry.value == ""
-                                ? 'select_country_label'.tr
-                                : searchController.currentCountry.value,
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ),
-                        Spacer(),
-                        Icon(Icons.chevron_right_rounded),
-                      ],
+        return SafeArea(
+          child: StatefulBuilder(
+            builder: (BuildContext context, StateSetter setModalState) {
+              return Container(
+                color: Colors.white,
+                padding: EdgeInsets.all(20),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'Filter'.tr,
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
-                  ),
-                  SizedBox(height: 15),
-                  InkWell(
-                    onTap: () {
-                      // Get the current city's ID from cityMap in cityController
-                      int? initialCityId;
-                      if (searchController.currentCity.value.isNotEmpty) {
-                        Map<String, int> cityMap = {};
-                        cityController.cityList.forEach((city) {
-                          cityMap[city.name!] = city.id!;
-                        });
-                        initialCityId =
-                            cityMap[searchController.currentCity.value];
-                      }
-                      showCityDialog(context, initialCity: initialCityId);
-                    },
-                    child: Row(
-                      children: [
-                        Icon(Icons.location_on_outlined),
-                        SizedBox(width: 10),
-                        Obx(
-                              () => ConstrainedBox(
-                            constraints: const BoxConstraints(maxWidth: 250), // Set your desired maximum width
-                            child: Text(
-                              searchController.currentCity.value == ""
-                                  ? 'select_city_dialog_label'.tr
-                                  : searchController.currentCity.value,
-                              style: const TextStyle(
+                    SizedBox(height: 20),
+                    InkWell(
+                      onTap: () {
+                        showLocationDialog(context);
+                      },
+                      child: Row(
+                        children: [
+                          Icon(Icons.location_on_outlined),
+                          SizedBox(width: 10),
+                          Obx(
+                            () => Text(
+                              searchController.currentCountry.value == ""
+                                  ? 'select_country_label'.tr
+                                  : searchController.currentCountry.value,
+                              style: TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.w500,
                               ),
-                              overflow: TextOverflow.ellipsis, // Show ellipsis if text exceeds maxWidth
                             ),
                           ),
-                        ),
-                        Spacer(),
-                        Icon(Icons.chevron_right_rounded),
-                      ],
+                          Spacer(),
+                          Icon(Icons.chevron_right_rounded),
+                        ],
+                      ),
                     ),
-                  ),
-                  SizedBox(height: 20),
-                  AppButton(
-                    text: "Submit",
-                    onTap: () {
-                      Navigator.pop(context);
-                    },
-                  ),
-                ],
-              ),
-            );
-          },
+                    SizedBox(height: 15),
+                    InkWell(
+                      onTap: () {
+                        // Get the current city's ID from cityMap in cityController
+                        int? initialCityId;
+                        if (searchController.currentCity.value.isNotEmpty) {
+                          Map<String, int> cityMap = {};
+                          cityController.cityList.forEach((city) {
+                            cityMap[city.name!] = city.id!;
+                          });
+                          initialCityId =
+                              cityMap[searchController.currentCity.value];
+                        }
+                        showCityDialog(context, initialCity: initialCityId);
+                      },
+                      child: Row(
+                        children: [
+                          Icon(Icons.location_on_outlined),
+                          SizedBox(width: 10),
+                          Obx(
+                            () => ConstrainedBox(
+                              constraints: const BoxConstraints(maxWidth: 250),
+                              // Set your desired maximum width
+                              child: Text(
+                                searchController.currentCity.value == ""
+                                    ? 'select_city_dialog_label'.tr
+                                    : searchController.currentCity.value,
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                                overflow:
+                                    TextOverflow
+                                        .ellipsis, // Show ellipsis if text exceeds maxWidth
+                              ),
+                            ),
+                          ),
+                          Spacer(),
+                          Icon(Icons.chevron_right_rounded),
+                        ],
+                      ),
+                    ),
+                    SizedBox(height: 20),
+                    AppButton(
+                      text: "Submit",
+                      onTap: () {
+                        Navigator.pop(context);
+                      },
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
         );
       },
     );
