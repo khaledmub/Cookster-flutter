@@ -85,10 +85,11 @@ class _EditProfileViewState extends State<EditProfileView> {
       profileController.cityId = initialCity;
       profileController.selectedCityId.value = initialCity.toString();
       profileController.selectCountryId.value = initialCountry.toString();
-
-      cityController.fetchCities(
-        int.parse('${profileController.selectCountryId.value}'),
-      );
+      if (initialCountry != 0) {
+        cityController.fetchCities(
+          int.parse('${profileController.selectCountryId.value}'),
+        );
+      }
     } else {
       // Handle null userDetails case with defaults
       initialName = '';
@@ -110,9 +111,9 @@ class _EditProfileViewState extends State<EditProfileView> {
         profileController.birthdayController.text != initialDob ||
         profileController.phoneNumberController.text != initialPhone ||
         profileController.passwordController.text.isNotEmpty ||
-        profileController.selectedCityId.value != initialCity.toString() ||
-        profileController.selectedAccountType.value !=
-            initialAccountType.toString() ||
+        // profileController.selectedCityId.value != initialCity.toString() ||
+        // profileController.selectedAccountType.value !=
+        //     initialAccountType.toString() ||
         profileController.selectCountryId.value != initialCountry.toString() ||
         profileController.selectedImage.value !=
             null; // Check if a new image is selected

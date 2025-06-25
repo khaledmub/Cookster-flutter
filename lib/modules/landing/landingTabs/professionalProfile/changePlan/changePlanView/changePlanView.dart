@@ -42,8 +42,8 @@ class _ChangePlanViewState extends State<ChangePlanView> {
     super.initState();
     _loadLanguage();
     // Select the first package by default after data is fetched
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final packages = changePlanController.packagesList.value.packages ?? [];
+    ever(changePlanController.packagesList, (packagesList) {
+      final packages = packagesList.packages ?? [];
       if (packages.isNotEmpty) {
         changePlanController.selectPackage(packages[0].id!);
         setState(() {

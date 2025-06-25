@@ -405,6 +405,7 @@ class _SearchViewState extends State<SearchView>
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        SizedBox(height: 16,),
                         Text(
                           "Discover".tr,
                           style: TextStyle(

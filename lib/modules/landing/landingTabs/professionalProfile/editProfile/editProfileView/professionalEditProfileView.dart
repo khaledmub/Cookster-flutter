@@ -92,7 +92,12 @@ class _EditProfessionalProfileViewState
       initialCityId = userDetails.city;
       initialMenuId = additionalSettings.businessType ?? 0;
 
-      cityController.fetchCities(initialCountryId);
+      print(
+        'initialCountryId: $initialCountryId, initialCityId: $initialCityId, initialMenuId: $initialMenuId',
+      );
+      if (initialCountryId != 0) {
+        cityController.fetchCities(initialCountryId);
+      }
     }
   }
 
@@ -107,8 +112,8 @@ class _EditProfessionalProfileViewState
             initialWebsite || // Fixed: was comparing emailController
         profileController.locationController.text != initialLocation ||
         profileController.selectedImage.value != null ||
-        profileController.selectedCityId.value != initialCity.toString() ||
-        profileController.selectCountryId.value != initialCountry.toString() ||
+        // profileController.selectedCityId.value != initialCity.toString() ||
+        // profileController.selectCountryId.value != initialCountry.toString() ||
         profileController.menuId != initialMenuId ||
         profileController.passwordController.text.trim().isNotEmpty;
   }
@@ -179,27 +184,27 @@ class _EditProfessionalProfileViewState
     }
 
     // Validate country and city selection
-    if (profileController.selectCountryId.value.isEmpty ||
-        profileController.selectCountryId.value == "0") {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text("Please select a country".tr),
-          backgroundColor: Colors.red,
-        ),
-      );
-      return;
-    }
-
-    if (profileController.selectedCityId.value.isEmpty ||
-        profileController.selectedCityId.value == "0") {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text("Please select a city".tr),
-          backgroundColor: Colors.red,
-        ),
-      );
-      return;
-    }
+    // if (profileController.selectCountryId.value.isEmpty ||
+    //     profileController.selectCountryId.value == "0") {
+    //   ScaffoldMessenger.of(context).showSnackBar(
+    //     SnackBar(
+    //       content: Text("Please select a country".tr),
+    //       backgroundColor: Colors.red,
+    //     ),
+    //   );
+    //   return;
+    // }
+    //
+    // if (profileController.selectedCityId.value.isEmpty ||
+    //     profileController.selectedCityId.value == "0") {
+    //   ScaffoldMessenger.of(context).showSnackBar(
+    //     SnackBar(
+    //       content: Text("Please select a city".tr),
+    //       backgroundColor: Colors.red,
+    //     ),
+    //   );
+    //   return;
+    // }
 
     // For entity == 2 (business), validate location if required
     if (entity == 2 &&
@@ -552,33 +557,34 @@ class _EditProfessionalProfileViewState
                         ),
                       ),
 
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                        child: CustomTextField(
-                          isPassword: true,
-                          validator: (value) {
-                            if (value == null || value.trim().isEmpty) {
+                      if (googleSignInBit == 0)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                          child: CustomTextField(
+                            isPassword: true,
+                            validator: (value) {
+                              if (value == null || value.trim().isEmpty) {
+                                return null;
+                              }
+                              if (value.length < 8) {
+                                return 'password_length_error'.tr;
+                              }
+                              if (!RegExp(r'[A-Z]').hasMatch(value)) {
+                                return 'password_uppercase_error'.tr;
+                              }
+                              if (!RegExp(
+                                r'[!@#$%^&*(),.?":{}|<>]',
+                              ).hasMatch(value)) {
+                                return 'password_special_char_error'.tr;
+                              }
                               return null;
-                            }
-                            if (value.length < 8) {
-                              return 'password_length_error'.tr;
-                            }
-                            if (!RegExp(r'[A-Z]').hasMatch(value)) {
-                              return 'password_uppercase_error'.tr;
-                            }
-                            if (!RegExp(
-                              r'[!@#$%^&*(),.?":{}|<>]',
-                            ).hasMatch(value)) {
-                              return 'password_special_char_error'.tr;
-                            }
-                            return null;
-                          },
-                          label: "Enter New Password".tr,
-                          hintText: "Enter New Password".tr,
-                          iconPath: "assets/icons/password.svg",
-                          controller: profileController.passwordController,
+                            },
+                            label: "Enter New Password".tr,
+                            hintText: "Enter New Password".tr,
+                            iconPath: "assets/icons/password.svg",
+                            controller: profileController.passwordController,
+                          ),
                         ),
-                      ),
 
                       if (entity == 2)
                         Padding(
