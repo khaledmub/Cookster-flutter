@@ -15,6 +15,7 @@ import 'package:cookster/appUtils/apiEndPoints.dart';
 class HomeController extends GetxController with WidgetsBindingObserver {
   var isFollowing = false.obs;
   var rating = 0.0.obs;
+  RxInt visiblePageIndex = 0.obs;
 
   var videoFeed = VideoFeed().obs;
   var isLoading = false.obs;

@@ -551,13 +551,24 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                 scrollDirection: Axis.vertical,
                 controller: pageController,
                 onPageChanged: (index) {
-                  controller.handlePageChange(index);
+                  controller.visiblePageIndex.value = index;
+                  int actualIndex =
+                      index % controller.videoFeed.value.videos!.length;
+                  controller.handlePageChange(actualIndex);
                   if (mounted) setState(() {});
                 },
-                itemCount: controller.chewieControllers.length,
+
+                itemCount: 10000,
                 itemBuilder: (context, index) {
-                  var videoDetail = controller.videoFeed.value.videos![index];
-                  var chewieController = controller.chewieControllers[index];
+                  int currentPage = controller.visiblePageIndex.value;
+                  bool isCurrentPage = currentPage == index;
+                  int actualIndex =
+                      index % controller.videoFeed.value.videos!.length;
+                  var videoDetail =
+                      controller.videoFeed.value.videos![actualIndex];
+                  var chewieController =
+                      controller.chewieControllers[actualIndex];
+
                   bool isInitialized =
                       chewieController != null &&
                       chewieController
@@ -598,7 +609,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                               ),
                               if (_showIcon &&
                                   isInitialized &&
-                                  index == controller.currentIndex.value)
+                                  index == controller.visiblePageIndex.value)
                                 Center(
                                   child: Container(
                                     decoration: BoxDecoration(
@@ -615,6 +626,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                                     ),
                                   ),
                                 ),
+
                               if (videoDetail.isImage == 0 && isInitialized)
                                 Positioned(
                                   bottom: Platform.isAndroid ? 70 : 100,
