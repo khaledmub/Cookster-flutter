@@ -128,13 +128,16 @@ class _MyAppState extends State<MyApp> {
     _handleInitialDeepLink();
 
     // Listen for incoming deep links when the app is running
-    _appLinks.uriLinkStream.listen((Uri? uri) {
-      if (uri != null) {
-        _handleDeepLink(uri.toString());
-      }
-    }, onError: (err) {
-      print('Error in uriLinkStream: $err');
-    });
+    _appLinks.uriLinkStream.listen(
+      (Uri? uri) {
+        if (uri != null) {
+          _handleDeepLink(uri.toString());
+        }
+      },
+      onError: (err) {
+        print('Error in uriLinkStream: $err');
+      },
+    );
 
     _listenForConnectivity();
   }
@@ -150,24 +153,26 @@ class _MyAppState extends State<MyApp> {
       print('Error getting initial link: $e');
     }
   }
+
   /// Handle deep link navigation
   void _handleDeepLink(String link) {
-    if (_handlingDeepLink) return; // Prevent multiple simultaneous deep link handling
+    if (_handlingDeepLink)
+      return; // Prevent multiple simultaneous deep link handling
     _handlingDeepLink = true;
 
     try {
       // Example: Parse the deep link (e.g., https://cookster.org/video/123)
       final uri = Uri.parse(link);
       if (uri.host == 'cookster.org') {
-        final videoId = uri.pathSegments.last;
+        final videoId = uri.queryParameters['id'];
         if (widget.hasInternet) {
           // Navigate immediately if internet is available
           if (Get.currentRoute != '/SingleVisitVideo') {
-            Get.to(
-                  () => SingleVisitVideo(videoId: videoId),
-              arguments: videoId,
-              preventDuplicates: true,
-            );
+            // Get.to(
+            //   () => SingleVisitVideo(videoId: videoId!),
+            //   arguments: videoId,
+            //   preventDuplicates: true,
+            // );
           }
         } else {
           // Store pending deep link if no internet

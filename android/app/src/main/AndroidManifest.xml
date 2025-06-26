@@ -73,9 +73,9 @@
             android:taskAffinity=""
             android:theme="@style/LaunchTheme"
             android:windowSoftInputMode="adjustResize">
-            <meta-data
-                android:name="io.flutter.embedding.android.NormalTheme"
-                android:resource="@style/NormalTheme" />
+
+            <!-- Disable default Flutter deep linking -->
+            <meta-data android:name="flutter_deeplinking_enabled" android:value="false" />
 
             <!-- Launcher intent -->
             <intent-filter>
@@ -83,21 +83,27 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
-            <!-- Deep link for HTTPS -->
+            <!-- App Link for visitSingleVideo -->
             <intent-filter android:autoVerify="true">
                 <action android:name="android.intent.action.VIEW" />
-
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-
-                <data
-                    android:host="cookster.org"
-                    android:scheme="https" />
+                <data android:scheme="http" android:host="cookster.org" android:path="/visitSingleVideo" />
+                <data android:scheme="https" android:host="cookster.org" android:path="/visitSingleVideo" />
             </intent-filter>
 
-            <!-- Optional: Custom scheme deep link -->
+            <!-- Deep Link with custom scheme -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="cookster" android:host="open.cookster.app" />
+            </intent-filter>
 
-
+            <!-- Specifies an Android theme to apply to this Activity -->
+            <meta-data
+                android:name="io.flutter.embedding.android.NormalTheme"
+                android:resource="@style/NormalTheme" />
         </activity>
 
         <meta-data

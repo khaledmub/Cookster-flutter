@@ -81,7 +81,7 @@ const Map<String, String> en = {
   "If you go back now, you'll lose your edits":
       "If you go back now, you'll lose your edits",
   "Discard": "Discard",
-  "Saved Reels": "Saved Reels",
+  "Saved Reels": "Saved Posts",
   "Followers": "Followers",
   "Following": "Following",
   "Likes": "Likes",
@@ -298,8 +298,7 @@ const Map<String, String> en = {
   "try_different": "Try a different search term",
   "search_followers_following": "Search followers and following",
   "enter_email": "Enter your email to receive an OTP for password reset.",
-  "otp_sent":
-      "OTP sent to your email. Enter it below to reset your password.",
+  "otp_sent": "OTP sent to your email. Enter it below to reset your password.",
   "enter_new_password": "Enter your new password.",
   "reset_password": "Reset Password",
   "verify_otp": "Verify OTP",
@@ -425,7 +424,7 @@ const Map<String, String> en = {
   "video_title_length_error": "Title must not exceed 70 characters",
   // 'location_access_required': 'Location Access Required',
   'location_description':
-  'We need your location to find nearby businesses. Please enable location services or grant permission.',
+      'We need your location to find nearby businesses. Please enable location services or grant permission.',
   'allow_location': 'Allow Location',
   'open_settings': 'Open Settings',
 };

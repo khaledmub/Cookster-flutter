@@ -232,6 +232,8 @@ class _SingleVideoVisitState extends State<SingleVisitVideo>
 
   @override
   Widget build(BuildContext context) {
+
+    print("PRINTING THE VIDEO ID: ${widget.videoId}");
     super.build(context);
     bool isRtl = _language == 'ar';
 

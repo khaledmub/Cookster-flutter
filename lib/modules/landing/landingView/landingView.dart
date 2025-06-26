@@ -294,26 +294,26 @@ class _LandingState extends State<Landing> {
   @override
   Widget build(BuildContext context) {
 
-    // appLinks.getInitialLink().then((uri) async {
-    //   bool isAuthenticated = await _isUserAuthenticated();
-    //   if (uri != null) {
-    //     final videoId = uri.queryParameters['id'];
-    //     if (videoId != null) {
-    //       log('Initial deep link with video ID: $videoId');
-    //       WidgetsBinding.instance.addPostFrameCallback((_) {
-    //         isAuthenticated
-    //             ? Get.to(
-    //               () => SingleVisitVideo(
-    //                 videoId: videoId,
-    //                 key: UniqueKey(), // ✅ Important
-    //               ),
-    //               arguments: videoId,
-    //             )
-    //             : Get.to(AppRoutes.signIn);
-    //       });
-    //     }
-    //   }
-    // });
+    appLinks.getInitialLink().then((uri) async {
+      bool isAuthenticated = await _isUserAuthenticated();
+      if (uri != null) {
+        final videoId = uri.queryParameters['id'];
+        if (videoId != null) {
+          log('Initial deep link with video ID: $videoId');
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            isAuthenticated
+                ? Get.to(
+                  () => SingleVisitVideo(
+                    videoId: videoId,
+                    key: UniqueKey(), // ✅ Important
+                  ),
+                  arguments: videoId,
+                )
+                : Get.to(AppRoutes.signIn);
+          });
+        }
+      }
+    });
 
     // Handle deep links while app is running
     WidgetsBinding.instance.addPostFrameCallback((_) {
