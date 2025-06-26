@@ -114,146 +114,71 @@ class _MyAppState extends State<MyApp> {
   bool _wasOnNoInternetScreen = false;
   String? _lastRouteBeforeNoInternet;
   String? _pendingDeepLinkRoute;
-  bool _initialRouteSet = false;
+
+  // bool _initialRouteSet = false;
 
   @override
   void initState() {
     super.initState();
-    _appLinks = AppLinks();
-
-    _listenForConnectivity();
-    _initializeDeepLinking();
 
     _wasOnNoInternetScreen = !widget.hasInternet;
-    _initialRouteSet = true;
+    // _initialRouteSet = true;
+    _appLinks = AppLinks();
+    // Handle initial deep link when the app is launched
+    _handleInitialDeepLink();
+
+    // Listen for incoming deep links when the app is running
+    _appLinks.uriLinkStream.listen((Uri? uri) {
+      if (uri != null) {
+        _handleDeepLink(uri.toString());
+      }
+    }, onError: (err) {
+      print('Error in uriLinkStream: $err');
+    });
+
+    _listenForConnectivity();
   }
 
-  /// Initialize deep linking
-  void _initializeDeepLinking() {
-    // Handle initial deep link (when app is launched from terminated state)
-    _appLinks
-        .getInitialLink()
-        .then((uri) {
-          if (uri != null) {
-            print('🔗 Initial deep link: $uri');
-            _handleDeepLink(uri);
-          }
-        })
-        .catchError((err) {
-          print('❌ Initial deep link error: $err');
-        });
-
-    // Handle deep links when app is already running
-    _appLinks.uriLinkStream.listen(
-      (uri) {
-        print('🔗 Stream deep link: $uri');
-        _handleDeepLink(uri);
-      },
-      onError: (err) {
-        print('❌ Deep link stream error: $err');
-      },
-    );
-  }
-
-  /// Handle deep link navigation
-  Future<void> _handleDeepLink(Uri uri) async {
+  /// Handle initial deep link when the app is launched
+  Future<void> _handleInitialDeepLink() async {
     try {
-      _handlingDeepLink = true;
+      final uri = await _appLinks.getInitialLink();
+      if (uri != null) {
+        _handleDeepLink(uri.toString());
+      }
+    } catch (e) {
+      print('Error getting initial link: $e');
+    }
+  }
+  /// Handle deep link navigation
+  void _handleDeepLink(String link) {
+    if (_handlingDeepLink) return; // Prevent multiple simultaneous deep link handling
+    _handlingDeepLink = true;
 
-      final videoId = uri.queryParameters['id'];
-      if (videoId != null && videoId.isNotEmpty) {
-        print('🎥 Processing video ID: $videoId');
-
-        bool isAuthenticated = await _isUserAuthenticated();
-
-        // Wait for GetX to be initialized
-        await _waitForGetXInitialization();
-
-        // Check if already on the target route to avoid duplicate navigation
-        if (Get.currentRoute == AppRoutes.landing ||
-            Get.currentRoute == AppRoutes.signIn) {
-          print('Already on ${Get.currentRoute}, skipping navigation');
-          return;
-        }
-
-        if (isAuthenticated) {
-          // Navigate to landing only if not already there
-          if (Get.currentRoute != AppRoutes.landing) {
-            Get.offAllNamed(AppRoutes.landing);
-          }
-
-          // Small delay to ensure landing screen is loaded
-          await Future.delayed(const Duration(milliseconds: 300));
-
-          // Navigate to video only if not already there
+    try {
+      // Example: Parse the deep link (e.g., https://cookster.org/video/123)
+      final uri = Uri.parse(link);
+      if (uri.host == 'cookster.org') {
+        final videoId = uri.pathSegments.last;
+        if (widget.hasInternet) {
+          // Navigate immediately if internet is available
           if (Get.currentRoute != '/SingleVisitVideo') {
             Get.to(
-              () => SingleVisitVideo(videoId: videoId),
+                  () => SingleVisitVideo(videoId: videoId),
               arguments: videoId,
               preventDuplicates: true,
             );
           }
         } else {
-          // Navigate to sign-in only if not already there
-          if (Get.currentRoute != AppRoutes.signIn) {
-            Get.offAllNamed(
-              AppRoutes.signIn,
-              arguments: {'deepLinkVideoId': videoId},
-            );
-          }
+          // Store pending deep link if no internet
+          _pendingDeepLinkRoute = videoId;
+          Get.offAllNamed(AppRoutes.noInternet);
         }
-      } else {
-        print('❌ Invalid or missing video ID in deep link');
-        await _waitForGetXInitialization();
-        _showErrorSnackbar('Invalid video ID in deep link');
       }
     } catch (e) {
-      print('❌ Deep link handling error: $e');
-      await _waitForGetXInitialization();
-      _showErrorSnackbar('Error processing deep link');
+      print('Error handling deep link: $e');
     } finally {
       _handlingDeepLink = false;
-    }
-  }
-
-  /// Wait for GetX to be properly initialized
-  Future<void> _waitForGetXInitialization() async {
-    int attempts = 0;
-    while (Get.context == null && attempts < 50) {
-      await Future.delayed(const Duration(milliseconds: 100));
-      attempts++;
-    }
-
-    if (Get.context == null) {
-      print('⚠️ GetX context still null after waiting');
-    }
-  }
-
-  /// Check if user is authenticated
-  Future<bool> _isUserAuthenticated() async {
-    try {
-      // Add your authentication check logic here
-      SharedPreferences prefs = await SharedPreferences.getInstance();
-      String? token = prefs.getString('auth_token');
-      return token != null && token.isNotEmpty;
-    } catch (e) {
-      print('Authentication check error: $e');
-      return false;
-    }
-  }
-
-  /// Show error snackbar
-  void _showErrorSnackbar(String message) {
-    if (Get.context != null) {
-      Get.snackbar(
-        'Error',
-        message,
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: Colors.red.shade400,
-        colorText: Colors.white,
-      );
-    } else {
-      print('⚠️ Cannot show snackbar - GetX context is null');
     }
   }
 
@@ -361,22 +286,23 @@ class _MyAppState extends State<MyApp> {
               seedColor: ColorUtils.primaryColor,
             ),
           ),
-          // navigatorObservers: [
-          //   GetObserver((routing) {
-          //     if (routing?.current != null) {
-          //       print(
-          //         "Navigated to: ${routing!.current} (Previous: ${routing.previous}, Args: ${routing.args})",
-          //       );
-          //       if (routing.current != AppRoutes.noInternet &&
-          //           routing.current != AppRoutes.splash) {
-          //         _lastRouteBeforeNoInternet = routing.current;
-          //       }
-          //     }
-          //   }),
-          // ],
+          navigatorObservers: [
+            GetObserver((routing) {
+              if (routing?.current != null) {
+                print(
+                  "Navigated to: ${routing!.current} (Previous: ${routing.previous}, Args: ${routing.args})",
+                );
+                if (routing.current != AppRoutes.noInternet &&
+                    routing.current != AppRoutes.splash) {
+                  _lastRouteBeforeNoInternet = routing.current;
+                }
+              }
+            }),
+          ],
           initialRoute:
               widget.hasInternet ? AppRoutes.splash : AppRoutes.noInternet,
           getPages: AppRoutes.pages,
+
           builder: (context, child) {
             return MediaQuery(
               data: MediaQuery.of(

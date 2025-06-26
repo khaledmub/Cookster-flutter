@@ -5,6 +5,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cookster/appUtils/apiEndPoints.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:get/get.dart';
@@ -88,6 +89,13 @@ class _ProfessionalProfileViewState extends State<ProfessionalProfileView>
 
   @override
   Widget build(BuildContext context) {
+    SystemChrome.setSystemUIOverlayStyle(
+      const SystemUiOverlayStyle(
+        statusBarIconBrightness: Brightness.dark, // White icons ke liye
+        statusBarColor:
+            Colors.transparent, // Optional: Status bar background color
+      ),
+    );
     bool isRtl = _language == 'ar';
 
     return Obx(() {
@@ -142,7 +150,7 @@ class _ProfessionalProfileViewState extends State<ProfessionalProfileView>
                   child: Container(
                     margin: EdgeInsets.only(
                       left: isRtl ? 0 : 16, // Fixed margin on the left
-                      right: isRtl ?  16 : 0, // Fixed margin on the right
+                      right: isRtl ? 16 : 0, // Fixed margin on the right
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
@@ -150,7 +158,8 @@ class _ProfessionalProfileViewState extends State<ProfessionalProfileView>
                         SizedBox(width: 4), // Small gap between icon and text
 
                         Column(
-                          crossAxisAlignment: CrossAxisAlignment.start, // Fixed left alignment
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          // Fixed left alignment
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             Text(
@@ -212,13 +221,20 @@ class _ProfessionalProfileViewState extends State<ProfessionalProfileView>
                           onTap: () async {
                             await profileController.showLogoutDialog(context);
                           },
-                          child:Directionality.of(context) == TextDirection.rtl
-                              ? Transform.flip(
-                            flipX:
-                            true, // Flips the icon horizontally for RTL
-                            child: SvgPicture.asset("assets/icons/logout.svg", height: 18.h,),
-                          )
-                              : SvgPicture.asset("assets/icons/logout.svg", height: 18.h,),
+                          child:
+                              Directionality.of(context) == TextDirection.rtl
+                                  ? Transform.flip(
+                                    flipX:
+                                        true, // Flips the icon horizontally for RTL
+                                    child: SvgPicture.asset(
+                                      "assets/icons/logout.svg",
+                                      height: 18.h,
+                                    ),
+                                  )
+                                  : SvgPicture.asset(
+                                    "assets/icons/logout.svg",
+                                    height: 18.h,
+                                  ),
                         ),
                       ],
                     ),
@@ -479,7 +495,6 @@ class _ProfessionalProfileViewState extends State<ProfessionalProfileView>
                                             ),
                                           ),
                                     ),
-
                                 ],
                               ),
                             ),
@@ -491,7 +506,6 @@ class _ProfessionalProfileViewState extends State<ProfessionalProfileView>
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
                                   Expanded(
-                                 
                                     child: InkWell(
                                       onTap: () {
                                         Get.to(SavedVideosView());
@@ -503,9 +517,9 @@ class _ProfessionalProfileViewState extends State<ProfessionalProfileView>
                                     ),
                                   ),
 
-                                  SizedBox(width: 16,),
+                                  SizedBox(width: 16),
                                   InkWell(
-                                    onTap: (){
+                                    onTap: () {
                                       showMoreOptionsProfile(
                                         context,
                                         userDetails.name,
@@ -518,13 +532,18 @@ class _ProfessionalProfileViewState extends State<ProfessionalProfileView>
                                       width: 40,
                                       decoration: BoxDecoration(
                                         shape: BoxShape.circle,
-                                        border: Border.all(color: ColorUtils.darkBrown)
+                                        border: Border.all(
+                                          color: ColorUtils.darkBrown,
+                                        ),
                                       ),
-                                      child: Center(child: SvgPicture.asset(color: ColorUtils.darkBrown, "assets/icons/chevron-down.svg")),
+                                      child: Center(
+                                        child: SvgPicture.asset(
+                                          color: ColorUtils.darkBrown,
+                                          "assets/icons/chevron-down.svg",
+                                        ),
+                                      ),
                                     ),
-                                  )
-
-
+                                  ),
                                 ],
                               ),
                             ),
@@ -815,8 +834,10 @@ class _ProfessionalProfileViewState extends State<ProfessionalProfileView>
                                                       ),
                                                     ),
                                                     Positioned(
-                                                      top: 8.h, // Adjusted for better spacing, using flutter_screenutil for responsiveness
-                                                      right: 8.w, // Adjusted for better spacing
+                                                      top: 8.h,
+                                                      // Adjusted for better spacing, using flutter_screenutil for responsiveness
+                                                      right: 8.w,
+                                                      // Adjusted for better spacing
                                                       child: InkWell(
                                                         onTap: () {
                                                           showMoreOptions(
@@ -827,24 +848,46 @@ class _ProfessionalProfileViewState extends State<ProfessionalProfileView>
                                                             video,
                                                           );
                                                         },
-                                                        splashColor: Colors.grey.withOpacity(0.3), // Add subtle splash effect for feedback
-                                                        borderRadius: BorderRadius.circular(10.r), // Rounded touch area
+                                                        splashColor: Colors.grey
+                                                            .withOpacity(0.3),
+                                                        // Add subtle splash effect for feedback
+                                                        borderRadius:
+                                                            BorderRadius.circular(
+                                                              10.r,
+                                                            ),
+                                                        // Rounded touch area
                                                         child: Container(
                                                           // padding: EdgeInsets.all(6.w), // Larger touch area
                                                           decoration: BoxDecoration(
-                                                            color: Colors.black.withOpacity(0.6), // Semi-transparent dark background for contrast
-                                                            shape: BoxShape.circle, // Circular shape
+                                                            color: Colors.black
+                                                                .withOpacity(
+                                                                  0.6,
+                                                                ),
+                                                            // Semi-transparent dark background for contrast
+                                                            shape:
+                                                                BoxShape.circle,
+                                                            // Circular shape
                                                             boxShadow: [
                                                               BoxShadow(
-                                                                color: Colors.black.withOpacity(0.2), // Subtle shadow for depth
+                                                                color: Colors
+                                                                    .black
+                                                                    .withOpacity(
+                                                                      0.2,
+                                                                    ),
+                                                                // Subtle shadow for depth
                                                                 blurRadius: 4,
-                                                                offset: Offset(0, 2),
+                                                                offset: Offset(
+                                                                  0,
+                                                                  2,
+                                                                ),
                                                               ),
                                                             ],
                                                           ),
                                                           child: Icon(
                                                             Icons.more_vert,
-                                                            color: Colors.white, // Keep white color for icon
+                                                            color:
+                                                                Colors
+                                                                    .white, // Keep white color for icon
                                                             // size: 20.sp, // Slightly larger icon for visibility, responsive size
                                                           ),
                                                         ),
@@ -953,14 +996,17 @@ class _ProfessionalProfileViewState extends State<ProfessionalProfileView>
                       ) async {
                         await profileController.getUserDetails();
                       });
-          
+
                       ;
                     },
                   ),
                 ListTile(
                   leading: Icon(Icons.edit),
                   trailing: Icon(Icons.chevron_right_rounded),
-                  title: Text('Edit Video'.tr, style: TextStyle(fontSize: 14.sp)),
+                  title: Text(
+                    'Edit Video'.tr,
+                    style: TextStyle(fontSize: 14.sp),
+                  ),
                   onTap: () async {
                     Navigator.pop(bottomSheetContext);
                     Get.to(() => EditVideoView(videos: [video]))?.then((

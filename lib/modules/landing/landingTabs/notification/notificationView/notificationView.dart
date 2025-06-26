@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'package:get/get.dart';
 import 'package:flutter/services.dart'; // Added for SystemChrome
 
@@ -30,6 +29,13 @@ class _NotificationsState extends State<Notifications> {
 
   @override
   Widget build(BuildContext context) {
+    SystemChrome.setSystemUIOverlayStyle(
+      const SystemUiOverlayStyle(
+        statusBarIconBrightness: Brightness.dark, // White icons ke liye
+        statusBarColor:
+        Colors.transparent, // Optional: Status bar background color
+      ),
+    );
     return SafeArea(
       child: Scaffold(
         backgroundColor: Colors.white,

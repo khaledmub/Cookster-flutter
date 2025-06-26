@@ -5,6 +5,7 @@ import 'package:cookster/appUtils/apiEndPoints.dart';
 import 'package:cookster/modules/landing/landingTabs/profile/profileControlller/profileController.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:get/get.dart';
@@ -59,6 +60,13 @@ class _ProfileViewState extends State<ProfileView>
 
   @override
   Widget build(BuildContext context) {
+    SystemChrome.setSystemUIOverlayStyle(
+      const SystemUiOverlayStyle(
+        statusBarIconBrightness: Brightness.dark, // White icons ke liye
+        statusBarColor:
+        Colors.transparent, // Optional: Status bar background color
+      ),
+    );
     return Obx(() {
       final userDetails = profileController.simpleUserDetails.value?.user;
       // : profileController.userDetails.value?.user;

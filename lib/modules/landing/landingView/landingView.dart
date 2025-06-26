@@ -261,16 +261,6 @@ class _LandingState extends State<Landing> {
     );
   }
 
-  Future<bool> _onWillPop() async {
-    if (navBarController.selectedIndex.value != 0) {
-      navBarController.changeTab(0);
-      controller.restoreVideoState();
-      return false;
-    } else {
-      return await _showExitConfirmationDialog(context);
-    }
-  }
-
   Future<bool> _showExitConfirmationDialog(BuildContext context) async {
     bool shouldExit = false;
     await AwesomeDialog(
@@ -303,6 +293,7 @@ class _LandingState extends State<Landing> {
 
   @override
   Widget build(BuildContext context) {
+
     // appLinks.getInitialLink().then((uri) async {
     //   bool isAuthenticated = await _isUserAuthenticated();
     //   if (uri != null) {

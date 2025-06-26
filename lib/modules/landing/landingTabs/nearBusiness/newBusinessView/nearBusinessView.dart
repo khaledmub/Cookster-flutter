@@ -3,6 +3,7 @@ import 'package:cookster/loaders/pulseLoader.dart';
 import 'package:cookster/modules/visitProfile/visitProfileView/visitProfileView.dart';
 import 'package:custom_info_window/custom_info_window.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -16,6 +17,13 @@ class NearestBusinessScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    SystemChrome.setSystemUIOverlayStyle(
+      const SystemUiOverlayStyle(
+        statusBarIconBrightness: Brightness.dark, // White icons ke liye
+        statusBarColor:
+        Colors.transparent, // Optional: Status bar background color
+      ),
+    );
     final LocationController controller = Get.put(
       LocationController(),
       permanent: true,

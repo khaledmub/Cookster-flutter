@@ -91,7 +91,7 @@ class _SingleVideoVisitState extends State<SingleVisitVideo>
       _frontUserImage = prefs.getString('user_image');
     });
   }
-
+  static final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   final VideoCommentsController videoCommentsController = Get.put(
     VideoCommentsController(),
   );
@@ -241,6 +241,7 @@ class _SingleVideoVisitState extends State<SingleVisitVideo>
         return true;
       },
       child: Scaffold(
+        key: _scaffoldKey,
         backgroundColor: Colors.black,
         appBar: AppBar(toolbarHeight: 0),
         body: Obx(() {
