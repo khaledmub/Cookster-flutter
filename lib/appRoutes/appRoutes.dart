@@ -2,7 +2,6 @@ import 'package:cookster/modules/auth/signIn/signInView/signInView.dart';
 import 'package:cookster/modules/landing/landingView/landingView.dart';
 import 'package:cookster/modules/search/searchView/searchView.dart';
 import 'package:cookster/modules/selectLanguage/selectLanguageView/selectLanguageView.dart';
-import 'package:cookster/modules/singleVideoView/singleVideoView.dart';
 import 'package:cookster/modules/splash/splashView/splashVIew.dart';
 import 'package:cookster/noInterNet.dart';
 import 'package:get/get.dart';
@@ -10,7 +9,6 @@ import '../modules/auth/packages/packageView/packageView.dart';
 import '../modules/auth/signUp/signUnView/signUpView.dart';
 import '../modules/landing/landingTabs/profile/editProfile/editProfileView/editProfileView.dart';
 import '../modules/onBoarding/onBoardingView/onBoardingView.dart';
-import '../modules/singleVideoVisit/singleVideoVisit.dart';
 
 class AppRoutes {
   static const String home = '/';
@@ -23,21 +21,10 @@ class AppRoutes {
   static const String editProfile = '/editProfile';
   static const String noInternet = '/noInternet';
   static const String search = '/search';
-  static const String singleVideo = '/singleVideo';
-  // static const singleVisitVideo = '/single-visit-video';
-  // static const String singleVisitVideo = '/visitSingleVideo';
   static const String packages = '/packages';
 
   static List<GetPage> pages = [
     GetPage(name: packages, page: () => PackagesScreen()),
-    // GetPage(
-    //   name: singleVisitVideo,
-    //   page: () => SingleVisitVideo(
-    //     videoId: Get.arguments, // you can fetch it directly here
-    //   ),
-    // ),
-    // GetPage(name: visitSingleVideo, page: () => SingleVisitVideo()),
-    GetPage(name: singleVideo, page: () => SingleVideoScreen(videoUrl: '')),
     GetPage(name: search, page: () => SearchView()),
     GetPage(name: noInternet, page: () => NoInternetScreen()),
     GetPage(name: editProfile, page: () => EditProfileView()),

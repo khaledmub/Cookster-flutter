@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:developer';
 import 'dart:ui';
 import 'package:awesome_dialog/awesome_dialog.dart';
 import 'package:chewie/chewie.dart';
@@ -29,7 +30,10 @@ import '../singleVideoView/singleVideoView.dart' hide VideoDescriptionWidget;
 class SingleVisitVideo extends StatefulWidget {
   final String videoId; // Required URL parameter
 
-  const SingleVisitVideo({super.key, required this.videoId});
+  const SingleVisitVideo({
+    Key? key, // always support passing a key
+    required this.videoId,
+  }) : super(key: key);
 
   @override
   State<SingleVisitVideo> createState() => _SingleVideoVisitState();
@@ -288,10 +292,9 @@ class _SingleVideoVisitState extends State<SingleVisitVideo>
                 child:
                     _isInitializing || _videoPlayerController == null
                         ? SizedBox.shrink()
-                        :
-                    video.isImage == 1 ? SizedBox.shrink() :
-
-                    EnhancedSeekBar(controller: _videoPlayerController!),
+                        : video.isImage == 1
+                        ? SizedBox.shrink()
+                        : EnhancedSeekBar(controller: _videoPlayerController!),
               ),
               if (_showPlayPauseIcon && !_isInitializing)
                 Center(
@@ -667,6 +670,8 @@ class _EnhancedSeekBarState extends State<EnhancedSeekBar>
 
   @override
   Widget build(BuildContext context) {
+    log("SingleVisitVideo key: ${widget.key}");
+
     return SizedBox(
       width: Get.width,
       height: 60,

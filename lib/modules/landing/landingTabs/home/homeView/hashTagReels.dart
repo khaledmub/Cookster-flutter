@@ -54,7 +54,7 @@ class _HashTagReelsState extends State<HashTagReels>
   );
   final ProfileController profileController = Get.find();
   final ProfessionalProfileController professionalProfileController =
-      Get.find();
+  Get.find();
 
   final SaveController saveController = Get.find();
 
@@ -138,7 +138,7 @@ class _HashTagReelsState extends State<HashTagReels>
     if (controller.currentIndex.value >= 0 &&
         controller.currentIndex.value < controller.chewieControllers.length) {
       final currentChewieController =
-          controller.chewieControllers[controller.currentIndex.value];
+      controller.chewieControllers[controller.currentIndex.value];
       if (currentChewieController != null &&
           currentChewieController.videoPlayerController.value.isInitialized) {
         // Save the current position
@@ -229,7 +229,8 @@ class _HashTagReelsState extends State<HashTagReels>
                   children: [
                     Text(
                       textAlign: TextAlign.center,
-                      "No videos available for ${controller.currentCity.value} Try to change the Location or Search for something else",
+                      "No videos available for ${controller.currentCity
+                          .value} Try to change the Location or Search for something else",
                       style: TextStyle(color: Colors.white, fontSize: 14.sp),
                     ),
                     SizedBox(height: 16),
@@ -311,10 +312,10 @@ class _HashTagReelsState extends State<HashTagReels>
 
                   bool isInitialized =
                       chewieController != null &&
-                      chewieController
-                          .videoPlayerController
-                          .value
-                          .isInitialized;
+                          chewieController
+                              .videoPlayerController
+                              .value
+                              .isInitialized;
 
                   return Stack(
                     alignment: Alignment.bottomLeft,
@@ -327,40 +328,46 @@ class _HashTagReelsState extends State<HashTagReels>
                             children: [
                               Center(
                                 child:
-                                    isInitialized
-                                        ? Chewie(controller: chewieController)
-                                        : Container(
-                                          width:
-                                              MediaQuery.of(context).size.width,
-                                          height:
-                                              MediaQuery.of(
-                                                context,
-                                              ).size.height,
-                                          child: Stack(
-                                            fit: StackFit.expand,
-                                            children: [
-                                              Container(color: Colors.black),
-                                              // CachedNetworkImage(
-                                              //   fit: BoxFit.cover,
-                                              //   width: double.infinity,
-                                              //   height: double.infinity,
-                                              //   imageUrl:
-                                              //       '${Common.videoUrl}/${videoDetail.image}',
-                                              //   placeholder:
-                                              //       (context, url) => Container(
-                                              //         color: Colors.black,
-                                              //       ),
-                                              // ),
-                                              Center(
-                                                child: PulseLogoLoader(
-                                                  logoPath:
-                                                      "assets/images/appIcon.png",
-                                                  size: 80,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
+                                isInitialized
+                                    ? Chewie(controller: chewieController)
+                                    : Container(
+                                  width:
+                                  MediaQuery
+                                      .of(context)
+                                      .size
+                                      .width,
+                                  height:
+                                  MediaQuery
+                                      .of(
+                                    context,
+                                  )
+                                      .size
+                                      .height,
+                                  child: Stack(
+                                    fit: StackFit.expand,
+                                    children: [
+                                      Container(color: Colors.black),
+                                      // CachedNetworkImage(
+                                      //   fit: BoxFit.cover,
+                                      //   width: double.infinity,
+                                      //   height: double.infinity,
+                                      //   imageUrl:
+                                      //       '${Common.videoUrl}/${videoDetail.image}',
+                                      //   placeholder:
+                                      //       (context, url) => Container(
+                                      //         color: Colors.black,
+                                      //       ),
+                                      // ),
+                                      Center(
+                                        child: PulseLogoLoader(
+                                          logoPath:
+                                          "assets/images/appIcon.png",
+                                          size: 80,
                                         ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
                               ),
                               if (_showIcon &&
                                   isInitialized &&
@@ -379,28 +386,28 @@ class _HashTagReelsState extends State<HashTagReels>
                         ),
                       ),
                       Obx(
-                        () =>
-                            controller.isMuted.value
-                                ? Positioned(
-                                  top: 100,
-                                  right: 20,
-                                  child: InkWell(
-                                    onTap: controller.toggleMute,
-                                    child: Container(
-                                      padding: EdgeInsets.all(8),
-                                      decoration: BoxDecoration(
-                                        color: Colors.black.withOpacity(0.6),
-                                        borderRadius: BorderRadius.circular(20),
-                                      ),
-                                      child: Icon(
-                                        Icons.volume_off,
-                                        color: Colors.white,
-                                        size: 24.sp,
-                                      ),
-                                    ),
-                                  ),
-                                )
-                                : SizedBox(),
+                            () =>
+                        controller.isMuted.value
+                            ? Positioned(
+                          top: 100,
+                          right: 20,
+                          child: InkWell(
+                            onTap: controller.toggleMute,
+                            child: Container(
+                              padding: EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: Colors.black.withOpacity(0.6),
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Icon(
+                                Icons.volume_off,
+                                color: Colors.white,
+                                size: 24.sp,
+                              ),
+                            ),
+                          ),
+                        )
+                            : SizedBox(),
                       ),
                       VideoDescriptionWidget(
                         title: videoDetail.title,
@@ -411,7 +418,7 @@ class _HashTagReelsState extends State<HashTagReels>
                       videoUserDetails(
                         profileController: profileController,
                         professionalProfileController:
-                            professionalProfileController,
+                        professionalProfileController,
                         videoDetail: videoDetail,
                         controller: controller,
                         userId: userId,
@@ -432,7 +439,7 @@ class _HashTagReelsState extends State<HashTagReels>
                                 // Get current user ID
 
                                 final businessId =
-                                    videoDetail.frontUserId.toString();
+                                videoDetail.frontUserId.toString();
 
                                 final firestore = FirebaseFirestore.instance;
                                 final docRef = firestore
@@ -636,15 +643,16 @@ class _HashTagReelsState extends State<HashTagReels>
                         Icon(Icons.location_on_outlined),
                         SizedBox(width: 10),
                         Obx(
-                          () => Text(
-                            controller.currentCountry.value == ""
-                                ? 'Select Country'
-                                : controller.currentCountry.value,
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
+                              () =>
+                              Text(
+                                controller.currentCountry.value == ""
+                                    ? 'Select Country'
+                                    : controller.currentCountry.value,
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
                         ),
                         Spacer(),
                         Icon(Icons.chevron_right_rounded),
@@ -662,15 +670,16 @@ class _HashTagReelsState extends State<HashTagReels>
                         Icon(Icons.location_on_outlined),
                         SizedBox(width: 10),
                         Obx(
-                          () => Text(
-                            controller.currentCity.value == ""
-                                ? 'Select City'
-                                : controller.currentCity.value,
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
+                              () =>
+                              Text(
+                                controller.currentCity.value == ""
+                                    ? 'Select City'
+                                    : controller.currentCity.value,
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
                         ),
                         Spacer(),
                         Icon(Icons.chevron_right_rounded),
@@ -686,9 +695,9 @@ class _HashTagReelsState extends State<HashTagReels>
                       controller.currentCity.value == ""
                           ? null
                           : controller.fetchVideos(
-                            city: controller.currentCity.value,
-                            tag: widget.tag,
-                          );
+                        city: controller.currentCity.value,
+                        tag: widget.tag,
+                      );
                     },
                   ),
                 ],
@@ -707,24 +716,22 @@ class _HashTagReelsState extends State<HashTagReels>
         .collection('reviews')
         .snapshots()
         .map((snapshot) {
-          if (snapshot.docs.isEmpty) return 0.0;
-          double totalRating = 0.0;
-          for (var doc in snapshot.docs) {
-            totalRating += (doc['rating'] as num?)?.toDouble() ?? 0.0;
-          }
+      if (snapshot.docs.isEmpty) return 0.0;
+      double totalRating = 0.0;
+      for (var doc in snapshot.docs) {
+        totalRating += (doc['rating'] as num?)?.toDouble() ?? 0.0;
+      }
 
-          rateVideo(videoId, totalRating / snapshot.docs.length);
-          return totalRating / snapshot.docs.length;
-        });
+      rateVideo(videoId, totalRating / snapshot.docs.length);
+      return totalRating / snapshot.docs.length;
+    });
   }
 
   /// Video widgets with details
-  Positioned videoActions(
-    WallVideos videoDetail,
-    SimpleUser? currentUserDetails,
-    User? currentUser,
-    BuildContext context,
-  ) {
+  Positioned videoActions(WallVideos videoDetail,
+      SimpleUser? currentUserDetails,
+      User? currentUser,
+      BuildContext context,) {
     return Positioned(
       right: 10,
       bottom: Get.height * 0.1,
@@ -747,10 +754,10 @@ class _HashTagReelsState extends State<HashTagReels>
                   ),
                   child: StreamBuilder<DocumentSnapshot>(
                     stream:
-                        FirebaseFirestore.instance
-                            .collection('videos')
-                            .doc(videoDetail.id)
-                            .snapshots(),
+                    FirebaseFirestore.instance
+                        .collection('videos')
+                        .doc(videoDetail.id)
+                        .snapshots(),
                     builder: (context, snapshot) {
                       final data =
                           snapshot.data?.data() as Map<String, dynamic>? ?? {};
@@ -763,26 +770,26 @@ class _HashTagReelsState extends State<HashTagReels>
                       bool isLiked = likes.contains(userId);
 
                       String formattedLikeCount =
-                          likeCount > 1000
-                              ? '${(likeCount / 1000).toStringAsFixed(1)}K'
-                              : likeCount.toString();
+                      likeCount > 1000
+                          ? '${(likeCount / 1000).toStringAsFixed(1)}K'
+                          : likeCount.toString();
 
                       // Fetch the comment count from the comments subcollection
                       return StreamBuilder<QuerySnapshot>(
                         stream:
-                            FirebaseFirestore.instance
-                                .collection('videos')
-                                .doc(videoDetail.id)
-                                .collection('comments')
-                                .snapshots(),
+                        FirebaseFirestore.instance
+                            .collection('videos')
+                            .doc(videoDetail.id)
+                            .collection('comments')
+                            .snapshots(),
                         builder: (context, commentSnapshot) {
                           int commentCount =
                               commentSnapshot.data?.docs.length ??
-                              0; // Count total comments
+                                  0; // Count total comments
                           String formattedCommentCount =
-                              commentCount > 1000
-                                  ? '${(commentCount / 1000).toStringAsFixed(1)}K'
-                                  : commentCount.toString();
+                          commentCount > 1000
+                              ? '${(commentCount / 1000).toStringAsFixed(1)}K'
+                              : commentCount.toString();
 
                           return Column(
                             mainAxisSize: MainAxisSize.min,
@@ -800,17 +807,18 @@ class _HashTagReelsState extends State<HashTagReels>
                                   dotSecondaryColor: Colors.red[200]!,
                                 ),
                                 likeBuilder:
-                                    (bool isLiked) => SvgPicture.asset(
+                                    (bool isLiked) =>
+                                    SvgPicture.asset(
                                       "assets/icons/heart.svg",
                                       height: 24.h,
                                       color:
-                                          isLiked ? Colors.red : Colors.white,
+                                      isLiked ? Colors.red : Colors.white,
                                     ),
                                 onTap: (currentIsLiked) async {
                                   final String videoId = videoDetail.id!;
                                   String userId =
                                       currentUserDetails?.id ??
-                                      currentUser!.id!;
+                                          currentUser!.id!;
                                   HapticFeedback.lightImpact();
 
                                   // Optimistic UI update
@@ -846,11 +854,11 @@ class _HashTagReelsState extends State<HashTagReels>
                                     controller.pauseCurrentVideo();
                                     String? userId =
                                         currentUserDetails?.id ??
-                                        currentUser!.id;
+                                            currentUser!.id;
                                     String? userImage =
                                         currentUserDetails?.image ??
-                                        currentUser?.image ??
-                                        "";
+                                            currentUser?.image ??
+                                            "";
                                     showCommentsBottomSheetNew(
                                       context,
                                       videoDetail.id!,
@@ -937,9 +945,9 @@ class _HashTagReelsState extends State<HashTagReels>
                           stream: _getAverageRating(videoDetail.id!),
                           builder: (context, snapshot) {
                             final averageRating =
-                                snapshot.hasData && snapshot.data! > 0
-                                    ? snapshot.data!.toStringAsFixed(1)
-                                    : "0.0";
+                            snapshot.hasData && snapshot.data! > 0
+                                ? snapshot.data!.toStringAsFixed(1)
+                                : "0.0";
                             return Text(
                               averageRating,
                               style: TextStyle(
@@ -989,7 +997,7 @@ class _HashTagReelsState extends State<HashTagReels>
         Obx(() {
           // Check if video is already saved
           bool isSaved = saveController.savedVideos.any(
-            (video) => video.id.toString() == videoDetail.id,
+                (video) => video.id.toString() == videoDetail.id,
           );
 
           return Column(
@@ -999,8 +1007,8 @@ class _HashTagReelsState extends State<HashTagReels>
                   if (isSaved) {
                     // 1. Immediately remove from local list
                     saveController.savedVideos.removeWhere(
-                      (video) =>
-                          video.id.toString() == videoDetail.id.toString(),
+                          (video) =>
+                      video.id.toString() == videoDetail.id.toString(),
                     );
 
                     // 2. Then hit API
@@ -1067,7 +1075,7 @@ class _HashTagReelsState extends State<HashTagReels>
     _handleScreenExit();
     try {
       final String videoId = videoDetail.id!;
-      final String webUrl = "https://cookster.com/visitSingleVideo?id=$videoId";
+      final String webUrl = "https://cookster.org/visitSingleVideo?id=$videoId";
       final String shareMessage =
           'Check out this amazing video on Cookster!\n$webUrl';
       await Share.share(shareMessage, subject: 'Cookster Video');
@@ -1177,13 +1185,13 @@ class videoUserDetails extends StatelessWidget {
                     professionalProfileController.userDetails.value?.user;
                 bool isProfileNull = currentUser == null;
                 bool isFollowing =
-                    isProfileNull
-                        ? profileController.isFollowing(
-                          videoDetail.frontUserId!,
-                        )
-                        : professionalProfileController.isFollowing(
-                          videoDetail.frontUserId!,
-                        );
+                isProfileNull
+                    ? profileController.isFollowing(
+                  videoDetail.frontUserId!,
+                )
+                    : professionalProfileController.isFollowing(
+                  videoDetail.frontUserId!,
+                );
 
                 return Row(
                   mainAxisSize: MainAxisSize.min, // Adjust width to content
@@ -1207,17 +1215,18 @@ class videoUserDetails extends StatelessWidget {
                             child: CircleAvatar(
                               radius: 16.r,
                               backgroundImage:
-                                  videoDetail.userImage != null &&
-                                          videoDetail.userImage!.isNotEmpty
-                                      ? CachedNetworkImageProvider(
-                                        '${Common.profileImage}/${videoDetail.userImage}',
-                                      )
-                                      : null,
+                              videoDetail.userImage != null &&
+                                  videoDetail.userImage!.isNotEmpty
+                                  ? CachedNetworkImageProvider(
+                                '${Common.profileImage}/${videoDetail
+                                    .userImage}',
+                              )
+                                  : null,
                               child:
-                                  videoDetail.userImage == null ||
-                                          videoDetail.userImage!.isEmpty
-                                      ? Icon(Icons.person, color: Colors.white)
-                                      : null,
+                              videoDetail.userImage == null ||
+                                  videoDetail.userImage!.isEmpty
+                                  ? Icon(Icons.person, color: Colors.white)
+                                  : null,
                             ),
                           ),
                           SizedBox(width: 8),
@@ -1277,7 +1286,7 @@ class videoUserDetails extends StatelessWidget {
                               style: TextStyle(
                                 fontWeight: FontWeight.w500,
                                 color:
-                                    isFollowing ? Colors.black : Colors.white,
+                                isFollowing ? Colors.black : Colors.white,
                               ),
                             ),
                           ),
@@ -1364,10 +1373,10 @@ void showLocationDialog(BuildContext context) {
 
   Map<String, int> countryMap = {};
   List<String> countryName =
-      profileController.videoUploadSettings.value!.countries!.map((country) {
-        countryMap[country.name!] = country.id!;
-        return country.name!;
-      }).toList();
+  profileController.videoUploadSettings.value!.countries!.map((country) {
+    countryMap[country.name!] = country.id!;
+    return country.name!;
+  }).toList();
 
   // Controller for search field
   final TextEditingController searchController = TextEditingController();
@@ -1382,8 +1391,8 @@ void showLocationDialog(BuildContext context) {
           countryName
               .where(
                 (country) =>
-                    country.toLowerCase().contains(query.toLowerCase()),
-              )
+                country.toLowerCase().contains(query.toLowerCase()),
+          )
               .toList();
     }
   }
@@ -1401,6 +1410,7 @@ void showLocationDialog(BuildContext context) {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+
             /// **Header (Title + Close Button)**
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -1455,68 +1465,72 @@ void showLocationDialog(BuildContext context) {
               height: 240.h,
               child: SingleChildScrollView(
                 child: Obx(
-                  () => Column(
-                    children: List.generate(
-                      filteredCountryName.length,
-                      (index) => InkWell(
-                        onTap: () async {
-                          try {
-                            controller.selectLocation(
-                              filteredCountryName[index],
-                              countryMap[filteredCountryName[index]]!,
-                            );
+                      () =>
+                      Column(
+                        children: List.generate(
+                          filteredCountryName.length,
+                              (index) =>
+                              InkWell(
+                                onTap: () async {
+                                  try {
+                                    controller.selectLocation(
+                                      filteredCountryName[index],
+                                      countryMap[filteredCountryName[index]]!,
+                                    );
 
-                            await cityController.fetchCities(
-                              countryMap[filteredCountryName[index]]!,
-                            );
-                            hashtagController.currentCountry.value =
-                                filteredCountryName[index];
-                            Get.back(); // Close the country dialog
-                            showCityDialog(context);
-                          } catch (e) {
-                            print('Error selecting country: $e');
-                            Get.snackbar('Error', 'Failed to load cities');
-                          }
-                        },
-                        child: Padding(
-                          padding: EdgeInsets.symmetric(vertical: 12.h),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text(
-                                filteredCountryName[index],
-                                style: TextStyle(
-                                  fontSize: 13.sp,
-                                  fontWeight:
-                                      controller.selectedCountry.value ==
+                                    await cityController.fetchCities(
+                                      countryMap[filteredCountryName[index]]!,
+                                    );
+                                    hashtagController.currentCountry.value =
+                                    filteredCountryName[index];
+                                    Get.back(); // Close the country dialog
+                                    showCityDialog(context);
+                                  } catch (e) {
+                                    print('Error selecting country: $e');
+                                    Get.snackbar(
+                                        'Error', 'Failed to load cities');
+                                  }
+                                },
+                                child: Padding(
+                                  padding: EdgeInsets.symmetric(vertical: 12.h),
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment
+                                        .spaceBetween,
+                                    children: [
+                                      Text(
+                                        filteredCountryName[index],
+                                        style: TextStyle(
+                                          fontSize: 13.sp,
+                                          fontWeight:
+                                          controller.selectedCountry.value ==
                                               filteredCountryName[index]
-                                          ? FontWeight.bold
-                                          : FontWeight.normal,
-                                  color: Colors.black,
-                                ),
-                              ),
-                              Container(
-                                width: 20.w,
-                                height: 20.w,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  border: Border.all(
-                                    color: ColorUtils.primaryColor,
-                                    width: 2,
+                                              ? FontWeight.bold
+                                              : FontWeight.normal,
+                                          color: Colors.black,
+                                        ),
+                                      ),
+                                      Container(
+                                        width: 20.w,
+                                        height: 20.w,
+                                        decoration: BoxDecoration(
+                                          shape: BoxShape.circle,
+                                          border: Border.all(
+                                            color: ColorUtils.primaryColor,
+                                            width: 2,
+                                          ),
+                                          color:
+                                          controller.selectedCountry.value ==
+                                              filteredCountryName[index]
+                                              ? ColorUtils.primaryColor
+                                              : Colors.white,
+                                        ),
+                                      ),
+                                    ],
                                   ),
-                                  color:
-                                      controller.selectedCountry.value ==
-                                              filteredCountryName[index]
-                                          ? ColorUtils.primaryColor
-                                          : Colors.white,
                                 ),
                               ),
-                            ],
-                          ),
                         ),
                       ),
-                    ),
-                  ),
                 ),
               ),
             ),
@@ -1535,10 +1549,10 @@ void showCityDialog(BuildContext context) {
 
   Map<String, int> cityMap = {};
   List<String> cityName =
-      cityController.cityList.map((city) {
-        cityMap[city.name!] = city.id!;
-        return city.name!;
-      }).toList();
+  cityController.cityList.map((city) {
+    cityMap[city.name!] = city.id!;
+    return city.name!;
+  }).toList();
 
   // Controller for search field
   final TextEditingController searchController = TextEditingController();
@@ -1569,6 +1583,7 @@ void showCityDialog(BuildContext context) {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+
             /// **Header (Title + Close Button)**
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -1623,75 +1638,80 @@ void showCityDialog(BuildContext context) {
               height: 230.h,
               child: SingleChildScrollView(
                 child: Obx(
-                  () => Column(
-                    children: List.generate(
-                      filteredCityName.length,
-                      (index) => InkWell(
-                        onTap: () async {
-                          try {
-                            print(
-                              "Selected City: ${filteredCityName[index]} (ID: ${cityMap[filteredCityName[index]]})",
-                            );
+                      () =>
+                      Column(
+                        children: List.generate(
+                          filteredCityName.length,
+                              (index) =>
+                              InkWell(
+                                onTap: () async {
+                                  try {
+                                    print(
+                                      "Selected City: ${filteredCityName[index]} (ID: ${cityMap[filteredCityName[index]]})",
+                                    );
 
-                            hashtagController.currentCity.value =
-                                filteredCityName[index];
+                                    hashtagController.currentCity.value =
+                                    filteredCityName[index];
 
-                            print(
-                              "Current City: ${hashtagController.currentCity.value}",
-                            );
+                                    print(
+                                      "Current City: ${hashtagController
+                                          .currentCity.value}",
+                                    );
 
-                            // HashtagController.fetchVideos(
-                            //   city: filteredCityName[index],
-                            //   // cityMap[filteredCityName[index]]!,
-                            // );
-                            // await HashtagController.fetchVideos(
-                            //   city: filteredCityName[index],
-                            // );
-                            Get.back(); // Close the city dialog
-                          } catch (e) {
-                            print('Error selecting city: $e');
-                            Get.snackbar('Error', 'Failed to fetch videos');
-                          }
-                        },
-                        child: Padding(
-                          padding: EdgeInsets.symmetric(vertical: 12.h),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text(
-                                filteredCityName[index],
-                                style: TextStyle(
-                                  fontSize: 13.sp,
-                                  fontWeight:
-                                      controller.selectedCity.value ==
+                                    // HashtagController.fetchVideos(
+                                    //   city: filteredCityName[index],
+                                    //   // cityMap[filteredCityName[index]]!,
+                                    // );
+                                    // await HashtagController.fetchVideos(
+                                    //   city: filteredCityName[index],
+                                    // );
+                                    Get.back(); // Close the city dialog
+                                  } catch (e) {
+                                    print('Error selecting city: $e');
+                                    Get.snackbar(
+                                        'Error', 'Failed to fetch videos');
+                                  }
+                                },
+                                child: Padding(
+                                  padding: EdgeInsets.symmetric(vertical: 12.h),
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment
+                                        .spaceBetween,
+                                    children: [
+                                      Text(
+                                        filteredCityName[index],
+                                        style: TextStyle(
+                                          fontSize: 13.sp,
+                                          fontWeight:
+                                          controller.selectedCity.value ==
                                               filteredCityName[index]
-                                          ? FontWeight.bold
-                                          : FontWeight.normal,
-                                  color: Colors.black,
-                                ),
-                              ),
-                              Container(
-                                width: 20.w,
-                                height: 20.w,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  border: Border.all(
-                                    color: ColorUtils.primaryColor,
-                                    width: 2,
+                                              ? FontWeight.bold
+                                              : FontWeight.normal,
+                                          color: Colors.black,
+                                        ),
+                                      ),
+                                      Container(
+                                        width: 20.w,
+                                        height: 20.w,
+                                        decoration: BoxDecoration(
+                                          shape: BoxShape.circle,
+                                          border: Border.all(
+                                            color: ColorUtils.primaryColor,
+                                            width: 2,
+                                          ),
+                                          color:
+                                          controller.selectedCity.value ==
+                                              filteredCityName[index]
+                                              ? ColorUtils.primaryColor
+                                              : Colors.white,
+                                        ),
+                                      ),
+                                    ],
                                   ),
-                                  color:
-                                      controller.selectedCity.value ==
-                                              filteredCityName[index]
-                                          ? ColorUtils.primaryColor
-                                          : Colors.white,
                                 ),
                               ),
-                            ],
-                          ),
                         ),
                       ),
-                    ),
-                  ),
                 ),
               ),
             ),

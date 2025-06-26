@@ -303,27 +303,30 @@ class _LandingState extends State<Landing> {
 
   @override
   Widget build(BuildContext context) {
-    appLinks.getInitialLink().then((uri) async {
-      bool isAuthenticated = await _isUserAuthenticated();
-      if (uri != null) {
-        final videoId = uri.queryParameters['id'];
-        if (videoId != null) {
-          log('Initial deep link with video ID: $videoId');
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            isAuthenticated
-                ? Get.to(
-                  () => SingleVisitVideo(videoId: videoId),
-                  arguments: videoId,
-                )
-                : Get.to(AppRoutes.signIn);
-          });
-        }
-      }
-    });
+    // appLinks.getInitialLink().then((uri) async {
+    //   bool isAuthenticated = await _isUserAuthenticated();
+    //   if (uri != null) {
+    //     final videoId = uri.queryParameters['id'];
+    //     if (videoId != null) {
+    //       log('Initial deep link with video ID: $videoId');
+    //       WidgetsBinding.instance.addPostFrameCallback((_) {
+    //         isAuthenticated
+    //             ? Get.to(
+    //               () => SingleVisitVideo(
+    //                 videoId: videoId,
+    //                 key: UniqueKey(), // ✅ Important
+    //               ),
+    //               arguments: videoId,
+    //             )
+    //             : Get.to(AppRoutes.signIn);
+    //       });
+    //     }
+    //   }
+    // });
 
     // Handle deep links while app is running
-    appLinks.uriLinkStream.listen(
-      (uri) async {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      appLinks.uriLinkStream.listen((uri) async {
         final videoId = uri.queryParameters['id'];
         if (videoId != null && videoId.isNotEmpty) {
           bool isAuthenticated = await _isUserAuthenticated();
@@ -331,7 +334,10 @@ class _LandingState extends State<Landing> {
           log('Stream deep link with video ID: $videoId');
           isAuthenticated
               ? Get.to(
-                () => SingleVisitVideo(videoId: videoId),
+                () => SingleVisitVideo(
+                  key: UniqueKey(), // ✅ Important
+                  videoId: videoId,
+                ),
                 arguments: videoId,
               )
               : Get.toNamed(AppRoutes.signIn);
@@ -343,16 +349,9 @@ class _LandingState extends State<Landing> {
             snackPosition: SnackPosition.BOTTOM,
           );
         }
-      },
-      onError: (error) {
-        log('Deep link stream error: $error');
-        Get.snackbar(
-          'Error',
-          'Invalid deep link',
-          snackPosition: SnackPosition.BOTTOM,
-        );
-      },
-    );
+      });
+    });
+
     return Obx(() {
       RxBool isExpired = RxBool(false);
       final subscriptionEndDate =

@@ -17,39 +17,32 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import 'appRoutes/appRoutes.dart';
 import 'locale/localizationServices.dart';
 import 'modules/landing/landingController/landingController.dart';
+import 'modules/singleVideoVisit/singleVideoVisit.dart';
 
 final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
     FlutterLocalNotificationsPlugin();
 
 Future<void> requestNotificationPermission() async {
-  // Check if the platform is Android 13+ (API 33+)
   if (Platform.isAndroid) {
     final status = await Permission.notification.status;
     if (!status.isGranted) {
-      // Request permission if not already granted
       await Permission.notification.request();
     }
   }
 }
 
 Future<void> requestLocationPermission() async {
-  // Check location permission status
   final status = await Permission.location.status;
 
   if (!status.isGranted) {
-    // Request location permission if not granted
     final result = await Permission.location.request();
 
     if (result.isPermanentlyDenied) {
-      // Inform user to enable permission from settings
       print(
         "Location permission permanently denied. Please enable it in settings.",
       );
-      // Optionally, show a dialog or snackbar to guide the user
-      // await openAppSettings(); // Uncomment to open settings
     } else if (result.isDenied) {
       print("Location permission denied.");
-      // Optionally, retry or inform the user
     } else if (result.isGranted) {
       print("Location permission granted.");
     }
@@ -76,7 +69,6 @@ void main() async {
 
   await setupFirebaseMessaging();
 
-  // Lock screen rotation to portrait mode
   SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
     DeviceOrientation.portraitDown,
@@ -85,13 +77,11 @@ void main() async {
   SharedPreferences prefs = await SharedPreferences.getInstance();
   String? savedLang = prefs.getString('selectedLanguage');
 
-  // Set default locale based on saved preference or English
   Locale initialLocale =
       savedLang == "Arabic"
           ? LocalizationService.arabic
           : LocalizationService.english;
 
-  // Check internet connection
   List<ConnectivityResult> connectivityResult =
       await Connectivity().checkConnectivity();
   bool hasInternet = connectivityResult != ConnectivityResult.none;
@@ -100,16 +90,6 @@ void main() async {
 }
 
 Future<void> setupFirebaseMessaging() async {
-  // FirebaseMessaging messaging = FirebaseMessaging.instance;
-
-  // Request notification permissions
-  // NotificationSettings settings = await messaging.requestPermission(
-  //   alert: true,
-  //   badge: true,
-  //   sound: true,
-  // );
-
-  // Initialize notifications
   setupNotifications();
 }
 
@@ -128,22 +108,156 @@ class MyApp extends StatefulWidget {
 }
 
 class _MyAppState extends State<MyApp> {
-  final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
+  // Remove the navigator key completely - GetX handles navigation
   late final AppLinks _appLinks;
   bool _handlingDeepLink = false;
   bool _wasOnNoInternetScreen = false;
   String? _lastRouteBeforeNoInternet;
+  String? _pendingDeepLinkRoute;
+  bool _initialRouteSet = false;
 
   @override
   void initState() {
     super.initState();
-    _listenForConnectivity();
+    _appLinks = AppLinks();
 
-    // Track if we're starting with no internet
+    _listenForConnectivity();
+    _initializeDeepLinking();
+
     _wasOnNoInternetScreen = !widget.hasInternet;
+    _initialRouteSet = true;
   }
 
-  /// **🔹 Listen for Internet Connectivity Changes**
+  /// Initialize deep linking
+  void _initializeDeepLinking() {
+    // Handle initial deep link (when app is launched from terminated state)
+    _appLinks
+        .getInitialLink()
+        .then((uri) {
+          if (uri != null) {
+            print('🔗 Initial deep link: $uri');
+            _handleDeepLink(uri);
+          }
+        })
+        .catchError((err) {
+          print('❌ Initial deep link error: $err');
+        });
+
+    // Handle deep links when app is already running
+    _appLinks.uriLinkStream.listen(
+      (uri) {
+        print('🔗 Stream deep link: $uri');
+        _handleDeepLink(uri);
+      },
+      onError: (err) {
+        print('❌ Deep link stream error: $err');
+      },
+    );
+  }
+
+  /// Handle deep link navigation
+  Future<void> _handleDeepLink(Uri uri) async {
+    try {
+      _handlingDeepLink = true;
+
+      final videoId = uri.queryParameters['id'];
+      if (videoId != null && videoId.isNotEmpty) {
+        print('🎥 Processing video ID: $videoId');
+
+        bool isAuthenticated = await _isUserAuthenticated();
+
+        // Wait for GetX to be initialized
+        await _waitForGetXInitialization();
+
+        // Check if already on the target route to avoid duplicate navigation
+        if (Get.currentRoute == AppRoutes.landing ||
+            Get.currentRoute == AppRoutes.signIn) {
+          print('Already on ${Get.currentRoute}, skipping navigation');
+          return;
+        }
+
+        if (isAuthenticated) {
+          // Navigate to landing only if not already there
+          if (Get.currentRoute != AppRoutes.landing) {
+            Get.offAllNamed(AppRoutes.landing);
+          }
+
+          // Small delay to ensure landing screen is loaded
+          await Future.delayed(const Duration(milliseconds: 300));
+
+          // Navigate to video only if not already there
+          if (Get.currentRoute != '/SingleVisitVideo') {
+            Get.to(
+              () => SingleVisitVideo(videoId: videoId),
+              arguments: videoId,
+              preventDuplicates: true,
+            );
+          }
+        } else {
+          // Navigate to sign-in only if not already there
+          if (Get.currentRoute != AppRoutes.signIn) {
+            Get.offAllNamed(
+              AppRoutes.signIn,
+              arguments: {'deepLinkVideoId': videoId},
+            );
+          }
+        }
+      } else {
+        print('❌ Invalid or missing video ID in deep link');
+        await _waitForGetXInitialization();
+        _showErrorSnackbar('Invalid video ID in deep link');
+      }
+    } catch (e) {
+      print('❌ Deep link handling error: $e');
+      await _waitForGetXInitialization();
+      _showErrorSnackbar('Error processing deep link');
+    } finally {
+      _handlingDeepLink = false;
+    }
+  }
+
+  /// Wait for GetX to be properly initialized
+  Future<void> _waitForGetXInitialization() async {
+    int attempts = 0;
+    while (Get.context == null && attempts < 50) {
+      await Future.delayed(const Duration(milliseconds: 100));
+      attempts++;
+    }
+
+    if (Get.context == null) {
+      print('⚠️ GetX context still null after waiting');
+    }
+  }
+
+  /// Check if user is authenticated
+  Future<bool> _isUserAuthenticated() async {
+    try {
+      // Add your authentication check logic here
+      SharedPreferences prefs = await SharedPreferences.getInstance();
+      String? token = prefs.getString('auth_token');
+      return token != null && token.isNotEmpty;
+    } catch (e) {
+      print('Authentication check error: $e');
+      return false;
+    }
+  }
+
+  /// Show error snackbar
+  void _showErrorSnackbar(String message) {
+    if (Get.context != null) {
+      Get.snackbar(
+        'Error',
+        message,
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: Colors.red.shade400,
+        colorText: Colors.white,
+      );
+    } else {
+      print('⚠️ Cannot show snackbar - GetX context is null');
+    }
+  }
+
+  /// Listen for Internet Connectivity Changes
   void _listenForConnectivity() {
     Connectivity().onConnectivityChanged.listen((
       List<ConnectivityResult> results,
@@ -152,7 +266,6 @@ class _MyAppState extends State<MyApp> {
         (result) => result != ConnectivityResult.none,
       );
 
-      // Only handle connectivity navigation if we're not handling a deep link
       if (!_handlingDeepLink) {
         if (hasInternet) {
           print("✅ Internet is connected");
@@ -165,29 +278,38 @@ class _MyAppState extends State<MyApp> {
     });
   }
 
-  /// **🔹 Handle Internet Connection Restored**
+  /// Handle Internet Connection Restored
   void _handleInternetRestored() {
     if (_wasOnNoInternetScreen) {
-      // If we were on no internet screen, decide where to go
       if (_lastRouteBeforeNoInternet != null &&
           _lastRouteBeforeNoInternet != AppRoutes.splash &&
-          _lastRouteBeforeNoInternet != AppRoutes.noInternet) {
-        // Resume from where user was before losing internet
+          _lastRouteBeforeNoInternet != AppRoutes.noInternet &&
+          Get.currentRoute != _lastRouteBeforeNoInternet) {
         print("Resuming to: $_lastRouteBeforeNoInternet");
         Get.offAllNamed(_lastRouteBeforeNoInternet!);
-      } else {
-        // Go to splash if no previous route or if it was splash
+      } else if (Get.currentRoute != AppRoutes.splash) {
         Get.offAllNamed(AppRoutes.splash);
       }
       _wasOnNoInternetScreen = false;
+
+      // Handle pending deep link if exists
+      if (_pendingDeepLinkRoute != null) {
+        Future.delayed(const Duration(milliseconds: 500), () {
+          if (Get.currentRoute != '/SingleVisitVideo') {
+            Get.to(
+              () => SingleVisitVideo(videoId: _pendingDeepLinkRoute!),
+              arguments: _pendingDeepLinkRoute,
+              preventDuplicates: true,
+            );
+          }
+          _pendingDeepLinkRoute = null;
+        });
+      }
     }
-    // If we weren't on no internet screen, don't navigate automatically
-    // Let the user continue where they were
   }
 
-  /// **🔹 Handle Internet Connection Lost**
+  /// Handle Internet Connection Lost
   void _handleInternetLost() {
-    // Save current route before going to no internet screen
     String? currentRoute = Get.currentRoute;
     if (currentRoute != AppRoutes.noInternet &&
         currentRoute != AppRoutes.splash) {
@@ -196,7 +318,6 @@ class _MyAppState extends State<MyApp> {
 
     _wasOnNoInternetScreen = true;
 
-    // Pass the saved route to NoInternetScreen
     Get.offAllNamed(
       AppRoutes.noInternet,
       arguments: {'savedRoute': _lastRouteBeforeNoInternet},
@@ -204,14 +325,17 @@ class _MyAppState extends State<MyApp> {
   }
 
   @override
+  void dispose() {
+    // Clean up resources
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     String deviceLanguage = Platform.localeName;
-    print("PRINTING THE DEVICE LANGUAGE: ${deviceLanguage}");
+    print("PRINTING THE DEVICE LANGUAGE: $deviceLanguage");
 
     // Initialize controllers only once
-    // if (!Get.isRegistered<SignUpController>()) {
-    //   Get.put(SignUpController(), permanent: true);
-    // }
     if (!Get.isRegistered<NavBarController>()) {
       Get.put(NavBarController(), permanent: true);
     }
@@ -223,7 +347,7 @@ class _MyAppState extends State<MyApp> {
       builder: (context, child) {
         return GetMaterialApp(
           debugShowCheckedModeBanner: false,
-          navigatorKey: _navigatorKey, // Assign unique key
+          // Remove navigatorKey - GetX manages its own navigation
           title: 'Cookster',
           translations: LocalizationService(),
           locale: widget.initialLocale,
@@ -237,25 +361,21 @@ class _MyAppState extends State<MyApp> {
               seedColor: ColorUtils.primaryColor,
             ),
           ),
-          // Track route changes to help with connectivity handling
-          navigatorObservers: [
-            GetObserver((routing) {
-              if (routing?.current != null) {
-                print("Navigated to: ${routing!.current}");
-                // Update last route if it's not a connectivity-related route
-                if (routing.current != AppRoutes.noInternet &&
-                    routing.current != AppRoutes.splash) {
-                  _lastRouteBeforeNoInternet = routing.current;
-                }
-              }
-            }),
-          ],
+          // navigatorObservers: [
+          //   GetObserver((routing) {
+          //     if (routing?.current != null) {
+          //       print(
+          //         "Navigated to: ${routing!.current} (Previous: ${routing.previous}, Args: ${routing.args})",
+          //       );
+          //       if (routing.current != AppRoutes.noInternet &&
+          //           routing.current != AppRoutes.splash) {
+          //         _lastRouteBeforeNoInternet = routing.current;
+          //       }
+          //     }
+          //   }),
+          // ],
           initialRoute:
-              _handlingDeepLink
-                  ? null
-                  : (widget.hasInternet
-                      ? AppRoutes.splash
-                      : AppRoutes.noInternet),
+              widget.hasInternet ? AppRoutes.splash : AppRoutes.noInternet,
           getPages: AppRoutes.pages,
           builder: (context, child) {
             return MediaQuery(
