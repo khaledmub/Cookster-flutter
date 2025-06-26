@@ -2,6 +2,22 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
   <dict>
+    <!-- Custom URL scheme for Cookster -->
+    <key>CFBundleURLTypes</key>
+    <array>
+      <dict>
+        <!-- Custom scheme -->
+        <key>CFBundleURLSchemes</key>
+        <array>
+          <string>cookster</string>
+        </array>
+        <!-- Identifier to distinguish the app -->
+        <key>CFBundleURLName</key>
+        <string>com.cookster.cooksterapp</string>
+      </dict>
+    </array>
+    <!-- END Custom URL scheme -->
+
     <!-- Permission Descriptions -->
     <key>NSCameraUsageDescription</key>
     <string>This app requires camera access to take photos</string>
@@ -77,5 +93,7 @@
     <true/>
     <key>UIApplicationSupportsIndirectInputEvents</key>
     <true/>
+    <key>FlutterDeepLinkingEnabled</key>
+    <false/>
   </dict>
 </plist>
