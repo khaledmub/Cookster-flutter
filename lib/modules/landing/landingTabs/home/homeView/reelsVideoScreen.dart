@@ -609,7 +609,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                               ),
                               if (_showIcon &&
                                   isInitialized &&
-                                  index == controller.visiblePageIndex.value)
+                                  index == controller.currentIndex.value)
                                 Center(
                                   child: Container(
                                     decoration: BoxDecoration(
@@ -626,7 +626,6 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                                     ),
                                   ),
                                 ),
-
                               if (videoDetail.isImage == 0 && isInitialized)
                                 Positioned(
                                   bottom: Platform.isAndroid ? 70 : 100,
