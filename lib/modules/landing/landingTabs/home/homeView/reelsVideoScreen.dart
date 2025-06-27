@@ -263,7 +263,9 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                     padding: const EdgeInsets.symmetric(horizontal: 16.0),
                     child: InkWell(
                       onTap: () {
-                        Get.to(JoinScreen());
+                        isAuthenticated
+                            ? Get.to(JoinScreen())
+                            : Get.toNamed(AppRoutes.signIn);
                       },
                       child: SvgPicture.asset(
                         "assets/icons/live.svg",
@@ -742,7 +744,22 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                   );
                 },
               ),
-
+              SafeArea(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                  child: InkWell(
+                    onTap: () {
+                      isAuthenticated
+                          ? Get.to(JoinScreen())
+                          : Get.toNamed(AppRoutes.signIn);
+                    },
+                    child: SvgPicture.asset(
+                      "assets/icons/live.svg",
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ),
               Align(
                 alignment: Alignment.topCenter,
                 child: Obx(

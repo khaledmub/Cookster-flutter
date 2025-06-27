@@ -56,14 +56,16 @@ class _ILSScreenState extends State<ILSScreen> {
       if (widget.mode == Mode.SEND_AND_RECV) {
         _room.localParticipant.pin();
       }
-      // Increment joined users count in Firestore for local participant
+
+      // Only increment joinedUsersCount ONCE for local participant
       FirebaseFirestore.instance
           .collection('liveVideos')
           .doc(widget.liveStreamId)
           .update({'joinedUsersCount': FieldValue.increment(1)})
           .catchError((e) {
-            debugPrint('Error updating joinedUsersCount on join: $e');
-          });
+        debugPrint('Error updating joinedUsersCount on local join: $e');
+      });
+
       setState(() {
         localParticipantMode = _room.localParticipant.mode;
         isJoined = true;
@@ -71,48 +73,53 @@ class _ILSScreenState extends State<ILSScreen> {
     });
 
     _room.on(Events.participantJoined, (Participant participant) {
-      // Increment joined users count in Firestore for remote participant
-      FirebaseFirestore.instance
-          .collection('liveVideos')
-          .doc(widget.liveStreamId)
-          .update({'joinedUsersCount': FieldValue.increment(1)})
-          .catchError((e) {
-            debugPrint(
-              'Error updating joinedUsersCount on participant join: $e',
-            );
-          });
+      // ✅ Check: Don't count local participant again
+      if (participant.id != _room.localParticipant.id) {
+        FirebaseFirestore.instance
+            .collection('liveVideos')
+            .doc(widget.liveStreamId)
+            .update({'joinedUsersCount': FieldValue.increment(1)})
+            .catchError((e) {
+          debugPrint(
+            'Error updating joinedUsersCount on participant join: $e',
+          );
+        });
+      }
     });
 
     _room.on(Events.participantLeft, (String participantId) {
-      // Decrement joined users count in Firestore for remote participant
-      FirebaseFirestore.instance
-          .collection('liveVideos')
-          .doc(widget.liveStreamId)
-          .update({'joinedUsersCount': FieldValue.increment(-1)})
-          .catchError((e) {
-            debugPrint(
-              'Error updating joinedUsersCount on participant leave: $e',
-            );
-          });
+      // ✅ Check: Don't decrement for local (will be handled on roomLeft)
+      if (participantId != _room.localParticipant.id) {
+        FirebaseFirestore.instance
+            .collection('liveVideos')
+            .doc(widget.liveStreamId)
+            .update({'joinedUsersCount': FieldValue.increment(-1)})
+            .catchError((e) {
+          debugPrint(
+            'Error updating joinedUsersCount on participant leave: $e',
+          );
+        });
+      }
     });
 
-    // Handling navigation when livestream is left
     _room.on(Events.roomLeft, () {
-      // Decrement joined users count in Firestore for local participant
+      // Decrement joinedUsersCount when local leaves
       FirebaseFirestore.instance
           .collection('liveVideos')
           .doc(widget.liveStreamId)
           .update({'joinedUsersCount': FieldValue.increment(-1)})
           .catchError((e) {
-            debugPrint('Error updating joinedUsersCount on room leave: $e');
-          });
+        debugPrint('Error updating joinedUsersCount on room leave: $e');
+      });
+
       Navigator.pushAndRemoveUntil(
         context,
         MaterialPageRoute(builder: (context) => JoinScreen()),
-        (route) => false, // Removes all previous routes
+            (route) => false,
       );
     });
   }
+
 
   // On back button pressed, leave the room
   Future<bool> _onWillPop() async {

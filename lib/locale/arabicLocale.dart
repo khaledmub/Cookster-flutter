@@ -427,6 +427,7 @@ const Map<String, String> ar = {
   "go_live_and_share_your_moments": "ابدأ البث وشارك لحظاتك",
   "live_now": "يتم البث الآن",
   "live": "مباشر",
+  "livec": "مباشر",
   "no_live_stream": "لا يوجد بث مباشر",
   "be_the_first_to_go_live": "كن أول من يبدأ البث المباشر!",
   "creating_livestream": "جارٍ إنشاء البث المباشر...",
@@ -435,5 +436,6 @@ const Map<String, String> ar = {
   "leave": "مغادرة",
   "live_comments": "تعليقات البث المباشر",
   "are_you_sure_end_livestream": "هل أنت متأكد أنك تريد إنهاء البث المباشر للجميع؟",
-  "end_livestream": "إنهاء البث المباشر"
+  "end_livestream": "إنهاء البث المباشر",
+  "join": "انضم"
 };

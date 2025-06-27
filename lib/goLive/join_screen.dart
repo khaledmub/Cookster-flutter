@@ -632,7 +632,7 @@ class _JoinScreenState extends State<JoinScreen> {
                                 ),
                                 const SizedBox(width: 4),
                                 Text(
-                                  'LIVE',
+                                  'livec'.tr,
                                   style: TextStyle(
                                     color: ColorUtils.primaryColor,
                                     fontSize: 10,
@@ -665,8 +665,8 @@ class _JoinScreenState extends State<JoinScreen> {
                     color: ColorUtils.primaryColor,
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  child: const Text(
-                    'Join',
+                  child:  Text(
+                    'join'.tr,
                     style: TextStyle(
                       color: Colors.white,
                       fontSize: 14,

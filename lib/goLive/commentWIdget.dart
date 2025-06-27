@@ -203,7 +203,7 @@ class _CommentWidgetState extends State<CommentWidget>
                             ),
                           ),
                           child:  Text(
-                            'LIVE'.tr,
+                            'livec'.tr,
                             style: TextStyle(
                               color: Colors.red,
                               fontSize: 12,

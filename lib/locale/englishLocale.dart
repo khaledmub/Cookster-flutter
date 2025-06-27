@@ -433,6 +433,7 @@ const Map<String, String> en = {
   "go_live_and_share_your_moments": "Go live and share your moments",
   "live_now": "Live now",
   "live": "Live",
+  "livec": "LIVE",
   "no_live_stream": "No live stream",
   "be_the_first_to_go_live": "Be the first to go live!",
   "creating_livestream": "Creating Livestream...",
@@ -441,5 +442,6 @@ const Map<String, String> en = {
   "leave": "Leave",
   "live_comments": "Live Comments",
   "are_you_sure_end_livestream": "Are you sure you want to end the livestream for everyone?",
-  "end_livestream": "End Livestream"
+  "end_livestream": "End Livestream",
+  "join": "Join"
 };
