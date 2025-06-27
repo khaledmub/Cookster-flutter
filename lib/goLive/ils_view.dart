@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:get/get.dart';
 import 'package:videosdk/videosdk.dart';
 import 'api_call.dart';
 import 'commentWIdget.dart';
@@ -60,17 +61,6 @@ class _ILSViewState extends State<ILSView> {
 
   // Method to check if current user is host
   bool _checkIfUserIsHost() {
-    // Option 1: Check if local participant is in SEND_AND_RECV mode initially
-    // return widget.mode == Mode.SEND_AND_RECV;
-
-    // Option 2: Check if local participant is the first one (room creator)
-    // You can implement your own logic here based on your app requirements
-    // For example, if you pass host info from previous screen or API
-
-    // Option 3: Check if local participant has specific properties
-    // return widget.room.localParticipant.isHost; // if such property exists
-
-    // For now, assuming SEND_AND_RECV mode participants are hosts
     return widget.mode == Mode.SEND_AND_RECV;
   }
 
@@ -93,11 +83,163 @@ class _ILSViewState extends State<ILSView> {
                   child: Row(
                     // mainAxisAlignment: MainAxisAlignment.end,
                     children: [
-                      CircleAvatar(),
-                      SizedBox(width: 8),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [Text("Sachal Abdullah"), Text("350K Likes")],
+                      StreamBuilder<DocumentSnapshot>(
+                        stream:
+                            FirebaseFirestore.instance
+                                .collection('liveVideos')
+                                .doc(widget.roomId)
+                                .snapshots(),
+                        builder: (context, snapshot) {
+                          if (!snapshot.hasData || snapshot.data == null) {
+                            return const Padding(
+                              padding: EdgeInsets.all(8.0),
+                              child: Text(
+                                'Loading...',
+                                style: TextStyle(color: Colors.white),
+                              ),
+                            );
+                          }
+
+                          final data =
+                              snapshot.data!.data() as Map<String, dynamic>?;
+                          final int count = data?['joinedUsersCount'] ?? 0;
+                          final String userId = data?['userId'] ?? '';
+
+                          return FutureBuilder<DocumentSnapshot>(
+                            future:
+                                FirebaseFirestore.instance
+                                    .collection('users')
+                                    .doc(userId)
+                                    .get(),
+                            builder: (context, userSnapshot) {
+                              if (!userSnapshot.hasData) {
+                                return const Padding(
+                                  padding: EdgeInsets.all(8.0),
+                                  child: Text(
+                                    'Loading user...',
+                                    style: TextStyle(color: Colors.white),
+                                  ),
+                                );
+                              }
+
+                              if (userSnapshot.hasError) {
+                                return const Padding(
+                                  padding: EdgeInsets.all(8.0),
+                                  child: Text(
+                                    'Error loading user',
+                                    style: TextStyle(color: Colors.white),
+                                  ),
+                                );
+                              }
+
+                              final userData =
+                                  userSnapshot.data!.data()
+                                      as Map<String, dynamic>?;
+                              final userName =
+                                  userData?['name'] ?? 'Unknown User';
+                              final userImage =
+                                  userData?['image'] ??
+                                  'https://via.placeholder.com/40/FF6B6B/FFFFFF?text=U';
+
+                              return Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 4,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.black.withOpacity(0.3),
+                                  borderRadius: BorderRadius.circular(18),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    // User Image
+                                    Container(
+                                      width: 24,
+                                      // Smaller size for compact layout
+                                      height: 24,
+                                      decoration: BoxDecoration(
+                                        shape: BoxShape.circle,
+                                        color: Colors.grey[700],
+                                        image:
+                                            userImage.isNotEmpty
+                                                ? DecorationImage(
+                                                  image: NetworkImage(
+                                                    userImage,
+                                                  ),
+                                                  fit: BoxFit.cover,
+                                                  onError: (
+                                                    exception,
+                                                    stackTrace,
+                                                  ) {
+                                                    // Optional: Log error
+                                                    print(
+                                                      'Image load error: $exception',
+                                                    );
+                                                  },
+                                                )
+                                                : null,
+                                      ),
+                                      child:
+                                          userImage.isEmpty
+                                              ? const Icon(
+                                                Icons.person,
+                                                color: Colors.white,
+                                                size: 24,
+                                              )
+                                              : ClipOval(
+                                                child: Image.network(
+                                                  userImage,
+                                                  fit: BoxFit.cover,
+                                                  width: 24,
+                                                  height: 24,
+                                                  errorBuilder: (
+                                                    context,
+                                                    error,
+                                                    stackTrace,
+                                                  ) {
+                                                    return const Icon(
+                                                      Icons.person,
+                                                      color: Colors.white,
+                                                      size: 24,
+                                                    );
+                                                  },
+                                                ),
+                                              ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    // User Name and Likes Count
+                                    Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          userName,
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                        Row(
+                                          children: [
+                                            Text(
+                                              'Likes $count',
+                                              style: const TextStyle(
+                                                color: Colors.white,
+                                                fontSize: 12,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
+                          );
+                        },
                       ),
                       Spacer(),
                       // Host gets "End" button, others get "Leave" button
@@ -116,7 +258,10 @@ class _ILSViewState extends State<ILSView> {
                             vertical: 2,
                           ),
                         ),
-                        child: Text(isHost ? "End" : "Leave"),
+                        child: Text(
+                          isHost ? "End" : "Leave",
+                          style: TextStyle(color: Colors.white),
+                        ),
                       ),
 
                       SizedBox(width: 8),
