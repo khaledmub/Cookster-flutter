@@ -339,17 +339,17 @@ class _ILSViewState extends State<ILSView> {
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: const Text("End Livestream"),
-          content: const Text(
-            "Are you sure you want to end the livestream for everyone?",
+          title:  Text("end_livestream".tr),
+          content:  Text(
+            "are_you_sure_end_livestream".tr,
           ),
           actions: [
             TextButton(
-              child: const Text("Cancel"),
+              child:  Text("cancel".tr),
               onPressed: () => Navigator.of(context).pop(),
             ),
             TextButton(
-              child: const Text("End"),
+              child:  Text("end".tr),
               onPressed: () {
                 Navigator.of(context).pop();
                 // End the entire meeting/livestream

@@ -439,5 +439,7 @@ const Map<String, String> en = {
   "please_wait_while_we_set_up_your_stream": "Please wait while we set up your stream",
   "end": "End",
   "leave": "Leave",
-  "live_comments": "Live Comments"
+  "live_comments": "Live Comments",
+  "are_you_sure_end_livestream": "Are you sure you want to end the livestream for everyone?",
+  "end_livestream": "End Livestream"
 };

@@ -134,25 +134,26 @@ class _ILSScreenState extends State<ILSScreen> {
       child: Scaffold(
         backgroundColor: Colors.black,
         // Showing the Host or Audience View based on the mode
-        body: isJoined
-            ? Column(
-                children: [
-                  Expanded(
-                    child: ILSView(
-                      room: _room,
-                      liveStreamId: widget.liveStreamId,
-                      bar: false,
-                      mode: widget.mode,
-                      roomId: widget.liveStreamId,
+        body:
+            isJoined
+                ? Column(
+                  children: [
+                    Expanded(
+                      child: ILSView(
+                        room: _room,
+                        liveStreamId: widget.liveStreamId,
+                        bar: false,
+                        mode: widget.mode,
+                        roomId: widget.liveStreamId,
+                      ),
                     ),
-                  ),
 
-                  // Display joined users count in real-time
-                ],
-              )
-            : const Center(
-                child:PulseLogoLoader(logoPath: "assets/images/appLogo.png")
-              ),
+                    // Display joined users count in real-time
+                  ],
+                )
+                : const Center(
+                  child: PulseLogoLoader(logoPath: "assets/images/appLogo.png"),
+                ),
       ),
     );
   }

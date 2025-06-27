@@ -433,5 +433,7 @@ const Map<String, String> ar = {
   "please_wait_while_we_set_up_your_stream": "يرجى الانتظار أثناء إعداد البث الخاص بك",
   "end": "إنهاء",
   "leave": "مغادرة",
-  "live_comments": "تعليقات البث المباشر"
+  "live_comments": "تعليقات البث المباشر",
+  "are_you_sure_end_livestream": "هل أنت متأكد أنك تريد إنهاء البث المباشر للجميع؟",
+  "end_livestream": "إنهاء البث المباشر"
 };
