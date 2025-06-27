@@ -317,7 +317,7 @@ class _SignVpViewState extends State<SignVpView> {
                                       SizedBox(height: 10),
 
                                       Text(
-                                        "select your account type".tr,
+                                        "select_your_account_type".tr,
                                         style: TextStyle(
                                           color: ColorUtils.darkBrown,
                                           fontWeight: FontWeight.w500,
@@ -689,18 +689,18 @@ class _SignVpViewState extends State<SignVpView> {
                                                   crossAxisAlignment:
                                                       CrossAxisAlignment.start,
                                                   children: [
-                                                    Text(
-                                                      "select-business-type".tr,
-                                                      style: TextStyle(
-                                                        color:
-                                                            ColorUtils
-                                                                .darkBrown,
-                                                        fontWeight:
-                                                            FontWeight.w500,
-                                                        fontSize: 16.sp,
-                                                      ),
-                                                    ),
-                                                    SizedBox(height: 10),
+                                                    // Text(
+                                                    //   "select-business-type".tr,
+                                                    //   style: TextStyle(
+                                                    //     color:
+                                                    //         ColorUtils
+                                                    //             .darkBrown,
+                                                    //     fontWeight:
+                                                    //         FontWeight.w500,
+                                                    //     fontSize: 16.sp,
+                                                    //   ),
+                                                    // ),
+                                                    // SizedBox(height: 10),
                                                     // spacing fix
                                                     DropdownFlutter<String>.new(
                                                       validator: (value) {
@@ -823,15 +823,15 @@ class _SignVpViewState extends State<SignVpView> {
                                         crossAxisAlignment:
                                             CrossAxisAlignment.start,
                                         children: [
-                                          Text(
-                                            "Select your country".tr,
-                                            style: TextStyle(
-                                              color: ColorUtils.darkBrown,
-                                              fontWeight: FontWeight.w500,
-                                              fontSize: 16.sp,
-                                            ),
-                                          ),
-                                          SizedBox(height: 10),
+                                          // Text(
+                                          //   "Select your country".tr,
+                                          //   style: TextStyle(
+                                          //     color: ColorUtils.darkBrown,
+                                          //     fontWeight: FontWeight.w500,
+                                          //     fontSize: 16.sp,
+                                          //   ),
+                                          // ),
+                                          // SizedBox(height: 10),
                                           InkWell(
                                             onTap:
                                                 () =>
@@ -952,15 +952,15 @@ class _SignVpViewState extends State<SignVpView> {
                                         crossAxisAlignment:
                                             CrossAxisAlignment.start,
                                         children: [
-                                          Text(
-                                            "Select your city".tr,
-                                            style: TextStyle(
-                                              color: ColorUtils.darkBrown,
-                                              fontWeight: FontWeight.w500,
-                                              fontSize: 16.sp,
-                                            ),
-                                          ),
-                                          SizedBox(height: 10),
+                                          // Text(
+                                          //   "Select your city".tr,
+                                          //   style: TextStyle(
+                                          //     color: ColorUtils.darkBrown,
+                                          //     fontWeight: FontWeight.w500,
+                                          //     fontSize: 16.sp,
+                                          //   ),
+                                          // ),
+                                          // SizedBox(height: 10),
                                           InkWell(
                                             onTap:
                                                 () => showCitySelectionDialog(
@@ -1074,8 +1074,8 @@ class _SignVpViewState extends State<SignVpView> {
                                           ),
                                         ],
                                       ),
-                                      SizedBox(height: 10),
 
+                                      // SizedBox(height: 10),
                                       if (signUpController
                                               .selectedProfileId
                                               .value !=
@@ -1096,7 +1096,7 @@ class _SignVpViewState extends State<SignVpView> {
                                                           .contactPhoneController,
                                                   validator:
                                                       signUpController
-                                                          .validatePhoneNumber,
+                                                          .validateContactPhoneNumber,
                                                   focusNode:
                                                       contactPhoneFocusNode,
                                                   keyboardType:
@@ -1149,7 +1149,7 @@ class _SignVpViewState extends State<SignVpView> {
                                                           .contactEmailController,
                                                   validator:
                                                       signUpController
-                                                          .validateEmail,
+                                                          .validateContactEmail,
                                                   focusNode:
                                                       contactEmailFocusNode,
                                                   keyboardType:
@@ -1331,11 +1331,11 @@ class _SignVpViewState extends State<SignVpView> {
                                             : SizedBox.shrink();
                                       }),
 
-                                      if (signUpController
-                                              .selectedProfileId
-                                              .value ==
-                                          2)
-                                        SizedBox(height: 10),
+                                      // if (signUpController
+                                      //         .selectedProfileId
+                                      //         .value ==
+                                      //     2)
+                                      //   SizedBox(height: 10),
                                       if (signUpController
                                               .selectedProfileId
                                               .value ==
@@ -1351,19 +1351,19 @@ class _SignVpViewState extends State<SignVpView> {
                                                         CrossAxisAlignment
                                                             .start,
                                                     children: [
-                                                      Text(
-                                                        "select_account_type"
-                                                            .tr,
-                                                        style: TextStyle(
-                                                          color:
-                                                              ColorUtils
-                                                                  .darkBrown,
-                                                          fontWeight:
-                                                              FontWeight.w500,
-                                                          fontSize: 16.sp,
-                                                        ),
-                                                      ),
-                                                      SizedBox(height: 10),
+                                                      // Text(
+                                                      //   "select_account_type"
+                                                      //       .tr,
+                                                      //   style: TextStyle(
+                                                      //     color:
+                                                      //         ColorUtils
+                                                      //             .darkBrown,
+                                                      //     fontWeight:
+                                                      //         FontWeight.w500,
+                                                      //     fontSize: 16.sp,
+                                                      //   ),
+                                                      // ),
+                                                      // SizedBox(height: 10),
                                                       // spacing fix
                                                       DropdownFlutter<
                                                         String

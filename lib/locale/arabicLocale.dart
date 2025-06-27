@@ -23,7 +23,7 @@ const Map<String, String> ar = {
   "account created successfully": "تم إنشاء الحساب بنجاح",
   "select your location": "اختر موقعك",
   "add your personal info": "أضف معلوماتك الشخصية",
-  "select your account type": "اختر نوع الحساب",
+  "select_your_account_type": "اختر نوع الحساب",
   "password_limit":
       "يجب أن تحتوي كلمة المرور على 6 أحرف على الأقل، بما في ذلك أرقام وحرف كبير واحد على الأقل",
   "or sign up with": "أو سجل باستخدام",
@@ -400,6 +400,8 @@ const Map<String, String> ar = {
   "Delete Account": "حذف الحساب",
   "contact_email_required": "البريد الإلكتروني للتواصل مطلوب",
   "contact_phone_required": "رقم الهاتف للتواصل مطلوب",
+"contact_email_required_error": "يرجى إدخال بريدك الإلكتروني للتواصل",
+  "contact_phone_required_error": "يرجى إدخال رقم هاتفك",
   "payment_cancelled": "تم إلغاء الدفع",
   "show_more": "عرض المزيد",
   "show_less": "عرض أقل",
@@ -418,7 +420,7 @@ const Map<String, String> ar = {
   "video_title_length_error": "يجب ألا يتجاوز العنوان 70 حرفًا",
   // 'location_access_required': 'الوصول إلى الموقع مطلوب',
   'location_description':
-  'نحتاج إلى موقعك للعثور على الشركات القريبة. يرجى تمكين خدمات الموقع أو منح الإذن.',
+      'نحتاج إلى موقعك للعثور على الشركات القريبة. يرجى تمكين خدمات الموقع أو منح الإذن.',
   'allow_location': 'السماح بالموقع',
   'open_settings': 'فتح الإعدادات',
   "go_live": "ابدأ البث المباشر",
@@ -431,11 +433,13 @@ const Map<String, String> ar = {
   "no_live_stream": "لا يوجد بث مباشر",
   "be_the_first_to_go_live": "كن أول من يبدأ البث المباشر!",
   "creating_livestream": "جارٍ إنشاء البث المباشر...",
-  "please_wait_while_we_set_up_your_stream": "يرجى الانتظار أثناء إعداد البث الخاص بك",
+  "please_wait_while_we_set_up_your_stream":
+      "يرجى الانتظار أثناء إعداد البث الخاص بك",
   "end": "إنهاء",
   "leave": "مغادرة",
   "live_comments": "تعليقات البث المباشر",
-  "are_you_sure_end_livestream": "هل أنت متأكد أنك تريد إنهاء البث المباشر للجميع؟",
+  "are_you_sure_end_livestream":
+      "هل أنت متأكد أنك تريد إنهاء البث المباشر للجميع؟",
   "end_livestream": "إنهاء البث المباشر",
-  "join": "انضم"
+  "join": "انضم",
 };

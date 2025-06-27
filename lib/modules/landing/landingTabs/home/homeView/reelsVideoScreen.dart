@@ -79,6 +79,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
     return authToken != null && authToken.isNotEmpty;
   }
 
+
   Future<void> _checkAuthentication() async {
     try {
       bool authStatus = await _isUserAuthenticated();
@@ -449,6 +450,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                       SizedBox(height: 16),
 
                       Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           if (controller.selectedType.value == "Near Me")
                             Expanded(

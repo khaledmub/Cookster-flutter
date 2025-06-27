@@ -243,6 +243,17 @@ class SignUpController extends GetxController {
     return null;
   }
 
+  String? validateContactEmail(String? value) {
+    if (value == null || value.isEmpty) {
+      return 'contact_email_required_error'.tr;
+    }
+    final emailRegex = RegExp(r'^[^@]+@[^@]+\.[^@]+$');
+    if (!emailRegex.hasMatch(value)) {
+      return 'email_invalid_error'.tr;
+    }
+    return null;
+  }
+
   String? validatePassword(String? password) {
     if (password == null || password.isEmpty) {
       return 'password_required_error'.tr;
@@ -272,6 +283,17 @@ class SignUpController extends GetxController {
   String? validatePhoneNumber(String? value) {
     if (value == null || value.isEmpty) {
       return 'phone_required_error'.tr;
+    }
+    final phoneRegex = RegExp(r'^\+?[0-9]{7,14}$');
+    if (!phoneRegex.hasMatch(value)) {
+      return 'phone_invalid_error'.tr;
+    }
+    return null;
+  }
+
+  String? validateContactPhoneNumber(String? value) {
+    if (value == null || value.isEmpty) {
+      return 'contact_phone_required_error'.tr;
     }
     final phoneRegex = RegExp(r'^\+?[0-9]{7,14}$');
     if (!phoneRegex.hasMatch(value)) {
@@ -350,7 +372,7 @@ class SignUpController extends GetxController {
     }
 
     if (selectedProfileId.value == 2 &&
-        validatePhoneNumber(contactPhoneController.text) != null) {
+        validateContactPhoneNumber(contactPhoneController.text) != null) {
       // contactPhoneError.value = validatePhoneNumber(contactPhoneController.text)!;
       isValid = false;
       print(
@@ -359,7 +381,7 @@ class SignUpController extends GetxController {
     }
 
     if (selectedProfileId.value == 2 &&
-        validateEmail(contactEmailController.text) != null) {
+        validateContactEmail(contactEmailController.text) != null) {
       // contactEmailError.value = validateEmail(contactEmailController.text)!;
       isValid = false;
       print(

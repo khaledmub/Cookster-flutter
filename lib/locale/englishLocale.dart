@@ -23,7 +23,7 @@ const Map<String, String> en = {
   "account created successfully": "Account Created Successfully",
   "select your location": "Select your location",
   "add your personal info": "Add your personal info",
-  "select your account type": "Select your account type",
+  "select_your_account_type": "Select your account type",
   "password_limit":
       "Your Password should contain at least 8 characters, including numbers or digits and 1 upper case letter",
   "or sign up with": "or sign up with",
@@ -228,6 +228,7 @@ const Map<String, String> en = {
   "country_required_error": "Please select a country",
   "city_required_error": "Please select a city",
   "email_required_error": "Please enter your email",
+  "contact_email_required_error": "Please enter your contact email",
   "email_invalid_error": "Enter a valid email address",
   "password_required_error": "Password cannot be empty",
   "password_length_error": "Password must be at least 8 characters long",
@@ -240,6 +241,7 @@ const Map<String, String> en = {
   "name_length_error": "Name must be at least 3 characters long.",
   "name_format_error": "Name can only contain letters, numbers, and spaces.",
   "phone_required_error": "Please enter your phone number",
+  "contact_phone_required_error": "Please enter your contact phone number",
   "phone_invalid_error":
       "Enter a valid phone number (7-14 digits, no alphabets)",
   "business_type_missing_error": "Please select a valid Business Type",
