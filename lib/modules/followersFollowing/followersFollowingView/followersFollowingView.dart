@@ -1,6 +1,7 @@
 import 'package:cookster/modules/visitProfile/visitProfileView/visitProfileView.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../../appUtils/apiEndPoints.dart';
 import '../../../loaders/pulseLoader.dart';
 import '../followersFollowingController/followersFollowingController.dart';
@@ -10,7 +11,7 @@ enum SocialTab { followers, following }
 
 class SocialListsScreen extends StatefulWidget {
   final String userName;
-  final String userId; // Add userId to fetch data
+  final String userId;
   final SocialTab initialTab;
 
   const SocialListsScreen({
@@ -28,11 +29,12 @@ class _SocialListsScreenState extends State<SocialListsScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
   final TextEditingController _searchController = TextEditingController();
-  final SocialListsController _controller = Get.put(SocialListsController());
+  late final SocialListsController _controller;
 
-  late List<FFUser> _filteredFollowers;
-  late List<FFUser> _filteredFollowing;
-  bool _isSearching = false;
+  // Use RxList for reactive filtered lists
+  final RxList<FFUser> _filteredFollowers = <FFUser>[].obs;
+  final RxList<FFUser> _filteredFollowing = <FFUser>[].obs;
+  final RxBool _isSearching = false.obs;
 
   @override
   void initState() {
@@ -43,70 +45,71 @@ class _SocialListsScreenState extends State<SocialListsScreen>
       initialIndex: widget.initialTab == SocialTab.followers ? 0 : 1,
     );
 
-    // Initialize filtered lists
-    _filteredFollowers = List.from(_controller.followers);
-    _filteredFollowing = List.from(_controller.following);
+    // Initialize controller with a unique tag based on userId
+    _controller = Get.put(SocialListsController(), tag: widget.userId);
+
+    // Clear existing data in the controller
+    _controller.followers.clear();
+    _controller.following.clear();
+    _filteredFollowers.clear();
+    _filteredFollowing.clear();
 
     // Fetch data
-    _controller.fetchSocialData(widget.userId);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _controller.fetchSocialData(widget.userId);
+    });
 
     // Listen to search changes
     _searchController.addListener(_onSearchChanged);
 
-    // Listen to controller updates
-    _controller.followers.listen((followers) {
-      setState(() {
-        _filteredFollowers = List.from(followers);
-        if (_isSearching) _onSearchChanged();
-      });
+    // Listen to controller updates reactively
+    ever(_controller.followers, (List<FFUser> followers) {
+      _filteredFollowers.assignAll(followers);
+      if (_isSearching.value) _onSearchChanged();
     });
-    _controller.following.listen((following) {
-      setState(() {
-        _filteredFollowing = List.from(following);
-        if (_isSearching) _onSearchChanged();
-      });
+    ever(_controller.following, (List<FFUser> following) {
+      _filteredFollowing.assignAll(following);
+      if (_isSearching.value) _onSearchChanged();
     });
   }
 
   void _onSearchChanged() {
     final query = _searchController.text.toLowerCase();
-    setState(() {
-      _isSearching = query.isNotEmpty;
+    _isSearching.value = query.isNotEmpty;
 
-      if (query.isEmpty) {
-        _filteredFollowers = List.from(_controller.followers);
-        _filteredFollowing = List.from(_controller.following);
-      } else {
-        _filteredFollowers =
-            _controller.followers.where((follower) {
-              final name = (follower.name ?? '').toLowerCase();
-              final email = (follower.email ?? '').toLowerCase();
-              return name.contains(query) || email.contains(query);
-            }).toList();
-
-        _filteredFollowing =
-            _controller.following.where((follow) {
-              final name = (follow.name ?? '').toLowerCase();
-              final email = (follow.email ?? '').toLowerCase();
-              return name.contains(query) || email.contains(query);
-            }).toList();
-      }
-    });
+    if (query.isEmpty) {
+      _filteredFollowers.assignAll(_controller.followers);
+      _filteredFollowing.assignAll(_controller.following);
+    } else {
+      _filteredFollowers.assignAll(
+        _controller.followers.where((follower) {
+          final name = (follower.name ?? '').toLowerCase();
+          final email = (follower.email ?? '').toLowerCase();
+          return name.contains(query) || email.contains(query);
+        }).toList(),
+      );
+      _filteredFollowing.assignAll(
+        _controller.following.where((follow) {
+          final name = (follow.name ?? '').toLowerCase();
+          final email = (follow.email ?? '').toLowerCase();
+          return name.contains(query) || email.contains(query);
+        }).toList(),
+      );
+    }
   }
 
   void _clearSearch() {
     _searchController.clear();
-    setState(() {
-      _isSearching = false;
-      _filteredFollowers = List.from(_controller.followers);
-      _filteredFollowing = List.from(_controller.following);
-    });
+    _isSearching.value = false;
+    _filteredFollowers.assignAll(_controller.followers);
+    _filteredFollowing.assignAll(_controller.following);
   }
 
   @override
   void dispose() {
     _tabController.dispose();
     _searchController.dispose();
+    Get.delete<SocialListsController>(tag: widget.userId);
     super.dispose();
   }
 
@@ -128,117 +131,128 @@ class _SocialListsScreenState extends State<SocialListsScreen>
         centerTitle: true,
       ),
       body: Obx(
-        () =>
-            _controller.isLoading.value
-                ? Center(
-                  child: PulseLogoLoader(
-                    logoPath: "assets/images/appIconC.png",
+            () => _controller.isLoading.value
+            ? Center(
+          child: PulseLogoLoader(
+            logoPath: "assets/images/appIconC.png",
+          ),
+        )
+            : _controller.errorMessage.isNotEmpty
+            ? Center(child: Text(_controller.errorMessage.value))
+            : Column(
+          children: [
+            // Search Bar
+            Container(
+              margin: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 8,
+              ),
+              decoration: BoxDecoration(
+                color: Colors.grey[100],
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(color: Colors.grey[300]!, width: 1),
+              ),
+              child: TextField(
+                controller: _searchController,
+                style: const TextStyle(color: Colors.black),
+                decoration: InputDecoration(
+                  hintText: 'search_followers_following'.tr,
+                  hintStyle: TextStyle(color: Colors.grey[600]),
+                  prefixIcon: Icon(
+                    Icons.search,
+                    color: Colors.grey[600],
                   ),
-                )
-                : _controller.errorMessage.isNotEmpty
-                ? Center(child: Text(_controller.errorMessage.value))
-                : Column(
-                  children: [
-                    // Search Bar
-                    Container(
-                      margin: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 8,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.grey[100],
-                        borderRadius: BorderRadius.circular(24),
-                        border: Border.all(color: Colors.grey[300]!, width: 1),
-                      ),
-                      child: TextField(
-                        controller: _searchController,
-                        style: const TextStyle(color: Colors.black),
-                        decoration: InputDecoration(
-                          hintText: 'search_followers_following'.tr,
-                          hintStyle: TextStyle(color: Colors.grey[600]),
-                          prefixIcon: Icon(
-                            Icons.search,
-                            color: Colors.grey[600],
-                          ),
-                          suffixIcon:
-                              _isSearching
-                                  ? IconButton(
-                                    icon: const Icon(
-                                      Icons.clear,
-                                      color: Color(0xFFFFD700),
-                                    ),
-                                    onPressed: _clearSearch,
-                                  )
-                                  : null,
-                          border: InputBorder.none,
-                          contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 12,
-                          ),
-                        ),
-                      ),
+                  suffixIcon: _isSearching.value
+                      ? IconButton(
+                    icon: const Icon(
+                      Icons.clear,
+                      color: Color(0xFFFFD700),
                     ),
-
-                    // Tab Bar
-                    Container(
-                      margin: const EdgeInsets.symmetric(horizontal: 16),
-                      decoration: BoxDecoration(
-                        color: Colors.grey[100],
-                        borderRadius: BorderRadius.circular(25),
-                        border: Border.all(color: Colors.grey[300]!, width: 1),
-                      ),
-                      child: TabBar(
-                        controller: _tabController,
-                        indicator: BoxDecoration(
-                          color: const Color(0xFFFFD700),
-                          borderRadius: BorderRadius.circular(25),
-                        ),
-                        indicatorSize: TabBarIndicatorSize.tab,
-                        dividerColor: Colors.transparent,
-                        labelColor: Colors.white,
-                        unselectedLabelColor: Colors.grey[700],
-                        labelStyle: const TextStyle(
-                          fontWeight: FontWeight.w600,
-                          fontSize: 14,
-                        ),
-                        tabs: [
-                          Tab(
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(vertical: 8),
-                              child: Text(
-                                '${_filteredFollowers.length} ${"Followers".tr}',
-                              ),
-                            ),
-                          ),
-                          Tab(
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(vertical: 8),
-                              child: Text(
-                                '${_filteredFollowing.length} ${"Following".tr}',
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-
-                    const SizedBox(height: 16),
-
-                    // Tab Content
-                    Expanded(
-                      child: TabBarView(
-                        controller: _tabController,
-                        children: [
-                          _buildUserList(_filteredFollowers, isFollowers: true),
-                          _buildUserList(
-                            _filteredFollowing,
-                            isFollowers: false,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
+                    onPressed: _clearSearch,
+                  )
+                      : null,
+                  border: InputBorder.none,
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
                 ),
+              ),
+            ),
+
+            // Tab Bar
+            Container(
+              margin: const EdgeInsets.symmetric(horizontal: 16),
+              decoration: BoxDecoration(
+                color: Colors.grey[100],
+                borderRadius: BorderRadius.circular(25),
+                border: Border.all(color: Colors.grey[300]!, width: 1),
+              ),
+              child: TabBar(
+                controller: _tabController,
+                indicator: BoxDecoration(
+                  color: const Color(0xFFFFD700),
+                  borderRadius: BorderRadius.circular(25),
+                ),
+                indicatorSize: TabBarIndicatorSize.tab,
+                dividerColor: Colors.transparent,
+                labelColor: Colors.white,
+                unselectedLabelColor: Colors.grey[700],
+                labelStyle: const TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 14,
+                ),
+                tabs: [
+                  Tab(
+                    child: Obx(
+                          () => Container(
+                        padding:
+                        const EdgeInsets.symmetric(vertical: 8),
+                        child: Text(
+                          '${_filteredFollowers.length} ${"Followers".tr}',
+                        ),
+                      ),
+                    ),
+                  ),
+                  Tab(
+                    child: Obx(
+                          () => Container(
+                        padding:
+                        const EdgeInsets.symmetric(vertical: 8),
+                        child: Text(
+                          '${_filteredFollowing.length} ${"Following".tr}',
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 16),
+
+            // Tab dachContent
+            Expanded(
+              child: TabBarView(
+                controller: _tabController,
+                children: [
+                  Obx(
+                        () => _buildUserList(
+                      _filteredFollowers,
+                      isFollowers: true,
+                    ),
+                  ),
+                  Obx(
+                        () => _buildUserList(
+                      _filteredFollowing,
+                      isFollowers: false,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -250,7 +264,7 @@ class _SocialListsScreenState extends State<SocialListsScreen>
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Text(
-              _isSearching
+              _isSearching.value
                   ? 'no_results_found'.tr
                   : isFollowers
                   ? 'no_followers'.tr
@@ -261,7 +275,7 @@ class _SocialListsScreenState extends State<SocialListsScreen>
                 fontWeight: FontWeight.w500,
               ),
             ),
-            if (_isSearching) ...[
+            if (_isSearching.value) ...[
               const SizedBox(height: 8),
               Text(
                 'try_different'.tr,
@@ -273,104 +287,115 @@ class _SocialListsScreenState extends State<SocialListsScreen>
       );
     }
 
-    return ListView.builder(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      itemCount: users.length,
-      itemBuilder: (context, index) {
-        final user = users[index];
+    return FutureBuilder<String?>(
+      future: SharedPreferences.getInstance()
+          .then((prefs) => prefs.getString('user_id')),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
 
-        return InkWell(
-          onTap: () {
-            Get.to(VisitProfileView(userId: user.id));
-          },
-          child: Container(
-            margin: const EdgeInsets.only(bottom: 12),
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.grey[200]!, width: 1),
-            ),
-            child: Row(
-              children: [
-                // Avatar
-                Container(
-                  width: 52,
-                  height: 52,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                      color: const Color(0xFFFFD700),
-                      width: 2,
-                    ),
-                  ),
-                  child: ClipOval(
-                    child:
-                        user.image != null
+        final currentUserId = snapshot.data;
+        final showActionButton = currentUserId == widget.userId;
+
+        return ListView.builder(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          itemCount: users.length,
+          itemBuilder: (context, index) {
+            final user = users[index];
+
+            return InkWell(
+              onTap: () {
+                Get.to(() => VisitProfileView(userId: user.id));
+              },
+              child: Container(
+                margin: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.grey[200]!, width: 1),
+                ),
+                child: Row(
+                  children: [
+                    // Avatar
+                    Container(
+                      width: 52,
+                      height: 52,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: const Color(0xFFFFD700),
+                          width: 2,
+                        ),
+                      ),
+                      child: ClipOval(
+                        child: user.image != null
                             ? Image.network(
-                              '${Common.profileImage}/${user.image!}',
-                              fit: BoxFit.cover,
-                              errorBuilder: (context, error, stackTrace) {
-                                return Container(
-                                  color: Colors.grey[200],
-                                  child: Icon(
-                                    Icons.person,
-                                    color: Colors.grey[600],
-                                    size: 24,
-                                  ),
-                                );
-                              },
-                            )
-                            : Container(
+                          '${Common.profileImage}/${user.image!}',
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) {
+                            return Container(
                               color: Colors.grey[200],
                               child: Icon(
                                 Icons.person,
                                 color: Colors.grey[600],
                                 size: 24,
                               ),
-                            ),
-                  ),
-                ),
-
-                const SizedBox(width: 12),
-
-                // User Info
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        user.name,
-                        style: const TextStyle(
-                          color: Colors.black,
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      if (user.email.isNotEmpty)
-                        Container(
-                          width: Get.width * 0.5,
-                          // Set your desired maximum width here
-                          child: Text(
-                            user.email,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              color: Colors.grey[600],
-                              fontSize: 14,
-                            ),
+                            );
+                          },
+                        )
+                            : Container(
+                          color: Colors.grey[200],
+                          child: Icon(
+                            Icons.person,
+                            color: Colors.grey[600],
+                            size: 24,
                           ),
                         ),
-                    ],
-                  ),
-                ),
+                      ),
+                    ),
 
-                // Action Button
-                _buildActionButton(user, isFollowers),
-              ],
-            ),
-          ),
+                    const SizedBox(width: 12),
+
+                    // User Info
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            user.name,
+                            style: const TextStyle(
+                              color: Colors.black,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          if (user.email.isNotEmpty)
+                            Container(
+                              width: Get.width * 0.5,
+                              child: Text(
+                                user.email,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: Colors.grey[600],
+                                  fontSize: 14,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+
+                    // Action Button (conditionally shown)
+                    if (showActionButton) _buildActionButton(user, isFollowers),
+                  ],
+                ),
+              ),
+            );
+          },
         );
       },
     );
@@ -385,19 +410,14 @@ class _SocialListsScreenState extends State<SocialListsScreen>
             : await _controller.toggleFollowStatus(user.id);
 
         // Update the local lists to remove the user
-        setState(() {
-          if (isFollowers) {
-            _filteredFollowers.removeWhere(
-              (follower) => follower.id == user.id,
-            );
-            _controller.followers.removeWhere(
-              (follower) => follower.id == user.id,
-            );
-          } else {
-            _filteredFollowing.removeWhere((follow) => follow.id == user.id);
-            _controller.following.removeWhere((follow) => follow.id == user.id);
-          }
-        });
+        if (isFollowers) {
+          _filteredFollowers.removeWhere((follower) => follower.id == user.id);
+          _controller.followers
+              .removeWhere((follower) => follower.id == user.id);
+        } else {
+          _filteredFollowing.removeWhere((follow) => follow.id == user.id);
+          _controller.following.removeWhere((follow) => follow.id == user.id);
+        }
 
         // Show snackbar
         ScaffoldMessenger.of(context).showSnackBar(

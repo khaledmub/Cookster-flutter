@@ -19,12 +19,42 @@ class VisitProfileController extends GetxController {
   var profileLikesCount = 0.obs;
   var isLikeProcessing = false.obs;
 
+  // Add these to track state
+  var currentProfileId = ''.obs;
+  var currentUserId = ''.obs;
+  var hasCheckedLikeStatus = false.obs;
+
+  @override
+  void onInit() {
+    super.onInit();
+    // Reset state when controller is initialized
+    resetLikeState();
+  }
+
+  void resetLikeState() {
+    isLikedByCurrentUser.value = false;
+    profileLikesCount.value = 0;
+    hasCheckedLikeStatus.value = false;
+    currentProfileId.value = '';
+    currentUserId.value = '';
+  }
+
   // Call this method when profile is loaded
   Future<void> checkProfileLikeStatus(
     String profileId,
     String currentUserId,
   ) async {
+    // Prevent multiple calls for the same profile/user combination
+    if (hasCheckedLikeStatus.value &&
+        this.currentProfileId.value == profileId &&
+        this.currentUserId.value == currentUserId) {
+      return;
+    }
+
     try {
+      this.currentProfileId.value = profileId;
+      this.currentUserId.value = currentUserId;
+
       // Check if the profile document exists in 'profileLikes' collection
       final profileLikeDoc =
           await FirebaseFirestore.instance
@@ -47,6 +77,8 @@ class VisitProfileController extends GetxController {
         profileLikesCount.value = 0;
         isLikedByCurrentUser.value = false;
       }
+
+      hasCheckedLikeStatus.value = true;
     } catch (e) {
       print("Error checking profile like status: $e");
     }
@@ -111,34 +143,52 @@ class VisitProfileController extends GetxController {
   }
 
   Future<void> fetchUserProfile(String userId) async {
-    print('PRINTING THE USER ID: $userId');
-    try {
-      isLoading.value = true;
-      visitProfile.value = null;
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      print('PRINTING THE USER ID: $userId');
+      try {
+        isLoading.value = true;
+        visitProfile.value = null;
 
-      final response = await ApiClient.getRequest(
-        "${EndPoints.userProfile}?id=$userId",
-      );
+        // Reset like state when fetching new profile
+        resetLikeState();
 
-      print("Searching the following id $userId");
+        final response = await ApiClient.getRequest(
+          "${EndPoints.userProfile}?id=$userId",
+        );
 
-      if (response.statusCode == 200) {
-        var jsonData = jsonDecode(response.body);
-        print("Response JSON: $jsonData"); // API Response print karna
-        visitProfile.value = VisitProfile.fromJson(jsonData);
+        print("Searching the following id $userId");
 
-        print(
-          "Visit Profile: ${visitProfile.value}",
-        ); // Converted Model print karna
-      } else {
-        Get.snackbar("Error", "Failed to load profile");
+        if (response.statusCode == 200) {
+          var jsonData = jsonDecode(response.body);
+          print("Response JSON: $jsonData");
+          visitProfile.value = VisitProfile.fromJson(jsonData);
+
+          print("Visit Profile: ${visitProfile.value}");
+          // Initialize like status after profile is loaded
+          await initializeLikeStatus(
+            userId,
+            currentUserId.value,
+          ); // Ensure currentUserId is available
+        } else {
+          Get.snackbar("Error", "Failed to load profile");
+        }
+      } catch (e) {
+        print("Error: $e");
+      } finally {
+        isLoading.value = false;
       }
-    } catch (e) {
-      Get.snackbar("There", e.toString());
-      print("Error: $e"); // Error print karna
-    } finally {
-      isLoading.value = false;
-    }
+    });
+  }
+
+  Future<void> initializeLikeStatus(
+    String profileId,
+    String currentUserId,
+  ) async {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (visitProfile.value != null) {
+        await checkProfileLikeStatus(profileId, currentUserId);
+      }
+    });
   }
 }
 

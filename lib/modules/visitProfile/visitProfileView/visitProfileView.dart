@@ -44,16 +44,25 @@ class _VisitProfileViewState extends State<VisitProfileView>
   RxInt localFollowersCount = 0.obs;
   bool isLocalCountInitialized = false;
 
+  String? userId;
+
   Future<bool> _isUserAuthenticated() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
+
     String? authToken = prefs.getString('auth_token');
     return authToken != null && authToken.isNotEmpty;
+  }
+
+  fetchUserId() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    userId = prefs.getString('user_id');
   }
 
   @override
   void initState() {
     super.initState();
-    visitProfileController.fetchUserProfile(widget.userId);
+    _initializeProfile();
+    fetchUserId();
   }
 
   final ProfileController profileController = Get.find();
@@ -66,20 +75,29 @@ class _VisitProfileViewState extends State<VisitProfileView>
     super.dispose();
   }
 
-  @override
-  Widget build(BuildContext context) {
+  Future<void> _initializeProfile() async {
+    // Fetch user profile first
+    await visitProfileController.fetchUserProfile(widget.userId);
+
+    // Then initialize like status
+    final ProfileController profileController = Get.find();
+    final ProfessionalProfileController professionalProfileController =
+        Get.find();
+
     var currentUserDetails = profileController.simpleUserDetails.value?.user;
     var currentUser = professionalProfileController.userDetails.value?.user;
-    String? userId = currentUser?.id;
-    if (userId == null) {
-      userId = currentUserDetails?.id;
+    String? userId = currentUser?.id ?? currentUserDetails?.id;
+
+    if (userId != null) {
+      await visitProfileController.checkProfileLikeStatus(
+        widget.userId,
+        userId,
+      );
     }
+  }
 
-    visitProfileController.checkProfileLikeStatus(
-      widget.userId.toString(),
-      userId.toString(),
-    );
-
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
@@ -336,21 +354,19 @@ class _VisitProfileViewState extends State<VisitProfileView>
                       label: "Following".tr,
                     ),
                   ),
-                  Obx(
-                    () => InkWell(
-                      onTap: () {
-                        Get.to(
-                          SocialListsScreen(
-                            initialTab: SocialTab.followers,
-                            userName: user.user!.name,
-                            userId: user.user!.id,
-                          ),
-                        );
-                      },
-                      child: ProfileStat(
-                        number: "${localFollowersCount.value}",
-                        label: "Followers".tr,
-                      ),
+                  InkWell(
+                    onTap: () {
+                      Get.to(
+                        SocialListsScreen(
+                          initialTab: SocialTab.followers,
+                          userName: user!.user!.name,
+                          userId: user.user!.id,
+                        ),
+                      );
+                    },
+                    child: ProfileStat(
+                      number: "${user!.followers}",
+                      label: "Followers".tr,
                     ),
                   ),
                   ProfileStat(
