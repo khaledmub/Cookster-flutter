@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:get/get.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'api_call.dart';
 
@@ -152,7 +153,7 @@ class _CommentWidgetState extends State<CommentWidget>
                 ),
                 const SizedBox(width: 8),
                 Text(
-                  'Live Comments',
+                  'live_comments'.tr,
                   style: TextStyle(
                     color: Colors.white.withOpacity(0.9),
                     fontSize: 16,
@@ -201,8 +202,8 @@ class _CommentWidgetState extends State<CommentWidget>
                               color: Colors.red.withOpacity(0.3),
                             ),
                           ),
-                          child: const Text(
-                            'LIVE',
+                          child:  Text(
+                            'LIVE'.tr,
                             style: TextStyle(
                               color: Colors.red,
                               fontSize: 12,
@@ -298,7 +299,7 @@ class _CommentWidgetState extends State<CommentWidget>
                           fontSize: 16,
                         ),
                         decoration: InputDecoration(
-                          hintText: 'Add a comment...',
+                          hintText: 'write_a_comment'.tr,
                           hintStyle: TextStyle(
                             color: Colors.white.withOpacity(0.6),
                             fontSize: 16,

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:videosdk/videosdk.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -110,11 +111,11 @@ class _JoinScreenState extends State<JoinScreen> {
                     ),
                   ),
                   const SizedBox(width: 12),
-                  const Column(
+                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Go Live',
+                        'go_live'.tr,
                         style: TextStyle(
                           color: Colors.black,
                           fontSize: 24,
@@ -122,7 +123,7 @@ class _JoinScreenState extends State<JoinScreen> {
                         ),
                       ),
                       Text(
-                        'Start streaming or join others',
+                        'start_streaming_or_join_others'.tr,
                         style: TextStyle(color: Colors.black87, fontSize: 14),
                       ),
                     ],
@@ -197,8 +198,8 @@ class _JoinScreenState extends State<JoinScreen> {
                                     children: [
                                       Text(
                                         _isCreating
-                                            ? 'Creating Livestream...'
-                                            : 'Start New Livestream',
+                                            ? 'creating_livestream'.tr
+                                            : 'start_new_livestream'.tr,
                                         style: const TextStyle(
                                           color: Colors.black,
                                           fontSize: 20,
@@ -208,8 +209,8 @@ class _JoinScreenState extends State<JoinScreen> {
                                       const SizedBox(height: 4),
                                       Text(
                                         _isCreating
-                                            ? 'Please wait while we set up your stream'
-                                            : 'Go live and share your moments',
+                                            ? 'please_wait_while_we_set_up_your_stream'.tr
+                                            : 'go_live_and_share_your_moments'.tr,
                                         style: const TextStyle(
                                           color: Colors.black87,
                                           fontSize: 14,
@@ -244,8 +245,8 @@ class _JoinScreenState extends State<JoinScreen> {
                           ),
                         ),
                         const SizedBox(width: 12),
-                        const Text(
-                          'Live Now',
+                         Text(
+                          'live_now'.tr,
                           style: TextStyle(
                             color: Colors.black,
                             fontSize: 20,
@@ -275,7 +276,7 @@ class _JoinScreenState extends State<JoinScreen> {
                               ),
                               const SizedBox(width: 4),
                               Text(
-                                'LIVE',
+                                'live'.tr,
                                 style: TextStyle(
                                   color: ColorUtils.primaryColor,
                                   fontSize: 10,
@@ -380,7 +381,7 @@ class _JoinScreenState extends State<JoinScreen> {
                                       ),
                                       const SizedBox(height: 16),
                                       Text(
-                                        'No Live Streams',
+                                        'no_live_stream'.tr,
                                         style: TextStyle(
                                           color: Colors.grey[300],
                                           fontSize: 18,
@@ -389,7 +390,7 @@ class _JoinScreenState extends State<JoinScreen> {
                                       ),
                                       const SizedBox(height: 8),
                                       Text(
-                                        'Be the first to go live!',
+                                        'be_the_first_to_go_live'.tr,
                                         style: TextStyle(
                                           color: Colors.grey[500],
                                           fontSize: 14,

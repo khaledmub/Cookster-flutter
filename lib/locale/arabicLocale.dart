@@ -421,4 +421,17 @@ const Map<String, String> ar = {
   'نحتاج إلى موقعك للعثور على الشركات القريبة. يرجى تمكين خدمات الموقع أو منح الإذن.',
   'allow_location': 'السماح بالموقع',
   'open_settings': 'فتح الإعدادات',
+  "go_live": "ابدأ البث المباشر",
+  "start_streaming_or_join_others": "ابدأ البث أو انضم إلى الآخرين",
+  "start_new_livestream": "ابدأ بثًا مباشرًا جديدًا",
+  "go_live_and_share_your_moments": "ابدأ البث وشارك لحظاتك",
+  "live_now": "يتم البث الآن",
+  "live": "مباشر",
+  "no_live_stream": "لا يوجد بث مباشر",
+  "be_the_first_to_go_live": "كن أول من يبدأ البث المباشر!",
+  "creating_livestream": "جارٍ إنشاء البث المباشر...",
+  "please_wait_while_we_set_up_your_stream": "يرجى الانتظار أثناء إعداد البث الخاص بك",
+  "end": "إنهاء",
+  "leave": "مغادرة",
+  "live_comments": "تعليقات البث المباشر"
 };

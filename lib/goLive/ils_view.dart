@@ -224,7 +224,7 @@ class _ILSViewState extends State<ILSView> {
                                         Row(
                                           children: [
                                             Text(
-                                              'Likes $count',
+                                              '${"Likes".tr} $count',
                                               style: const TextStyle(
                                                 color: Colors.white,
                                                 fontSize: 12,
@@ -259,7 +259,7 @@ class _ILSViewState extends State<ILSView> {
                           ),
                         ),
                         child: Text(
-                          isHost ? "End" : "Leave",
+                          isHost ? "end".tr : "leave".tr,
                           style: TextStyle(color: Colors.white),
                         ),
                       ),

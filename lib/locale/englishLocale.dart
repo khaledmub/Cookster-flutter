@@ -427,4 +427,17 @@ const Map<String, String> en = {
       'We need your location to find nearby businesses. Please enable location services or grant permission.',
   'allow_location': 'Allow Location',
   'open_settings': 'Open Settings',
+  "go_live": "Go Live",
+  "start_streaming_or_join_others": "Start streaming or join others",
+  "start_new_livestream": "Start new livestream",
+  "go_live_and_share_your_moments": "Go live and share your moments",
+  "live_now": "Live now",
+  "live": "Live",
+  "no_live_stream": "No live stream",
+  "be_the_first_to_go_live": "Be the first to go live!",
+  "creating_livestream": "Creating Livestream...",
+  "please_wait_while_we_set_up_your_stream": "Please wait while we set up your stream",
+  "end": "End",
+  "leave": "Leave",
+  "live_comments": "Live Comments"
 };
