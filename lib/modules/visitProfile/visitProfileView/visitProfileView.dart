@@ -15,6 +15,7 @@ import '../../../appRoutes/appRoutes.dart';
 import '../../../appUtils/apiEndPoints.dart';
 import '../../../appUtils/colorUtils.dart';
 import '../../../loaders/pulseLoader.dart';
+import '../../followersFollowing/followersFollowingView/followersFollowingView.dart';
 import '../../landing/landingTabs/professionalProfile/profileControlller/professionalProfileController.dart';
 import '../../landing/landingTabs/professionalProfile/profileWidgets/professsionalProfileWidgets.dart';
 import '../../landing/landingTabs/profile/profileControlller/profileController.dart';
@@ -320,14 +321,36 @@ class _VisitProfileViewState extends State<VisitProfileView>
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
-                  ProfileStat(
-                    number: "${user!.following}",
-                    label: "Following".tr,
+                  InkWell(
+                    onTap: () {
+                      Get.to(
+                        SocialListsScreen(
+                          initialTab: SocialTab.following,
+                          userName: user.user!.name,
+                          userId: user.user!.id,
+                        ),
+                      );
+                    },
+                    child: ProfileStat(
+                      number: "${user!.following}",
+                      label: "Following".tr,
+                    ),
                   ),
                   Obx(
-                    () => ProfileStat(
-                      number: "${localFollowersCount.value}",
-                      label: "Followers".tr,
+                    () => InkWell(
+                      onTap: () {
+                        Get.to(
+                          SocialListsScreen(
+                            initialTab: SocialTab.followers,
+                            userName: user.user!.name,
+                            userId: user.user!.id,
+                          ),
+                        );
+                      },
+                      child: ProfileStat(
+                        number: "${localFollowersCount.value}",
+                        label: "Followers".tr,
+                      ),
                     ),
                   ),
                   ProfileStat(

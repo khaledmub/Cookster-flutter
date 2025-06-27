@@ -18,7 +18,7 @@ class SocialListsController extends GetxController {
       errorMessage('');
 
       // Assuming the endpoint to fetch followers/following is something like /social/{userId}
-      final response = await ApiClient.getRequest('${EndPoints.followerList}');
+      final response = await ApiClient.getRequest('${EndPoints.followerList}?user_id=$userId');
 
       if (response.statusCode == 200) {
         final socialResponse = SocialResponse.fromJson(
