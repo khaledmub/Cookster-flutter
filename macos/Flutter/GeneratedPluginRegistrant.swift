@@ -36,6 +36,8 @@ import sqflite_darwin
 import url_launcher_macos
 import video_compress
 import video_player_avfoundation
+import videosdk
+import videosdk_webrtc
 import wakelock_plus
 import webview_flutter_wkwebview
 
@@ -71,6 +73,8 @@ func RegisterGeneratedPlugins(registry: FlutterPluginRegistry) {
   UrlLauncherPlugin.register(with: registry.registrar(forPlugin: "UrlLauncherPlugin"))
   VideoCompressPlugin.register(with: registry.registrar(forPlugin: "VideoCompressPlugin"))
   FVPVideoPlayerPlugin.register(with: registry.registrar(forPlugin: "FVPVideoPlayerPlugin"))
+  VideosdkPlugin.register(with: registry.registrar(forPlugin: "VideosdkPlugin"))
+  FlutterWebRTCPlugin.register(with: registry.registrar(forPlugin: "FlutterWebRTCPlugin"))
   WakelockPlusMacosPlugin.register(with: registry.registrar(forPlugin: "WakelockPlusMacosPlugin"))
   WebViewFlutterPlugin.register(with: registry.registrar(forPlugin: "WebViewFlutterPlugin"))
 }

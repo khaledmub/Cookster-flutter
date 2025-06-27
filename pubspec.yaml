@@ -43,6 +43,7 @@ dependencies:
   fraction: ^5.0.3
   flutter_gpu_filters_interface: ^0.0.18
   flutter_gpu_video_filters:
+  videosdk: ^2.3.0
 #  video_editor_2:
 #  visibility_detector: ^0.4.0+2
   ffmpeg_kit_flutter_full_gpl: ^6.0.3
@@ -84,6 +85,10 @@ dependencies:
   sign_in_with_apple: ^7.0.1
   crypto: ^3.0.6
   flutter_tawkto: ^0.0.5
+
+
+dependency_overrides:
+  device_info_plus: ^10.1.0
 
 
 dev_dependencies:

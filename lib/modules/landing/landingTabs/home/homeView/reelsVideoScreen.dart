@@ -8,6 +8,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cookster/appRoutes/appRoutes.dart';
 import 'package:cookster/appUtils/apiEndPoints.dart';
 import 'package:cookster/appUtils/appUtils.dart';
+import 'package:cookster/goLive/join_screen.dart';
 import 'package:cookster/modules/landing/landingController/landingController.dart';
 import 'package:cookster/modules/landing/landingTabs/home/homeController/saveController.dart';
 import 'package:cookster/modules/landing/landingTabs/home/homeModel/userSaveUnsave.dart';
@@ -239,6 +240,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
       },
       child: Scaffold(
         backgroundColor: Colors.black,
+
         body: Obx(() {
           if (controller.isLoading.value) {
             return Center(
@@ -256,6 +258,21 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                       !controller.isLocationPermissionGranted.value))) {
             return Stack(
               children: [
+                SafeArea(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                    child: InkWell(
+                      onTap: () {
+                        Get.to(JoinScreen());
+                      },
+                      child: SvgPicture.asset(
+                        "assets/icons/live.svg",
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ),
+
                 Align(
                   alignment: Alignment.topCenter,
                   child: Obx(
