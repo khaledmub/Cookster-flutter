@@ -1389,19 +1389,7 @@ void showProfileCitySelectionDialog(
                 ),
                 InkWell(
                   onTap: () {
-                    if (selectedCity.value.isEmpty) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(
-                            "Please select a city before closing".tr,
-                          ),
-                          backgroundColor: Colors.red,
-                          behavior: SnackBarBehavior.floating,
-                        ),
-                      );
-                    } else {
-                      Get.back();
-                    }
+                    Get.back();
                   },
                   child: Icon(Icons.close, color: Colors.grey),
                 ),

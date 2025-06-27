@@ -860,7 +860,7 @@ class _SingleVideoScreenState extends State<SingleVideoScreen>
     );
   }
 
-  Stream<double> _getAverageRating(String videoId)  {
+  Stream<double> _getAverageRating(String videoId) {
     return FirebaseFirestore.instance
         .collection('videos')
         .doc(videoId)
@@ -1554,7 +1554,10 @@ class _VideoDescriptionWidgetState extends State<VideoDescriptionWidget> {
                         widget.description!,
                         style: descriptionStyle,
                         maxLines: _isExpanded ? null : 1,
-                        overflow: _isExpanded ? TextOverflow.visible : TextOverflow.ellipsis,
+                        overflow:
+                            _isExpanded
+                                ? TextOverflow.visible
+                                : TextOverflow.ellipsis,
                       ),
                     ),
                   ),
@@ -1594,11 +1597,22 @@ class _VideoDescriptionWidgetState extends State<VideoDescriptionWidget> {
                     alignment: Alignment.topLeft,
                     child: ConstrainedBox(
                       constraints: BoxConstraints(maxWidth: 250),
-                      child: Text(
-                        widget.tags!.split(',').map((t) => '#${t.trim()}').join(' '),
-                        style: tagStyle,
-                        maxLines: _isTagExpanded ? null : 1,
-                        overflow: _isTagExpanded ? TextOverflow.visible : TextOverflow.ellipsis,
+                      child: InkWell(
+                        onTap: () {
+                          Get.to(SearchView(tag: widget.tags, isGeneral: 1));
+                        },
+                        child: Text(
+                          widget.tags!
+                              .split(',')
+                              .map((t) => '#${t.trim()}')
+                              .join(' '),
+                          style: tagStyle,
+                          maxLines: _isTagExpanded ? null : 1,
+                          overflow:
+                              _isTagExpanded
+                                  ? TextOverflow.visible
+                                  : TextOverflow.ellipsis,
+                        ),
                       ),
                     ),
                   ),
@@ -1624,16 +1638,14 @@ class _VideoDescriptionWidgetState extends State<VideoDescriptionWidget> {
                 ],
               )
             else
-              Text(
-                "#",
-                style: tagStyle,
-              ),
+              Text("#", style: tagStyle),
           ],
         ),
       ),
     );
   }
 }
+
 Future<bool> deleteVideo(
   BuildContext context,
   String videoId,

@@ -654,7 +654,7 @@ class _EditProfileViewState extends State<EditProfileView> {
                                                 .selectCountryId
                                                 .value
                                                 .isEmpty
-                                            ? "Select your country"
+                                            ? "Select your country".tr
                                             : countryName.firstWhere(
                                               (name) =>
                                                   allCountries[name]
@@ -663,7 +663,8 @@ class _EditProfileViewState extends State<EditProfileView> {
                                                       .selectCountryId
                                                       .value,
                                               orElse:
-                                                  () => "Select your country",
+                                                  () =>
+                                                      "Select your country".tr,
                                             ),
                                         style: TextStyle(
                                           fontSize: 14.sp,
@@ -726,14 +727,14 @@ class _EditProfileViewState extends State<EditProfileView> {
                                               .selectedCityId
                                               .value
                                               .isEmpty
-                                          ? "Select your city"
+                                          ? "Select your city".tr
                                           : cityName.firstWhere(
                                             (name) =>
                                                 allCities[name].toString() ==
                                                 profileController
                                                     .selectedCityId
                                                     .value,
-                                            orElse: () => "Select your city",
+                                            orElse: () => "Select your city".tr,
                                           ),
                                       style: TextStyle(
                                         fontSize: 14.sp,
@@ -1291,7 +1292,7 @@ void showProfileCitySelectionDialog(
   }
 
   Get.dialog(
-    barrierDismissible: false,
+    barrierDismissible: true,
     Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20.r)),
       child: Container(
@@ -1328,19 +1329,7 @@ void showProfileCitySelectionDialog(
                 ),
                 InkWell(
                   onTap: () {
-                    if (selectedCity.value.isEmpty) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(
-                            "Please select a city before closing".tr,
-                          ),
-                          backgroundColor: Colors.red,
-                          behavior: SnackBarBehavior.floating,
-                        ),
-                      );
-                    } else {
-                      Get.back();
-                    }
+                    Get.back();
                   },
                   child: Icon(Icons.close, color: Colors.grey),
                 ),

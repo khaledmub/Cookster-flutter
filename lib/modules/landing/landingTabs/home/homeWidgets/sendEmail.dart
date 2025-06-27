@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:get/get.dart';
 
+import '../../../../../appUtils/appCenterIcon.dart';
+
 class SendEmailContact extends StatefulWidget {
   String videoId;
 
@@ -55,122 +57,145 @@ class _SendEmailContactState extends State<SendEmailContact> {
         toolbarHeight: 0,
         elevation: 0,
       ),
-      body: SingleChildScrollView(
-        child: Column(
-          children: [
-            SizedBox(
-              height: Get.height,
-              child: Stack(
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          return ConstrainedBox(
+            constraints: BoxConstraints(minHeight: constraints.maxHeight),
+            child: IntrinsicHeight(
+              child: Column(
                 children: [
-                  Container(
-                    decoration: const BoxDecoration(
-                      gradient: ColorUtils.goldGradient,
-                    ),
-                  ),
-                  Column(
-                    spacing: 8.h,
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    mainAxisAlignment: MainAxisAlignment.start,
-                    children: [
-                      SizedBox(height: 2),
-                      SizedBox(
-                        width: double.infinity,
-                        child: Stack(
-                          alignment: Alignment.center,
+                  Expanded(
+                    child: Stack(
+                      children: [
+                        Container(
+                          decoration: const BoxDecoration(
+                            gradient: ColorUtils.goldGradient,
+                          ),
+                        ),
+                        Column(
+                          spacing: 8.h,
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          mainAxisAlignment: MainAxisAlignment.start,
                           children: [
-                            Positioned(
-                              left: 16,
-                              child: InkWell(
-                                onTap: () async {
-                                  Get.back();
-                                },
-                                child: Container(
-                                  height: 40,
-                                  width: 40,
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFE6BE00),
-                                    shape: BoxShape.circle,
-                                  ),
-                                  child: Center(
-                                    child: Icon(
-                                      Icons.arrow_back
-,
-                                      color: ColorUtils.darkBrown,
-                                      size: 24,
+                            SizedBox(height: 2),
+                            SizedBox(
+                              width: double.infinity,
+                              child: Stack(
+                                clipBehavior: Clip.none,
+                                alignment: Alignment.center,
+                                children: [
+                                  Positioned(
+                                    left:
+                                        Directionality.of(context) ==
+                                                TextDirection.rtl
+                                            ? null
+                                            : 16,
+                                    right:
+                                        Directionality.of(context) ==
+                                                TextDirection.rtl
+                                            ? 16
+                                            : null,
+                                    top: 25,
+                                    child: InkWell(
+                                      onTap: () {
+                                        Get.back();
+                                      },
+                                      child: Container(
+                                        height: 40,
+                                        width: 40,
+                                        decoration: BoxDecoration(
+                                          color: Color(0xFFE6BE00),
+                                          shape: BoxShape.circle,
+                                        ),
+                                        child: Center(
+                                          child: Icon(
+                                            Directionality.of(context) ==
+                                                    TextDirection.rtl
+                                                ? Icons.arrow_back
+                                                : Icons.arrow_back,
+                                            color: ColorUtils.darkBrown,
+                                            size: 24,
+                                          ),
+                                        ),
+                                      ),
                                     ),
+                                  ),
+
+                                  AppCenterIcon(),
+                                ],
+                              ),
+                            ),
+                            SizedBox(height: 2),
+                            Container(
+                              margin: EdgeInsets.symmetric(horizontal: 16),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(40.r),
+                              ),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 32.0,
+                                ),
+                                child: Form(
+                                  key: userController.formKey,
+                                  child: Column(
+                                    spacing: 10.h,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.center,
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      SizedBox(height: 20.h),
+                                      Text(
+                                        "send_email".tr,
+                                        style: TextStyle(
+                                          color: ColorUtils.darkBrown,
+                                          fontSize: 30.sp,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                      Text(
+                                        "provide_your_details_for_contact".tr,
+                                        style: TextStyle(
+                                          color: Colors.black,
+                                          fontSize: 12.sp,
+                                          fontWeight: FontWeight.w400,
+                                        ),
+                                      ),
+                                      _buildUserInputFields(userController),
+                                      SizedBox(height: 10.h),
+                                      Obx(
+                                        () => AppButton(
+                                          text: "submit_details".tr,
+                                          onTap: () async {
+                                            if (!userController
+                                                .isLoading
+                                                .value) {
+                                              await userController
+                                                  .submitUserData(
+                                                    widget.videoId,
+                                                  );
+                                            }
+                                          },
+                                          isLoading:
+                                              userController.isLoading.value,
+                                        ),
+                                      ),
+                                      SizedBox(height: 20.h),
+                                    ],
                                   ),
                                 ),
                               ),
                             ),
-                            Container(
-                              height: 40.h,
-                              width: 40.h,
-                              child: Image.asset("assets/images/appIconC.png"),
-                            ),
                           ],
                         ),
-                      ),
-                      SizedBox(height: 2),
-                      Container(
-                        margin: EdgeInsets.symmetric(horizontal: 16),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(40.r),
-                        ),
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 32.0),
-                          child: Form(
-                            key: userController.formKey,
-                            child: Column(
-                              spacing: 10.h,
-                              crossAxisAlignment: CrossAxisAlignment.center,
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                SizedBox(height: 20.h),
-                                Text(
-                                  "send_email".tr,
-                                  style: TextStyle(
-                                    color: ColorUtils.darkBrown,
-                                    fontSize: 30.sp,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                                Text(
-                                  "provide_your_details_for_contact".tr,
-                                  style: TextStyle(
-                                    color: Colors.black,
-                                    fontSize: 12.sp,
-                                    fontWeight: FontWeight.w400,
-                                  ),
-                                ),
-                                _buildUserInputFields(userController),
-                                SizedBox(height: 10.h),
-                                Obx(
-                                  () => AppButton(
-                                    text: "submit_details".tr,
-                                    onTap: () async {
-                                      if (!userController.isLoading.value) {
-                                        await userController.submitUserData(
-                                          widget.videoId,
-                                        );
-                                      }
-                                    },
-                                    isLoading: userController.isLoading.value,
-                                  ),
-                                ),
-                                SizedBox(height: 20.h),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ],
               ),
             ),
-          ],
-        ),
+          );
+        },
       ),
     );
   }
