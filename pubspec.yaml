@@ -85,6 +85,7 @@ dependencies:
   sign_in_with_apple: ^7.0.1
   crypto: ^3.0.6
   flutter_tawkto: ^0.0.5
+  googleapis_auth: ^2.0.0
 
 
 dependency_overrides:

@@ -1,18 +1,22 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:get/get.dart';
+import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 import 'package:shimmer/shimmer.dart';
 import '../../appUtils/colorUtils.dart';
+import '../../services/notificationService.dart';
 
 class ChatScreen extends StatefulWidget {
   final String senderId;
   final String receiverId;
 
   const ChatScreen({required this.senderId, required this.receiverId, Key? key})
-    : super(key: key);
+      : super(key: key);
 
   @override
   _ChatScreenState createState() => _ChatScreenState();
@@ -23,26 +27,90 @@ class _ChatScreenState extends State<ChatScreen> {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final ScrollController _scrollController = ScrollController();
+
+  // Performance optimization variables
   int _unreadCount = 0;
   bool _isBlocked = false;
   bool _isLoadingBlockedStatus = true;
+  bool _isSendingMessage = false; // Prevent multiple taps
+
+  // Cache variables for performance
+  String? _cachedRecipientToken;
+  String? _cachedAccessToken;
+  Map<String, dynamic>? _cachedReceiverData;
+  DateTime? _tokenCacheTime;
+  DateTime? _receiverDataCacheTime;
+
+  // Cache duration constants
+  static const Duration TOKEN_CACHE_DURATION = Duration(hours: 1);
+  static const Duration RECEIVER_DATA_CACHE_DURATION = Duration(minutes: 30);
 
   String get chatId {
     List<String> ids = [widget.senderId, widget.receiverId]..sort();
     return '${ids[0]}_${ids[1]}';
   }
 
+  // Optimized notification sending with caching
+  Future<void> _sendNotification(
+      String recipientToken, {
+        required String title,
+        required String body,
+      }) async {
+    if (recipientToken.isEmpty) return;
+
+    const String fcmUrl =
+        'https://fcm.googleapis.com/v1/projects/cockster-e477a/messages:send';
+
+    try {
+      // Use cached access token if available and not expired
+      String accessToken;
+      if (_cachedAccessToken != null &&
+          _tokenCacheTime != null &&
+          DateTime.now().difference(_tokenCacheTime!) < TOKEN_CACHE_DURATION) {
+        accessToken = _cachedAccessToken!;
+      } else {
+        accessToken = await PushNotificationService.getAccessToken();
+        _cachedAccessToken = accessToken;
+        _tokenCacheTime = DateTime.now();
+      }
+
+      final response = await http.post(
+        Uri.parse(fcmUrl),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $accessToken',
+        },
+        body: jsonEncode({
+          'message': {
+            'token': recipientToken,
+            'notification': {'title': title, 'body': body},
+            'data': {
+              'click_action': 'FLUTTER_NOTIFICATION_CLICK',
+              'type': 'chat',
+            },
+          },
+        }),
+      );
+
+      // Clear cached token if unauthorized (expired)
+      if (response.statusCode == 401) {
+        _cachedAccessToken = null;
+        _tokenCacheTime = null;
+      }
+    } catch (e) {
+      print('🚨 Error sending notification: $e');
+    }
+  }
+
   Future<int> _getUnreadCount() async {
     try {
-      final snapshot =
-          await _firestore
-              .collection('chats')
-              .doc(chatId)
-              .collection('messages')
-              .where('receiverId', isEqualTo: widget.senderId)
-              .where('read', isEqualTo: false)
-              .get();
-      print('📬 Unread count for chatId $chatId: ${snapshot.docs.length}');
+      final snapshot = await _firestore
+          .collection('chats')
+          .doc(chatId)
+          .collection('messages')
+          .where('receiverId', isEqualTo: widget.senderId)
+          .where('read', isEqualTo: false)
+          .get();
       return snapshot.docs.length;
     } catch (e) {
       print('🚨 Error fetching unread count: $e');
@@ -54,7 +122,6 @@ class _ChatScreenState extends State<ChatScreen> {
     try {
       final chatDoc = await _firestore.collection('chats').doc(chatId).get();
       final blockedBy = List<String>.from(chatDoc.data()?['blockedBy'] ?? []);
-      print('🔒 BlockedBy for chat $chatId: $blockedBy');
       return blockedBy.contains(widget.senderId);
     } catch (e) {
       print('🚨 Error checking blocked status: $e');
@@ -62,10 +129,41 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
-  void _sendMessage() {
-    if (_messageController.text.trim().isEmpty || _isBlocked) return;
+  // Optimized recipient token fetching with caching
+  Future<String> _fetchRecipientToken() async {
+    // Return cached token if available
+    if (_cachedRecipientToken != null) {
+      return _cachedRecipientToken!;
+    }
+
+    try {
+      final userDoc = await _firestore.collection('users').doc(widget.receiverId).get();
+      if (userDoc.exists && userDoc.data() != null) {
+        final token = userDoc.data()!['uuid'] ?? '';
+        _cachedRecipientToken = token; // Cache the token
+        return token;
+      }
+      return '';
+    } catch (e) {
+      print('🚨 Error fetching recipient uuid: $e');
+      return '';
+    }
+  }
+
+  // Optimized message sending with debouncing
+  void _sendMessage() async {
+    // Prevent multiple taps and empty messages
+    if (_messageController.text.trim().isEmpty || _isBlocked || _isSendingMessage) {
+      return;
+    }
+
+    setState(() {
+      _isSendingMessage = true;
+    });
 
     final messageText = _messageController.text.trim();
+    _messageController.clear(); // Clear immediately for better UX
+
     final message = {
       'senderId': widget.senderId,
       'receiverId': widget.receiverId,
@@ -75,8 +173,12 @@ class _ChatScreenState extends State<ChatScreen> {
     };
 
     try {
+      // Batch operations for better performance
+      final batch = _firestore.batch();
+
       // Update the parent chat document
-      _firestore.collection('chats').doc(chatId).set({
+      final chatRef = _firestore.collection('chats').doc(chatId);
+      batch.set(chatRef, {
         'participants': [widget.senderId, widget.receiverId],
         'lastMessage': messageText,
         'lastMessageTime': FieldValue.serverTimestamp(),
@@ -85,40 +187,93 @@ class _ChatScreenState extends State<ChatScreen> {
       }, SetOptions(merge: true));
 
       // Add the message to the messages subcollection
-      _firestore
-          .collection('chats')
-          .doc(chatId)
-          .collection('messages')
-          .add(message);
+      final messageRef = chatRef.collection('messages').doc();
+      batch.set(messageRef, message);
 
-      _messageController.clear();
+      // Commit batch operation
+      await batch.commit();
 
-      // Scroll to bottom
-      Future.delayed(Duration(milliseconds: 100), () {
-        if (_scrollController.hasClients) {
-          _scrollController.animateTo(
-            _scrollController.position.maxScrollExtent,
-            duration: Duration(milliseconds: 300),
-            curve: Curves.easeOut,
-          );
-        }
-      });
+      // Handle notification in parallel (non-blocking)
+      _handleNotificationAsync(messageText);
+
+      // Scroll to bottom with slight delay
+      _scrollToBottom();
 
       print('✅ Message sent successfully to chatId: $chatId');
     } catch (e) {
       print('🚨 Error sending message: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Failed to send message: $e'),
-          backgroundColor: Colors.red,
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+      // Restore message text on error
+      _messageController.text = messageText;
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to send message'),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSendingMessage = false;
+        });
+      }
     }
+  }
+
+  // Handle notification asynchronously to avoid blocking UI
+  void _handleNotificationAsync(String messageText) async {
+    try {
+      // Get sender name and recipient token concurrently
+      final futures = await Future.wait([
+        _fetchSenderName(),
+        _fetchRecipientToken(),
+      ]);
+
+      final senderName = futures[0] as String;
+      final recipientToken = futures[1] as String;
+
+      if (recipientToken.isNotEmpty) {
+        await _sendNotification(
+          recipientToken,
+          title: senderName,
+          body: messageText,
+        );
+      }
+    } catch (e) {
+      print('🚨 Error sending notification: $e');
+    }
+  }
+
+  Future<String> _fetchSenderName() async {
+    try {
+      final senderDoc = await _firestore.collection('users').doc(widget.senderId).get();
+      return senderDoc.exists && senderDoc.data() != null
+          ? senderDoc.data()!['name'] ?? 'User'
+          : 'User';
+    } catch (e) {
+      return 'User';
+    }
+  }
+
+  void _scrollToBottom() {
+    Future.delayed(Duration(milliseconds: 100), () {
+      if (_scrollController.hasClients && mounted) {
+        _scrollController.animateTo(
+          _scrollController.position.maxScrollExtent,
+          duration: Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+        );
+      }
+    });
   }
 
   void _markMessagesAsRead() {
     if (_isBlocked) return;
+
     _firestore
         .collection('chats')
         .doc(chatId)
@@ -127,28 +282,47 @@ class _ChatScreenState extends State<ChatScreen> {
         .where('read', isEqualTo: false)
         .get()
         .then((snapshot) {
-          for (var doc in snapshot.docs) {
-            doc.reference.update({'read': true});
-          }
-          setState(() {
-            _unreadCount = 0;
-          });
-        })
-        .catchError((e) {
-          print('🚨 Error marking messages as read: $e');
+      if (snapshot.docs.isNotEmpty) {
+        final batch = _firestore.batch();
+        for (var doc in snapshot.docs) {
+          batch.update(doc.reference, {'read': true});
+        }
+        return batch.commit();
+      }
+    }).then((_) {
+      if (mounted) {
+        setState(() {
+          _unreadCount = 0;
         });
+      }
+    }).catchError((e) {
+      print('🚨 Error marking messages as read: $e');
+    });
   }
 
+  // Optimized receiver data fetching with caching
   Future<Map<String, dynamic>> _fetchReceiverData() async {
+    // Return cached data if available and not expired
+    if (_cachedReceiverData != null &&
+        _receiverDataCacheTime != null &&
+        DateTime.now().difference(_receiverDataCacheTime!) < RECEIVER_DATA_CACHE_DURATION) {
+      return _cachedReceiverData!;
+    }
+
     try {
-      final userDoc =
-          await _firestore.collection('users').doc(widget.receiverId).get();
-      return userDoc.exists
+      final userDoc = await _firestore.collection('users').doc(widget.receiverId).get();
+      final data = userDoc.exists
           ? {
-            'name': userDoc.data()?['name'] ?? widget.receiverId,
-            'image': userDoc.data()?['image'] ?? '',
-          }
+        'name': userDoc.data()?['name'] ?? widget.receiverId,
+        'image': userDoc.data()?['image'] ?? '',
+      }
           : {'name': widget.receiverId, 'image': ''};
+
+      // Cache the data
+      _cachedReceiverData = data;
+      _receiverDataCacheTime = DateTime.now();
+
+      return data;
     } catch (e) {
       print('🚨 Error fetching receiver data: $e');
       return {'name': widget.receiverId, 'image': ''};
@@ -179,21 +353,39 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   void initState() {
     super.initState();
-    // Fetch initial unread count and blocked status
-    _getUnreadCount().then((count) {
-      setState(() {
-        _unreadCount = count;
-      });
-      if (count > 0 && !_isBlocked) {
-        _markMessagesAsRead();
+    _initializeChat();
+  }
+
+  void _initializeChat() async {
+    try {
+      // Fetch initial data concurrently
+      final futures = await Future.wait([
+        _getUnreadCount(),
+        _checkBlockedStatus(),
+        _fetchReceiverData(), // Pre-cache receiver data
+        _fetchRecipientToken(), // Pre-cache recipient token
+      ]);
+
+      if (mounted) {
+        setState(() {
+          _unreadCount = futures[0] as int;
+          _isBlocked = futures[1] as bool;
+          _isLoadingBlockedStatus = false;
+        });
+
+        // Mark messages as read if there are unread messages and user is not blocked
+        if (_unreadCount > 0 && !_isBlocked) {
+          _markMessagesAsRead();
+        }
       }
-    });
-    _checkBlockedStatus().then((isBlocked) {
-      setState(() {
-        _isBlocked = isBlocked;
-        _isLoadingBlockedStatus = false;
-      });
-    });
+    } catch (e) {
+      print('🚨 Error initializing chat: $e');
+      if (mounted) {
+        setState(() {
+          _isLoadingBlockedStatus = false;
+        });
+      }
+    }
   }
 
   @override
@@ -253,18 +445,16 @@ class _ChatScreenState extends State<ChatScreen> {
                   child: CircleAvatar(
                     radius: 18,
                     backgroundColor: Colors.grey[200],
-                    backgroundImage:
-                        receiverImage.isNotEmpty
-                            ? CachedNetworkImageProvider(receiverImage)
-                            : null,
-                    child:
-                        receiverImage.isEmpty
-                            ? Icon(
-                              Icons.person,
-                              size: 20,
-                              color: Colors.grey[600],
-                            )
-                            : null,
+                    backgroundImage: receiverImage.isNotEmpty
+                        ? CachedNetworkImageProvider(receiverImage)
+                        : null,
+                    child: receiverImage.isEmpty
+                        ? Icon(
+                      Icons.person,
+                      size: 20,
+                      color: Colors.grey[600],
+                    )
+                        : null,
                   ),
                 ),
                 SizedBox(width: 12),
@@ -323,13 +513,12 @@ class _ChatScreenState extends State<ChatScreen> {
         children: [
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
-              stream:
-                  _firestore
-                      .collection('chats')
-                      .doc(chatId)
-                      .collection('messages')
-                      .orderBy('timestamp', descending: false)
-                      .snapshots(),
+              stream: _firestore
+                  .collection('chats')
+                  .doc(chatId)
+                  .collection('messages')
+                  .orderBy('timestamp', descending: false)
+                  .snapshots(),
               builder: (context, snapshot) {
                 if (snapshot.hasError) {
                   return Center(
@@ -425,10 +614,9 @@ class _ChatScreenState extends State<ChatScreen> {
                     Container(
                       margin: EdgeInsets.symmetric(vertical: 2, horizontal: 16),
                       child: Row(
-                        mainAxisAlignment:
-                            isMe
-                                ? MainAxisAlignment.end
-                                : MainAxisAlignment.start,
+                        mainAxisAlignment: isMe
+                            ? MainAxisAlignment.end
+                            : MainAxisAlignment.start,
                         crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
                           if (!isMe) ...[
@@ -447,13 +635,12 @@ class _ChatScreenState extends State<ChatScreen> {
                             child: Container(
                               constraints: BoxConstraints(
                                 maxWidth:
-                                    MediaQuery.of(context).size.width * 0.75,
+                                MediaQuery.of(context).size.width * 0.75,
                               ),
                               child: Column(
-                                crossAxisAlignment:
-                                    isMe
-                                        ? CrossAxisAlignment.end
-                                        : CrossAxisAlignment.start,
+                                crossAxisAlignment: isMe
+                                    ? CrossAxisAlignment.end
+                                    : CrossAxisAlignment.start,
                                 children: [
                                   Container(
                                     padding: EdgeInsets.symmetric(
@@ -461,17 +648,16 @@ class _ChatScreenState extends State<ChatScreen> {
                                       vertical: 12,
                                     ),
                                     decoration: BoxDecoration(
-                                      gradient:
-                                          isMe
-                                              ? LinearGradient(
-                                                colors: [
-                                                  ColorUtils.primaryColor,
-                                                  Color(0xFFFFE55C),
-                                                ],
-                                                begin: Alignment.topLeft,
-                                                end: Alignment.bottomRight,
-                                              )
-                                              : null,
+                                      gradient: isMe
+                                          ? LinearGradient(
+                                        colors: [
+                                          ColorUtils.primaryColor,
+                                          Color(0xFFFFE55C),
+                                        ],
+                                        begin: Alignment.topLeft,
+                                        end: Alignment.bottomRight,
+                                      )
+                                          : null,
                                       color: isMe ? null : Colors.grey[200],
                                       borderRadius: BorderRadius.only(
                                         topLeft: Radius.circular(20),
@@ -495,10 +681,9 @@ class _ChatScreenState extends State<ChatScreen> {
                                       message['message'] ?? '',
                                       style: TextStyle(
                                         fontSize: 15,
-                                        color:
-                                            isMe
-                                                ? Colors.black87
-                                                : Colors.grey[800],
+                                        color: isMe
+                                            ? Colors.black87
+                                            : Colors.grey[800],
                                         fontWeight: FontWeight.w400,
                                       ),
                                     ),
@@ -519,10 +704,9 @@ class _ChatScreenState extends State<ChatScreen> {
                                         Icon(
                                           isRead ? Icons.done_all : Icons.done,
                                           size: 14,
-                                          color:
-                                              isRead
-                                                  ? Colors.blue
-                                                  : Colors.grey[500],
+                                          color: isRead
+                                              ? Colors.blue
+                                              : Colors.grey[500],
                                         ),
                                       ],
                                     ],
@@ -581,18 +765,6 @@ class _ChatScreenState extends State<ChatScreen> {
                       fontWeight: FontWeight.w600,
                     ),
                   ),
-                  // SizedBox(width: 16),
-                  // TextButton(
-                  //   onPressed: _unblockUser,
-                  //   child: Text(
-                  //     'Unblock',
-                  //     style: TextStyle(
-                  //       color: Colors.teal,
-                  //       fontSize: 14,
-                  //       fontWeight: FontWeight.w600,
-                  //     ),
-                  //   ),
-                  // ),
                 ],
               ),
             ),
@@ -655,8 +827,19 @@ class _ChatScreenState extends State<ChatScreen> {
                       ],
                     ),
                     child: IconButton(
-                      icon: Icon(Icons.send, color: Colors.black87, size: 20),
-                      onPressed: _sendMessage,
+                      icon: _isSendingMessage
+                          ? SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            Colors.black87,
+                          ),
+                        ),
+                      )
+                          : Icon(Icons.send, color: Colors.black87, size: 20),
+                      onPressed: _isSendingMessage ? null : _sendMessage,
                     ),
                   ),
                 ],

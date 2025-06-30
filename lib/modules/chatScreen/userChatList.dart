@@ -383,14 +383,10 @@ class ChatListScreen extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                     ),
                     onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder:
-                              (context) => ChatScreen(
-                                senderId: currentUserId,
-                                receiverId: partnerId,
-                              ),
+                      Get.to(
+                        ChatScreen(
+                          senderId: currentUserId,
+                          receiverId: partnerId,
                         ),
                       );
                     },
