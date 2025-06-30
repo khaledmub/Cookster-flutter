@@ -60,6 +60,17 @@ class _JoinScreenState extends State<JoinScreen> {
     );
   }
 
+  Future<int> getEntity() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    print(
+      'Getting entity from shared preferences: ${prefs.getInt('entity') ?? 0}',
+    );
+    return prefs.getInt('entity') ?? 0;
+  }
+
+
+
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
