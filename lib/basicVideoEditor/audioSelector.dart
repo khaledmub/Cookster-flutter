@@ -247,53 +247,56 @@ class AudioSelector extends StatelessWidget {
             onTap: () => _showAudioBottomSheet(context),
             child: Align(
               alignment: Alignment.topCenter,
-              child: Container(
-                width: 180,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 8,
-                ),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(50),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.grey.withOpacity(0.3),
-                      blurRadius: 4,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(Icons.music_note_rounded, color: Colors.black),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        controller.selectedFileName.isEmpty
-                            ? "Add Music".tr
-                            : controller.selectedFileName,
-                        style: const TextStyle(color: Colors.black),
-                        overflow: TextOverflow.ellipsis,
+              child: IntrinsicWidth(
+                child: Container(
+                  constraints: const BoxConstraints(maxWidth: 150),
+
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(50),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.grey.withOpacity(0.3),
+                        blurRadius: 4,
+                        offset: const Offset(0, 2),
                       ),
-                    ),
-                    Obx(() {
-                      return InkWell(
-                        onTap: () {
-                          if (controller.isPlaying) {
-                            controller.pauseAudio();
-                          } else {
-                            controller.playAudio();
-                          }
-                        },
-                        child:
-                            controller.isPlaying
-                                ? const Icon(Icons.pause)
-                                : const Icon(Icons.play_arrow),
-                      );
-                    }),
-                  ],
+                    ],
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.music_note_rounded, color: Colors.black),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          controller.selectedFileName.isEmpty
+                              ? "Add Music".tr
+                              : controller.selectedFileName,
+                          style: const TextStyle(color: Colors.black),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      Obx(() {
+                        return InkWell(
+                          onTap: () {
+                            if (controller.isPlaying) {
+                              controller.pauseAudio();
+                            } else {
+                              controller.playAudio();
+                            }
+                          },
+                          child:
+                              controller.isPlaying
+                                  ? const Icon(Icons.pause)
+                                  : const Icon(Icons.play_arrow),
+                        );
+                      }),
+                    ],
+                  ),
                 ),
               ),
             ),
