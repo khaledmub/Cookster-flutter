@@ -11,7 +11,7 @@ class ChatScreen extends StatefulWidget {
   final String receiverId;
 
   const ChatScreen({required this.senderId, required this.receiverId, Key? key})
-    : super(key: key);
+      : super(key: key);
 
   @override
   _ChatScreenState createState() => _ChatScreenState();
@@ -22,13 +22,31 @@ class _ChatScreenState extends State<ChatScreen> {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final ScrollController _scrollController = ScrollController();
+  int _unreadCount = 0;
 
   String get chatId {
     List<String> ids = [widget.senderId, widget.receiverId]..sort();
     return '${ids[0]}_${ids[1]}';
   }
 
-  void _sendMessage()  {
+  Future<int> _getUnreadCount() async {
+    try {
+      final snapshot = await _firestore
+          .collection('chats')
+          .doc(chatId)
+          .collection('messages')
+          .where('receiverId', isEqualTo: widget.senderId)
+          .where('read', isEqualTo: false)
+          .get();
+      print('📬 Unread count for chatId $chatId: ${snapshot.docs.length}');
+      return snapshot.docs.length;
+    } catch (e) {
+      print('🚨 Error fetching unread count: $e');
+      return 0;
+    }
+  }
+
+  void _sendMessage() {
     if (_messageController.text.trim().isEmpty) return;
 
     final messageText = _messageController.text.trim();
@@ -41,8 +59,8 @@ class _ChatScreenState extends State<ChatScreen> {
     };
 
     try {
-      // First, create/update the parent chat document
-       _firestore
+      // Update the parent chat document
+      _firestore
           .collection('chats')
           .doc(chatId)
           .set({
@@ -51,10 +69,10 @@ class _ChatScreenState extends State<ChatScreen> {
         'lastMessageTime': FieldValue.serverTimestamp(),
         'lastMessageSender': widget.senderId,
         'createdAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true)); // merge: true will update existing fields or create new document
+      }, SetOptions(merge: true));
 
-      // Then add the message to the messages subcollection
-       _firestore
+      // Add the message to the messages subcollection
+      _firestore
           .collection('chats')
           .doc(chatId)
           .collection('messages')
@@ -87,7 +105,6 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   void _markMessagesAsRead() {
-    // Mark all unread messages from receiver as read
     _firestore
         .collection('chats')
         .doc(chatId)
@@ -96,27 +113,30 @@ class _ChatScreenState extends State<ChatScreen> {
         .where('read', isEqualTo: false)
         .get()
         .then((snapshot) {
-          for (var doc in snapshot.docs) {
-            doc.reference.update({'read': true});
-          }
-        })
+      for (var doc in snapshot.docs) {
+        doc.reference.update({'read': true});
+      }
+      setState(() {
+        _unreadCount = 0; // Update UI after marking as read
+      });
+    })
         .catchError((e) {
-          print('Error marking messages as read: $e');
-        });
+      print('🚨 Error marking messages as read: $e');
+    });
   }
 
   Future<Map<String, dynamic>> _fetchReceiverData() async {
     try {
       final userDoc =
-          await _firestore.collection('users').doc(widget.receiverId).get();
+      await _firestore.collection('users').doc(widget.receiverId).get();
       return userDoc.exists
           ? {
-            'name': userDoc.data()?['name'] ?? widget.receiverId,
-            'image': userDoc.data()?['image'] ?? '',
-          }
+        'name': userDoc.data()?['name'] ?? widget.receiverId,
+        'image': userDoc.data()?['image'] ?? '',
+      }
           : {'name': widget.receiverId, 'image': ''};
     } catch (e) {
-      print('Error fetching receiver data: $e');
+      print('🚨 Error fetching receiver data: $e');
       return {'name': widget.receiverId, 'image': ''};
     }
   }
@@ -145,13 +165,21 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   void initState() {
     super.initState();
-    _markMessagesAsRead(); // Mark messages as read on chat open
+    // Fetch initial unread count and mark messages as read
+    _getUnreadCount().then((count) {
+      setState(() {
+        _unreadCount = count;
+      });
+      if (count > 0) {
+        _markMessagesAsRead();
+      }
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.grey[50],
+      backgroundColor: Colors.grey[100],
       appBar: AppBar(
         titleSpacing: 0,
         surfaceTintColor: Colors.transparent,
@@ -181,7 +209,7 @@ class _ChatScreenState extends State<ChatScreen> {
                   SizedBox(width: 12),
                   Text(
                     'Loading...',
-                    style: TextStyle(color: Colors.grey[800], fontSize: 16),
+                    style: TextStyle(color: Colors.black87, fontSize: 16),
                   ),
                 ],
               );
@@ -206,29 +234,42 @@ class _ChatScreenState extends State<ChatScreen> {
                     radius: 18,
                     backgroundColor: Colors.grey[200],
                     backgroundImage:
-                        receiverImage.isNotEmpty
-                            ? CachedNetworkImageProvider(receiverImage)
-                            : null,
-                    child:
-                        receiverImage.isEmpty
-                            ? Icon(
-                              Icons.person,
-                              size: 20,
-                              color: Colors.grey[600],
-                            )
-                            : null,
+                    receiverImage.isNotEmpty
+                        ? CachedNetworkImageProvider(receiverImage)
+                        : null,
+                    child: receiverImage.isEmpty
+                        ? Icon(
+                      Icons.person,
+                      size: 20,
+                      color: Colors.grey[600],
+                    )
+                        : null,
                   ),
                 ),
                 SizedBox(width: 12),
                 Expanded(
-                  child: Text(
-                    receiverName,
-                    style: TextStyle(
-                      color: Colors.grey[800],
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                    ),
-                    overflow: TextOverflow.ellipsis,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        receiverName,
+                        style: TextStyle(
+                          color: Colors.black87,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      if (_unreadCount > 0)
+                        Text(
+                          '$_unreadCount new messages',
+                          style: TextStyle(
+                            color: Colors.teal,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                    ],
                   ),
                 ),
               ],
@@ -240,13 +281,12 @@ class _ChatScreenState extends State<ChatScreen> {
         children: [
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
-              stream:
-                  _firestore
-                      .collection('chats')
-                      .doc(chatId)
-                      .collection('messages')
-                      .orderBy('timestamp', descending: false)
-                      .snapshots(),
+              stream: _firestore
+                  .collection('chats')
+                  .doc(chatId)
+                  .collection('messages')
+                  .orderBy('timestamp', descending: false)
+                  .snapshots(),
               builder: (context, snapshot) {
                 if (snapshot.hasError) {
                   return Center(
@@ -321,7 +361,7 @@ class _ChatScreenState extends State<ChatScreen> {
                               vertical: 6,
                             ),
                             decoration: BoxDecoration(
-                              color: Colors.grey[200],
+                              color: Colors.grey[300],
                               borderRadius: BorderRadius.circular(14),
                             ),
                             child: Text(
@@ -343,9 +383,7 @@ class _ChatScreenState extends State<ChatScreen> {
                       margin: EdgeInsets.symmetric(vertical: 2, horizontal: 16),
                       child: Row(
                         mainAxisAlignment:
-                            isMe
-                                ? MainAxisAlignment.end
-                                : MainAxisAlignment.start,
+                        isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
                         crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
                           if (!isMe) ...[
@@ -363,14 +401,11 @@ class _ChatScreenState extends State<ChatScreen> {
                           Flexible(
                             child: Container(
                               constraints: BoxConstraints(
-                                maxWidth:
-                                    MediaQuery.of(context).size.width * 0.75,
+                                maxWidth: MediaQuery.of(context).size.width * 0.75,
                               ),
                               child: Column(
                                 crossAxisAlignment:
-                                    isMe
-                                        ? CrossAxisAlignment.end
-                                        : CrossAxisAlignment.start,
+                                isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
                                 children: [
                                   Container(
                                     padding: EdgeInsets.symmetric(
@@ -378,27 +413,22 @@ class _ChatScreenState extends State<ChatScreen> {
                                       vertical: 12,
                                     ),
                                     decoration: BoxDecoration(
-                                      gradient:
-                                          isMe
-                                              ? LinearGradient(
-                                                colors: [
-                                                  ColorUtils.primaryColor,
-                                                  Color(0xFFFFE55C),
-                                                ],
-                                                begin: Alignment.topLeft,
-                                                end: Alignment.bottomRight,
-                                              )
-                                              : null,
+                                      gradient: isMe
+                                          ? LinearGradient(
+                                        colors: [
+                                          ColorUtils.primaryColor,
+                                          Color(0xFFFFE55C),
+                                        ],
+                                        begin: Alignment.topLeft,
+                                        end: Alignment.bottomRight,
+                                      )
+                                          : null,
                                       color: isMe ? null : Colors.grey[200],
                                       borderRadius: BorderRadius.only(
                                         topLeft: Radius.circular(20),
                                         topRight: Radius.circular(20),
-                                        bottomLeft: Radius.circular(
-                                          isMe ? 20 : 4,
-                                        ),
-                                        bottomRight: Radius.circular(
-                                          isMe ? 4 : 20,
-                                        ),
+                                        bottomLeft: Radius.circular(isMe ? 20 : 4),
+                                        bottomRight: Radius.circular(isMe ? 4 : 20),
                                       ),
                                       boxShadow: [
                                         BoxShadow(
@@ -412,10 +442,7 @@ class _ChatScreenState extends State<ChatScreen> {
                                       message['message'] ?? '',
                                       style: TextStyle(
                                         fontSize: 15,
-                                        color:
-                                            isMe
-                                                ? Colors.black87
-                                                : Colors.grey[800],
+                                        color: isMe ? Colors.black87 : Colors.grey[800],
                                         fontWeight: FontWeight.w400,
                                       ),
                                     ),
@@ -436,10 +463,7 @@ class _ChatScreenState extends State<ChatScreen> {
                                         Icon(
                                           isRead ? Icons.done_all : Icons.done,
                                           size: 14,
-                                          color:
-                                              isRead
-                                                  ? Colors.blue
-                                                  : Colors.grey[500],
+                                          color: isRead ? Colors.blue : Colors.grey[500],
                                         ),
                                       ],
                                     ],
