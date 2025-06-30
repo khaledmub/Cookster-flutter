@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:get/get.dart';
 import 'package:intl/intl.dart';
 import 'package:shimmer/shimmer.dart';
 import '../../appUtils/colorUtils.dart';
@@ -11,7 +12,7 @@ class ChatScreen extends StatefulWidget {
   final String receiverId;
 
   const ChatScreen({required this.senderId, required this.receiverId, Key? key})
-      : super(key: key);
+    : super(key: key);
 
   @override
   _ChatScreenState createState() => _ChatScreenState();
@@ -33,13 +34,14 @@ class _ChatScreenState extends State<ChatScreen> {
 
   Future<int> _getUnreadCount() async {
     try {
-      final snapshot = await _firestore
-          .collection('chats')
-          .doc(chatId)
-          .collection('messages')
-          .where('receiverId', isEqualTo: widget.senderId)
-          .where('read', isEqualTo: false)
-          .get();
+      final snapshot =
+          await _firestore
+              .collection('chats')
+              .doc(chatId)
+              .collection('messages')
+              .where('receiverId', isEqualTo: widget.senderId)
+              .where('read', isEqualTo: false)
+              .get();
       print('📬 Unread count for chatId $chatId: ${snapshot.docs.length}');
       return snapshot.docs.length;
     } catch (e) {
@@ -57,38 +59,6 @@ class _ChatScreenState extends State<ChatScreen> {
     } catch (e) {
       print('🚨 Error checking blocked status: $e');
       return false;
-    }
-  }
-
-  Future<void> _unblockUser() async {
-    try {
-      await _firestore.collection('chats').doc(chatId).update({
-        'blockedBy': FieldValue.arrayRemove([widget.senderId]),
-      });
-      setState(() {
-        _isBlocked = false;
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('User unblocked'),
-          backgroundColor: Colors.green,
-          behavior: SnackBarBehavior.floating,
-          duration: Duration(seconds: 2),
-          margin: EdgeInsets.all(16),
-        ),
-      );
-      print('✅ User unblocked for chatId: $chatId');
-    } catch (e) {
-      print('🚨 Error unblocking user: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Failed to unblock user: $e'),
-          backgroundColor: Colors.red,
-          behavior: SnackBarBehavior.floating,
-          duration: Duration(seconds: 2),
-          margin: EdgeInsets.all(16),
-        ),
-      );
     }
   }
 
@@ -157,26 +127,27 @@ class _ChatScreenState extends State<ChatScreen> {
         .where('read', isEqualTo: false)
         .get()
         .then((snapshot) {
-      for (var doc in snapshot.docs) {
-        doc.reference.update({'read': true});
-      }
-      setState(() {
-        _unreadCount = 0;
-      });
-    }).catchError((e) {
-      print('🚨 Error marking messages as read: $e');
-    });
+          for (var doc in snapshot.docs) {
+            doc.reference.update({'read': true});
+          }
+          setState(() {
+            _unreadCount = 0;
+          });
+        })
+        .catchError((e) {
+          print('🚨 Error marking messages as read: $e');
+        });
   }
 
   Future<Map<String, dynamic>> _fetchReceiverData() async {
     try {
       final userDoc =
-      await _firestore.collection('users').doc(widget.receiverId).get();
+          await _firestore.collection('users').doc(widget.receiverId).get();
       return userDoc.exists
           ? {
-        'name': userDoc.data()?['name'] ?? widget.receiverId,
-        'image': userDoc.data()?['image'] ?? '',
-      }
+            'name': userDoc.data()?['name'] ?? widget.receiverId,
+            'image': userDoc.data()?['image'] ?? '',
+          }
           : {'name': widget.receiverId, 'image': ''};
     } catch (e) {
       print('🚨 Error fetching receiver data: $e');
@@ -190,8 +161,8 @@ class _ChatScreenState extends State<ChatScreen> {
     final yesterday = today.subtract(Duration(days: 1));
     final messageDate = DateTime(date.year, date.month, date.day);
 
-    if (messageDate == today) return 'Today';
-    if (messageDate == yesterday) return 'Yesterday';
+    if (messageDate == today) return 'today'.tr;
+    if (messageDate == yesterday) return 'yesterday'.tr;
     return DateFormat('MMM d, yyyy').format(date);
   }
 
@@ -257,7 +228,7 @@ class _ChatScreenState extends State<ChatScreen> {
                   ),
                   SizedBox(width: 12),
                   Text(
-                    'Loading...',
+                    'loading'.tr,
                     style: TextStyle(color: Colors.black87, fontSize: 16),
                   ),
                 ],
@@ -282,16 +253,18 @@ class _ChatScreenState extends State<ChatScreen> {
                   child: CircleAvatar(
                     radius: 18,
                     backgroundColor: Colors.grey[200],
-                    backgroundImage: receiverImage.isNotEmpty
-                        ? CachedNetworkImageProvider(receiverImage)
-                        : null,
-                    child: receiverImage.isEmpty
-                        ? Icon(
-                      Icons.person,
-                      size: 20,
-                      color: Colors.grey[600],
-                    )
-                        : null,
+                    backgroundImage:
+                        receiverImage.isNotEmpty
+                            ? CachedNetworkImageProvider(receiverImage)
+                            : null,
+                    child:
+                        receiverImage.isEmpty
+                            ? Icon(
+                              Icons.person,
+                              size: 20,
+                              color: Colors.grey[600],
+                            )
+                            : null,
                   ),
                 ),
                 SizedBox(width: 12),
@@ -318,9 +291,11 @@ class _ChatScreenState extends State<ChatScreen> {
                             color: Colors.grey[300],
                           ),
                         ),
-                      if (!_isLoadingBlockedStatus && _unreadCount > 0 && !_isBlocked)
+                      if (!_isLoadingBlockedStatus &&
+                          _unreadCount > 0 &&
+                          !_isBlocked)
                         Text(
-                          '$_unreadCount new messages',
+                          '$_unreadCount ${'new_messages'.tr}',
                           style: TextStyle(
                             color: Colors.teal,
                             fontSize: 12,
@@ -329,7 +304,7 @@ class _ChatScreenState extends State<ChatScreen> {
                         ),
                       if (!_isLoadingBlockedStatus && _isBlocked)
                         Text(
-                          'Blocked',
+                          'blocked'.tr,
                           style: TextStyle(
                             color: Colors.redAccent,
                             fontSize: 12,
@@ -348,17 +323,18 @@ class _ChatScreenState extends State<ChatScreen> {
         children: [
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
-              stream: _firestore
-                  .collection('chats')
-                  .doc(chatId)
-                  .collection('messages')
-                  .orderBy('timestamp', descending: false)
-                  .snapshots(),
+              stream:
+                  _firestore
+                      .collection('chats')
+                      .doc(chatId)
+                      .collection('messages')
+                      .orderBy('timestamp', descending: false)
+                      .snapshots(),
               builder: (context, snapshot) {
                 if (snapshot.hasError) {
                   return Center(
                     child: Text(
-                      'Something went wrong',
+                      'something_went_wrong'.tr,
                       style: TextStyle(color: Colors.grey[600]),
                     ),
                   );
@@ -387,14 +363,14 @@ class _ChatScreenState extends State<ChatScreen> {
                         ),
                         SizedBox(height: 16),
                         Text(
-                          'No messages yet',
+                          'no_messages_yet'.tr,
                           style: TextStyle(
                             color: Colors.grey[600],
                             fontSize: 16,
                           ),
                         ),
                         Text(
-                          'Start a conversation!',
+                          'start_conversation'.tr,
                           style: TextStyle(
                             color: Colors.grey[500],
                             fontSize: 14,
@@ -450,7 +426,9 @@ class _ChatScreenState extends State<ChatScreen> {
                       margin: EdgeInsets.symmetric(vertical: 2, horizontal: 16),
                       child: Row(
                         mainAxisAlignment:
-                        isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
+                            isMe
+                                ? MainAxisAlignment.end
+                                : MainAxisAlignment.start,
                         crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
                           if (!isMe) ...[
@@ -468,11 +446,14 @@ class _ChatScreenState extends State<ChatScreen> {
                           Flexible(
                             child: Container(
                               constraints: BoxConstraints(
-                                maxWidth: MediaQuery.of(context).size.width * 0.75,
+                                maxWidth:
+                                    MediaQuery.of(context).size.width * 0.75,
                               ),
                               child: Column(
                                 crossAxisAlignment:
-                                isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+                                    isMe
+                                        ? CrossAxisAlignment.end
+                                        : CrossAxisAlignment.start,
                                 children: [
                                   Container(
                                     padding: EdgeInsets.symmetric(
@@ -480,22 +461,27 @@ class _ChatScreenState extends State<ChatScreen> {
                                       vertical: 12,
                                     ),
                                     decoration: BoxDecoration(
-                                      gradient: isMe
-                                          ? LinearGradient(
-                                        colors: [
-                                          ColorUtils.primaryColor,
-                                          Color(0xFFFFE55C),
-                                        ],
-                                        begin: Alignment.topLeft,
-                                        end: Alignment.bottomRight,
-                                      )
-                                          : null,
+                                      gradient:
+                                          isMe
+                                              ? LinearGradient(
+                                                colors: [
+                                                  ColorUtils.primaryColor,
+                                                  Color(0xFFFFE55C),
+                                                ],
+                                                begin: Alignment.topLeft,
+                                                end: Alignment.bottomRight,
+                                              )
+                                              : null,
                                       color: isMe ? null : Colors.grey[200],
                                       borderRadius: BorderRadius.only(
                                         topLeft: Radius.circular(20),
                                         topRight: Radius.circular(20),
-                                        bottomLeft: Radius.circular(isMe ? 20 : 4),
-                                        bottomRight: Radius.circular(isMe ? 4 : 20),
+                                        bottomLeft: Radius.circular(
+                                          isMe ? 20 : 4,
+                                        ),
+                                        bottomRight: Radius.circular(
+                                          isMe ? 4 : 20,
+                                        ),
                                       ),
                                       boxShadow: [
                                         BoxShadow(
@@ -509,7 +495,10 @@ class _ChatScreenState extends State<ChatScreen> {
                                       message['message'] ?? '',
                                       style: TextStyle(
                                         fontSize: 15,
-                                        color: isMe ? Colors.black87 : Colors.grey[800],
+                                        color:
+                                            isMe
+                                                ? Colors.black87
+                                                : Colors.grey[800],
                                         fontWeight: FontWeight.w400,
                                       ),
                                     ),
@@ -530,7 +519,10 @@ class _ChatScreenState extends State<ChatScreen> {
                                         Icon(
                                           isRead ? Icons.done_all : Icons.done,
                                           size: 14,
-                                          color: isRead ? Colors.blue : Colors.grey[500],
+                                          color:
+                                              isRead
+                                                  ? Colors.blue
+                                                  : Colors.grey[500],
                                         ),
                                       ],
                                     ],
@@ -565,17 +557,9 @@ class _ChatScreenState extends State<ChatScreen> {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Container(
-                      width: 20,
-                      height: 20,
-                      color: Colors.grey[300],
-                    ),
+                    Container(width: 20, height: 20, color: Colors.grey[300]),
                     SizedBox(width: 8),
-                    Container(
-                      width: 150,
-                      height: 14,
-                      color: Colors.grey[300],
-                    ),
+                    Container(width: 150, height: 14, color: Colors.grey[300]),
                   ],
                 ),
               ),
@@ -590,7 +574,7 @@ class _ChatScreenState extends State<ChatScreen> {
                   Icon(Icons.lock, color: Colors.redAccent, size: 24),
                   SizedBox(width: 8),
                   Text(
-                    'You have blocked this user',
+                    'you_blocked_user'.tr,
                     style: TextStyle(
                       color: Colors.redAccent,
                       fontSize: 16,
@@ -641,7 +625,7 @@ class _ChatScreenState extends State<ChatScreen> {
                         controller: _messageController,
                         style: TextStyle(color: Colors.grey[800]),
                         decoration: InputDecoration(
-                          hintText: 'Type a message...',
+                          hintText: 'type_message'.tr,
                           hintStyle: TextStyle(color: Colors.grey[500]),
                           border: InputBorder.none,
                           contentPadding: EdgeInsets.symmetric(

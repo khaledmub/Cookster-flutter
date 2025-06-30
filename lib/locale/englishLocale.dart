@@ -446,5 +446,20 @@ const Map<String, String> en = {
   "are_you_sure_end_livestream": "Are you sure you want to end the livestream for everyone?",
   "end_livestream": "End Livestream",
   "join": "Join",
-  "message_label" : "Message"
+  "message_label" : "Message",
+  "loading": "Loading...",
+  "no_messages_yet": "No messages yet",
+  "start_conversation": "Start a conversation!",
+  "today": "Today",
+  "yesterday": "Yesterday",
+  "something_went_wrong": "Something went wrong",
+  "failed_to_send": "Failed to send message",
+  "new_messages": "new messages",
+  "blocked": "Blocked",
+  "you_blocked_user": "You have blocked this user",
+  "type_message": "Type a message...",
+  "chats": "Chats",
+  "no_chats_found": "No chats found",
+  "no_messages": "No messages",
+  "cookster_user": "Cookster User"
 };

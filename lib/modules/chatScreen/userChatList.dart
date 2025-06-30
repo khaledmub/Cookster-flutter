@@ -1,6 +1,7 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
 import 'package:intl/intl.dart';
 import 'package:shimmer/shimmer.dart';
 import 'chatScreenView.dart';
@@ -124,7 +125,7 @@ class ChatListScreen extends StatelessWidget {
     if (messageDate == today) {
       return DateFormat('HH:mm').format(timestamp);
     } else if (messageDate == today.subtract(Duration(days: 1))) {
-      return 'Yesterday';
+      return 'yesterday'.tr;
     } else {
       return DateFormat('dd/MM/yy').format(timestamp);
     }
@@ -138,7 +139,7 @@ class ChatListScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          'Chats',
+          'chats'.tr,
           style: TextStyle(
             color: Colors.black87,
             fontSize: 22,
@@ -191,7 +192,7 @@ class ChatListScreen extends StatelessWidget {
           if (chatData.isEmpty) {
             return Center(
               child: Text(
-                'No chats found',
+                'no_chats_found'.tr,
                 style: TextStyle(color: Colors.grey[600], fontSize: 16),
               ),
             );
@@ -297,7 +298,9 @@ class ChatListScreen extends StatelessWidget {
                           child: Row(
                             children: [
                               Text(
-                              isBlocked ? "Cookster User" :  userData['name'],
+                                isBlocked
+                                    ? "cookster_user".tr
+                                    : userData['name'],
                                 style: TextStyle(
                                   fontSize: 16,
                                   fontWeight:
@@ -368,7 +371,7 @@ class ChatListScreen extends StatelessWidget {
                                     : lastMessage['message'].length,
                               ) ??
                               '')
-                          : 'No messages',
+                          : 'no_messages'.tr,
                       style: TextStyle(
                         fontSize: 14,
                         color:

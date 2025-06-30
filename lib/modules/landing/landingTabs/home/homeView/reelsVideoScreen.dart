@@ -783,6 +783,28 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                   ),
                 ),
               ),
+              SafeArea(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      InkWell(
+                        onTap: () {
+                          isAuthenticated
+                              ? Get.to(ChatListScreen(userId: userId!))
+                              : Get.toNamed(AppRoutes.signIn);
+                        },
+                        child: SvgPicture.asset(
+                          "assets/icons/chat.svg",
+                          color: Colors.white,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
               Align(
                 alignment: Alignment.topCenter,
                 child: Obx(
