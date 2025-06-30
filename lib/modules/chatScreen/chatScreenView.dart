@@ -1,5 +1,4 @@
 import 'dart:convert';
-
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -16,7 +15,7 @@ class ChatScreen extends StatefulWidget {
   final String receiverId;
 
   const ChatScreen({required this.senderId, required this.receiverId, Key? key})
-      : super(key: key);
+    : super(key: key);
 
   @override
   _ChatScreenState createState() => _ChatScreenState();
@@ -31,19 +30,16 @@ class _ChatScreenState extends State<ChatScreen> {
   // Performance optimization variables
   int _unreadCount = 0;
   bool _isBlocked = false;
-  bool _isLoadingBlockedStatus = true;
-  bool _isSendingMessage = false; // Prevent multiple taps
+  bool _isSendingMessage = false;
+  Map<String, dynamic>? _receiverData;
 
   // Cache variables for performance
   String? _cachedRecipientToken;
   String? _cachedAccessToken;
-  Map<String, dynamic>? _cachedReceiverData;
   DateTime? _tokenCacheTime;
-  DateTime? _receiverDataCacheTime;
 
   // Cache duration constants
   static const Duration TOKEN_CACHE_DURATION = Duration(hours: 1);
-  static const Duration RECEIVER_DATA_CACHE_DURATION = Duration(minutes: 30);
 
   String get chatId {
     List<String> ids = [widget.senderId, widget.receiverId]..sort();
@@ -52,17 +48,16 @@ class _ChatScreenState extends State<ChatScreen> {
 
   // Optimized notification sending with caching
   Future<void> _sendNotification(
-      String recipientToken, {
-        required String title,
-        required String body,
-      }) async {
+    String recipientToken, {
+    required String title,
+    required String body,
+  }) async {
     if (recipientToken.isEmpty) return;
 
     const String fcmUrl =
         'https://fcm.googleapis.com/v1/projects/cockster-e477a/messages:send';
 
     try {
-      // Use cached access token if available and not expired
       String accessToken;
       if (_cachedAccessToken != null &&
           _tokenCacheTime != null &&
@@ -92,7 +87,6 @@ class _ChatScreenState extends State<ChatScreen> {
         }),
       );
 
-      // Clear cached token if unauthorized (expired)
       if (response.statusCode == 401) {
         _cachedAccessToken = null;
         _tokenCacheTime = null;
@@ -104,13 +98,14 @@ class _ChatScreenState extends State<ChatScreen> {
 
   Future<int> _getUnreadCount() async {
     try {
-      final snapshot = await _firestore
-          .collection('chats')
-          .doc(chatId)
-          .collection('messages')
-          .where('receiverId', isEqualTo: widget.senderId)
-          .where('read', isEqualTo: false)
-          .get();
+      final snapshot =
+          await _firestore
+              .collection('chats')
+              .doc(chatId)
+              .collection('messages')
+              .where('receiverId', isEqualTo: widget.senderId)
+              .where('read', isEqualTo: false)
+              .get();
       return snapshot.docs.length;
     } catch (e) {
       print('🚨 Error fetching unread count: $e');
@@ -118,29 +113,18 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
-  Future<bool> _checkBlockedStatus() async {
-    try {
-      final chatDoc = await _firestore.collection('chats').doc(chatId).get();
-      final blockedBy = List<String>.from(chatDoc.data()?['blockedBy'] ?? []);
-      return blockedBy.contains(widget.senderId);
-    } catch (e) {
-      print('🚨 Error checking blocked status: $e');
-      return false;
-    }
-  }
-
   // Optimized recipient token fetching with caching
   Future<String> _fetchRecipientToken() async {
-    // Return cached token if available
     if (_cachedRecipientToken != null) {
       return _cachedRecipientToken!;
     }
 
     try {
-      final userDoc = await _firestore.collection('users').doc(widget.receiverId).get();
+      final userDoc =
+          await _firestore.collection('users').doc(widget.receiverId).get();
       if (userDoc.exists && userDoc.data() != null) {
         final token = userDoc.data()!['uuid'] ?? '';
-        _cachedRecipientToken = token; // Cache the token
+        _cachedRecipientToken = token;
         return token;
       }
       return '';
@@ -150,10 +134,11 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
-  // Optimized message sending with debouncing
+  // Optimized message sending
   void _sendMessage() async {
-    // Prevent multiple taps and empty messages
-    if (_messageController.text.trim().isEmpty || _isBlocked || _isSendingMessage) {
+    if (_messageController.text.trim().isEmpty ||
+        _isBlocked ||
+        _isSendingMessage) {
       return;
     }
 
@@ -162,7 +147,7 @@ class _ChatScreenState extends State<ChatScreen> {
     });
 
     final messageText = _messageController.text.trim();
-    _messageController.clear(); // Clear immediately for better UX
+    _messageController.clear();
 
     final message = {
       'senderId': widget.senderId,
@@ -173,10 +158,7 @@ class _ChatScreenState extends State<ChatScreen> {
     };
 
     try {
-      // Batch operations for better performance
       final batch = _firestore.batch();
-
-      // Update the parent chat document
       final chatRef = _firestore.collection('chats').doc(chatId);
       batch.set(chatRef, {
         'participants': [widget.senderId, widget.receiverId],
@@ -186,25 +168,16 @@ class _ChatScreenState extends State<ChatScreen> {
         'createdAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
 
-      // Add the message to the messages subcollection
       final messageRef = chatRef.collection('messages').doc();
       batch.set(messageRef, message);
 
-      // Commit batch operation
       await batch.commit();
 
-      // Handle notification in parallel (non-blocking)
       _handleNotificationAsync(messageText);
-
-      // Scroll to bottom with slight delay
       _scrollToBottom();
-
-      print('✅ Message sent successfully to chatId: $chatId');
     } catch (e) {
       print('🚨 Error sending message: $e');
-      // Restore message text on error
       _messageController.text = messageText;
-
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -224,10 +197,8 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
-  // Handle notification asynchronously to avoid blocking UI
   void _handleNotificationAsync(String messageText) async {
     try {
-      // Get sender name and recipient token concurrently
       final futures = await Future.wait([
         _fetchSenderName(),
         _fetchRecipientToken(),
@@ -250,7 +221,8 @@ class _ChatScreenState extends State<ChatScreen> {
 
   Future<String> _fetchSenderName() async {
     try {
-      final senderDoc = await _firestore.collection('users').doc(widget.senderId).get();
+      final senderDoc =
+          await _firestore.collection('users').doc(widget.senderId).get();
       return senderDoc.exists && senderDoc.data() != null
           ? senderDoc.data()!['name'] ?? 'User'
           : 'User';
@@ -260,15 +232,13 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   void _scrollToBottom() {
-    Future.delayed(Duration(milliseconds: 100), () {
-      if (_scrollController.hasClients && mounted) {
-        _scrollController.animateTo(
-          _scrollController.position.maxScrollExtent,
-          duration: Duration(milliseconds: 300),
-          curve: Curves.easeOut,
-        );
-      }
-    });
+    if (_scrollController.hasClients && mounted) {
+      _scrollController.animateTo(
+        _scrollController.position.maxScrollExtent,
+        duration: Duration(milliseconds: 300),
+        curve: Curves.easeOut,
+      );
+    }
   }
 
   void _markMessagesAsRead() {
@@ -282,50 +252,50 @@ class _ChatScreenState extends State<ChatScreen> {
         .where('read', isEqualTo: false)
         .get()
         .then((snapshot) {
-      if (snapshot.docs.isNotEmpty) {
-        final batch = _firestore.batch();
-        for (var doc in snapshot.docs) {
-          batch.update(doc.reference, {'read': true});
-        }
-        return batch.commit();
-      }
-    }).then((_) {
-      if (mounted) {
-        setState(() {
-          _unreadCount = 0;
+          if (snapshot.docs.isNotEmpty) {
+            final batch = _firestore.batch();
+            for (var doc in snapshot.docs) {
+              batch.update(doc.reference, {'read': true});
+            }
+            return batch.commit();
+          }
+        })
+        .then((_) {
+          if (mounted) {
+            setState(() {
+              _unreadCount = 0;
+            });
+          }
+        })
+        .catchError((e) {
+          print('🚨 Error marking messages as read: $e');
         });
-      }
-    }).catchError((e) {
-      print('🚨 Error marking messages as read: $e');
-    });
   }
 
-  // Optimized receiver data fetching with caching
-  Future<Map<String, dynamic>> _fetchReceiverData() async {
-    // Return cached data if available and not expired
-    if (_cachedReceiverData != null &&
-        _receiverDataCacheTime != null &&
-        DateTime.now().difference(_receiverDataCacheTime!) < RECEIVER_DATA_CACHE_DURATION) {
-      return _cachedReceiverData!;
-    }
-
+  Future<void> _fetchReceiverData() async {
     try {
-      final userDoc = await _firestore.collection('users').doc(widget.receiverId).get();
-      final data = userDoc.exists
-          ? {
-        'name': userDoc.data()?['name'] ?? widget.receiverId,
-        'image': userDoc.data()?['image'] ?? '',
+      final userDoc =
+          await _firestore.collection('users').doc(widget.receiverId).get();
+      final data =
+          userDoc.exists
+              ? {
+                'name': userDoc.data()?['name'] ?? widget.receiverId,
+                'image': userDoc.data()?['image'] ?? '',
+              }
+              : {'name': widget.receiverId, 'image': ''};
+
+      if (mounted) {
+        setState(() {
+          _receiverData = data;
+        });
       }
-          : {'name': widget.receiverId, 'image': ''};
-
-      // Cache the data
-      _cachedReceiverData = data;
-      _receiverDataCacheTime = DateTime.now();
-
-      return data;
     } catch (e) {
       print('🚨 Error fetching receiver data: $e');
-      return {'name': widget.receiverId, 'image': ''};
+      if (mounted) {
+        setState(() {
+          _receiverData = {'name': widget.receiverId, 'image': ''};
+        });
+      }
     }
   }
 
@@ -358,33 +328,22 @@ class _ChatScreenState extends State<ChatScreen> {
 
   void _initializeChat() async {
     try {
-      // Fetch initial data concurrently
-      final futures = await Future.wait([
-        _getUnreadCount(),
-        _checkBlockedStatus(),
-        _fetchReceiverData(), // Pre-cache receiver data
-        _fetchRecipientToken(), // Pre-cache recipient token
+      await Future.wait([
+        _fetchReceiverData(),
+        _getUnreadCount().then((count) {
+          if (mounted) {
+            setState(() {
+              _unreadCount = count;
+            });
+          }
+          if (count > 0 && !_isBlocked) {
+            _markMessagesAsRead();
+          }
+        }),
+        _fetchRecipientToken(),
       ]);
-
-      if (mounted) {
-        setState(() {
-          _unreadCount = futures[0] as int;
-          _isBlocked = futures[1] as bool;
-          _isLoadingBlockedStatus = false;
-        });
-
-        // Mark messages as read if there are unread messages and user is not blocked
-        if (_unreadCount > 0 && !_isBlocked) {
-          _markMessagesAsRead();
-        }
-      }
     } catch (e) {
       print('🚨 Error initializing chat: $e');
-      if (mounted) {
-        setState(() {
-          _isLoadingBlockedStatus = false;
-        });
-      }
     }
   }
 
@@ -398,127 +357,140 @@ class _ChatScreenState extends State<ChatScreen> {
         backgroundColor: Colors.white,
         elevation: 1,
         shadowColor: Colors.grey[200],
-        title: FutureBuilder<Map<String, dynamic>>(
-          future: _fetchReceiverData(),
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return Row(
-                children: [
-                  CircleAvatar(
-                    radius: 18,
-                    backgroundColor: Colors.grey[300],
-                    child: SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        valueColor: AlwaysStoppedAnimation<Color>(
-                          ColorUtils.primaryColor,
+        title:
+            _receiverData == null
+                ? Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 18,
+                      backgroundColor: Colors.grey[300],
+                      child: SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            ColorUtils.primaryColor,
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                  SizedBox(width: 12),
-                  Text(
-                    'loading'.tr,
-                    style: TextStyle(color: Colors.black87, fontSize: 16),
-                  ),
-                ],
-              );
-            }
-
-            final receiverData =
-                snapshot.data ?? {'name': widget.receiverId, 'image': ''};
-            final receiverName = receiverData['name'] as String;
-            final receiverImage = receiverData['image'] as String;
-
-            return Row(
-              children: [
-                Container(
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                      color: ColorUtils.primaryColor,
-                      width: 2,
+                    SizedBox(width: 12),
+                    Text(
+                      'loading'.tr,
+                      style: TextStyle(color: Colors.black87, fontSize: 16),
                     ),
-                  ),
-                  child: CircleAvatar(
-                    radius: 18,
-                    backgroundColor: Colors.grey[200],
-                    backgroundImage: receiverImage.isNotEmpty
-                        ? CachedNetworkImageProvider(receiverImage)
-                        : null,
-                    child: receiverImage.isEmpty
-                        ? Icon(
-                      Icons.person,
-                      size: 20,
-                      color: Colors.grey[600],
-                    )
-                        : null,
-                  ),
+                  ],
+                )
+                : StreamBuilder<DocumentSnapshot>(
+                  stream:
+                      _firestore.collection('chats').doc(chatId).snapshots(),
+                  builder: (context, snapshot) {
+                    bool isBlocked = false;
+                    if (snapshot.hasData && snapshot.data!.exists) {
+                      final data =
+                          snapshot.data!.data()
+                              as Map<String, dynamic>?; // Cast to Map
+                      final blockedBy = List<String>.from(
+                        data?['blockedBy'] ?? [],
+                      );
+                      isBlocked = blockedBy.contains(widget.senderId);
+                    }
+
+                    final receiverName = _receiverData!['name'] as String;
+                    final receiverImage = _receiverData!['image'] as String;
+
+                    return Row(
+                      children: [
+                        Container(
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: ColorUtils.primaryColor,
+                              width: 2,
+                            ),
+                          ),
+                          child: CircleAvatar(
+                            radius: 18,
+                            backgroundColor: Colors.grey[200],
+                            backgroundImage:
+                                receiverImage.isNotEmpty
+                                    ? CachedNetworkImageProvider(receiverImage)
+                                    : null,
+                            child:
+                                receiverImage.isEmpty
+                                    ? Icon(
+                                      Icons.person,
+                                      size: 20,
+                                      color: Colors.grey[600],
+                                    )
+                                    : null,
+                          ),
+                        ),
+                        SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                receiverName,
+                                style: TextStyle(
+                                  color: Colors.black87,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              if (snapshot.connectionState ==
+                                  ConnectionState.waiting)
+                                Shimmer.fromColors(
+                                  baseColor: Colors.grey[300]!,
+                                  highlightColor: Colors.grey[100]!,
+                                  child: Container(
+                                    height: 12,
+                                    width: 80,
+                                    color: Colors.grey[300],
+                                  ),
+                                ),
+                              if (snapshot.connectionState ==
+                                      ConnectionState.active &&
+                                  isBlocked)
+                                Text(
+                                  'blocked'.tr,
+                                  style: TextStyle(
+                                    color: Colors.redAccent,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                )
+                              else if (_unreadCount > 0)
+                                Text(
+                                  '$_unreadCount ${'new_messages'.tr}',
+                                  style: TextStyle(
+                                    color: Colors.teal,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    );
+                  },
                 ),
-                SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        receiverName,
-                        style: TextStyle(
-                          color: Colors.black87,
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                        ),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      if (_isLoadingBlockedStatus)
-                        Shimmer.fromColors(
-                          baseColor: Colors.grey[300]!,
-                          highlightColor: Colors.grey[100]!,
-                          child: Container(
-                            height: 12,
-                            width: 80,
-                            color: Colors.grey[300],
-                          ),
-                        ),
-                      if (!_isLoadingBlockedStatus &&
-                          _unreadCount > 0 &&
-                          !_isBlocked)
-                        Text(
-                          '$_unreadCount ${'new_messages'.tr}',
-                          style: TextStyle(
-                            color: Colors.teal,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      if (!_isLoadingBlockedStatus && _isBlocked)
-                        Text(
-                          'blocked'.tr,
-                          style: TextStyle(
-                            color: Colors.redAccent,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-              ],
-            );
-          },
-        ),
       ),
       body: Column(
         children: [
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
-              stream: _firestore
-                  .collection('chats')
-                  .doc(chatId)
-                  .collection('messages')
-                  .orderBy('timestamp', descending: false)
-                  .snapshots(),
+              stream:
+                  _firestore
+                      .collection('chats')
+                      .doc(chatId)
+                      .collection('messages')
+                      .orderBy('timestamp', descending: false)
+                      .snapshots(),
               builder: (context, snapshot) {
                 if (snapshot.hasError) {
                   return Center(
@@ -529,18 +501,8 @@ class _ChatScreenState extends State<ChatScreen> {
                   );
                 }
 
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return Center(
-                    child: CircularProgressIndicator(
-                      valueColor: AlwaysStoppedAnimation<Color>(
-                        ColorUtils.primaryColor,
-                      ),
-                    ),
-                  );
-                }
-
-                final messages = snapshot.data!.docs;
-                if (messages.isEmpty) {
+                final messages = snapshot.data?.docs;
+                if (messages == null || messages.isEmpty) {
                   return Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -614,9 +576,10 @@ class _ChatScreenState extends State<ChatScreen> {
                     Container(
                       margin: EdgeInsets.symmetric(vertical: 2, horizontal: 16),
                       child: Row(
-                        mainAxisAlignment: isMe
-                            ? MainAxisAlignment.end
-                            : MainAxisAlignment.start,
+                        mainAxisAlignment:
+                            isMe
+                                ? MainAxisAlignment.end
+                                : MainAxisAlignment.start,
                         crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
                           if (!isMe) ...[
@@ -635,12 +598,13 @@ class _ChatScreenState extends State<ChatScreen> {
                             child: Container(
                               constraints: BoxConstraints(
                                 maxWidth:
-                                MediaQuery.of(context).size.width * 0.75,
+                                    MediaQuery.of(context).size.width * 0.75,
                               ),
                               child: Column(
-                                crossAxisAlignment: isMe
-                                    ? CrossAxisAlignment.end
-                                    : CrossAxisAlignment.start,
+                                crossAxisAlignment:
+                                    isMe
+                                        ? CrossAxisAlignment.end
+                                        : CrossAxisAlignment.start,
                                 children: [
                                   Container(
                                     padding: EdgeInsets.symmetric(
@@ -648,16 +612,17 @@ class _ChatScreenState extends State<ChatScreen> {
                                       vertical: 12,
                                     ),
                                     decoration: BoxDecoration(
-                                      gradient: isMe
-                                          ? LinearGradient(
-                                        colors: [
-                                          ColorUtils.primaryColor,
-                                          Color(0xFFFFE55C),
-                                        ],
-                                        begin: Alignment.topLeft,
-                                        end: Alignment.bottomRight,
-                                      )
-                                          : null,
+                                      gradient:
+                                          isMe
+                                              ? LinearGradient(
+                                                colors: [
+                                                  ColorUtils.primaryColor,
+                                                  Color(0xFFFFE55C),
+                                                ],
+                                                begin: Alignment.topLeft,
+                                                end: Alignment.bottomRight,
+                                              )
+                                              : null,
                                       color: isMe ? null : Colors.grey[200],
                                       borderRadius: BorderRadius.only(
                                         topLeft: Radius.circular(20),
@@ -681,9 +646,10 @@ class _ChatScreenState extends State<ChatScreen> {
                                       message['message'] ?? '',
                                       style: TextStyle(
                                         fontSize: 15,
-                                        color: isMe
-                                            ? Colors.black87
-                                            : Colors.grey[800],
+                                        color:
+                                            isMe
+                                                ? Colors.black87
+                                                : Colors.grey[800],
                                         fontWeight: FontWeight.w400,
                                       ),
                                     ),
@@ -704,9 +670,10 @@ class _ChatScreenState extends State<ChatScreen> {
                                         Icon(
                                           isRead ? Icons.done_all : Icons.done,
                                           size: 14,
-                                          color: isRead
-                                              ? Colors.blue
-                                              : Colors.grey[500],
+                                          color:
+                                              isRead
+                                                  ? Colors.blue
+                                                  : Colors.grey[500],
                                         ),
                                       ],
                                     ],
@@ -723,6 +690,10 @@ class _ChatScreenState extends State<ChatScreen> {
                   previousDate = messageDate;
                 }
 
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  _scrollToBottom();
+                });
+
                 return ListView(
                   controller: _scrollController,
                   padding: EdgeInsets.symmetric(vertical: 16),
@@ -731,120 +702,153 @@ class _ChatScreenState extends State<ChatScreen> {
               },
             ),
           ),
-          if (_isLoadingBlockedStatus)
-            Shimmer.fromColors(
-              baseColor: Colors.grey[300]!,
-              highlightColor: Colors.grey[100]!,
-              child: Container(
-                padding: EdgeInsets.all(16),
-                color: Colors.grey[300],
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Container(width: 20, height: 20, color: Colors.grey[300]),
-                    SizedBox(width: 8),
-                    Container(width: 150, height: 14, color: Colors.grey[300]),
-                  ],
-                ),
-              ),
-            ),
-          if (!_isLoadingBlockedStatus && _isBlocked)
-            Container(
-              padding: EdgeInsets.all(16),
-              color: Colors.red[50],
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.lock, color: Colors.redAccent, size: 24),
-                  SizedBox(width: 8),
-                  Text(
-                    'you_blocked_user'.tr,
-                    style: TextStyle(
-                      color: Colors.redAccent,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          if (!_isLoadingBlockedStatus && !_isBlocked)
-            Container(
-              padding: EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                border: Border(
-                  top: BorderSide(color: Colors.grey[300]!, width: 0.5),
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
-                    blurRadius: 8,
-                    offset: Offset(0, -2),
-                  ),
-                ],
-              ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: Colors.grey[100],
-                        borderRadius: BorderRadius.circular(25),
-                        border: Border.all(color: Colors.grey[300]!, width: 1),
-                      ),
-                      child: TextField(
-                        controller: _messageController,
-                        style: TextStyle(color: Colors.grey[800]),
-                        decoration: InputDecoration(
-                          hintText: 'type_message'.tr,
-                          hintStyle: TextStyle(color: Colors.grey[500]),
-                          border: InputBorder.none,
-                          contentPadding: EdgeInsets.symmetric(
-                            horizontal: 20,
-                            vertical: 12,
-                          ),
+          StreamBuilder<DocumentSnapshot>(
+            stream: _firestore.collection('chats').doc(chatId).snapshots(),
+            builder: (context, snapshot) {
+              bool isBlocked = false;
+              if (snapshot.hasData && snapshot.data!.exists) {
+                final data =
+                    snapshot.data!.data()
+                        as Map<String, dynamic>?; // Cast to Map
+                final blockedBy = List<String>.from(data?['blockedBy'] ?? []);
+                isBlocked = blockedBy.contains(widget.senderId);
+              }
+
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return Shimmer.fromColors(
+                  baseColor: Colors.grey[300]!,
+                  highlightColor: Colors.grey[100]!,
+                  child: Container(
+                    padding: EdgeInsets.all(16),
+                    color: Colors.grey[300],
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Container(
+                          width: 20,
+                          height: 20,
+                          color: Colors.grey[300],
                         ),
-                        onSubmitted: (_) => _sendMessage(),
-                      ),
-                    ),
-                  ),
-                  SizedBox(width: 8),
-                  Container(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [ColorUtils.primaryColor, Color(0xFFFFE55C)],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                          color: ColorUtils.primaryColor.withOpacity(0.3),
-                          blurRadius: 8,
-                          offset: Offset(0, 2),
+                        SizedBox(width: 8),
+                        Container(
+                          width: 150,
+                          height: 14,
+                          color: Colors.grey[300],
                         ),
                       ],
                     ),
-                    child: IconButton(
-                      icon: _isSendingMessage
-                          ? SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          valueColor: AlwaysStoppedAnimation<Color>(
-                            Colors.black87,
+                  ),
+                );
+              }
+
+              if (isBlocked) {
+                return Container(
+                  padding: EdgeInsets.all(16),
+                  color: Colors.red[50],
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.lock, color: Colors.redAccent, size: 24),
+                      SizedBox(width: 8),
+                      Text(
+                        'you_blocked_user'.tr,
+                        style: TextStyle(
+                          color: Colors.redAccent,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }
+
+              return Container(
+                padding: EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  border: Border(
+                    top: BorderSide(color: Colors.grey[300]!, width: 0.5),
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.05),
+                      blurRadius: 8,
+                      offset: Offset(0, -2),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: Colors.grey[100],
+                          borderRadius: BorderRadius.circular(25),
+                          border: Border.all(
+                            color: Colors.grey[300]!,
+                            width: 1,
                           ),
                         ),
-                      )
-                          : Icon(Icons.send, color: Colors.black87, size: 20),
-                      onPressed: _isSendingMessage ? null : _sendMessage,
+                        child: TextField(
+                          controller: _messageController,
+                          style: TextStyle(color: Colors.grey[800]),
+                          decoration: InputDecoration(
+                            hintText: 'type_message'.tr,
+                            hintStyle: TextStyle(color: Colors.grey[500]),
+                            border: InputBorder.none,
+                            contentPadding: EdgeInsets.symmetric(
+                              horizontal: 20,
+                              vertical: 12,
+                            ),
+                          ),
+                          onSubmitted: (_) => _sendMessage(),
+                        ),
+                      ),
                     ),
-                  ),
-                ],
-              ),
-            ),
+                    SizedBox(width: 8),
+                    Container(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [ColorUtils.primaryColor, Color(0xFFFFE55C)],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: ColorUtils.primaryColor.withOpacity(0.3),
+                            blurRadius: 8,
+                            offset: Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: IconButton(
+                        icon:
+                            _isSendingMessage
+                                ? SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    valueColor: AlwaysStoppedAnimation<Color>(
+                                      Colors.black87,
+                                    ),
+                                  ),
+                                )
+                                : Icon(
+                                  Icons.send,
+                                  color: Colors.black87,
+                                  size: 20,
+                                ),
+                        onPressed: _isSendingMessage ? null : _sendMessage,
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
         ],
       ),
     );
