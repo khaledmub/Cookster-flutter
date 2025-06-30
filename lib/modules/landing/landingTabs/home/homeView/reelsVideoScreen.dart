@@ -39,6 +39,7 @@ import 'package:wakelock_plus/wakelock_plus.dart';
 import '../../../../../appUtils/colorUtils.dart';
 import '../../../../../loaders/pulseLoader.dart';
 import '../../../../auth/signUp/signUpController/cityController.dart';
+import '../../../../chatScreen/userChatList.dart';
 import '../../../../promoteVideo/promoteVideoController/promoteVideoController.dart';
 import '../../../../search/searchController/searchController.dart';
 import '../../../../singleVideoView/singleVideoView.dart';
@@ -78,7 +79,6 @@ class _VideoReelScreenState extends State<VideoReelScreen>
     String? authToken = prefs.getString('auth_token');
     return authToken != null && authToken.isNotEmpty;
   }
-
 
   Future<void> _checkAuthentication() async {
     try {
@@ -272,6 +272,27 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                         "assets/icons/live.svg",
                         color: Colors.white,
                       ),
+                    ),
+                  ),
+                ),
+                SafeArea(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        InkWell(
+                          onTap: () {
+                            isAuthenticated
+                                ? Get.to(ChatListScreen(userId: userId!))
+                                : Get.toNamed(AppRoutes.signIn);
+                          },
+                          child: SvgPicture.asset(
+                            "assets/icons/chat.svg",
+                            color: Colors.white,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),

@@ -15,6 +15,7 @@ import '../../../appRoutes/appRoutes.dart';
 import '../../../appUtils/apiEndPoints.dart';
 import '../../../appUtils/colorUtils.dart';
 import '../../../loaders/pulseLoader.dart';
+import '../../chatScreen/chatScreenView.dart';
 import '../../followersFollowing/followersFollowingView/followersFollowingView.dart';
 import '../../landing/landingTabs/professionalProfile/profileControlller/professionalProfileController.dart';
 import '../../landing/landingTabs/professionalProfile/profileWidgets/professsionalProfileWidgets.dart';
@@ -157,10 +158,21 @@ class _VisitProfileViewState extends State<VisitProfileView>
                     gravity: ToastGravity.BOTTOM,
                   );
                 }
+              } else if (value == 'message_label'.tr) {
+                Get.to(
+                  ChatScreen(senderId: userId!, receiverId: widget.userId),
+                );
               }
             },
             itemBuilder:
                 (context) => [
+                  PopupMenuItem<String>(
+                    value: 'message_label'.tr,
+                    child: Text(
+                      'message_label'.tr,
+                      style: const TextStyle(color: Colors.black),
+                    ),
+                  ),
                   PopupMenuItem<String>(
                     value: 'block',
                     child: Text(

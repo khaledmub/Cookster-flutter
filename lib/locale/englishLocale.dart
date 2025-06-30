@@ -445,5 +445,6 @@ const Map<String, String> en = {
   "live_comments": "Live Comments",
   "are_you_sure_end_livestream": "Are you sure you want to end the livestream for everyone?",
   "end_livestream": "End Livestream",
-  "join": "Join"
+  "join": "Join",
+  "message_label" : "Message"
 };

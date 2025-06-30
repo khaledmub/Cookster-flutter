@@ -442,4 +442,5 @@ const Map<String, String> ar = {
       "هل أنت متأكد أنك تريد إنهاء البث المباشر للجميع؟",
   "end_livestream": "إنهاء البث المباشر",
   "join": "انضم",
+  "message_label" : "رسالة"
 };
