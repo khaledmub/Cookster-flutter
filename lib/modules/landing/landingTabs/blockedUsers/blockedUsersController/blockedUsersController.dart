@@ -74,6 +74,8 @@ class BlockedUsersController extends GetxController {
       print(response.statusCode);
 
       if (response.statusCode == 200) {
+        final responseBody = json.decode(response.body);
+        final apiMessage = responseBody['message'] ?? 'User unblocked';
         // final currentUserId = FirebaseAuth.instance.currentUser?.uid;
         // Update Firestore to remove the user from blockedBy array
         if (currentUserId != null) {
@@ -96,7 +98,7 @@ class BlockedUsersController extends GetxController {
         // Show success message
         ScaffoldMessenger.of(Get.context!).showSnackBar(
           SnackBar(
-            content: Text('User unblocked successfully'),
+            content: Text(apiMessage),
             backgroundColor: Colors.green,
             behavior: SnackBarBehavior.floating,
             duration: Duration(seconds: 2),
