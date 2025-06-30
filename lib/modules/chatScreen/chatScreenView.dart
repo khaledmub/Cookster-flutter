@@ -3,7 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:intl/intl.dart';
-
+import 'package:shimmer/shimmer.dart';
 import '../../appUtils/colorUtils.dart';
 
 class ChatScreen extends StatefulWidget {
@@ -23,6 +23,8 @@ class _ChatScreenState extends State<ChatScreen> {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final ScrollController _scrollController = ScrollController();
   int _unreadCount = 0;
+  bool _isBlocked = false;
+  bool _isLoadingBlockedStatus = true;
 
   String get chatId {
     List<String> ids = [widget.senderId, widget.receiverId]..sort();
@@ -46,8 +48,52 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
+  Future<bool> _checkBlockedStatus() async {
+    try {
+      final chatDoc = await _firestore.collection('chats').doc(chatId).get();
+      final blockedBy = List<String>.from(chatDoc.data()?['blockedBy'] ?? []);
+      print('🔒 BlockedBy for chat $chatId: $blockedBy');
+      return blockedBy.contains(widget.senderId);
+    } catch (e) {
+      print('🚨 Error checking blocked status: $e');
+      return false;
+    }
+  }
+
+  Future<void> _unblockUser() async {
+    try {
+      await _firestore.collection('chats').doc(chatId).update({
+        'blockedBy': FieldValue.arrayRemove([widget.senderId]),
+      });
+      setState(() {
+        _isBlocked = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('User unblocked'),
+          backgroundColor: Colors.green,
+          behavior: SnackBarBehavior.floating,
+          duration: Duration(seconds: 2),
+          margin: EdgeInsets.all(16),
+        ),
+      );
+      print('✅ User unblocked for chatId: $chatId');
+    } catch (e) {
+      print('🚨 Error unblocking user: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to unblock user: $e'),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+          duration: Duration(seconds: 2),
+          margin: EdgeInsets.all(16),
+        ),
+      );
+    }
+  }
+
   void _sendMessage() {
-    if (_messageController.text.trim().isEmpty) return;
+    if (_messageController.text.trim().isEmpty || _isBlocked) return;
 
     final messageText = _messageController.text.trim();
     final message = {
@@ -60,10 +106,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
     try {
       // Update the parent chat document
-      _firestore
-          .collection('chats')
-          .doc(chatId)
-          .set({
+      _firestore.collection('chats').doc(chatId).set({
         'participants': [widget.senderId, widget.receiverId],
         'lastMessage': messageText,
         'lastMessageTime': FieldValue.serverTimestamp(),
@@ -105,6 +148,7 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   void _markMessagesAsRead() {
+    if (_isBlocked) return;
     _firestore
         .collection('chats')
         .doc(chatId)
@@ -117,10 +161,9 @@ class _ChatScreenState extends State<ChatScreen> {
         doc.reference.update({'read': true});
       }
       setState(() {
-        _unreadCount = 0; // Update UI after marking as read
+        _unreadCount = 0;
       });
-    })
-        .catchError((e) {
+    }).catchError((e) {
       print('🚨 Error marking messages as read: $e');
     });
   }
@@ -165,14 +208,20 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   void initState() {
     super.initState();
-    // Fetch initial unread count and mark messages as read
+    // Fetch initial unread count and blocked status
     _getUnreadCount().then((count) {
       setState(() {
         _unreadCount = count;
       });
-      if (count > 0) {
+      if (count > 0 && !_isBlocked) {
         _markMessagesAsRead();
       }
+    });
+    _checkBlockedStatus().then((isBlocked) {
+      setState(() {
+        _isBlocked = isBlocked;
+        _isLoadingBlockedStatus = false;
+      });
     });
   }
 
@@ -233,8 +282,7 @@ class _ChatScreenState extends State<ChatScreen> {
                   child: CircleAvatar(
                     radius: 18,
                     backgroundColor: Colors.grey[200],
-                    backgroundImage:
-                    receiverImage.isNotEmpty
+                    backgroundImage: receiverImage.isNotEmpty
                         ? CachedNetworkImageProvider(receiverImage)
                         : null,
                     child: receiverImage.isEmpty
@@ -260,11 +308,30 @@ class _ChatScreenState extends State<ChatScreen> {
                         ),
                         overflow: TextOverflow.ellipsis,
                       ),
-                      if (_unreadCount > 0)
+                      if (_isLoadingBlockedStatus)
+                        Shimmer.fromColors(
+                          baseColor: Colors.grey[300]!,
+                          highlightColor: Colors.grey[100]!,
+                          child: Container(
+                            height: 12,
+                            width: 80,
+                            color: Colors.grey[300],
+                          ),
+                        ),
+                      if (!_isLoadingBlockedStatus && _unreadCount > 0 && !_isBlocked)
                         Text(
                           '$_unreadCount new messages',
                           style: TextStyle(
                             color: Colors.teal,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      if (!_isLoadingBlockedStatus && _isBlocked)
+                        Text(
+                          'Blocked',
+                          style: TextStyle(
+                            color: Colors.redAccent,
                             fontSize: 12,
                             fontWeight: FontWeight.w500,
                           ),
@@ -488,71 +555,129 @@ class _ChatScreenState extends State<ChatScreen> {
               },
             ),
           ),
-          Container(
-            padding: EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              border: Border(
-                top: BorderSide(color: Colors.grey[300]!, width: 0.5),
+          if (_isLoadingBlockedStatus)
+            Shimmer.fromColors(
+              baseColor: Colors.grey[300]!,
+              highlightColor: Colors.grey[100]!,
+              child: Container(
+                padding: EdgeInsets.all(16),
+                color: Colors.grey[300],
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Container(
+                      width: 20,
+                      height: 20,
+                      color: Colors.grey[300],
+                    ),
+                    SizedBox(width: 8),
+                    Container(
+                      width: 150,
+                      height: 14,
+                      color: Colors.grey[300],
+                    ),
+                  ],
+                ),
               ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
-                  blurRadius: 8,
-                  offset: Offset(0, -2),
-                ),
-              ],
             ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: Colors.grey[100],
-                      borderRadius: BorderRadius.circular(25),
-                      border: Border.all(color: Colors.grey[300]!, width: 1),
+          if (!_isLoadingBlockedStatus && _isBlocked)
+            Container(
+              padding: EdgeInsets.all(16),
+              color: Colors.red[50],
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.lock, color: Colors.redAccent, size: 24),
+                  SizedBox(width: 8),
+                  Text(
+                    'You have blocked this user',
+                    style: TextStyle(
+                      color: Colors.redAccent,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
                     ),
-                    child: TextField(
-                      controller: _messageController,
-                      style: TextStyle(color: Colors.grey[800]),
-                      decoration: InputDecoration(
-                        hintText: 'Type a message...',
-                        hintStyle: TextStyle(color: Colors.grey[500]),
-                        border: InputBorder.none,
-                        contentPadding: EdgeInsets.symmetric(
-                          horizontal: 20,
-                          vertical: 12,
+                  ),
+                  // SizedBox(width: 16),
+                  // TextButton(
+                  //   onPressed: _unblockUser,
+                  //   child: Text(
+                  //     'Unblock',
+                  //     style: TextStyle(
+                  //       color: Colors.teal,
+                  //       fontSize: 14,
+                  //       fontWeight: FontWeight.w600,
+                  //     ),
+                  //   ),
+                  // ),
+                ],
+              ),
+            ),
+          if (!_isLoadingBlockedStatus && !_isBlocked)
+            Container(
+              padding: EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                border: Border(
+                  top: BorderSide(color: Colors.grey[300]!, width: 0.5),
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.05),
+                    blurRadius: 8,
+                    offset: Offset(0, -2),
+                  ),
+                ],
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: Colors.grey[100],
+                        borderRadius: BorderRadius.circular(25),
+                        border: Border.all(color: Colors.grey[300]!, width: 1),
+                      ),
+                      child: TextField(
+                        controller: _messageController,
+                        style: TextStyle(color: Colors.grey[800]),
+                        decoration: InputDecoration(
+                          hintText: 'Type a message...',
+                          hintStyle: TextStyle(color: Colors.grey[500]),
+                          border: InputBorder.none,
+                          contentPadding: EdgeInsets.symmetric(
+                            horizontal: 20,
+                            vertical: 12,
+                          ),
                         ),
+                        onSubmitted: (_) => _sendMessage(),
                       ),
-                      onSubmitted: (_) => _sendMessage(),
                     ),
                   ),
-                ),
-                SizedBox(width: 8),
-                Container(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [ColorUtils.primaryColor, Color(0xFFFFE55C)],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: ColorUtils.primaryColor.withOpacity(0.3),
-                        blurRadius: 8,
-                        offset: Offset(0, 2),
+                  SizedBox(width: 8),
+                  Container(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [ColorUtils.primaryColor, Color(0xFFFFE55C)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
                       ),
-                    ],
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: ColorUtils.primaryColor.withOpacity(0.3),
+                          blurRadius: 8,
+                          offset: Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: IconButton(
+                      icon: Icon(Icons.send, color: Colors.black87, size: 20),
+                      onPressed: _sendMessage,
+                    ),
                   ),
-                  child: IconButton(
-                    icon: Icon(Icons.send, color: Colors.black87, size: 20),
-                    onPressed: _sendMessage,
-                  ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
         ],
       ),
     );

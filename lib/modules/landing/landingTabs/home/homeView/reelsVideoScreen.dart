@@ -1647,7 +1647,9 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                     _showMoreOptions(
                       context,
                       videoDetail.id!,
-                      videoDetail.frontUserId!,
+                       videoDetail.frontUserId!,
+                      loggedInUserId,
+
                     );
 
                     if (mounted) {
@@ -1704,6 +1706,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
     BuildContext context,
     String videoId,
     String frontUserId,
+    String userId,
   ) {
     // _handleScreenExit();
     // controller.pauseCurrentVideo();
@@ -1742,7 +1745,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                   onTap: () {
                     Navigator.pop(context);
                     controller.pauseCurrentVideo();
-                    controller.blockUser(frontUserId);
+                    controller.blockUser(userId, frontUserId);
                   },
                 ),
                 ListTile(

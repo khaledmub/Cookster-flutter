@@ -1,5 +1,8 @@
 import 'dart:convert';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cookster/appUtils/apiEndPoints.dart';
+import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:http/http.dart' as http;
 import '../../../../../services/apiClient.dart';
@@ -60,25 +63,79 @@ class BlockedUsersController extends GetxController {
   }
 
   // Unblock user
-  Future<void> unblockUser(String targetUserId) async {
+  Future<void> unblockUser(String currentUserId, String targetUserId) async {
     try {
-      final endpoint = '${EndPoints.blockUser}';
-      final response = await ApiClient.postRequest(endpoint, {
+      final response = await ApiClient.postRequest(EndPoints.blockUser, {
         "blocked_user": targetUserId,
       });
 
       print("UNBLOCK USER RESPONSE");
       print(response.body);
+      print(response.statusCode);
 
       if (response.statusCode == 200) {
+        // final currentUserId = FirebaseAuth.instance.currentUser?.uid;
+        // Update Firestore to remove the user from blockedBy array
+        if (currentUserId != null) {
+          final chatId = _getChatId(currentUserId, targetUserId);
+          await FirebaseFirestore.instance
+              .collection('chats')
+              .doc(chatId)
+              .update({
+                'blockedBy': FieldValue.arrayRemove([currentUserId]),
+              });
+          print(
+            '✅ Updated Firestore: User $targetUserId unblocked in chat $chatId',
+          );
+        }
+
         // Remove the unblocked user from both lists
         blockedUsersList.removeWhere((user) => user.id == targetUserId);
         filteredBlockedUsersList.removeWhere((user) => user.id == targetUserId);
+
+        // Show success message
+        ScaffoldMessenger.of(Get.context!).showSnackBar(
+          SnackBar(
+            content: Text('User unblocked successfully'),
+            backgroundColor: Colors.green,
+            behavior: SnackBarBehavior.floating,
+            duration: Duration(seconds: 2),
+            margin: EdgeInsets.all(16),
+          ),
+        );
+
+        // Refresh the video feed to restore unblocked user's videos
+        // await fetchVideos();
       } else {
         errorMessage('Failed to unblock user: ${response.statusCode}');
+        ScaffoldMessenger.of(Get.context!).showSnackBar(
+          SnackBar(
+            content: Text('Failed to unblock user: ${response.statusCode}'),
+            backgroundColor: Colors.redAccent,
+            behavior: SnackBarBehavior.floating,
+            duration: Duration(seconds: 2),
+            margin: EdgeInsets.all(16),
+          ),
+        );
       }
     } catch (e) {
       errorMessage('Error unblocking user: $e');
+      ScaffoldMessenger.of(Get.context!).showSnackBar(
+        SnackBar(
+          content: Text('Error unblocking user: $e'),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+          duration: Duration(seconds: 2),
+          margin: EdgeInsets.all(16),
+        ),
+      );
     }
+  }
+
+  String _getChatId(String userId1, String userId2) {
+    List<String> ids = [userId1, userId2]..sort();
+
+    print('Chat ID: ${ids[0]}_${ids[1]}');
+    return '${ids[0]}_${ids[1]}';
   }
 }

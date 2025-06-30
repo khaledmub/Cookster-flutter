@@ -12,12 +12,16 @@ class ChatListScreen extends StatelessWidget {
 
   Future<Map<String, dynamic>> _fetchUserData(String userId) async {
     try {
-      final userDoc = await FirebaseFirestore.instance.collection('users').doc(userId).get();
+      final userDoc =
+          await FirebaseFirestore.instance
+              .collection('users')
+              .doc(userId)
+              .get();
       return userDoc.exists
           ? {
-        'name': userDoc.data()?['name'] ?? userId,
-        'image': userDoc.data()?['image'] ?? '',
-      }
+            'name': userDoc.data()?['name'] ?? userId,
+            'image': userDoc.data()?['image'] ?? '',
+          }
           : {'name': userId, 'image': ''};
     } catch (e) {
       print('🚨 Error fetching user data for $userId: $e');
@@ -32,13 +36,14 @@ class ChatListScreen extends StatelessWidget {
 
   Future<int> _getUnreadCount(String chatId, String currentUserId) async {
     try {
-      final snapshot = await FirebaseFirestore.instance
-          .collection('chats')
-          .doc(chatId)
-          .collection('messages')
-          .where('receiverId', isEqualTo: currentUserId)
-          .where('read', isEqualTo: false)
-          .get();
+      final snapshot =
+          await FirebaseFirestore.instance
+              .collection('chats')
+              .doc(chatId)
+              .collection('messages')
+              .where('receiverId', isEqualTo: currentUserId)
+              .where('read', isEqualTo: false)
+              .get();
       print('📬 Unread count for chatId $chatId: ${snapshot.docs.length}');
       return snapshot.docs.length;
     } catch (e) {
@@ -55,53 +60,66 @@ class ChatListScreen extends StatelessWidget {
         .where('participants', arrayContains: currentUserId)
         .snapshots()
         .asyncMap((snapshot) async {
-      print('📥 Received snapshot with ${snapshot.docs.length} documents');
+          print('📥 Received snapshot with ${snapshot.docs.length} documents');
 
-      List<Map<String, dynamic>> chatData = [];
-      for (var doc in snapshot.docs) {
-        final data = doc.data();
-        final participants = List<String>.from(data['participants'] ?? []);
-        print('👥 Participants in ${doc.id}: $participants');
+          List<Map<String, dynamic>> chatData = [];
+          for (var doc in snapshot.docs) {
+            final data = doc.data();
+            final participants = List<String>.from(data['participants'] ?? []);
+            final blockedBy = List<String>.from(data['blockedBy'] ?? []);
+            print(
+              '👥 Participants in ${doc.id}: $participants, BlockedBy: $blockedBy',
+            );
 
-        final otherUserId = participants.firstWhere(
+            final otherUserId = participants.firstWhere(
               (id) => id != currentUserId,
-          orElse: () => '',
-        );
+              orElse: () => '',
+            );
 
-        if (otherUserId.isNotEmpty) {
-          final lastMessageSnapshot = await FirebaseFirestore.instance
-              .collection('chats')
-              .doc(doc.id)
-              .collection('messages')
-              .orderBy('timestamp', descending: true)
-              .limit(1)
-              .get();
+            if (otherUserId.isNotEmpty) {
+              final lastMessageSnapshot =
+                  await FirebaseFirestore.instance
+                      .collection('chats')
+                      .doc(doc.id)
+                      .collection('messages')
+                      .orderBy('timestamp', descending: true)
+                      .limit(1)
+                      .get();
 
-          final lastMessage = lastMessageSnapshot.docs.isNotEmpty
-              ? lastMessageSnapshot.docs.first.data()
-              : null;
+              final lastMessage =
+                  lastMessageSnapshot.docs.isNotEmpty
+                      ? lastMessageSnapshot.docs.first.data()
+                      : null;
 
-          chatData.add({
-            'partnerId': otherUserId,
-            'chatId': doc.id,
-            'lastMessage': lastMessage,
-            'timestamp': lastMessage?['timestamp']?.toDate() ?? DateTime(1970),
-          });
-        }
-      }
+              chatData.add({
+                'partnerId': otherUserId,
+                'chatId': doc.id,
+                'lastMessage': lastMessage,
+                'timestamp':
+                    lastMessage?['timestamp']?.toDate() ?? DateTime(1970),
+                'blockedBy': blockedBy,
+              });
+            }
+          }
 
-      // Sort chats by latest message timestamp
-      chatData.sort((a, b) => b['timestamp'].compareTo(a['timestamp']));
-      print('📤 Sorted chatData: ${chatData.map((e) => e['partnerId']).toList()}');
-      return chatData;
-    });
+          // Sort chats by latest message timestamp
+          chatData.sort((a, b) => b['timestamp'].compareTo(a['timestamp']));
+          print(
+            '📤 Sorted chatData: ${chatData.map((e) => e['partnerId']).toList()}',
+          );
+          return chatData;
+        });
   }
 
   String _formatTimestamp(DateTime? timestamp) {
     if (timestamp == null) return '';
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
-    final messageDate = DateTime(timestamp.year, timestamp.month, timestamp.day);
+    final messageDate = DateTime(
+      timestamp.year,
+      timestamp.month,
+      timestamp.day,
+    );
 
     if (messageDate == today) {
       return DateFormat('HH:mm').format(timestamp);
@@ -166,7 +184,9 @@ class ChatListScreen extends StatelessWidget {
           }
 
           final chatData = snapshot.data ?? [];
-          print('👥 Chat data: ${chatData.map((e) => e['partnerId']).toList()}');
+          print(
+            '👥 Chat data: ${chatData.map((e) => e['partnerId']).toList()}',
+          );
 
           if (chatData.isEmpty) {
             return Center(
@@ -185,13 +205,15 @@ class ChatListScreen extends StatelessWidget {
               final chatId = chat['chatId'];
               final lastMessage = chat['lastMessage'];
               final timestamp = chat['timestamp'] as DateTime;
+              final blockedBy = List<String>.from(chat['blockedBy'] ?? []);
+              final isBlocked = blockedBy.contains(currentUserId);
 
               return FutureBuilder<Map<String, dynamic>>(
                 future: Future.wait([
                   _fetchUserData(partnerId),
                   _getUnreadCount(chatId, currentUserId),
                 ]).then(
-                      (results) => {
+                  (results) => {
                     'userData': results[0],
                     'unreadCount': results[1],
                   },
@@ -202,7 +224,10 @@ class ChatListScreen extends StatelessWidget {
                       baseColor: Colors.grey[300]!,
                       highlightColor: Colors.grey[100]!,
                       child: ListTile(
-                        contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        contentPadding: EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 8,
+                        ),
                         leading: CircleAvatar(
                           radius: 26,
                           backgroundColor: Colors.grey[300],
@@ -245,29 +270,56 @@ class ChatListScreen extends StatelessWidget {
                   final unreadCount = data['unreadCount'] as int;
 
                   return ListTile(
-                    contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    contentPadding: EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
                     leading: CircleAvatar(
                       radius: 26,
                       backgroundColor: Colors.grey[200],
-                      backgroundImage: userData['image'].isNotEmpty
-                          ? CachedNetworkImageProvider(userData['image'])
-                          : null,
-                      child: userData['image'].isEmpty
-                          ? Icon(Icons.person, color: Colors.grey[600], size: 30)
-                          : null,
+                      backgroundImage:
+                          userData['image'].isNotEmpty
+                              ? CachedNetworkImageProvider(userData['image'])
+                              : null,
+                      child:
+                          userData['image'].isEmpty
+                              ? Icon(
+                                Icons.person,
+                                color: Colors.grey[600],
+                                size: 30,
+                              )
+                              : null,
                     ),
                     title: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Expanded(
-                          child: Text(
-                            userData['name'],
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: unreadCount > 0 ? FontWeight.w600 : FontWeight.w500,
-                              color: Colors.black87,
-                            ),
-                            overflow: TextOverflow.ellipsis,
+                          child: Row(
+                            children: [
+                              Text(
+                              isBlocked ? "Cookster User" :  userData['name'],
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight:
+                                      unreadCount > 0 && !isBlocked
+                                          ? FontWeight.w600
+                                          : FontWeight.w500,
+                                  color:
+                                      isBlocked
+                                          ? Colors.grey[600]
+                                          : Colors.black87,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              // if (isBlocked) ...[
+                              //   SizedBox(width: 8),
+                              //   Icon(
+                              //     Icons.lock,
+                              //     size: 16,
+                              //     color: Colors.grey[600],
+                              //   ),
+                              // ],
+                            ],
                           ),
                         ),
                         Column(
@@ -277,13 +329,19 @@ class ChatListScreen extends StatelessWidget {
                               _formatTimestamp(timestamp),
                               style: TextStyle(
                                 fontSize: 12,
-                                color: unreadCount > 0 ? Colors.teal : Colors.grey[600],
+                                color:
+                                    unreadCount > 0 && !isBlocked
+                                        ? Colors.teal
+                                        : Colors.grey[600],
                               ),
                             ),
-                            if (unreadCount > 0)
+                            if (unreadCount > 0 && !isBlocked)
                               Container(
                                 margin: EdgeInsets.only(top: 4),
-                                padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                padding: EdgeInsets.symmetric(
+                                  horizontal: 6,
+                                  vertical: 2,
+                                ),
                                 decoration: BoxDecoration(
                                   color: Colors.teal,
                                   borderRadius: BorderRadius.circular(12),
@@ -304,16 +362,19 @@ class ChatListScreen extends StatelessWidget {
                     subtitle: Text(
                       lastMessage != null
                           ? (lastMessage['message']?.substring(
-                        0,
-                        lastMessage['message'].length > 30
-                            ? 30
-                            : lastMessage['message'].length,
-                      ) ??
-                          '')
+                                0,
+                                lastMessage['message'].length > 30
+                                    ? 30
+                                    : lastMessage['message'].length,
+                              ) ??
+                              '')
                           : 'No messages',
                       style: TextStyle(
                         fontSize: 14,
-                        color: unreadCount > 0 ? Colors.black87 : Colors.grey[600],
+                        color:
+                            unreadCount > 0 && !isBlocked
+                                ? Colors.black87
+                                : Colors.grey[600],
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -322,10 +383,11 @@ class ChatListScreen extends StatelessWidget {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (context) => ChatScreen(
-                            senderId: currentUserId,
-                            receiverId: partnerId,
-                          ),
+                          builder:
+                              (context) => ChatScreen(
+                                senderId: currentUserId,
+                                receiverId: partnerId,
+                              ),
                         ),
                       );
                     },

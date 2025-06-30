@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:geolocator/geolocator.dart';
@@ -167,7 +168,7 @@ class HomeController extends GetxController with WidgetsBindingObserver {
     }
   }
 
-  blockUser(String? userId) async {
+  blockUser(String? currentUserId, String? userId) async {
     try {
       final response = await ApiClient.postRequest(EndPoints.blockUser, {
         "blocked_user": userId,
@@ -179,6 +180,18 @@ class HomeController extends GetxController with WidgetsBindingObserver {
       final decoded = jsonDecode(response.body);
 
       if (response.statusCode == 200) {
+        // Update Firestore to mark the user as blocked in the chat
+        if (currentUserId != null && userId != null) {
+          final chatId = _getChatId(currentUserId, userId);
+          await FirebaseFirestore.instance.collection('chats').doc(chatId).set(
+            {
+              'blockedBy': FieldValue.arrayUnion([currentUserId]),
+            },
+            SetOptions(merge: true),
+          );
+          print('✅ Updated Firestore: User $userId blocked in chat $chatId');
+        }
+
         // Show success message
         ScaffoldMessenger.of(Get.context!).showSnackBar(
           SnackBar(
@@ -201,7 +214,7 @@ class HomeController extends GetxController with WidgetsBindingObserver {
         // Show failure message
         ScaffoldMessenger.of(Get.context!).showSnackBar(
           SnackBar(
-            content: Text(decoded['message'] ?? 'Operation successful'),
+            content: Text(decoded['message'] ?? 'Operation failed'),
             backgroundColor: Colors.redAccent,
             behavior: SnackBarBehavior.floating,
             duration: Duration(seconds: 2),
@@ -210,7 +223,7 @@ class HomeController extends GetxController with WidgetsBindingObserver {
         );
       }
     } catch (e) {
-      print(e);
+      print('🚨 Error blocking user: $e');
 
       // Show error message for exceptions
       Get.snackbar(
@@ -225,7 +238,6 @@ class HomeController extends GetxController with WidgetsBindingObserver {
     }
   }
 
-  // Helper method to remove blocked user's videos from current list
   void _removeBlockedUserVideos(String? blockedUserId) {
     if (blockedUserId == null || videoFeed.value.videos == null) return;
 
@@ -241,14 +253,13 @@ class HomeController extends GetxController with WidgetsBindingObserver {
 
     // Remove videos from blocked user
     List<WallVideos> updatedVideos =
-        videoFeed.value.videos!
-            .where((video) => video.frontUserId != blockedUserId)
-            .toList();
+    videoFeed.value.videos!
+        .where((video) => video.frontUserId != blockedUserId)
+        .toList();
 
     // Update the video feed
     videoFeed.value = VideoFeed(
       status: videoFeed.value.status,
-      // message: videoFeed.value.message,
       videos: updatedVideos,
     );
 
@@ -264,6 +275,12 @@ class HomeController extends GetxController with WidgetsBindingObserver {
     // Refresh the observable
     videoFeed.refresh();
   }
+
+  String _getChatId(String userId1, String userId2) {
+    List<String> ids = [userId1, userId2]..sort();
+    return '${ids[0]}_${ids[1]}';
+  }
+  // Helper method to remove blocked user's videos from current list
 
   // Helper method to dispose controllers for removed videos
   void _disposeRemovedVideoControllers(int newVideoCount) {

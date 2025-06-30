@@ -140,7 +140,7 @@ class _VisitProfileViewState extends State<VisitProfileView>
                     image: imageProvider,
                     onBlock: () async {
                       try {
-                        await homeController.blockUser(widget.userId);
+                        await homeController.blockUser(userId, widget.userId);
                         Get.back();
                       } catch (e) {
                         Fluttertoast.showToast(

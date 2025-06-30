@@ -2,6 +2,7 @@ import 'package:cookster/appUtils/apiEndPoints.dart';
 import 'package:cookster/modules/visitProfile/visitProfileView/visitProfileView.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../../../../loaders/pulseLoader.dart';
 import '../blockedUsersController/blockedUsersController.dart';
 import '../blockedUsersModel/blockedUsersModel.dart';
@@ -20,15 +21,22 @@ class _BlockedUsersScreenState extends State<BlockedUsersScreen> {
   final TextEditingController _searchController = TextEditingController();
   final BlockedUsersController _controller = Get.put(BlockedUsersController());
   bool _isSearching = false;
+  String? userId;
 
   @override
   void initState() {
     super.initState();
     // Fetch blocked users data
     _controller.fetchBlockUsersList();
+    fetchUserId();
 
     // Listen to search changes
     _searchController.addListener(_onSearchChanged);
+  }
+
+  fetchUserId() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    userId = prefs.getString('user_id');
   }
 
   void _onSearchChanged() {
@@ -254,7 +262,7 @@ class _BlockedUsersScreenState extends State<BlockedUsersScreen> {
     return GestureDetector(
       onTap: () async {
         // Call unblock user method
-        await _controller.unblockUser(user.id ?? '');
+        await _controller.unblockUser(userId!, user.id!);
 
         // Show snackbar
         ScaffoldMessenger.of(context).showSnackBar(
