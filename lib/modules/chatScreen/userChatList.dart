@@ -176,13 +176,13 @@ class ChatListScreen extends StatelessWidget {
             );
           }
 
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return Center(
-              child: CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation<Color>(Colors.teal),
-              ),
-            );
-          }
+          // if (snapshot.connectionState == ConnectionState.waiting) {
+          //   return Center(
+          //     child: CircularProgressIndicator(
+          //       valueColor: AlwaysStoppedAnimation<Color>(Colors.teal),
+          //     ),
+          //   );
+          // }
 
           final chatData = snapshot.data ?? [];
           print(
