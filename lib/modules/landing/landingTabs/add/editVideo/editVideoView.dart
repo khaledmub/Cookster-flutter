@@ -538,54 +538,63 @@ class _EditVideoViewState extends State<EditVideoView> {
                                       ),
 
                                       // Tags field with validation
-                                      AppUtils.customPasswordTextField(
-                                        fieldKey: tagKey,
-                                        labelText: "Enter Tag Here".tr,
-                                        controller: controller.tagController,
-                                        focusNode: tagFocusNode,
-                                        validator: (value) {
-                                          if (value != null &&
-                                              value.isNotEmpty) {
-                                            final badWordError = controller
-                                                .checkBadWords(context, value);
-                                            if (badWordError != null) {
-                                              return badWordError;
+                                      Obx(() {
+                                        return AppUtils.customPasswordTextField(
+                                          fieldKey: tagKey,
+                                          labelText: "Enter Tag Here".tr,
+                                          controller: controller.tagController,
+                                          focusNode: tagFocusNode,
+                                          enabled:
+                                              controller.tagsList.length < 5,
+                                          validator: (value) {
+                                            if (value != null &&
+                                                value.isNotEmpty) {
+                                              final badWordError = controller
+                                                  .checkBadWords(
+                                                    context,
+                                                    value,
+                                                  );
+                                              if (badWordError != null) {
+                                                return badWordError;
+                                              }
                                             }
-                                          }
 
-                                          if (controller.tagsList.isEmpty) {
-                                            return "tag_error".tr;
-                                          }
+                                            if (controller.tagsList.isEmpty) {
+                                              return "tag_error".tr;
+                                            }
 
-                                          return null;
-                                        },
-                                        onChanged: (value) {
-                                          if (value.contains(",")) {
-                                            controller.addTag(
-                                              value.replaceAll(",", "").trim(),
-                                            );
+                                            return null;
+                                          },
+                                          onChanged: (value) {
+                                            if (value.contains(",")) {
+                                              controller.addTag(
+                                                value
+                                                    .replaceAll(",", "")
+                                                    .trim(),
+                                              );
+                                              controller.tagController.clear();
+                                              tagKey.currentState?.validate();
+                                            }
+                                          },
+                                          onSubmitted: (value) {
+                                            final cleanedValue = value.trim();
+                                            final badWordError = controller
+                                                .checkBadWords(
+                                                  context,
+                                                  cleanedValue,
+                                                );
+
+                                            if (cleanedValue.isNotEmpty &&
+                                                badWordError == null) {
+                                              controller.addTag(cleanedValue);
+                                            }
+
                                             controller.tagController.clear();
                                             tagKey.currentState?.validate();
-                                          }
-                                        },
-                                        onSubmitted: (value) {
-                                          final cleanedValue = value.trim();
-                                          final badWordError = controller
-                                              .checkBadWords(
-                                                context,
-                                                cleanedValue,
-                                              );
-
-                                          if (cleanedValue.isNotEmpty &&
-                                              badWordError == null) {
-                                            controller.addTag(cleanedValue);
-                                          }
-
-                                          controller.tagController.clear();
-                                          tagKey.currentState?.validate();
-                                        },
-                                        textInputAction: TextInputAction.done,
-                                      ),
+                                          },
+                                          textInputAction: TextInputAction.done,
+                                        );
+                                      }),
                                       Wrap(
                                         spacing: 8.0,
                                         children:

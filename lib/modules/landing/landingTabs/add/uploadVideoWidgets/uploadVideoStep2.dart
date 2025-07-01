@@ -201,51 +201,54 @@ class _UploadVideoStep2State extends State<UploadVideoStep2> {
                           ),
                           SizedBox(height: 6),
 
-                          AppUtils.customPasswordTextField(
-                            fieldKey: tagKey,
-                            labelText: "enter_tag_here".tr,
-                            controller: videoAddController.tagController,
-                            focusNode: tagFocusNode,
-                            validator: (value) {
-                              if (value != null && value.isNotEmpty) {
-                                final badWordError = videoAddController
-                                    .checkBadWords(context, value);
-                                if (badWordError != null) {
-                                  return badWordError;
+                          Obx(() {
+                            return AppUtils.customPasswordTextField(
+                              fieldKey: tagKey,
+                              labelText: "enter_tag_here".tr,
+                              controller: videoAddController.tagController,
+                              focusNode: tagFocusNode,
+                              enabled: videoAddController.tagsList.length < 5,
+                              // Enable text field if fewer than 5 tags
+                              validator: (value) {
+                                if (value != null && value.isNotEmpty) {
+                                  final badWordError = videoAddController
+                                      .checkBadWords(context, value);
+                                  if (badWordError != null) {
+                                    return badWordError;
+                                  }
                                 }
-                              }
 
-                              if (videoAddController.tagsList.isEmpty) {
-                                return "tag_error".tr;
-                              }
+                                if (videoAddController.tagsList.isEmpty) {
+                                  return "tag_error".tr;
+                                }
 
-                              return null;
-                            },
+                                return null;
+                              },
+                              onChanged: (value) {
+                                if (value.contains(",")) {
+                                  videoAddController.addTag(
+                                    value.replaceAll(",", "").trim(),
+                                  );
+                                  videoAddController.tagController.clear();
+                                  tagKey.currentState?.validate();
+                                }
+                              },
+                              onSubmitted: (value) {
+                                final cleanedValue = value.trim();
+                                final badWordError = videoAddController
+                                    .checkBadWords(context, cleanedValue);
 
-                            onChanged: (value) {
-                              if (value.contains(",")) {
-                                videoAddController.addTag(
-                                  value.replaceAll(",", "").trim(),
-                                );
+                                if (cleanedValue.isNotEmpty &&
+                                    badWordError == null) {
+                                  videoAddController.addTag(cleanedValue);
+                                }
+
                                 videoAddController.tagController.clear();
                                 tagKey.currentState?.validate();
-                              }
-                            },
-                            onSubmitted: (value) {
-                              final cleanedValue = value.trim();
-                              final badWordError = videoAddController
-                                  .checkBadWords(context, cleanedValue);
-
-                              if (cleanedValue.isNotEmpty &&
-                                  badWordError == null) {
-                                videoAddController.addTag(cleanedValue);
-                              }
-
-                              videoAddController.tagController.clear();
-                              tagKey.currentState?.validate();
-                            },
-                            textInputAction: TextInputAction.done,
-                          ),
+                              },
+                              textInputAction: TextInputAction.done,
+                            );
+                          }),
                           Obx(() {
                             return Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
