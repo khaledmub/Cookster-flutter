@@ -631,8 +631,8 @@ class _ProfessionalProfileViewState extends State<ProfessionalProfileView>
                                                 child: Image.asset(
                                                   "assets/images/notfound.png",
                                                   fit: BoxFit.cover,
-                                                  width: 100.w,
-                                                  height: 133.h,
+                                                  // width: 100.w,
+                                                  height: 150.h,
                                                 ),
                                               ),
                                             ];
