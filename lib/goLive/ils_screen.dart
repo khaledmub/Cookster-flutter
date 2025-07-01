@@ -92,7 +92,7 @@ class _ILSScreenState extends State<ILSScreen> with WidgetsBindingObserver {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('live_stream_end_message'.tr),
-            backgroundColor: Colors.blue,
+            backgroundColor: Colors.orange,
           ),
         );
       }
