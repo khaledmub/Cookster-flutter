@@ -29,7 +29,7 @@ class BlockedUsers {
   String? id;
   String? name;
   String? email;
-  Null? image;
+  dynamic image;
 
   BlockedUsers({this.id, this.name, this.email, this.image});
 

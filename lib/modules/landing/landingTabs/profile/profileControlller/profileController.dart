@@ -9,14 +9,12 @@ import 'package:flutter/material.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:get/get.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 import '../../../../../appUtils/colorUtils.dart';
 import '../../../../../loaders/pulseLoader.dart';
 import '../../../../../services/apiClient.dart';
-import '../../../../auth/signUp/registrationSettingsModel/registrationModel.dart';
 import '../../add/videoUploadSettingsModel/videoUploadSettingsModel.dart';
 import '../profileModel/profileModel.dart';
 import '../profileModel/simpleUserProfileModel.dart';
@@ -44,7 +42,6 @@ class ProfileController extends GetxController {
 
   var cityId = -1.obs;
   var profileLikesCount = 0.obs;
-
 
   Future<void> checkReceivedLikes(String currentUserId) async {
     try {

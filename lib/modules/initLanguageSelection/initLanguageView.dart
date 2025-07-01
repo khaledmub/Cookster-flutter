@@ -1,7 +1,6 @@
 import 'package:awesome_dialog/awesome_dialog.dart';
 import 'package:cookster/appUtils/appCenterIcon.dart';
 import 'package:cookster/appUtils/appUtils.dart';
-import 'package:cookster/modules/landing/landingView/landingView.dart';
 import 'package:cookster/modules/selectLanguage/selectController/selectLanguageController.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -11,8 +10,6 @@ import 'package:get/get.dart';
 import 'package:shared_preferences/shared_preferences.dart'; // Import SharedPreferences
 
 import '../../../appUtils/colorUtils.dart';
-import '../auth/signUp/signUpController/signUpController.dart';
-import '../onBoarding/onBoardingController/onBoardingController.dart';
 import '../onBoarding/onBoardingView/onBoardingView.dart';
 
 class InitLanguageView extends StatefulWidget {

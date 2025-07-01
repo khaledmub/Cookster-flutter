@@ -1,5 +1,4 @@
 import 'package:cookster/appUtils/apiEndPoints.dart';
-import 'package:cookster/modules/visitProfile/visitProfileView/visitProfileView.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:shared_preferences/shared_preferences.dart';

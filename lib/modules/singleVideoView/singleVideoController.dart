@@ -1,11 +1,6 @@
-import 'dart:convert';
-
-import 'package:awesome_dialog/awesome_dialog.dart';
 import 'package:chewie/chewie.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:http/http.dart' as http;
 import 'package:video_player/video_player.dart';
 
 import '../../appUtils/apiEndPoints.dart';
@@ -382,5 +377,4 @@ class SingleVideoController extends GetxController with WidgetsBindingObserver {
       },
     );
   }
-
 }
