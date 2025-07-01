@@ -275,6 +275,8 @@ const Map<String, String> ar = {
   "choose_your_plan": "اختر خطتك",
   "activate_now": "تفعيل الآن",
   "please_select_package": "يرجى اختيار باقة",
+  "please_select_account_type": "يرجى اختيار نوع الحساب.",
+
   "package_title_placeholder": "باقة",
   "package_amount_prefix": "SAR",
   "package_duration_suffix": "أشهر",
@@ -460,9 +462,10 @@ const Map<String, String> ar = {
   "cookster_user": "مستخدم كوكستر",
   "end_live_stream_title": "هل تريد إنهاء البث المباشر؟",
   "leave_live_stream_title": "هل تريد مغادرة البث المباشر؟",
-  "end_live_stream_message": "هل أنت متأكد أنك تريد إنهاء هذا البث المباشر؟ سيتم فصل جميع المشاركين.",
+  "end_live_stream_message":
+      "هل أنت متأكد أنك تريد إنهاء هذا البث المباشر؟ سيتم فصل جميع المشاركين.",
   "leave_live_stream_message": "هل أنت متأكد أنك تريد مغادرة هذا البث المباشر؟",
   "cancel_button": "إلغاء",
   "end_stream_button": "إنهاء البث",
-  "leave_button": "مغادرة"
+  "leave_button": "مغادرة",
 };

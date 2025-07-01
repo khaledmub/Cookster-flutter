@@ -256,7 +256,7 @@ const Map<String, String> en = {
   "city": "City",
   "total_days": "Total Days",
   "per_day_price": "Per Day Price",
-  "discount": "Discount",
+  "discount": "Discount ",
   "sub_total": "Sub Total",
   "start_date": "Start Date",
   "end_date": "End Date",

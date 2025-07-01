@@ -483,9 +483,9 @@ class SponsorBox extends StatelessWidget {
                         color: ColorUtils.darkBrown,
                         fontWeight: FontWeight.w500,
                       ),
-                      textDirection:
-                          TextDirection
-                              .ltr, // Force LTR for numbers and currency
+                      textDirection: Get.locale?.languageCode == 'ar'
+                          ? TextDirection.rtl
+                          : TextDirection.ltr,
                     ),
                     if (controller
                                 .entityDetails
@@ -529,9 +529,9 @@ class SponsorBox extends StatelessWidget {
                               color: Colors.green,
                               fontWeight: FontWeight.w500,
                             ),
-                            textDirection:
-                                TextDirection
-                                    .ltr, // LTR for currency and amount
+                            textDirection: Get.locale?.languageCode == 'ar'
+                                ? TextDirection.rtl
+                                : TextDirection.ltr,
                           ),
                         ],
                       ),
@@ -542,9 +542,9 @@ class SponsorBox extends StatelessWidget {
                         color: ColorUtils.darkBrown,
                         fontWeight: FontWeight.bold,
                       ),
-                      textDirection:
-                          TextDirection
-                              .ltr, // Force LTR for numbers and currency
+                      textDirection: Get.locale?.languageCode == 'ar'
+                          ? TextDirection.rtl
+                          : TextDirection.ltr,
                     ),
                   ],
                 ),

@@ -807,9 +807,9 @@ class _PromoteVideoViewState extends State<PromoteVideoView> {
                                                     color: ColorUtils.darkBrown,
                                                     fontWeight: FontWeight.w500,
                                                   ),
-                                                  textDirection:
-                                                      TextDirection
-                                                          .ltr, // LTR for numbers and currency
+                                                  textDirection: Get.locale?.languageCode == 'ar'
+                                                      ? TextDirection.rtl
+                                                      : TextDirection.ltr,
                                                 ),
                                                 if (controller
                                                             .entityDetails
@@ -822,46 +822,21 @@ class _PromoteVideoViewState extends State<PromoteVideoView> {
                                                             ?.sponsorVideoDiscount !=
                                                         null)
                                                   Row(
-                                                    mainAxisAlignment:
-                                                        MainAxisAlignment.end,
-                                                    // End: right in LTR, left in RTL
+                                                    mainAxisAlignment: MainAxisAlignment.end,
                                                     children: [
-                                                      Text(
-                                                        '${'discount'.tr} ',
-                                                        style: TextStyle(
-                                                          fontSize: 12.sp,
-                                                          color: Colors.green,
-                                                          fontWeight:
-                                                              FontWeight.w500,
+                                                      Flexible(
+                                                        child: Text(
+                                                         '${'discount'.tr} (${controller.siteSettings.value!.settings!.sponsorVideoDiscount}%): ${controller.siteSettings.value!.settings!.currencySymbol} ${controller.calculateDiscountAmount(video.id).toStringAsFixed(2)}',
+                                                          style: TextStyle(
+                                                            fontSize: 12.sp,
+                                                            color: Colors.green,
+                                                            fontWeight: FontWeight.w500,
+                                                          ),
+                                                          textAlign: TextAlign.end,
+                                                          textDirection: Get.locale?.languageCode == 'ar'
+                                                              ? TextDirection.rtl
+                                                              : TextDirection.ltr,
                                                         ),
-                                                        // Inherit directionality for RTL text
-                                                      ),
-                                                      Text(
-                                                        '(${controller.siteSettings.value!.settings!.sponsorVideoDiscount}%): ',
-                                                        style: TextStyle(
-                                                          fontSize: 12.sp,
-                                                          color: Colors.green,
-                                                          fontWeight:
-                                                              FontWeight.w500,
-                                                        ),
-                                                        textDirection:
-                                                            TextDirection
-                                                                .ltr, // LTR for percentage
-                                                      ),
-                                                      Text(
-                                                        Get.locale?.languageCode ==
-                                                                'ar'
-                                                            ? '${controller.calculateDiscountAmount(video.id).toStringAsFixed(2)} ${controller.siteSettings.value!.settings!.currencySymbol} '
-                                                            : '${controller.siteSettings.value!.settings!.currencySymbol} ${controller.calculateDiscountAmount(video.id).toStringAsFixed(2)}',
-                                                        style: TextStyle(
-                                                          fontSize: 12.sp,
-                                                          color: Colors.green,
-                                                          fontWeight:
-                                                              FontWeight.w500,
-                                                        ),
-                                                        textDirection:
-                                                            TextDirection
-                                                                .ltr, // LTR for currency and amount
                                                       ),
                                                     ],
                                                   ),
@@ -872,9 +847,9 @@ class _PromoteVideoViewState extends State<PromoteVideoView> {
                                                     color: ColorUtils.darkBrown,
                                                     fontWeight: FontWeight.bold,
                                                   ),
-                                                  textDirection:
-                                                      TextDirection
-                                                          .ltr, // LTR for numbers and currency
+                                                  textDirection: Get.locale?.languageCode == 'ar'
+                                                      ? TextDirection.rtl
+                                                      : TextDirection.ltr, // LTR for numbers and currency
                                                 ),
                                               ],
                                             ),

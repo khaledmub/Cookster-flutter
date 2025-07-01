@@ -745,14 +745,14 @@ class _EditProfessionalProfileViewState
                                               .selectedCityId
                                               .value
                                               .isEmpty
-                                          ? "Select your city"
+                                          ? "Select your city".tr
                                           : cityName.firstWhere(
                                             (name) =>
                                                 allCities[name].toString() ==
                                                 profileController
                                                     .selectedCityId
                                                     .value,
-                                            orElse: () => "Select your city",
+                                            orElse: () => "Select your city".tr,
                                           ),
                                       style: TextStyle(
                                         fontSize: 14.sp,
