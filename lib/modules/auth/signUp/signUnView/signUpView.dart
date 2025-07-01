@@ -714,15 +714,23 @@ class _SignVpViewState extends State<SignVpView> {
                                                         }
                                                         return null;
                                                       },
+
                                                       closedHeaderPadding:
                                                           const EdgeInsets.symmetric(
-                                                            horizontal: 12,
+                                                            horizontal: 16,
                                                             vertical: 16,
                                                           ),
                                                       decoration: CustomDropdownDecoration(
+
+                                                        hintStyle: TextStyle(color: Colors.black, ),
+
+
                                                         prefixIcon:
-                                                            SvgPicture.asset(
-                                                              "assets/icons/business.svg",
+                                                            Padding(
+                                                              padding: const EdgeInsets.only(right: 8.0),
+                                                              child: SvgPicture.asset(
+                                                                "assets/icons/business.svg",
+                                                              ),
                                                             ),
                                                         closedBorderRadius:
                                                             BorderRadius.circular(
@@ -755,6 +763,7 @@ class _SignVpViewState extends State<SignVpView> {
                                                               size: 18,
                                                             ),
                                                       ),
+
                                                       hintText:
                                                           "select-business-type"
                                                               .tr,
@@ -842,8 +851,8 @@ class _SignVpViewState extends State<SignVpView> {
                                                     ),
                                             child: Container(
                                               padding: EdgeInsets.symmetric(
-                                                horizontal: 12.w,
-                                                vertical: 16.h,
+                                                // horizontal: 12.w,
+                                                vertical: 6.h,
                                               ),
                                               decoration: BoxDecoration(
                                                 border: Border.all(
@@ -863,10 +872,21 @@ class _SignVpViewState extends State<SignVpView> {
                                               ),
                                               child: Row(
                                                 children: [
-                                                  SvgPicture.asset(
-                                                    "assets/icons/earth.svg",
+                                                  SizedBox(width: 8,),
+                                                  Container(
+                                                    padding: const EdgeInsets.all(8.0),
+                                                    width: 40,
+                                                    height: 40,
+                                                    child: SvgPicture.asset(
+                                                      "assets/icons/earth.svg",
+                                                      fit: BoxFit.contain,
+                                                      colorFilter: const ColorFilter.mode(
+                                                        Colors.black,
+                                                        BlendMode.srcIn,
+                                                      ),
+                                                    ),
                                                   ),
-                                                  SizedBox(width: 8.w),
+                                                  SizedBox(width: 8,),
                                                   Obx(
                                                     () => Container(
                                                       constraints:
@@ -898,8 +918,8 @@ class _SignVpViewState extends State<SignVpView> {
                                                             TextOverflow
                                                                 .ellipsis,
                                                         style: TextStyle(
-                                                          fontSize: 14.sp,
-                                                          color: Colors.black,
+                                                          fontSize: 14,
+                                                          // color: Colors.black,
                                                         ),
                                                       ),
                                                     ),
@@ -911,6 +931,8 @@ class _SignVpViewState extends State<SignVpView> {
                                                         .keyboard_arrow_down_rounded,
                                                     size: 18,
                                                   ),
+                                                  SizedBox(width: 8,),
+
                                                 ],
                                               ),
                                             ),
@@ -970,8 +992,8 @@ class _SignVpViewState extends State<SignVpView> {
                                                 ),
                                             child: Container(
                                               padding: EdgeInsets.symmetric(
-                                                horizontal: 12.w,
-                                                vertical: 16.h,
+                                                // horizontal: 12.w,
+                                                vertical: 6.h,
                                               ),
                                               decoration: BoxDecoration(
                                                 border: Border.all(
@@ -992,10 +1014,22 @@ class _SignVpViewState extends State<SignVpView> {
                                               ),
                                               child: Row(
                                                 children: [
-                                                  SvgPicture.asset(
-                                                    "assets/icons/earth.svg",
+                                                  SizedBox(width: 8,),
+                                                  Container(
+                                                    padding: const EdgeInsets.all(8.0),
+                                                    width: 40,
+                                                    height: 40,
+                                                    child: SvgPicture.asset(
+                                                      "assets/icons/earth.svg",
+                                                      fit: BoxFit.contain,
+                                                      colorFilter: const ColorFilter.mode(
+                                                        Colors.black,
+                                                        BlendMode.srcIn,
+                                                      ),
+                                                    ),
                                                   ),
-                                                  SizedBox(width: 8.w),
+                                                  SizedBox(width: 8,),
+
                                                   Obx(
                                                     () => Container(
                                                       constraints:
@@ -1027,7 +1061,7 @@ class _SignVpViewState extends State<SignVpView> {
                                                             TextOverflow
                                                                 .ellipsis,
                                                         style: TextStyle(
-                                                          fontSize: 14.sp,
+                                                          fontSize: 14,
                                                           color: Colors.black,
                                                         ),
                                                       ),
@@ -1040,6 +1074,7 @@ class _SignVpViewState extends State<SignVpView> {
                                                         .keyboard_arrow_down_rounded,
                                                     size: 18,
                                                   ),
+                                                  SizedBox(width: 8,),
                                                 ],
                                               ),
                                             ),
@@ -1382,13 +1417,17 @@ class _SignVpViewState extends State<SignVpView> {
 
                                                         closedHeaderPadding:
                                                             const EdgeInsets.symmetric(
-                                                              horizontal: 12,
+                                                              horizontal: 16,
                                                               vertical: 16,
                                                             ),
                                                         decoration: CustomDropdownDecoration(
+                                                          hintStyle: TextStyle(color: Colors.black),
                                                           prefixIcon:
-                                                              SvgPicture.asset(
-                                                                "assets/icons/business.svg",
+                                                              Padding(
+                                                                padding: const EdgeInsets.only(right: 8.0),
+                                                                child: SvgPicture.asset(
+                                                                  "assets/icons/business.svg",
+                                                                ),
                                                               ),
                                                           closedBorderRadius:
                                                               BorderRadius.circular(

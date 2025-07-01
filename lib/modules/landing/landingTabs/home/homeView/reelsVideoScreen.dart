@@ -2610,6 +2610,13 @@ class _VideoDescriptionWidgetState extends State<VideoDescriptionWidget>
       _textController.text = widget.description!;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _checkOverflowOnce();
+        SystemChrome.setSystemUIOverlayStyle(
+          const SystemUiOverlayStyle(
+            statusBarIconBrightness: Brightness.light, // White icons ke liye
+            statusBarColor:
+            Colors.transparent, // Optional: Status bar background color
+          ),
+        );
       });
     }
   }

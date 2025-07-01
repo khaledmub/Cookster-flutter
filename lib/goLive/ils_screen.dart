@@ -92,15 +92,25 @@ class _ILSScreenState extends State<ILSScreen> with WidgetsBindingObserver {
   }
 
   void _handleAppPaused() {
-    // Optional: You can pause video/audio when app goes to background
-    // This helps with resource management
-    if (isJoined && !isDisposed) {
+    if (isCleaningUp || isDisposed) return;
+
+    isCleaningUp = true;
+
+    if (isJoined) {
       try {
-        // Uncomment if you want to disable cam/mic when app goes to background
-        // _room.localParticipant.disableCam();
-        // _room.localParticipant.muteMic();
+        if (isHost) {
+          _room.end();
+          endLivestream(widget.liveStreamId);
+        } else {
+          _room.leave();
+        }
+
+        // Manually decrement count if we had incremented it
+        if (hasIncrementedCount) {
+          _decrementUserCount();
+        }
       } catch (e) {
-        debugPrint('Error handling app pause: $e');
+        debugPrint('Error during app termination cleanup: $e');
       }
     }
   }
