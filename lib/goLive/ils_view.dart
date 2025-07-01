@@ -100,7 +100,7 @@ class _ILSViewState extends State<ILSView> {
 
                           final data =
                               snapshot.data!.data() as Map<String, dynamic>?;
-                          final int count = data?['joinedUsersCount'] ?? 0;
+                          final int count =  data?['likes'] ?? 0;
                           final String userId = data?['userId'] ?? '';
 
                           return FutureBuilder<DocumentSnapshot>(
