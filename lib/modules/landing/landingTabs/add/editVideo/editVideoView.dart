@@ -626,10 +626,10 @@ class _EditVideoViewState extends State<EditVideoView> {
                                             }).toList(),
                                       ),
                                       if (controller.tagsList.length == 5)
-                                        const Padding(
+                                        Padding(
                                           padding: EdgeInsets.only(top: 8.0),
                                           child: Text(
-                                            "tag_limit_error",
+                                            "tag_limit_error".tr,
                                             style: TextStyle(
                                               color: Colors.orange,
                                               fontSize: 14,

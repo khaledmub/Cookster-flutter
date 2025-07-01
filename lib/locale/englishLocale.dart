@@ -368,7 +368,7 @@ const Map<String, String> en = {
   "post": "Post",
   "enter_inform_to_signup":
       "Please enter your information to complete the signup.",
-  "select_account_type": "Select Account Type",
+  "select_account_type": "Select Company Type",
   "pick_a_location": "Pick a Location",
   "search_location": "Search location",
   "location_error": "Location Error",

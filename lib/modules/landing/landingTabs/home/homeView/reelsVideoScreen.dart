@@ -2606,6 +2606,13 @@ class _VideoDescriptionWidgetState extends State<VideoDescriptionWidget>
   @override
   void initState() {
     super.initState();
+    SystemChrome.setSystemUIOverlayStyle(
+      const SystemUiOverlayStyle(
+        statusBarIconBrightness: Brightness.light, // White icons ke liye
+        statusBarColor:
+            Colors.transparent, // Optional: Status bar background color
+      ),
+    );
     if (widget.description != null) {
       _textController.text = widget.description!;
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -2614,7 +2621,7 @@ class _VideoDescriptionWidgetState extends State<VideoDescriptionWidget>
           const SystemUiOverlayStyle(
             statusBarIconBrightness: Brightness.light, // White icons ke liye
             statusBarColor:
-            Colors.transparent, // Optional: Status bar background color
+                Colors.transparent, // Optional: Status bar background color
           ),
         );
       });
