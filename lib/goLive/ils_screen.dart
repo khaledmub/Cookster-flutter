@@ -7,6 +7,7 @@ import 'package:videosdk/videosdk.dart';
 import 'api_call.dart';
 import 'ils_view.dart';
 import 'join_screen.dart';
+import 'dart:async';
 
 class ILSScreen extends StatefulWidget {
   final String liveStreamId;
@@ -32,6 +33,7 @@ class _ILSScreenState extends State<ILSScreen> with WidgetsBindingObserver {
   bool isHost = false;
   bool isDisposed = false;
   bool isCleaningUp = false; // Prevent multiple cleanup calls
+  Timer? _streamTimer; // Timer for 15-minute limit
 
   bool _checkIfUserIsHost() {
     return widget.mode == Mode.SEND_AND_RECV;
@@ -62,6 +64,44 @@ class _ILSScreenState extends State<ILSScreen> with WidgetsBindingObserver {
     // Joining room
     _room.join();
     isHost = _checkIfUserIsHost();
+
+    // Start 15-minute timer for host
+    if (isHost) {
+      _startStreamTimer();
+    }
+  }
+
+  void _startStreamTimer() {
+    const streamDuration = Duration(minutes: 15);
+    _streamTimer = Timer(streamDuration, () {
+      if (!isDisposed && !isCleaningUp && isHost) {
+        _endStreamDueToTimeout();
+      }
+    });
+  }
+
+  void _endStreamDueToTimeout() {
+    if (isCleaningUp || isDisposed) return;
+
+    isCleaningUp = true;
+
+    try {
+      if (isHost) {
+        _room.end();
+        endLivestream(widget.liveStreamId);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('live_stream_end_message'.tr),
+            backgroundColor: Colors.blue,
+          ),
+        );
+      }
+      if (!isDisposed) {
+        Get.back();
+      }
+    } catch (e) {
+      debugPrint('Error ending stream due to timeout: $e');
+    }
   }
 
   @override
@@ -113,6 +153,8 @@ class _ILSScreenState extends State<ILSScreen> with WidgetsBindingObserver {
         debugPrint('Error during app termination cleanup: $e');
       }
     }
+    // Cancel timer when app is paused
+    _streamTimer?.cancel();
   }
 
   void _handleAppResumed() {
@@ -150,6 +192,8 @@ class _ILSScreenState extends State<ILSScreen> with WidgetsBindingObserver {
         debugPrint('Error during app termination cleanup: $e');
       }
     }
+    // Cancel timer when app is terminated
+    _streamTimer?.cancel();
   }
 
   void _decrementUserCount() {
@@ -237,12 +281,7 @@ class _ILSScreenState extends State<ILSScreen> with WidgetsBindingObserver {
       _handleRoomError(error);
     });
 
-    // Handle connection state changes
-    // _room.on(Events.connectionStateChange, (data) {
-    //   debugPrint('Connection type changed: $data');
-    // });
-
-    // Handle HLS state changes (if
+    // Handle HLS state changes
     _room.on(Events.hlsStateChanged, (data) {
       debugPrint('HLS state changed: $data');
     });
@@ -315,6 +354,8 @@ class _ILSScreenState extends State<ILSScreen> with WidgetsBindingObserver {
       } else {
         _room.leave();
       }
+      // Cancel timer when leaving room
+      _streamTimer?.cancel();
     } catch (e) {
       debugPrint('Error leaving room: $e');
       // Force navigation even if leave fails
@@ -332,6 +373,9 @@ class _ILSScreenState extends State<ILSScreen> with WidgetsBindingObserver {
 
     // Remove lifecycle observer
     WidgetsBinding.instance.removeObserver(this);
+
+    // Cancel timer
+    _streamTimer?.cancel();
 
     // Cleanup if not already done
     if (!isCleaningUp) {
