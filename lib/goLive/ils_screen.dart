@@ -27,10 +27,11 @@ class ILSScreen extends StatefulWidget {
 class _ILSScreenState extends State<ILSScreen> with WidgetsBindingObserver {
   late Room _room;
   bool isJoined = false;
-  bool hasIncrementedCount = false; // Track if we've incremented count
+  bool hasIncrementedCount = false;
   Mode? localParticipantMode;
   bool isHost = false;
   bool isDisposed = false;
+  bool isCleaningUp = false; // Prevent multiple cleanup calls
 
   bool _checkIfUserIsHost() {
     return widget.mode == Mode.SEND_AND_RECV;
@@ -67,14 +68,62 @@ class _ILSScreenState extends State<ILSScreen> with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
 
-    // Handle app being terminated or going to background
-    if (state == AppLifecycleState.detached) {
-      _handleAppTermination();
+    // Handle different app lifecycle states
+    switch (state) {
+      case AppLifecycleState.detached:
+        // App is being terminated
+        _handleAppTermination();
+        break;
+      case AppLifecycleState.paused:
+        // App is in background - you might want to pause video/audio here
+        _handleAppPaused();
+        break;
+      case AppLifecycleState.resumed:
+        // App is back in foreground
+        _handleAppResumed();
+        break;
+      case AppLifecycleState.inactive:
+        // App is inactive (like when receiving a call)
+        break;
+      case AppLifecycleState.hidden:
+        // App is hidden
+        break;
+    }
+  }
+
+  void _handleAppPaused() {
+    // Optional: You can pause video/audio when app goes to background
+    // This helps with resource management
+    if (isJoined && !isDisposed) {
+      try {
+        // Uncomment if you want to disable cam/mic when app goes to background
+        // _room.localParticipant.disableCam();
+        // _room.localParticipant.muteMic();
+      } catch (e) {
+        debugPrint('Error handling app pause: $e');
+      }
+    }
+  }
+
+  void _handleAppResumed() {
+    // Optional: Resume video/audio when app comes back to foreground
+    if (isJoined && !isDisposed) {
+      try {
+        // Uncomment if you disabled cam/mic in _handleAppPaused
+        // _room.localParticipant.enableCam();
+        // _room.localParticipant.unmuteMic();
+      } catch (e) {
+        debugPrint('Error handling app resume: $e');
+      }
     }
   }
 
   void _handleAppTermination() {
-    if (!isDisposed && isJoined) {
+    if (isCleaningUp || isDisposed) return;
+
+    isCleaningUp = true;
+
+    if (isJoined) {
       try {
         if (isHost) {
           _room.end();
@@ -162,7 +211,7 @@ class _ILSScreenState extends State<ILSScreen> with WidgetsBindingObserver {
 
     _room.on(Events.roomLeft, () {
       // Decrement count for local participant when leaving
-      if (hasIncrementedCount) {
+      if (hasIncrementedCount && !isCleaningUp) {
         _decrementUserCount();
         hasIncrementedCount = false;
       }
@@ -177,16 +226,28 @@ class _ILSScreenState extends State<ILSScreen> with WidgetsBindingObserver {
       debugPrint('Room error: $error');
       _handleRoomError(error);
     });
+
+    // Handle connection state changes
+    // _room.on(Events.connectionStateChange, (data) {
+    //   debugPrint('Connection type changed: $data');
+    // });
+
+    // Handle HLS state changes (if
+    _room.on(Events.hlsStateChanged, (data) {
+      debugPrint('HLS state changed: $data');
+    });
   }
 
   void _handleRoomError(dynamic error) {
     // Handle various room errors
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Connection error: ${error.toString()}'),
-        backgroundColor: Colors.red,
-      ),
-    );
+    if (!isDisposed) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Connection error: ${error.toString()}'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
 
     // Optionally leave room on error
     _leaveRoom();
@@ -200,27 +261,31 @@ class _ILSScreenState extends State<ILSScreen> with WidgetsBindingObserver {
   }
 
   void _showExitConfirmation() {
+    if (isDisposed) return;
+
     showDialog(
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: Text(isHost ? 'End Live Stream?' : 'Leave Live Stream?'),
+          title: Text(
+            isHost ? 'end_live_stream_title'.tr : 'leave_live_stream_title'.tr,
+          ),
           content: Text(
             isHost
-                ? 'Are you sure you want to end this live stream? All participants will be disconnected.'
-                : 'Are you sure you want to leave this live stream?',
+                ? 'end_live_stream_message'.tr
+                : 'leave_live_stream_message'.tr,
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Cancel'),
+              child: Text('cancel_button'.tr),
             ),
             TextButton(
               onPressed: () {
                 Navigator.of(context).pop();
                 _leaveRoom();
               },
-              child: Text(isHost ? 'End Stream' : 'Leave'),
+              child: Text(isHost ? 'end_stream_button'.tr : 'leave_button'.tr),
             ),
           ],
         );
@@ -229,6 +294,10 @@ class _ILSScreenState extends State<ILSScreen> with WidgetsBindingObserver {
   }
 
   void _leaveRoom() {
+    if (isCleaningUp || isDisposed) return;
+
+    isCleaningUp = true;
+
     try {
       if (isHost) {
         _room.end();
@@ -247,28 +316,35 @@ class _ILSScreenState extends State<ILSScreen> with WidgetsBindingObserver {
 
   @override
   void dispose() {
+    if (isDisposed) return;
+
     isDisposed = true;
 
     // Remove lifecycle observer
     WidgetsBinding.instance.removeObserver(this);
 
-    try {
-      // Ensure room is left when widget is disposed
-      if (isJoined) {
-        if (isHost) {
-          _room.end();
-          endLivestream(widget.liveStreamId);
-        } else {
-          _room.leave();
-        }
+    // Cleanup if not already done
+    if (!isCleaningUp) {
+      isCleaningUp = true;
 
-        // Manually decrement if needed
-        if (hasIncrementedCount) {
-          _decrementUserCount();
+      try {
+        // Ensure room is left when widget is disposed
+        if (isJoined) {
+          if (isHost) {
+            _room.end();
+            endLivestream(widget.liveStreamId);
+          } else {
+            _room.leave();
+          }
+
+          // Manually decrement if needed
+          if (hasIncrementedCount) {
+            _decrementUserCount();
+          }
         }
+      } catch (e) {
+        debugPrint('Error in dispose: $e');
       }
-    } catch (e) {
-      debugPrint('Error in dispose: $e');
     }
 
     super.dispose();

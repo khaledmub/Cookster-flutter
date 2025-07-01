@@ -461,5 +461,12 @@ const Map<String, String> en = {
   "chats": "Chats",
   "no_chats_found": "No chats found",
   "no_messages": "No messages",
-  "cookster_user": "Cookster User"
+  "cookster_user": "Cookster User",
+  "end_live_stream_title": "End Live Stream?",
+  "leave_live_stream_title": "Leave Live Stream?",
+  "end_live_stream_message": "Are you sure you want to end this live stream? All participants will be disconnected.",
+  "leave_live_stream_message": "Are you sure you want to leave this live stream?",
+  "cancel_button": "Cancel",
+  "end_stream_button": "End Stream",
+  "leave_button": "Leave"
 };

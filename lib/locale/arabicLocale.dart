@@ -458,4 +458,11 @@ const Map<String, String> ar = {
   "no_chats_found": "لم يتم العثور على دردشات",
   "no_messages": "لا توجد رسائل",
   "cookster_user": "مستخدم كوكستر",
+  "end_live_stream_title": "هل تريد إنهاء البث المباشر؟",
+  "leave_live_stream_title": "هل تريد مغادرة البث المباشر؟",
+  "end_live_stream_message": "هل أنت متأكد أنك تريد إنهاء هذا البث المباشر؟ سيتم فصل جميع المشاركين.",
+  "leave_live_stream_message": "هل أنت متأكد أنك تريد مغادرة هذا البث المباشر؟",
+  "cancel_button": "إلغاء",
+  "end_stream_button": "إنهاء البث",
+  "leave_button": "مغادرة"
 };
