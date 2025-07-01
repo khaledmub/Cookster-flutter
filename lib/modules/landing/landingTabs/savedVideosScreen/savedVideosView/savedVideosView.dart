@@ -38,7 +38,7 @@ class _SavedVideosViewState extends State<SavedVideosView> {
         backgroundColor: Colors.white,
         centerTitle: true,
         title: Text(
-          "saved_videos".tr,
+          "Saved Reels".tr,
           style: TextStyle(fontSize: 20.sp, fontWeight: FontWeight.w700),
         ),
       ),

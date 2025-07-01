@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:videosdk/videosdk.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../appRoutes/appRoutes.dart';
 import '../appUtils/colorUtils.dart';
 import 'api_call.dart';
 import 'ils_screen.dart';
@@ -24,38 +25,24 @@ class _JoinScreenState extends State<JoinScreen> {
       _isCreating = true;
     });
 
-    try {
-      await createLivestream().then((liveStreamId) {
-        if (!context.mounted) return;
-        Navigator.of(context).push(
-          MaterialPageRoute(
-            builder:
-                (context) => ILSScreen(
-                  liveStreamId: liveStreamId,
-                  token: token,
-                  mode: Mode.SEND_AND_RECV,
-                ),
-          ),
-        );
-      });
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isCreating = false;
-        });
-      }
-    }
+    await createLivestream().then((liveStreamId) {
+      // if (!context.mounted) return;
+      Get.off(
+        () => ILSScreen(
+          liveStreamId: liveStreamId,
+          token: token,
+          mode: Mode.SEND_AND_RECV,
+        ),
+      );
+    });
   }
 
   void onJoinButtonPressed(BuildContext context, String liveStreamId) {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder:
-            (context) => ILSScreen(
-              liveStreamId: liveStreamId,
-              token: token,
-              mode: Mode.RECV_ONLY,
-            ),
+    Get.off(
+      () => ILSScreen(
+        liveStreamId: liveStreamId,
+        token: token,
+        mode: Mode.RECV_ONLY,
       ),
     );
   }
@@ -67,9 +54,6 @@ class _JoinScreenState extends State<JoinScreen> {
     );
     return prefs.getInt('entity') ?? 0;
   }
-
-
-
 
   @override
   Widget build(BuildContext context) {
@@ -103,7 +87,7 @@ class _JoinScreenState extends State<JoinScreen> {
                 children: [
                   InkWell(
                     onTap: () {
-                      Navigator.pop(context);
+                      Get.offAllNamed(AppRoutes.landing);
                     },
                     child: Icon(Icons.arrow_back),
                   ),
@@ -122,7 +106,7 @@ class _JoinScreenState extends State<JoinScreen> {
                     ),
                   ),
                   const SizedBox(width: 12),
-                   Column(
+                  Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
@@ -220,8 +204,10 @@ class _JoinScreenState extends State<JoinScreen> {
                                       const SizedBox(height: 4),
                                       Text(
                                         _isCreating
-                                            ? 'please_wait_while_we_set_up_your_stream'.tr
-                                            : 'go_live_and_share_your_moments'.tr,
+                                            ? 'please_wait_while_we_set_up_your_stream'
+                                                .tr
+                                            : 'go_live_and_share_your_moments'
+                                                .tr,
                                         style: const TextStyle(
                                           color: Colors.black87,
                                           fontSize: 14,
@@ -256,7 +242,7 @@ class _JoinScreenState extends State<JoinScreen> {
                           ),
                         ),
                         const SizedBox(width: 12),
-                         Text(
+                        Text(
                           'live_now'.tr,
                           style: TextStyle(
                             color: Colors.black,
@@ -676,7 +662,7 @@ class _JoinScreenState extends State<JoinScreen> {
                     color: ColorUtils.primaryColor,
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  child:  Text(
+                  child: Text(
                     'join'.tr,
                     style: TextStyle(
                       color: Colors.white,
