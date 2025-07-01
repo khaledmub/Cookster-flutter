@@ -47,12 +47,25 @@ class _JoinScreenState extends State<JoinScreen> {
     );
   }
 
+  int entity = 0;
+
   Future<int> getEntity() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     print(
       'Getting entity from shared preferences: ${prefs.getInt('entity') ?? 0}',
     );
     return prefs.getInt('entity') ?? 0;
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _loadEntity(); // Call async method
+  }
+
+  void _loadEntity() async {
+    entity = await getEntity();
+    setState(() {}); // If UI depends on `entity`
   }
 
   @override
@@ -134,101 +147,102 @@ class _JoinScreenState extends State<JoinScreen> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     // Start New Livestream Card
-                    Container(
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                          colors: [
-                            ColorUtils.primaryColor,
-                            ColorUtils.primaryColor.withOpacity(0.9),
+                    // if (entity == 2)
+                      Container(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [
+                              ColorUtils.primaryColor,
+                              ColorUtils.primaryColor.withOpacity(0.9),
+                            ],
+                          ),
+                          borderRadius: BorderRadius.circular(20),
+                          boxShadow: [
+                            BoxShadow(
+                              color: ColorUtils.primaryColor.withOpacity(0.4),
+                              blurRadius: 15,
+                              offset: const Offset(0, 6),
+                            ),
                           ],
                         ),
-                        borderRadius: BorderRadius.circular(20),
-                        boxShadow: [
-                          BoxShadow(
-                            color: ColorUtils.primaryColor.withOpacity(0.4),
-                            blurRadius: 15,
-                            offset: const Offset(0, 6),
-                          ),
-                        ],
-                      ),
-                      child: Material(
-                        color: Colors.transparent,
-                        child: InkWell(
-                          borderRadius: BorderRadius.circular(20),
-                          onTap:
-                              _isCreating
-                                  ? null
-                                  : () => onCreateButtonPressed(context),
-                          child: Padding(
-                            padding: const EdgeInsets.all(24),
-                            child: Row(
-                              children: [
-                                Container(
-                                  padding: const EdgeInsets.all(16),
-                                  decoration: BoxDecoration(
-                                    color: Colors.black.withOpacity(0.1),
-                                    borderRadius: BorderRadius.circular(16),
+                        child: Material(
+                          color: Colors.transparent,
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(20),
+                            onTap:
+                                _isCreating
+                                    ? null
+                                    : () => onCreateButtonPressed(context),
+                            child: Padding(
+                              padding: const EdgeInsets.all(24),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.all(16),
+                                    decoration: BoxDecoration(
+                                      color: Colors.black.withOpacity(0.1),
+                                      borderRadius: BorderRadius.circular(16),
+                                    ),
+                                    child:
+                                        _isCreating
+                                            ? CircularProgressIndicator(
+                                              valueColor:
+                                                  AlwaysStoppedAnimation<Color>(
+                                                    ColorUtils.primaryColor,
+                                                  ),
+                                            )
+                                            : const Icon(
+                                              Icons.video_call,
+                                              color: Colors.black,
+                                              size: 32,
+                                            ),
                                   ),
-                                  child:
-                                      _isCreating
-                                          ? CircularProgressIndicator(
-                                            valueColor:
-                                                AlwaysStoppedAnimation<Color>(
-                                                  ColorUtils.primaryColor,
-                                                ),
-                                          )
-                                          : const Icon(
-                                            Icons.video_call,
+                                  const SizedBox(width: 16),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          _isCreating
+                                              ? 'creating_livestream'.tr
+                                              : 'start_new_livestream'.tr,
+                                          style: const TextStyle(
                                             color: Colors.black,
-                                            size: 32,
+                                            fontSize: 20,
+                                            fontWeight: FontWeight.bold,
                                           ),
-                                ),
-                                const SizedBox(width: 16),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        _isCreating
-                                            ? 'creating_livestream'.tr
-                                            : 'start_new_livestream'.tr,
-                                        style: const TextStyle(
-                                          color: Colors.black,
-                                          fontSize: 20,
-                                          fontWeight: FontWeight.bold,
                                         ),
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        _isCreating
-                                            ? 'please_wait_while_we_set_up_your_stream'
-                                                .tr
-                                            : 'go_live_and_share_your_moments'
-                                                .tr,
-                                        style: const TextStyle(
-                                          color: Colors.black87,
-                                          fontSize: 14,
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          _isCreating
+                                              ? 'please_wait_while_we_set_up_your_stream'
+                                                  .tr
+                                              : 'go_live_and_share_your_moments'
+                                                  .tr,
+                                          style: const TextStyle(
+                                            color: Colors.black87,
+                                            fontSize: 14,
+                                          ),
                                         ),
-                                      ),
-                                    ],
+                                      ],
+                                    ),
                                   ),
-                                ),
-                                const Icon(
-                                  Icons.arrow_forward_ios,
-                                  color: Colors.black,
-                                  size: 20,
-                                ),
-                              ],
+                                  const Icon(
+                                    Icons.arrow_forward_ios,
+                                    color: Colors.black,
+                                    size: 20,
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
                         ),
                       ),
-                    ),
 
-                    const SizedBox(height: 30),
+                    if (entity == 2) const SizedBox(height: 30),
 
                     // Active Livestreams Header
                     Row(

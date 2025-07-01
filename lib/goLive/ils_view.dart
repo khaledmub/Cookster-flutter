@@ -6,6 +6,12 @@ import 'api_call.dart';
 import 'commentWIdget.dart';
 import 'participant_grid.dart';
 
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+import 'package:videosdk/videosdk.dart';
+import 'dart:async';
+
 class ILSView extends StatefulWidget {
   final Room room;
   final Mode mode;
@@ -33,23 +39,30 @@ class _ILSViewState extends State<ILSView> {
   Map<String, Participant> participants = {};
   Mode? localMode;
   bool isHost = false;
+  Timer? _timer;
+  Duration _remainingTime = const Duration(minutes: 15);
+  bool _isTimerRunning = false;
 
   @override
   void initState() {
     super.initState();
     localMode = widget.mode;
 
-    // Check if current user is host (you can modify this logic based on your app's host identification)
-    // For example, if host is the first participant or has a specific property
+    // Check if current user is host
     isHost = _checkIfUserIsHost();
 
-    //Setting up the event listeners and initializing the participants and hls state
+    // Start timer for host
+    if (isHost) {
+      _startTimer();
+    }
+
+    // Setting up the event listeners and initializing the participants and hls state
     setlivestreamEventListener();
     participants.putIfAbsent(
       widget.room.localParticipant.id,
       () => widget.room.localParticipant,
     );
-    //filtering the CONFERENCE participants to be shown in the grid
+    // Filtering the CONFERENCE participants to be shown in the grid
     widget.room.participants.values.forEach((participant) {
       if (participant.mode == Mode.SEND_AND_RECV) {
         participants.putIfAbsent(participant.id, () => participant);
@@ -60,6 +73,32 @@ class _ILSViewState extends State<ILSView> {
   // Method to check if current user is host
   bool _checkIfUserIsHost() {
     return widget.mode == Mode.SEND_AND_RECV;
+  }
+
+  void _startTimer() {
+    _isTimerRunning = true;
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (_remainingTime.inSeconds <= 0) {
+        timer.cancel();
+        _isTimerRunning = false;
+        return;
+      }
+      setState(() {
+        _remainingTime = _remainingTime - const Duration(seconds: 1);
+      });
+    });
+  }
+
+  String _formatDuration(Duration duration) {
+    final minutes = duration.inMinutes.toString().padLeft(2, '0');
+    final seconds = (duration.inSeconds % 60).toString().padLeft(2, '0');
+    return '$minutes:$seconds';
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
   }
 
   @override
@@ -75,11 +114,10 @@ class _ILSViewState extends State<ILSView> {
           SafeArea(
             child: Column(
               children: [
-                // Top section for End/Leave button and user count
+                // Top section for End/Leave button, timer, and user count
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16.0),
                   child: Row(
-                    // mainAxisAlignment: MainAxisAlignment.end,
                     children: [
                       StreamBuilder<DocumentSnapshot>(
                         stream:
@@ -100,7 +138,7 @@ class _ILSViewState extends State<ILSView> {
 
                           final data =
                               snapshot.data!.data() as Map<String, dynamic>?;
-                          final int count =  data?['likes'] ?? 0;
+                          final int count = data?['likes'] ?? 0;
                           final String userId = data?['userId'] ?? '';
 
                           return FutureBuilder<DocumentSnapshot>(
@@ -139,175 +177,212 @@ class _ILSViewState extends State<ILSView> {
                                   userData?['image'] ??
                                   'https://via.placeholder.com/40/FF6B6B/FFFFFF?text=U';
 
-                              return Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 8,
-                                  vertical: 4,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: Colors.black.withOpacity(0.3),
-                                  borderRadius: BorderRadius.circular(18),
-                                ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    // User Image
-                                    Container(
-                                      width: 24,
-                                      // Smaller size for compact layout
-                                      height: 24,
-                                      decoration: BoxDecoration(
-                                        shape: BoxShape.circle,
-                                        color: Colors.grey[700],
-                                        image:
-                                            userImage.isNotEmpty
-                                                ? DecorationImage(
-                                                  image: NetworkImage(
-                                                    userImage,
-                                                  ),
-                                                  fit: BoxFit.cover,
-                                                  onError: (
-                                                    exception,
-                                                    stackTrace,
-                                                  ) {
-                                                    // Optional: Log error
-                                                    print(
-                                                      'Image load error: $exception',
-                                                    );
-                                                  },
-                                                )
-                                                : null,
-                                      ),
-                                      child:
-                                          userImage.isEmpty
-                                              ? const Icon(
-                                                Icons.person,
-                                                color: Colors.white,
-                                                size: 24,
-                                              )
-                                              : ClipOval(
-                                                child: Image.network(
-                                                  userImage,
-                                                  fit: BoxFit.cover,
-                                                  width: 24,
-                                                  height: 24,
-                                                  errorBuilder: (
-                                                    context,
-                                                    error,
-                                                    stackTrace,
-                                                  ) {
-                                                    return const Icon(
-                                                      Icons.person,
-                                                      color: Colors.white,
-                                                      size: 24,
-                                                    );
-                                                  },
-                                                ),
-                                              ),
+                              return Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 8,
+                                      vertical: 4,
                                     ),
-                                    const SizedBox(width: 8),
-                                    // User Name and Likes Count
-                                    Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
+                                    decoration: BoxDecoration(
+                                      color: Colors.black.withOpacity(0.3),
+                                      borderRadius: BorderRadius.circular(18),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
                                       children: [
-                                        Text(
-                                          userName,
-                                          style: const TextStyle(
-                                            color: Colors.white,
-                                            fontSize: 14,
-                                            fontWeight: FontWeight.bold,
+                                        // User Image
+                                        Container(
+                                          width: 24,
+                                          height: 24,
+                                          decoration: BoxDecoration(
+                                            shape: BoxShape.circle,
+                                            color: Colors.grey[700],
+                                            image:
+                                                userImage.isNotEmpty
+                                                    ? DecorationImage(
+                                                      image: NetworkImage(
+                                                        userImage,
+                                                      ),
+                                                      fit: BoxFit.cover,
+                                                      onError: (
+                                                        exception,
+                                                        stackTrace,
+                                                      ) {
+                                                        print(
+                                                          'Image load error: $exception',
+                                                        );
+                                                      },
+                                                    )
+                                                    : null,
                                           ),
+                                          child:
+                                              userImage.isEmpty
+                                                  ? const Icon(
+                                                    Icons.person,
+                                                    color: Colors.white,
+                                                    size: 24,
+                                                  )
+                                                  : ClipOval(
+                                                    child: Image.network(
+                                                      userImage,
+                                                      fit: BoxFit.cover,
+                                                      width: 24,
+                                                      height: 24,
+                                                      errorBuilder: (
+                                                        context,
+                                                        error,
+                                                        stackTrace,
+                                                      ) {
+                                                        return const Icon(
+                                                          Icons.person,
+                                                          color: Colors.white,
+                                                          size: 24,
+                                                        );
+                                                      },
+                                                    ),
+                                                  ),
                                         ),
-                                        Row(
+                                        const SizedBox(width: 8),
+                                        // User Name and Likes Count
+                                        Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
                                           children: [
                                             Text(
-                                              '${"Likes".tr} $count',
+                                              userName,
                                               style: const TextStyle(
                                                 color: Colors.white,
-                                                fontSize: 12,
+                                                fontSize: 14,
+                                                fontWeight: FontWeight.bold,
                                               ),
+                                            ),
+                                            Row(
+                                              children: [
+                                                Text(
+                                                  '${"Likes".tr} $count',
+                                                  style: const TextStyle(
+                                                    color: Colors.white,
+                                                    fontSize: 12,
+                                                  ),
+                                                ),
+                                              ],
                                             ),
                                           ],
                                         ),
                                       ],
                                     ),
-                                  ],
-                                ),
+                                  ),
+                                  SizedBox(height: 8),
+                                  StreamBuilder<DocumentSnapshot>(
+                                    stream:
+                                        FirebaseFirestore.instance
+                                            .collection('liveVideos')
+                                            .doc(widget.roomId)
+                                            .snapshots(),
+                                    builder: (context, snapshot) {
+                                      if (!snapshot.hasData ||
+                                          snapshot.data == null) {
+                                        return const Padding(
+                                          padding: EdgeInsets.all(8.0),
+                                          child: Text(
+                                            'Loading count...',
+                                            style: TextStyle(
+                                              color: Colors.white,
+                                            ),
+                                          ),
+                                        );
+                                      }
+                                      int count =
+                                          snapshot.data!['joinedUsersCount'] ??
+                                          0;
+                                      return Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 8,
+                                          vertical: 2,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: Colors.black.withOpacity(0.3),
+                                          borderRadius: BorderRadius.circular(
+                                            18,
+                                          ),
+                                        ),
+                                        child: Row(
+                                          children: [
+                                            const Icon(
+                                              Icons.person,
+                                              color: Colors.white,
+                                              size: 14,
+                                            ),
+                                            Text(
+                                              ' $count',
+                                              style: const TextStyle(
+                                                color: Colors.white,
+                                                fontSize: 14,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                ],
                               );
                             },
                           );
                         },
                       ),
-                      Spacer(),
+                      const Spacer(),
+
+                      // Timer display for host
+                      if (isHost) const SizedBox(width: 8),
                       // Host gets "End" button, others get "Leave" button
-                      ElevatedButton(
-                        onPressed: () {
-                          if (isHost) {
-                            _endLivestream();
-                          } else {
-                            widget.room.leave();
-                          }
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.red,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 2,
-                          ),
-                        ),
-                        child: Text(
-                          isHost ? "end".tr : "leave".tr,
-                          style: TextStyle(color: Colors.white),
-                        ),
-                      ),
-
-                      SizedBox(width: 8),
-
-                      StreamBuilder<DocumentSnapshot>(
-                        stream:
-                            FirebaseFirestore.instance
-                                .collection('liveVideos')
-                                .doc(widget.roomId)
-                                .snapshots(),
-                        builder: (context, snapshot) {
-                          if (!snapshot.hasData || snapshot.data == null) {
-                            return const Padding(
-                              padding: EdgeInsets.all(8.0),
-                              child: Text(
-                                'Loading count...',
-                                style: TextStyle(color: Colors.white),
+                      Column(
+                        children: [
+                          ElevatedButton(
+                            onPressed: () {
+                              if (isHost) {
+                                _endLivestream();
+                              } else {
+                                widget.room.leave();
+                              }
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.red,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 2,
                               ),
-                            );
-                          }
-                          int count = snapshot.data!['joinedUsersCount'] ?? 0;
-                          return Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 2,
                             ),
-                            decoration: BoxDecoration(
-                              color: Colors.black.withOpacity(0.3),
-                              borderRadius: BorderRadius.circular(18),
+                            child: Text(
+                              isHost ? "end".tr : "leave".tr,
+                              style: const TextStyle(color: Colors.white),
                             ),
-                            child: Row(
-                              children: [
-                                const Icon(
-                                  Icons.person,
-                                  color: Colors.white,
-                                  size: 14,
+                          ),
+                          SizedBox(height: 4),
+                          if (isHost)
+                            Container(
+                              width: 60,
+                              height: 20,
+                              decoration: BoxDecoration(
+                                color: Colors.red.withOpacity(0.2),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: Colors.red.withOpacity(0.3),
                                 ),
-                                Text(
-                                  ' $count',
+                              ),
+                              child: Center(
+                                child: Text(
+                                  '${_formatDuration(_remainingTime)}',
                                   style: const TextStyle(
-                                    color: Colors.white,
+                                    color: Colors.red,
                                     fontSize: 14,
                                   ),
                                 ),
-                              ],
+                              ),
                             ),
-                          );
-                        },
+                        ],
                       ),
                     ],
                   ),
@@ -322,9 +397,6 @@ class _ILSViewState extends State<ILSView> {
               ],
             ),
           ),
-
-          // Uncomment and implement if needed
-          // _buildLivestreamControls(),
         ],
       ),
     );
@@ -337,17 +409,15 @@ class _ILSViewState extends State<ILSView> {
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          title:  Text("end_livestream".tr),
-          content:  Text(
-            "are_you_sure_end_livestream".tr,
-          ),
+          title: Text("end_livestream".tr),
+          content: Text("are_you_sure_end_livestream".tr),
           actions: [
             TextButton(
-              child:  Text("cancel".tr),
+              child: Text("cancel".tr),
               onPressed: () => Navigator.of(context).pop(),
             ),
             TextButton(
-              child:  Text("end".tr),
+              child: Text("end".tr),
               onPressed: () {
                 Navigator.of(context).pop();
                 // End the entire meeting/livestream
