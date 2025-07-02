@@ -13,6 +13,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../../../appUtils/colorUtils.dart';
+import '../../../../../appUtils/openToWork.dart';
 import '../../../../../loaders/pulseLoader.dart';
 import '../../../../followersFollowing/followersFollowingView/followersFollowingView.dart';
 import '../../../../promoteVideo/promoteVideoView/promoteVideoView.dart';
@@ -321,29 +322,9 @@ class _ProfessionalProfileViewState extends State<ProfessionalProfileView>
                                     left: 0,
                                     right: 0,
                                     child: Center(
-                                      child: Container(
-                                        height: 60.h,
-                                        width: 60.h,
-                                        decoration: BoxDecoration(
-                                          shape: BoxShape.circle,
-                                          border: Border.all(
-                                            color: Colors.white,
-                                            width: 2,
-                                          ),
-                                        ),
-                                        child: ClipOval(
-                                          child:
-                                              userDetails.image == null
-                                                  ? Image.asset(
-                                                    "assets/images/sd.png",
-                                                    fit: BoxFit.cover,
-                                                  )
-                                                  : CachedNetworkImage(
-                                                    imageUrl:
-                                                        '${Common.profileImage}/${userDetails.image!}',
-                                                    fit: BoxFit.cover,
-                                                  ),
-                                        ),
+                                      child: OpenToWorkBadge(
+                                        imageUrl:
+                                            '${Common.profileImage}/${userDetails.image}',
                                       ),
                                     ),
                                   ),

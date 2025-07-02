@@ -88,7 +88,7 @@ class WallVideos {
     this.contactEmail,
     this.website,
     this.latitude,
-    this.longitude
+    this.longitude,
   });
 
   WallVideos.fromJson(Map<String, dynamic> json) {

@@ -64,7 +64,7 @@ class _ProfileViewState extends State<ProfileView>
       const SystemUiOverlayStyle(
         statusBarIconBrightness: Brightness.dark, // White icons ke liye
         statusBarColor:
-        Colors.transparent, // Optional: Status bar background color
+            Colors.transparent, // Optional: Status bar background color
       ),
     );
     return Obx(() {
