@@ -12,7 +12,7 @@ import cloud_firestore
 import connectivity_plus
 import device_info_plus
 import facebook_auth_desktop
-import ffmpeg_kit_flutter_full_gpl
+import ffmpeg_kit_flutter_new
 import file_picker
 import file_selector_macos
 import firebase_auth
