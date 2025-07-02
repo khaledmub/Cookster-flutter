@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
@@ -12,19 +13,29 @@ class ChatListScreen extends StatelessWidget {
 
   const ChatListScreen({Key? key, required this.userId}) : super(key: key);
 
+  // Cache for user data to avoid repeated Firestore calls
+  static final Map<String, Map<String, dynamic>> _userDataCache = {};
+
   Future<Map<String, dynamic>> _fetchUserData(String userId) async {
+    if (_userDataCache.containsKey(userId)) {
+      return _userDataCache[userId]!;
+    }
+
     try {
       final userDoc =
           await FirebaseFirestore.instance
               .collection('users')
               .doc(userId)
               .get();
-      return userDoc.exists
-          ? {
-            'name': userDoc.data()?['name'] ?? userId,
-            'image': userDoc.data()?['image'] ?? '',
-          }
-          : {'name': userId, 'image': ''};
+      final data =
+          userDoc.exists
+              ? {
+                'name': userDoc.data()?['name'] ?? userId,
+                'image': userDoc.data()?['image'] ?? '',
+              }
+              : {'name': userId, 'image': ''};
+      _userDataCache[userId] = data;
+      return data;
     } catch (e) {
       print('🚨 Error fetching user data for $userId: $e');
       return {'name': userId, 'image': ''};
@@ -69,9 +80,6 @@ class ChatListScreen extends StatelessWidget {
             final data = doc.data();
             final participants = List<String>.from(data['participants'] ?? []);
             final blockedBy = List<String>.from(data['blockedBy'] ?? []);
-            print(
-              '👥 Participants in ${doc.id}: $participants, BlockedBy: $blockedBy',
-            );
 
             final otherUserId = participants.firstWhere(
               (id) => id != currentUserId,
@@ -104,11 +112,7 @@ class ChatListScreen extends StatelessWidget {
             }
           }
 
-          // Sort chats by latest message timestamp
           chatData.sort((a, b) => b['timestamp'].compareTo(a['timestamp']));
-          print(
-            '📤 Sorted chatData: ${chatData.map((e) => e['partnerId']).toList()}',
-          );
           return chatData;
         });
   }
@@ -135,7 +139,6 @@ class ChatListScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final currentUserId = userId;
-    print('🔑 Current User ID: $currentUserId');
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -155,6 +158,7 @@ class ChatListScreen extends StatelessWidget {
           IconButton(
             icon: Icon(Icons.refresh, color: Colors.black54),
             onPressed: () {
+              _userDataCache.clear(); // Clear cache on refresh
               Navigator.pushReplacement(
                 context,
                 MaterialPageRoute(
@@ -178,13 +182,13 @@ class ChatListScreen extends StatelessWidget {
             );
           }
 
-          // if (snapshot.connectionState == ConnectionState.waiting) {
-          //   return Center(
-          //     child: CircularProgressIndicator(
-          //       valueColor: AlwaysStoppedAnimation<Color>(Colors.teal),
-          //     ),
-          //   );
-          // }
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return Center(
+              child: CircularProgressIndicator(
+                valueColor: AlwaysStoppedAnimation<Color>(Colors.teal),
+              ),
+            );
+          }
 
           final chatData = snapshot.data ?? [];
           print(
@@ -211,7 +215,9 @@ class ChatListScreen extends StatelessWidget {
               final blockedBy = List<String>.from(chat['blockedBy'] ?? []);
               final isBlocked = blockedBy.contains(currentUserId);
 
+              // Use a unique key to prevent unnecessary rebuilds
               return FutureBuilder<Map<String, dynamic>>(
+                key: ValueKey(chatId), // Unique key for each ListTile
                 future: Future.wait([
                   _fetchUserData(partnerId),
                   _getUnreadCount(chatId, currentUserId),
@@ -222,57 +228,19 @@ class ChatListScreen extends StatelessWidget {
                   },
                 ),
                 builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return Shimmer.fromColors(
-                      baseColor: Colors.grey[300]!,
-                      highlightColor: Colors.grey[100]!,
-                      child: ListTile(
-                        contentPadding: EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 8,
-                        ),
-                        leading: CircleAvatar(
-                          radius: 26,
-                          backgroundColor: Colors.grey[300],
-                        ),
-                        title: Container(
-                          height: 16,
-                          width: 150,
-                          color: Colors.grey[300],
-                        ),
-                        subtitle: Container(
-                          height: 14,
-                          width: 100,
-                          color: Colors.grey[300],
-                        ),
-                        trailing: Column(
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: [
-                            Container(
-                              height: 12,
-                              width: 40,
-                              color: Colors.grey[300],
-                            ),
-                            SizedBox(height: 4),
-                            Container(
-                              height: 16,
-                              width: 20,
-                              decoration: BoxDecoration(
-                                color: Colors.grey[300],
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    );
+
+
+                  if (snapshot.hasError || snapshot.data == null) {
+                    return const SizedBox.shrink(); // or an error widget
                   }
 
                   final data = snapshot.data as Map<String, dynamic>;
                   final userData = data['userData'] as Map<String, dynamic>;
                   final unreadCount = data['unreadCount'] as int;
 
-                  return ListTile(
+                  return data.isNotEmpty ? ListTile(
+                    key: ValueKey(chatId),
+                    // Ensure stable identity
                     contentPadding: EdgeInsets.symmetric(
                       horizontal: 16,
                       vertical: 8,
@@ -318,14 +286,6 @@ class ChatListScreen extends StatelessWidget {
                                 ),
                                 overflow: TextOverflow.ellipsis,
                               ),
-                              // if (isBlocked) ...[
-                              //   SizedBox(width: 8),
-                              //   Icon(
-                              //     Icons.lock,
-                              //     size: 16,
-                              //     color: Colors.grey[600],
-                              //   ),
-                              // ],
                             ],
                           ),
                         ),
@@ -342,7 +302,7 @@ class ChatListScreen extends StatelessWidget {
                                         : Colors.grey[600],
                               ),
                             ),
-                            if (unreadCount > 0 && !isBlocked)
+                            if (unreadCount > 0)
                               Container(
                                 margin: EdgeInsets.only(top: 4),
                                 padding: EdgeInsets.symmetric(
@@ -394,7 +354,7 @@ class ChatListScreen extends StatelessWidget {
                         ),
                       );
                     },
-                  );
+                  ) : SizedBox.shrink();
                 },
               );
             },
