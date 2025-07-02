@@ -261,7 +261,10 @@ class _VideoReelScreenState extends State<VideoReelScreen>
               children: [
                 SafeArea(
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16.0,
+                      vertical: 4,
+                    ),
                     child: InkWell(
                       onTap: () {
                         isAuthenticated
@@ -276,27 +279,30 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                   ),
                 ),
 
-                // SafeArea(
-                //   child: Padding(
-                //     padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                //     child: Row(
-                //       mainAxisAlignment: MainAxisAlignment.end,
-                //       children: [
-                //         InkWell(
-                //           onTap: () {
-                //             isAuthenticated
-                //                 ? Get.to(ChatListScreen(userId: userId!))
-                //                 : Get.toNamed(AppRoutes.signIn);
-                //           },
-                //           child: SvgPicture.asset(
-                //             "assets/icons/chat.svg",
-                //             color: Colors.white,
-                //           ),
-                //         ),
-                //       ],
-                //     ),
-                //   ),
-                // ),
+                SafeArea(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16.0,
+                      vertical: 8,
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        InkWell(
+                          onTap: () {
+                            isAuthenticated
+                                ? Get.to(ChatListScreen(userId: userId!))
+                                : Get.toNamed(AppRoutes.signIn);
+                          },
+                          child: SvgPicture.asset(
+                            "assets/icons/chatIcon.svg",
+                            color: Colors.white,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
                 Align(
                   alignment: Alignment.topCenter,
                   child: Obx(
@@ -769,7 +775,10 @@ class _VideoReelScreenState extends State<VideoReelScreen>
               ),
               SafeArea(
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16.0,
+                    vertical: 4,
+                  ),
                   child: InkWell(
                     onTap: () {
                       isAuthenticated
@@ -784,27 +793,30 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                 ),
               ),
 
-              // SafeArea(
-              //   child: Padding(
-              //     padding: const EdgeInsets.symmetric(horizontal: 16.0),
-              //     child: Row(
-              //       mainAxisAlignment: MainAxisAlignment.end,
-              //       children: [
-              //         InkWell(
-              //           onTap: () {
-              //             isAuthenticated
-              //                 ? Get.to(ChatListScreen(userId: userId!))
-              //                 : Get.toNamed(AppRoutes.signIn);
-              //           },
-              //           child: SvgPicture.asset(
-              //             "assets/icons/chat.svg",
-              //             color: Colors.white,
-              //           ),
-              //         ),
-              //       ],
-              //     ),
-              //   ),
-              // ),
+              SafeArea(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16.0,
+                    vertical: 8,
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      InkWell(
+                        onTap: () {
+                          isAuthenticated
+                              ? Get.to(ChatListScreen(userId: userId!))
+                              : Get.toNamed(AppRoutes.signIn);
+                        },
+                        child: SvgPicture.asset(
+                          "assets/icons/chatIcon.svg",
+                          color: Colors.white,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
               Align(
                 alignment: Alignment.topCenter,
                 child: Obx(

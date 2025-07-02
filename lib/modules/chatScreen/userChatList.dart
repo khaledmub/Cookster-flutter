@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
 import 'package:shimmer/shimmer.dart';
+import '../../appUtils/apiEndPoints.dart';
 import 'chatScreenView.dart';
 
 class ChatListScreen extends StatelessWidget {
@@ -281,7 +282,9 @@ class ChatListScreen extends StatelessWidget {
                       backgroundColor: Colors.grey[200],
                       backgroundImage:
                           userData['image'].isNotEmpty
-                              ? CachedNetworkImageProvider(userData['image'])
+                              ? CachedNetworkImageProvider(
+                                '${Common.profileImage}/${userData['image']}',
+                              )
                               : null,
                       child:
                           userData['image'].isEmpty

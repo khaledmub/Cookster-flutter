@@ -371,13 +371,13 @@ class _VisitProfileViewState extends State<VisitProfileView>
                       Get.to(
                         SocialListsScreen(
                           initialTab: SocialTab.followers,
-                          userName: user!.user!.name,
+                          userName: user.user!.name,
                           userId: user.user!.id,
                         ),
                       );
                     },
                     child: ProfileStat(
-                      number: "${user!.followers}",
+                      number: "${user.followers}",
                       label: "Followers".tr,
                     ),
                   ),
