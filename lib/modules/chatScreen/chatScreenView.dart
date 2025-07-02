@@ -16,7 +16,7 @@ class ChatScreen extends StatefulWidget {
   final String receiverId;
 
   const ChatScreen({required this.senderId, required this.receiverId, Key? key})
-      : super(key: key);
+    : super(key: key);
 
   @override
   _ChatScreenState createState() => _ChatScreenState();
@@ -51,10 +51,10 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
 
   // Optimized notification sending with caching
   Future<void> _sendNotification(
-      String recipientToken, {
-        required String title,
-        required String body,
-      }) async {
+    String recipientToken, {
+    required String title,
+    required String body,
+  }) async {
     if (recipientToken.isEmpty) return;
 
     const String fcmUrl =
@@ -103,13 +103,14 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
 
   Future<int> _getUnreadCount() async {
     try {
-      final snapshot = await _firestore
-          .collection('chats')
-          .doc(chatId)
-          .collection('messages')
-          .where('receiverId', isEqualTo: widget.senderId)
-          .where('read', isEqualTo: false)
-          .get();
+      final snapshot =
+          await _firestore
+              .collection('chats')
+              .doc(chatId)
+              .collection('messages')
+              .where('receiverId', isEqualTo: widget.senderId)
+              .where('read', isEqualTo: false)
+              .get();
       return snapshot.docs.length;
     } catch (e) {
       print('🚨 Error fetching unread count: $e');
@@ -125,7 +126,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
 
     try {
       final userDoc =
-      await _firestore.collection('users').doc(widget.receiverId).get();
+          await _firestore.collection('users').doc(widget.receiverId).get();
       if (userDoc.exists && userDoc.data() != null) {
         final token = userDoc.data()!['uuid'] ?? '';
         _cachedRecipientToken = token;
@@ -175,33 +176,36 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     batch.set(messageRef, message);
 
     // Perform Firestore operation without awaiting
-    batch.commit().then((_) {
-      _handleNotificationAsync(messageText);
-      _scrollToBottom();
-      if (mounted) {
-        setState(() {
-          _isSendingMessage = false;
+    batch
+        .commit()
+        .then((_) {
+          _handleNotificationAsync(messageText);
+          _scrollToBottom();
+          if (mounted) {
+            setState(() {
+              _isSendingMessage = false;
+            });
+            // Retain focus on TextField to keep keyboard open
+            _messageFocusNode.requestFocus();
+          }
+        })
+        .catchError((e) {
+          print('🚨 Error sending message: $e');
+          if (mounted) {
+            _messageController.text = messageText;
+            setState(() {
+              _isSendingMessage = false;
+            });
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Failed to send message'),
+                backgroundColor: Colors.red,
+                behavior: SnackBarBehavior.floating,
+                duration: Duration(seconds: 2),
+              ),
+            );
+          }
         });
-        // Retain focus on TextField to keep keyboard open
-        _messageFocusNode.requestFocus();
-      }
-    }).catchError((e) {
-      print('🚨 Error sending message: $e');
-      if (mounted) {
-        _messageController.text = messageText;
-        setState(() {
-          _isSendingMessage = false;
-        });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to send message'),
-            backgroundColor: Colors.red,
-            behavior: SnackBarBehavior.floating,
-            duration: Duration(seconds: 2),
-          ),
-        );
-      }
-    });
   }
 
   void _handleNotificationAsync(String messageText) async {
@@ -229,7 +233,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   Future<String> _fetchSenderName() async {
     try {
       final senderDoc =
-      await _firestore.collection('users').doc(widget.senderId).get();
+          await _firestore.collection('users').doc(widget.senderId).get();
       return senderDoc.exists && senderDoc.data() != null
           ? senderDoc.data()!['name'] ?? 'User'
           : 'User';
@@ -264,22 +268,24 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
         .where('read', isEqualTo: false)
         .get()
         .then((snapshot) {
-      if (snapshot.docs.isNotEmpty) {
-        final batch = _firestore.batch();
-        for (var doc in snapshot.docs) {
-          batch.update(doc.reference, {'read': true});
-        }
-        return batch.commit();
-      }
-    }).then((_) {
-      if (mounted) {
-        setState(() {
-          _unreadCount = 0;
+          if (snapshot.docs.isNotEmpty) {
+            final batch = _firestore.batch();
+            for (var doc in snapshot.docs) {
+              batch.update(doc.reference, {'read': true});
+            }
+            return batch.commit();
+          }
+        })
+        .then((_) {
+          if (mounted) {
+            setState(() {
+              _unreadCount = 0;
+            });
+          }
+        })
+        .catchError((e) {
+          print('🚨 Error marking messages as read: $e');
         });
-      }
-    }).catchError((e) {
-      print('🚨 Error marking messages as read: $e');
-    });
   }
 
   // Listen to new messages and mark as read immediately if user is in chat
@@ -292,29 +298,30 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
         .limit(1)
         .snapshots()
         .listen((snapshot) {
-      if (snapshot.docs.isNotEmpty && _isInChat) {
-        final latestMessage = snapshot.docs.first.data();
-        final receiverId = latestMessage['receiverId'] as String?;
-        final isRead = latestMessage['read'] as bool? ?? false;
+          if (snapshot.docs.isNotEmpty && _isInChat) {
+            final latestMessage = snapshot.docs.first.data();
+            final receiverId = latestMessage['receiverId'] as String?;
+            final isRead = latestMessage['read'] as bool? ?? false;
 
-        // If the latest message is for current user and not read, mark it as read
-        if (receiverId == widget.senderId && !isRead) {
-          snapshot.docs.first.reference.update({'read': true});
-        }
-      }
-    });
+            // If the latest message is for current user and not read, mark it as read
+            if (receiverId == widget.senderId && !isRead) {
+              snapshot.docs.first.reference.update({'read': true});
+            }
+          }
+        });
   }
 
   Future<void> _fetchReceiverData() async {
     try {
       final userDoc =
-      await _firestore.collection('users').doc(widget.receiverId).get();
-      final data = userDoc.exists
-          ? {
-        'name': userDoc.data()?['name'] ?? widget.receiverId,
-        'image': userDoc.data()?['image'] ?? '',
-      }
-          : {'name': widget.receiverId, 'image': ''};
+          await _firestore.collection('users').doc(widget.receiverId).get();
+      final data =
+          userDoc.exists
+              ? {
+                'name': userDoc.data()?['name'] ?? widget.receiverId,
+                'image': userDoc.data()?['image'] ?? '',
+              }
+              : {'name': widget.receiverId, 'image': ''};
 
       if (mounted) {
         setState(() {
@@ -416,115 +423,123 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
         backgroundColor: Colors.white,
         elevation: 1,
         shadowColor: Colors.grey[200],
-        title: _receiverData == null
-            ? Row(
-          children: [
-            CircleAvatar(
-              radius: 18,
-              backgroundColor: Colors.grey[300],
-              child: SizedBox(
-                width: 20,
-                height: 20,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  valueColor: AlwaysStoppedAnimation<Color>(
-                    ColorUtils.primaryColor,
-                  ),
-                ),
-              ),
-            ),
-            SizedBox(width: 12),
-            Text(
-              'loading'.tr,
-              style: TextStyle(color: Colors.black87, fontSize: 16),
-            ),
-          ],
-        )
-            : StreamBuilder<DocumentSnapshot>(
-          stream: _firestore.collection('chats').doc(chatId).snapshots(),
-          builder: (context, snapshot) {
-            bool isBlocked = false;
-            if (snapshot.hasData && snapshot.data!.exists) {
-              final data = snapshot.data!.data() as Map<String, dynamic>?;
-              final blockedBy = List<String>.from(data?['blockedBy'] ?? []);
-              isBlocked = blockedBy.contains(widget.senderId);
-              _isBlocked = isBlocked;
-            }
-
-            final receiverName = _receiverData!['name'] as String;
-            final receiverImage = _receiverData!['image'] as String;
-
-            return Row(
-              children: [
-                Container(
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                      color: ColorUtils.primaryColor,
-                      width: 2,
-                    ),
-                  ),
-                  child: CircleAvatar(
-                    radius: 18,
-                    backgroundColor: Colors.grey[200],
-                    backgroundImage: receiverImage.isNotEmpty
-                        ? CachedNetworkImageProvider(
-                      '${Common.profileImage}/${receiverImage}',
-                    )
-                        : null,
-                    child: receiverImage.isEmpty
-                        ? Icon(
-                      Icons.person,
-                      size: 20,
-                      color: Colors.grey[600],
-                    )
-                        : null,
-                  ),
-                ),
-                SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        receiverName,
-                        style: TextStyle(
-                          color: Colors.black87,
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                        ),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-
-                      if (snapshot.connectionState ==
-                          ConnectionState.active &&
-                          isBlocked)
-                        Text(
-                          'blocked'.tr,
-                          style: TextStyle(
-                            color: Colors.redAccent,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w500,
+        title:
+            _receiverData == null
+                ? Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 18,
+                      backgroundColor: Colors.grey[300],
+                      child: SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            ColorUtils.primaryColor,
                           ),
-                        )
-                    ],
-                  ),
+                        ),
+                      ),
+                    ),
+                    SizedBox(width: 12),
+                    Text(
+                      'loading'.tr,
+                      style: TextStyle(color: Colors.black87, fontSize: 16),
+                    ),
+                  ],
+                )
+                : StreamBuilder<DocumentSnapshot>(
+                  stream:
+                      _firestore.collection('chats').doc(chatId).snapshots(),
+                  builder: (context, snapshot) {
+                    bool isBlocked = false;
+                    if (snapshot.hasData && snapshot.data!.exists) {
+                      final data =
+                          snapshot.data!.data() as Map<String, dynamic>?;
+                      final blockedBy = List<String>.from(
+                        data?['blockedBy'] ?? [],
+                      );
+                      isBlocked = blockedBy.contains(widget.senderId);
+                      _isBlocked = isBlocked;
+                    }
+
+                    final receiverName = _receiverData!['name'] as String;
+                    final receiverImage = _receiverData!['image'] as String;
+
+                    return Row(
+                      children: [
+                        Container(
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: ColorUtils.primaryColor,
+                              width: 2,
+                            ),
+                          ),
+                          child: CircleAvatar(
+                            radius: 18,
+                            backgroundColor: Colors.grey[200],
+                            backgroundImage:
+                                receiverImage.isNotEmpty
+                                    ? CachedNetworkImageProvider(
+                                      '${Common.profileImage}/${receiverImage}',
+                                    )
+                                    : null,
+                            child:
+                                receiverImage.isEmpty
+                                    ? Icon(
+                                      Icons.person,
+                                      size: 20,
+                                      color: Colors.grey[600],
+                                    )
+                                    : null,
+                          ),
+                        ),
+                        SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                receiverName,
+                                style: TextStyle(
+                                  color: Colors.black87,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+
+                              if (snapshot.connectionState ==
+                                      ConnectionState.active &&
+                                  isBlocked)
+                                Text(
+                                  'blocked'.tr,
+                                  style: TextStyle(
+                                    color: Colors.redAccent,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    );
+                  },
                 ),
-              ],
-            );
-          },
-        ),
       ),
       body: Column(
         children: [
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
-              stream: _firestore
-                  .collection('chats')
-                  .doc(chatId)
-                  .collection('messages')
-                  .orderBy('timestamp', descending: false)
-                  .snapshots(),
+              stream:
+                  _firestore
+                      .collection('chats')
+                      .doc(chatId)
+                      .collection('messages')
+                      .orderBy('timestamp', descending: false)
+                      .snapshots(),
               builder: (context, snapshot) {
                 if (snapshot.hasError) {
                   return Center(
@@ -611,17 +626,22 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                       margin: EdgeInsets.symmetric(vertical: 2, horizontal: 16),
                       child: Row(
                         mainAxisAlignment:
-                        isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
+                            isMe
+                                ? MainAxisAlignment.end
+                                : MainAxisAlignment.start,
                         crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
                           Flexible(
                             child: Container(
                               constraints: BoxConstraints(
-                                maxWidth: MediaQuery.of(context).size.width * 0.75,
+                                maxWidth:
+                                    MediaQuery.of(context).size.width * 0.75,
                               ),
                               child: Column(
                                 crossAxisAlignment:
-                                isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+                                    isMe
+                                        ? CrossAxisAlignment.end
+                                        : CrossAxisAlignment.start,
                                 children: [
                                   Container(
                                     padding: EdgeInsets.symmetric(
@@ -629,22 +649,27 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                                       vertical: 12,
                                     ),
                                     decoration: BoxDecoration(
-                                      gradient: isMe
-                                          ? LinearGradient(
-                                        colors: [
-                                          ColorUtils.primaryColor,
-                                          Color(0xFFFFE55C),
-                                        ],
-                                        begin: Alignment.topLeft,
-                                        end: Alignment.bottomRight,
-                                      )
-                                          : null,
+                                      gradient:
+                                          isMe
+                                              ? LinearGradient(
+                                                colors: [
+                                                  ColorUtils.primaryColor,
+                                                  Color(0xFFFFE55C),
+                                                ],
+                                                begin: Alignment.topLeft,
+                                                end: Alignment.bottomRight,
+                                              )
+                                              : null,
                                       color: isMe ? null : Colors.grey[200],
                                       borderRadius: BorderRadius.only(
                                         topLeft: Radius.circular(20),
                                         topRight: Radius.circular(20),
-                                        bottomLeft: Radius.circular(isMe ? 20 : 4),
-                                        bottomRight: Radius.circular(isMe ? 4 : 20),
+                                        bottomLeft: Radius.circular(
+                                          isMe ? 20 : 4,
+                                        ),
+                                        bottomRight: Radius.circular(
+                                          isMe ? 4 : 20,
+                                        ),
                                       ),
                                       boxShadow: [
                                         BoxShadow(
@@ -658,7 +683,10 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                                       message['message'] ?? '',
                                       style: TextStyle(
                                         fontSize: 15,
-                                        color: isMe ? Colors.black87 : Colors.grey[800],
+                                        color:
+                                            isMe
+                                                ? Colors.black87
+                                                : Colors.grey[800],
                                         fontWeight: FontWeight.w400,
                                       ),
                                     ),
@@ -699,170 +727,178 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                   controller: _scrollController,
                   padding: EdgeInsets.symmetric(vertical: 16),
                   children: messageWidgets,
-                  keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.manual,
+                  keyboardDismissBehavior:
+                      ScrollViewKeyboardDismissBehavior.manual,
                 );
               },
             ),
           ),
-          StreamBuilder<DocumentSnapshot>(
-            stream: _firestore.collection('chats').doc(chatId).snapshots(),
-            builder: (context, snapshot) {
-              bool isBlocked = false;
-              if (snapshot.hasData && snapshot.data!.exists) {
-                final data = snapshot.data!.data() as Map<String, dynamic>?;
-                final blockedBy = List<String>.from(data?['blockedBy'] ?? []);
-                isBlocked = blockedBy.contains(widget.senderId);
-                _isBlocked = isBlocked;
-              }
+          SafeArea(
+            child: StreamBuilder<DocumentSnapshot>(
+              stream: _firestore.collection('chats').doc(chatId).snapshots(),
+              builder: (context, snapshot) {
+                bool isBlocked = false;
+                if (snapshot.hasData && snapshot.data!.exists) {
+                  final data = snapshot.data!.data() as Map<String, dynamic>?;
+                  final blockedBy = List<String>.from(data?['blockedBy'] ?? []);
+                  isBlocked = blockedBy.contains(widget.senderId);
+                  _isBlocked = isBlocked;
+                }
 
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return Shimmer.fromColors(
-                  baseColor: Colors.grey[300]!,
-                  highlightColor: Colors.grey[100]!,
-                  child: Container(
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return Shimmer.fromColors(
+                    baseColor: Colors.grey[300]!,
+                    highlightColor: Colors.grey[100]!,
+                    child: Container(
+                      padding: EdgeInsets.all(16),
+                      color: Colors.grey[300],
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Container(
+                            width: 20,
+                            height: 20,
+                            color: Colors.grey[300],
+                          ),
+                          SizedBox(width: 8),
+                          Container(
+                            width: 150,
+                            height: 14,
+                            color: Colors.grey[300],
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                }
+
+                if (isBlocked) {
+                  return Container(
                     padding: EdgeInsets.all(16),
-                    color: Colors.grey[300],
+                    color: Colors.red[50],
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Container(
-                          width: 20,
-                          height: 20,
-                          color: Colors.grey[300],
+                        Icon(Icons.lock, color: Colors.redAccent, size: 24),
+                        SizedBox(width: 8),
+                        Text(
+                          'you_blocked_user'.tr,
+                          style: TextStyle(
+                            color: Colors.redAccent,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }
+
+                return Container(
+                  padding: EdgeInsets.only(
+                    left: 16,
+                    right: 16,
+                    top: 16,
+                    bottom: 16 + MediaQuery.of(context).viewPadding.bottom,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    border: Border(
+                      top: BorderSide(color: Colors.grey[300]!, width: 0.5),
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.05),
+                        blurRadius: 8,
+                        offset: Offset(0, -2),
+                      ),
+                    ],
+                  ),
+                  child: SafeArea(
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: Colors.grey[100],
+                              borderRadius: BorderRadius.circular(25),
+                              border: Border.all(
+                                color: Colors.grey[300]!,
+                                width: 1,
+                              ),
+                            ),
+                            child: TextField(
+                              controller: _messageController,
+                              focusNode: _messageFocusNode,
+                              style: TextStyle(color: Colors.grey[800]),
+                              maxLines: null,
+                              textCapitalization: TextCapitalization.sentences,
+                              decoration: InputDecoration(
+                                hintText: 'type_message'.tr,
+                                hintStyle: TextStyle(color: Colors.grey[500]),
+                                border: InputBorder.none,
+                                contentPadding: EdgeInsets.symmetric(
+                                  horizontal: 20,
+                                  vertical: 12,
+                                ),
+                              ),
+                              onSubmitted: (_) => _sendMessage(),
+                              textInputAction: TextInputAction.send,
+                              onTap: () {
+                                print('TextField tapped'); // Debug print
+                                _scrollToBottom(animated: true);
+                              },
+                            ),
+                          ),
                         ),
                         SizedBox(width: 8),
                         Container(
-                          width: 150,
-                          height: 14,
-                          color: Colors.grey[300],
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [
+                                ColorUtils.primaryColor,
+                                Color(0xFFFFE55C),
+                              ],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ),
+                            shape: BoxShape.circle,
+                            boxShadow: [
+                              BoxShadow(
+                                color: ColorUtils.primaryColor.withOpacity(0.3),
+                                blurRadius: 8,
+                                offset: Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: IconButton(
+                            icon:
+                                _isSendingMessage
+                                    ? SizedBox(
+                                      width: 16,
+                                      height: 16,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        valueColor:
+                                            AlwaysStoppedAnimation<Color>(
+                                              Colors.black87,
+                                            ),
+                                      ),
+                                    )
+                                    : Icon(
+                                      Icons.send,
+                                      color: Colors.black87,
+                                      size: 20,
+                                    ),
+                            onPressed: _isSendingMessage ? null : _sendMessage,
+                          ),
                         ),
                       ],
                     ),
                   ),
                 );
-              }
-
-              if (isBlocked) {
-                return Container(
-                  padding: EdgeInsets.all(16),
-                  color: Colors.red[50],
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.lock, color: Colors.redAccent, size: 24),
-                      SizedBox(width: 8),
-                      Text(
-                        'you_blocked_user'.tr,
-                        style: TextStyle(
-                          color: Colors.redAccent,
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-              }
-
-              return Container(
-                padding: EdgeInsets.only(
-                  left: 16,
-                  right: 16,
-                  top: 16,
-                  bottom: 16 + MediaQuery.of(context).viewPadding.bottom,
-                ),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  border: Border(
-                    top: BorderSide(color: Colors.grey[300]!, width: 0.5),
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.05),
-                      blurRadius: 8,
-                      offset: Offset(0, -2),
-                    ),
-                  ],
-                ),
-                child: SafeArea(
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Container(
-                          decoration: BoxDecoration(
-                            color: Colors.grey[100],
-                            borderRadius: BorderRadius.circular(25),
-                            border: Border.all(
-                              color: Colors.grey[300]!,
-                              width: 1,
-                            ),
-                          ),
-                          child: TextField(
-                            controller: _messageController,
-                            focusNode: _messageFocusNode,
-                            style: TextStyle(color: Colors.grey[800]),
-                            maxLines: null,
-                            textCapitalization: TextCapitalization.sentences,
-                            decoration: InputDecoration(
-                              hintText: 'type_message'.tr,
-                              hintStyle: TextStyle(color: Colors.grey[500]),
-                              border: InputBorder.none,
-                              contentPadding: EdgeInsets.symmetric(
-                                horizontal: 20,
-                                vertical: 12,
-                              ),
-                            ),
-                            onSubmitted: (_) => _sendMessage(),
-                            textInputAction: TextInputAction.send,
-                            onTap: () {
-                              print('TextField tapped'); // Debug print
-                              _scrollToBottom(animated: true);
-                            },
-                          ),
-                        ),
-                      ),
-                      SizedBox(width: 8),
-                      Container(
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [ColorUtils.primaryColor, Color(0xFFFFE55C)],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                          ),
-                          shape: BoxShape.circle,
-                          boxShadow: [
-                            BoxShadow(
-                              color: ColorUtils.primaryColor.withOpacity(0.3),
-                              blurRadius: 8,
-                              offset: Offset(0, 2),
-                            ),
-                          ],
-                        ),
-                        child: IconButton(
-                          icon: _isSendingMessage
-                              ? SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              valueColor: AlwaysStoppedAnimation<Color>(
-                                Colors.black87,
-                              ),
-                            ),
-                          )
-                              : Icon(
-                            Icons.send,
-                            color: Colors.black87,
-                            size: 20,
-                          ),
-                          onPressed: _isSendingMessage ? null : _sendMessage,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            },
+              },
+            ),
           ),
         ],
       ),
