@@ -10,7 +10,6 @@ import 'package:shimmer/shimmer.dart';
 import '../../appUtils/apiEndPoints.dart';
 import '../../appUtils/colorUtils.dart';
 import '../../services/notificationService.dart';
-import 'package:flutter_keyboard_visibility/flutter_keyboard_visibility.dart';
 
 class ChatScreen extends StatefulWidget {
   final String senderId;
@@ -41,10 +40,6 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   String? _cachedRecipientToken;
   String? _cachedAccessToken;
   DateTime? _tokenCacheTime;
-
-  // Keyboard visibility
-  late KeyboardVisibilityController keyboardVisibilityController;
-  bool _isKeyboardVisible = false;
 
   // Cache duration constants
   static const Duration TOKEN_CACHE_DURATION = Duration(hours: 1);
@@ -108,8 +103,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
 
   Future<int> _getUnreadCount() async {
     try {
-      final snapshot =
-      await _firestore
+      final snapshot = await _firestore
           .collection('chats')
           .doc(chatId)
           .collection('messages')
@@ -144,8 +138,8 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     }
   }
 
-  // Improved message sending with better keyboard handling
-  void _sendMessage() async {
+  // Modified message sending without async/await
+  void _sendMessage() {
     if (_messageController.text.trim().isEmpty ||
         _isBlocked ||
         _isSendingMessage) {
@@ -167,32 +161,37 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       'read': false,
     };
 
-    try {
-      final batch = _firestore.batch();
-      final chatRef = _firestore.collection('chats').doc(chatId);
-      batch.set(chatRef, {
-        'participants': [widget.senderId, widget.receiverId],
-        'lastMessage': messageText,
-        'lastMessageTime': FieldValue.serverTimestamp(),
-        'lastMessageSender': widget.senderId,
-        'createdAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
+    final batch = _firestore.batch();
+    final chatRef = _firestore.collection('chats').doc(chatId);
+    batch.set(chatRef, {
+      'participants': [widget.senderId, widget.receiverId],
+      'lastMessage': messageText,
+      'lastMessageTime': FieldValue.serverTimestamp(),
+      'lastMessageSender': widget.senderId,
+      'createdAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
 
-      final messageRef = chatRef.collection('messages').doc();
-      batch.set(messageRef, message);
+    final messageRef = chatRef.collection('messages').doc();
+    batch.set(messageRef, message);
 
-      await batch.commit();
-
+    // Perform Firestore operation without awaiting
+    batch.commit().then((_) {
       _handleNotificationAsync(messageText);
-
-      // Auto-scroll after sending message
-      Future.delayed(Duration(milliseconds: 100), () {
-        _scrollToBottom();
-      });
-    } catch (e) {
-      print('🚨 Error sending message: $e');
-      _messageController.text = messageText;
+      _scrollToBottom();
       if (mounted) {
+        setState(() {
+          _isSendingMessage = false;
+        });
+        // Retain focus on TextField to keep keyboard open
+        _messageFocusNode.requestFocus();
+      }
+    }).catchError((e) {
+      print('🚨 Error sending message: $e');
+      if (mounted) {
+        _messageController.text = messageText;
+        setState(() {
+          _isSendingMessage = false;
+        });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Failed to send message'),
@@ -202,13 +201,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
           ),
         );
       }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isSendingMessage = false;
-        });
-      }
-    }
+    });
   }
 
   void _handleNotificationAsync(String messageText) async {
@@ -247,17 +240,15 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
 
   void _scrollToBottom({bool animated = true}) {
     if (_scrollController.hasClients && mounted) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (animated) {
-          _scrollController.animateTo(
-            _scrollController.position.maxScrollExtent,
-            duration: Duration(milliseconds: 300),
-            curve: Curves.easeOut,
-          );
-        } else {
-          _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
-        }
-      });
+      if (animated) {
+        _scrollController.animateTo(
+          _scrollController.position.maxScrollExtent,
+          duration: Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+        );
+      } else {
+        _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
+      }
     }
   }
 
@@ -280,15 +271,13 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
         }
         return batch.commit();
       }
-    })
-        .then((_) {
+    }).then((_) {
       if (mounted) {
         setState(() {
           _unreadCount = 0;
         });
       }
-    })
-        .catchError((e) {
+    }).catchError((e) {
       print('🚨 Error marking messages as read: $e');
     });
   }
@@ -304,7 +293,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
         .snapshots()
         .listen((snapshot) {
       if (snapshot.docs.isNotEmpty && _isInChat) {
-        final latestMessage = snapshot.docs.first.data() as Map<String, dynamic>;
+        final latestMessage = snapshot.docs.first.data();
         final receiverId = latestMessage['receiverId'] as String?;
         final isRead = latestMessage['read'] as bool? ?? false;
 
@@ -320,8 +309,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     try {
       final userDoc =
       await _firestore.collection('users').doc(widget.receiverId).get();
-      final data =
-      userDoc.exists
+      final data = userDoc.exists
           ? {
         'name': userDoc.data()?['name'] ?? widget.receiverId,
         'image': userDoc.data()?['image'] ?? '',
@@ -369,22 +357,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _isInChat = true;
-
-    // Setup keyboard visibility listener
-    keyboardVisibilityController = KeyboardVisibilityController();
-    keyboardVisibilityController.onChange.listen((bool visible) {
-      setState(() {
-        _isKeyboardVisible = visible;
-      });
-
-      if (visible) {
-        // Scroll to bottom when keyboard appears
-        Future.delayed(Duration(milliseconds: 300), () {
-          _scrollToBottom();
-        });
-      }
-    });
-
+    _scrollToBottom(animated: true);
     _initializeChat();
     _setupMessageListener();
   }
@@ -443,8 +416,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
         backgroundColor: Colors.white,
         elevation: 1,
         shadowColor: Colors.grey[200],
-        title:
-        _receiverData == null
+        title: _receiverData == null
             ? Row(
           children: [
             CircleAvatar(
@@ -469,16 +441,12 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
           ],
         )
             : StreamBuilder<DocumentSnapshot>(
-          stream:
-          _firestore.collection('chats').doc(chatId).snapshots(),
+          stream: _firestore.collection('chats').doc(chatId).snapshots(),
           builder: (context, snapshot) {
             bool isBlocked = false;
             if (snapshot.hasData && snapshot.data!.exists) {
-              final data =
-              snapshot.data!.data() as Map<String, dynamic>?;
-              final blockedBy = List<String>.from(
-                data?['blockedBy'] ?? [],
-              );
+              final data = snapshot.data!.data() as Map<String, dynamic>?;
+              final blockedBy = List<String>.from(data?['blockedBy'] ?? []);
               isBlocked = blockedBy.contains(widget.senderId);
               _isBlocked = isBlocked;
             }
@@ -499,14 +467,12 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                   child: CircleAvatar(
                     radius: 18,
                     backgroundColor: Colors.grey[200],
-                    backgroundImage:
-                    receiverImage.isNotEmpty
+                    backgroundImage: receiverImage.isNotEmpty
                         ? CachedNetworkImageProvider(
                       '${Common.profileImage}/${receiverImage}',
                     )
                         : null,
-                    child:
-                    receiverImage.isEmpty
+                    child: receiverImage.isEmpty
                         ? Icon(
                       Icons.person,
                       size: 20,
@@ -529,17 +495,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                         ),
                         overflow: TextOverflow.ellipsis,
                       ),
-                      if (snapshot.connectionState ==
-                          ConnectionState.waiting)
-                        Shimmer.fromColors(
-                          baseColor: Colors.grey[300]!,
-                          highlightColor: Colors.grey[100]!,
-                          child: Container(
-                            height: 12,
-                            width: 80,
-                            color: Colors.grey[300],
-                          ),
-                        ),
+
                       if (snapshot.connectionState ==
                           ConnectionState.active &&
                           isBlocked)
@@ -551,7 +507,6 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                             fontWeight: FontWeight.w500,
                           ),
                         )
-
                     ],
                   ),
                 ),
@@ -564,8 +519,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
         children: [
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
-              stream:
-              _firestore
+              stream: _firestore
                   .collection('chats')
                   .doc(chatId)
                   .collection('messages')
@@ -657,34 +611,17 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                       margin: EdgeInsets.symmetric(vertical: 2, horizontal: 16),
                       child: Row(
                         mainAxisAlignment:
-                        isMe
-                            ? MainAxisAlignment.end
-                            : MainAxisAlignment.start,
+                        isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
                         crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
-                          // if (!isMe) ...[
-                          //   CircleAvatar(
-                          //     radius: 12,
-                          //     backgroundColor: Colors.grey[300],
-                          //     child: Icon(
-                          //       Icons.person,
-                          //       size: 16,
-                          //       color: Colors.grey[600],
-                          //     ),
-                          //   ),
-                          //   SizedBox(width: 8),
-                          // ],
                           Flexible(
                             child: Container(
                               constraints: BoxConstraints(
-                                maxWidth:
-                                MediaQuery.of(context).size.width * 0.75,
+                                maxWidth: MediaQuery.of(context).size.width * 0.75,
                               ),
                               child: Column(
                                 crossAxisAlignment:
-                                isMe
-                                    ? CrossAxisAlignment.end
-                                    : CrossAxisAlignment.start,
+                                isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
                                 children: [
                                   Container(
                                     padding: EdgeInsets.symmetric(
@@ -692,8 +629,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                                       vertical: 12,
                                     ),
                                     decoration: BoxDecoration(
-                                      gradient:
-                                      isMe
+                                      gradient: isMe
                                           ? LinearGradient(
                                         colors: [
                                           ColorUtils.primaryColor,
@@ -707,12 +643,8 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                                       borderRadius: BorderRadius.only(
                                         topLeft: Radius.circular(20),
                                         topRight: Radius.circular(20),
-                                        bottomLeft: Radius.circular(
-                                          isMe ? 20 : 4,
-                                        ),
-                                        bottomRight: Radius.circular(
-                                          isMe ? 4 : 20,
-                                        ),
+                                        bottomLeft: Radius.circular(isMe ? 20 : 4),
+                                        bottomRight: Radius.circular(isMe ? 4 : 20),
                                       ),
                                       boxShadow: [
                                         BoxShadow(
@@ -726,10 +658,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                                       message['message'] ?? '',
                                       style: TextStyle(
                                         fontSize: 15,
-                                        color:
-                                        isMe
-                                            ? Colors.black87
-                                            : Colors.grey[800],
+                                        color: isMe ? Colors.black87 : Colors.grey[800],
                                         fontWeight: FontWeight.w400,
                                       ),
                                     ),
@@ -745,17 +674,6 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                                           color: Colors.grey[500],
                                         ),
                                       ),
-                                      // if (isMe) ...[
-                                      //   SizedBox(width: 4),
-                                      //   Icon(
-                                      //     isRead ? Icons.done_all : Icons.done,
-                                      //     size: 14,
-                                      //     color:
-                                      //     isRead
-                                      //         ? Colors.blue
-                                      //         : Colors.grey[500],
-                                      //   ),
-                                      // ],
                                     ],
                                   ),
                                 ],
@@ -777,17 +695,11 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                   }
                 });
 
-                return GestureDetector(
-                  onTap: () {
-                    // Hide keyboard when tapping on messages area
-                    _messageFocusNode.unfocus();
-                  },
-                  child: ListView(
-                    controller: _scrollController,
-                    padding: EdgeInsets.symmetric(vertical: 16),
-                    children: messageWidgets,
-                    keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-                  ),
+                return ListView(
+                  controller: _scrollController,
+                  padding: EdgeInsets.symmetric(vertical: 16),
+                  children: messageWidgets,
+                  keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.manual,
                 );
               },
             ),
@@ -903,10 +815,8 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                             onSubmitted: (_) => _sendMessage(),
                             textInputAction: TextInputAction.send,
                             onTap: () {
-                              // Scroll to bottom when text field is tapped
-                              Future.delayed(Duration(milliseconds: 300), () {
-                                _scrollToBottom();
-                              });
+                              print('TextField tapped'); // Debug print
+                              _scrollToBottom(animated: true);
                             },
                           ),
                         ),
@@ -929,8 +839,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                           ],
                         ),
                         child: IconButton(
-                          icon:
-                          _isSendingMessage
+                          icon: _isSendingMessage
                               ? SizedBox(
                             width: 16,
                             height: 16,

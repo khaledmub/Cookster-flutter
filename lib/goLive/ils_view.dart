@@ -4,12 +4,9 @@ import 'package:get/get.dart';
 import 'package:videosdk/videosdk.dart';
 import 'api_call.dart';
 import 'commentWIdget.dart';
+import 'livestream_controls.dart';
 import 'participant_grid.dart';
 
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter/material.dart';
-import 'package:get/get.dart';
-import 'package:videosdk/videosdk.dart';
 import 'dart:async';
 
 class ILSView extends StatefulWidget {
@@ -269,6 +266,7 @@ class _ILSViewState extends State<ILSView> {
                                                 ),
                                               ],
                                             ),
+
                                           ],
                                         ),
                                       ],
@@ -297,36 +295,48 @@ class _ILSViewState extends State<ILSView> {
                                       int count =
                                           snapshot.data!['joinedUsersCount'] ??
                                           0;
-                                      return Container(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 8,
-                                          vertical: 2,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: Colors.black.withOpacity(0.3),
-                                          borderRadius: BorderRadius.circular(
-                                            18,
-                                          ),
-                                        ),
-                                        child: Row(
-                                          children: [
-                                            const Icon(
-                                              Icons.person,
-                                              color: Colors.white,
-                                              size: 14,
+                                      return Row(
+                                        children: [
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 8,
+                                              vertical: 2,
                                             ),
-                                            Text(
-                                              ' $count',
-                                              style: const TextStyle(
-                                                color: Colors.white,
-                                                fontSize: 14,
+                                            decoration: BoxDecoration(
+                                              color: Colors.black.withOpacity(0.3),
+                                              borderRadius: BorderRadius.circular(
+                                                18,
                                               ),
                                             ),
-                                          ],
-                                        ),
+                                            child: Row(
+                                              children: [
+                                                const Icon(
+                                                  Icons.person,
+                                                  color: Colors.white,
+                                                  size: 14,
+                                                ),
+                                                Text(
+                                                  ' $count',
+                                                  style: const TextStyle(
+                                                    color: Colors.white,
+                                                    fontSize: 14,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+
+                                          SizedBox(width: 8,),
+
+                                          _buildLivestreamControls()
+
+                                        ],
                                       );
                                     },
                                   ),
+
+
+
                                 ],
                               );
                             },
@@ -455,5 +465,81 @@ class _ILSViewState extends State<ILSView> {
         setState(() => participants.remove(participantId));
       }
     });
+  }
+
+
+
+  Widget _buildLivestreamControls() {
+    if (localMode == Mode.SEND_AND_RECV) {
+      return LivestreamControls(
+        mode: Mode.SEND_AND_RECV,
+        micEnabled: micEnabled, // Pass micEnabled
+        onToggleMicButtonPressed: () {
+          micEnabled ? widget.room.muteMic() : widget.room.unmuteMic();
+          setState(() {
+            micEnabled = !micEnabled; // Update state to trigger rebuild
+          });
+        },
+        onToggleCameraButtonPressed: () {
+          camEnabled ? widget.room.disableCam() : widget.room.enableCam();
+          setState(() {
+            camEnabled = !camEnabled;
+          });
+        },
+        onChangeModeButtonPressed: () {
+          widget.room.changeMode(Mode.RECV_ONLY);
+          setState(() {
+            localMode = Mode.RECV_ONLY;
+          });
+        },
+      );
+    } else if (localMode == Mode.RECV_ONLY) {
+      return Column(
+        children: [
+          LivestreamControls(
+            mode: Mode.RECV_ONLY,
+            micEnabled: micEnabled, // Pass micEnabled
+            onToggleMicButtonPressed: () {
+              micEnabled ? widget.room.muteMic() : widget.room.unmuteMic();
+              setState(() {
+                micEnabled = !micEnabled;
+              });
+            },
+            onToggleCameraButtonPressed: () {
+              camEnabled ? widget.room.disableCam() : widget.room.enableCam();
+              setState(() {
+                camEnabled = !camEnabled;
+              });
+            },
+            onChangeModeButtonPressed: () {
+              widget.room.changeMode(Mode.SEND_AND_RECV);
+              setState(() {
+                localMode = Mode.SEND_AND_RECV;
+              });
+            },
+          ),
+        ],
+      );
+    } else {
+      return LivestreamControls(
+        mode: Mode.RECV_ONLY,
+        micEnabled: micEnabled, // Pass micEnabled
+        onToggleMicButtonPressed: () {
+          micEnabled ? widget.room.muteMic() : widget.room.unmuteMic();
+          setState(() {
+            micEnabled = !micEnabled;
+          });
+        },
+        onToggleCameraButtonPressed: () {
+          camEnabled ? widget.room.disableCam() : widget.room.enableCam();
+          setState(() {
+            camEnabled = !camEnabled;
+          });
+        },
+        onChangeModeButtonPressed: () {
+          widget.room.changeMode(Mode.RECV_ONLY);
+        },
+      );
+    }
   }
 }
