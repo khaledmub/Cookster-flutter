@@ -147,7 +147,7 @@ class _JoinScreenState extends State<JoinScreen> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     // Start New Livestream Card
-                    if (entity == 2)
+                    // if (entity == 2)
                       Container(
                         decoration: BoxDecoration(
                           gradient: LinearGradient(

@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:videosdk/videosdk.dart';
+import '../appUtils/apiEndPoints.dart';
 import 'api_call.dart';
 import 'commentWIdget.dart';
 import 'livestream_controls.dart';
@@ -191,8 +192,8 @@ class _ILSViewState extends State<ILSView> {
                                       children: [
                                         // User Image
                                         Container(
-                                          width: 24,
-                                          height: 24,
+                                          width: 40,
+                                          height: 40,
                                           decoration: BoxDecoration(
                                             shape: BoxShape.circle,
                                             color: Colors.grey[700],
@@ -200,7 +201,7 @@ class _ILSViewState extends State<ILSView> {
                                                 userImage.isNotEmpty
                                                     ? DecorationImage(
                                                       image: NetworkImage(
-                                                        userImage,
+                                                        '${Common.profileImage}/${userImage}',
                                                       ),
                                                       fit: BoxFit.cover,
                                                       onError: (
@@ -215,18 +216,12 @@ class _ILSViewState extends State<ILSView> {
                                                     : null,
                                           ),
                                           child:
-                                              userImage.isEmpty
-                                                  ? const Icon(
-                                                    Icons.person,
-                                                    color: Colors.white,
-                                                    size: 24,
-                                                  )
-                                                  : ClipOval(
+                                              ClipOval(
                                                     child: Image.network(
-                                                      userImage,
+                                                      '${Common.profileImage}/${userImage}',
                                                       fit: BoxFit.cover,
-                                                      width: 24,
-                                                      height: 24,
+                                                      width: 40,
+                                                      height: 40,
                                                       errorBuilder: (
                                                         context,
                                                         error,

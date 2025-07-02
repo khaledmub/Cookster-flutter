@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:get/get.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../appUtils/apiEndPoints.dart';
 import 'api_call.dart';
 
 class CommentWidget extends StatefulWidget {
@@ -202,7 +203,7 @@ class _CommentWidgetState extends State<CommentWidget>
                               color: Colors.red.withOpacity(0.3),
                             ),
                           ),
-                          child:  Text(
+                          child: Text(
                             'livec'.tr,
                             style: TextStyle(
                               color: Colors.red,
@@ -416,7 +417,7 @@ class _CommentWidgetState extends State<CommentWidget>
                         )
                         : ClipOval(
                           child: Image.network(
-                            avatarUrl,
+                            '${Common.profileImage}/${avatarUrl}',
                             fit: BoxFit.cover,
                             width: 40,
                             height: 40,
