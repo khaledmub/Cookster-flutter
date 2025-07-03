@@ -21,7 +21,6 @@ import '../../auth/signUp/signUpController/cityController.dart';
 import '../../landing/landingController/landingController.dart';
 import '../../landing/landingTabs/add/videoAddController/videoAddController.dart';
 import '../../landing/landingTabs/home/homeController/homeController.dart';
-import '../../landing/landingTabs/profile/profileControlller/profileController.dart';
 import '../searchModel/b2bList.dart';
 import '../searchModel/searchModel.dart';
 

@@ -1,4 +1,6 @@
+import 'package:cookster/appUtils/colorUtils.dart';
 import 'package:flutter/material.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'dart:math' as math;
 
 class OpenToWorkBadge extends StatelessWidget {
@@ -15,11 +17,6 @@ class OpenToWorkBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ImageProvider imageProvider =
-    (imageUrl != null && imageUrl!.isNotEmpty)
-        ? NetworkImage(imageUrl!)
-        : const AssetImage("assets/images/sd.png");
-
     return SizedBox(
       width: size,
       height: size,
@@ -32,17 +29,31 @@ class OpenToWorkBadge extends StatelessWidget {
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               color: Colors.grey[200],
-              image:
-              imageProvider != null
-                  ? DecorationImage(image: imageProvider, fit: BoxFit.cover)
-                  : null,
+            ),
+            child: ClipOval(
+              child: imageUrl != null && imageUrl!.isNotEmpty
+                  ? CachedNetworkImage(
+                imageUrl: imageUrl!,
+                fit: BoxFit.cover,
+                placeholder: (context, url) => const Center(
+                  child: CircularProgressIndicator(),
+                ),
+                errorWidget: (context, url, error) => Image.asset(
+                  "assets/images/sd.png",
+                  fit: BoxFit.cover,
+                ),
+              )
+                  : Image.asset(
+                "assets/images/sd.png",
+                fit: BoxFit.cover,
+              ),
             ),
           ),
           // Green crescent band overlay with fade effect (top layer, conditional)
           if (showOpenToWork)
             CustomPaint(
               size: Size(size, size),
-              painter: FadeOutCrescentPainter(),
+              painter: ImprovedCrescentPainter(),
             ),
         ],
       ),
@@ -50,105 +61,175 @@ class OpenToWorkBadge extends StatelessWidget {
   }
 }
 
-class FadeOutCrescentPainter extends CustomPainter {
+class ImprovedCrescentPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final center = Offset(size.width / 2, size.height / 2);
     final radius = size.width / 2;
-    final bandWidth = size.width * 0.16; // Increased thickness
+    final bandWidth = size.width * 0.14; // Slightly wider for better presence
 
-    // Draw the green band with proper fade effect
-    _drawFadedBand(canvas, center, radius, bandWidth);
+    // Draw the professional band with enhanced effects
+    _drawProfessionalBand(canvas, center, radius, bandWidth);
 
-    // Draw the text
-    _drawTextAlongCurve(canvas, center, radius - bandWidth / 2, size.width);
+    // Draw the text with professional styling
+    _drawProfessionalTextAlongCurve(canvas, center, radius - bandWidth / 2, size.width);
   }
 
-  void _drawFadedBand(
+  void _drawProfessionalBand(
       Canvas canvas,
       Offset center,
       double radius,
       double bandWidth,
       ) {
-    // Define the arc parameters to match the image
-    const startAngle = math.pi * 0.05; // Start from top-left
-    const sweepAngle = math.pi * 1.5; // 270 degrees clockwise
-    const steps = 100; // Number of segments for smooth fade
+    // Professional LinkedIn-style positioning
+    const startAngle = math.pi * 0.12; // Optimal starting position
+    const sweepAngle = math.pi * 1.45; // Perfect coverage
 
-    final stepAngle = sweepAngle / steps;
+    // Create multiple layers for depth and professionalism
 
-    for (int i = 0; i < steps; i++) {
-      final currentAngle = startAngle + (stepAngle * i);
-      final progress = i / (steps - 1); // 0 to 1
+    // Main professional gradient band
+    final gradientRect = Rect.fromCircle(center: center, radius: radius);
+    final professionalGradient = SweepGradient(
+      center: Alignment.center,
+      startAngle: startAngle,
+      endAngle: startAngle + sweepAngle,
+      colors: [
+        ColorUtils.primaryColor.withOpacity(0.3), // LinkedIn blue fade
+        ColorUtils.primaryColor, // LinkedIn blue
+        ColorUtils.primaryColor, // LinkedIn blue
+        ColorUtils.primaryColor.withOpacity(0.3), // LinkedIn blue fade
+      ],
+      stops: const [0.0, 0.1, 0.9, 1.0],
+    );
 
-      // Modified fade effect to ensure ends are visible
-      double opacity = 1;
+    final mainPaint = Paint()
+      ..shader = professionalGradient.createShader(gradientRect)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = bandWidth
+      ..strokeCap = StrokeCap.round;
 
-      final paint =
-      Paint()
-        ..color = const Color(0xFF0F7B0F).withOpacity(opacity)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = bandWidth
-        ..strokeCap = StrokeCap.butt;
+    canvas.drawArc(
+      Rect.fromCircle(center: center, radius: radius - bandWidth / 2),
+      startAngle,
+      sweepAngle,
+      false,
+      mainPaint,
+    );
 
-      // Draw small arc segment
-      canvas.drawArc(
-        Rect.fromCircle(center: center, radius: radius - bandWidth / 2),
-        currentAngle,
-        stepAngle * 1.5, // Slight overlap to avoid gaps
-        false,
-        paint,
-      );
-    }
+    // Inner highlight for premium look
+    final innerHighlightPaint = Paint()
+      ..color = Colors.white.withOpacity(0.4)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.5
+      ..strokeCap = StrokeCap.round;
+
+    canvas.drawArc(
+      Rect.fromCircle(center: center, radius: radius - bandWidth * 0.25),
+      startAngle,
+      sweepAngle,
+      false,
+      innerHighlightPaint,
+    );
+
+    // Subtle inner shadow for depth
+    final innerShadowPaint = Paint()
+      ..color = Colors.black.withOpacity(0.1)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1
+      ..strokeCap = StrokeCap.round;
+
+    canvas.drawArc(
+      Rect.fromCircle(center: center, radius: radius - bandWidth * 0.75),
+      startAngle,
+      sweepAngle,
+      false,
+      innerShadowPaint,
+    );
   }
 
-  void _drawTextAlongCurve(
+  void _drawProfessionalTextAlongCurve(
       Canvas canvas,
       Offset center,
       double radius,
       double totalSize,
       ) {
-    const text = 'B2BACCOUNT';
-
-    // Match text with the band positioning from top-left to bottom-right
-    const textStartAngle = math.pi * 0.15; // Start from top-left
-    const textSweepAngle = math.pi * 1.5; // Follow 270 degrees clockwise
-    final anglePerChar = textSweepAngle / (text.length * 1.5); // Reduced gap
+    const text = 'B2BACCOUNT'; // Professional standard text
+    const textStartAngle = math.pi * 0.15; // Aligned with band
+    const textSweepAngle = math.pi * 1.35; // Perfect distribution
+    final anglePerChar = textSweepAngle / (text.length - 1);
 
     for (int i = 0; i < text.length; i++) {
-      final angle = textStartAngle + (anglePerChar * i) + 10;
+      final angle = textStartAngle + (anglePerChar * i);
       final char = text[i];
+
+      // Calculate position on the circle
+      final x = center.dx + radius * math.cos(angle);
+      final y = center.dy + radius * math.sin(angle);
+
+      // Professional opacity calculation - minimal fade
       final progress = i / (text.length - 1);
+      double opacity = 1.0;
+      if (progress < 0.05) {
+        opacity = 0.85 + (progress / 0.05) * 0.15; // Very subtle fade
+      } else if (progress > 0.95) {
+        opacity = 0.85 + ((1.0 - progress) / 0.05) * 0.15;
+      }
 
-      // Match text opacity with band fade
-      double opacity = 1;
+      // Professional font sizing
+      final fontSize = totalSize * 0.08; // Slightly smaller for elegance
+      final isSpace = char == ' ';
 
-      // Calculate position
-      final y = center.dy + radius * math.cos(angle);
-      final x = center.dy + radius * math.sin(angle);
+      if (!isSpace) {
+        // Create professional text styling
+        final textStyle = TextStyle(
+          color: Colors.black.withOpacity(opacity),
+          fontSize: fontSize,
+          fontWeight: FontWeight.w600, // Semi-bold for professionalism
+          letterSpacing: 0.8,
+          height: 1.0,
+        );
 
-      // Create text painter
-      final textPainter = TextPainter(
-        text: TextSpan(
-          text: char,
-          style: TextStyle(
-            color: Colors.white.withOpacity(opacity),
-            fontSize: 12,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        textAlign: TextAlign.center,
-        textDirection: TextDirection.ltr,
-      );
+        // Shadow for depth and readability
+        final shadowStyle = TextStyle(
+          color: Colors.black.withOpacity(opacity * 0.3),
+          fontSize: fontSize,
+          fontWeight: FontWeight.w600,
+          letterSpacing: 0.8,
+          height: 1.0,
+        );
 
-      textPainter.layout();
+        final shadowTextPainter = TextPainter(
+          text: TextSpan(text: char, style: shadowStyle),
+          textAlign: TextAlign.center,
+          textDirection: TextDirection.ltr,
+        );
 
-      canvas.save();
-      canvas.translate(x, y);
-      canvas.rotate(angle + math.pi / 2); // Rotate to follow curve
-      canvas.translate(-textPainter.width / 2, -textPainter.height / 2);
-      textPainter.paint(canvas, Offset.zero);
-      canvas.restore();
+        final mainTextPainter = TextPainter(
+          text: TextSpan(text: char, style: textStyle),
+          textAlign: TextAlign.center,
+          textDirection: TextDirection.ltr,
+        );
+
+        shadowTextPainter.layout();
+        mainTextPainter.layout();
+
+        canvas.save();
+        canvas.translate(x, y);
+        canvas.rotate(angle + math.pi / 2);
+
+        // Draw shadow with slight offset
+        canvas.translate(
+          -shadowTextPainter.width / 2 + 0.5,
+          -shadowTextPainter.height / 2 + 0.5,
+        );
+        shadowTextPainter.paint(canvas, Offset.zero);
+
+        // Draw main text
+        canvas.translate(-0.5, -0.5);
+        mainTextPainter.paint(canvas, Offset.zero);
+
+        canvas.restore();
+      }
     }
   }
 
