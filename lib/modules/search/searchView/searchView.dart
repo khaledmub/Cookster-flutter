@@ -331,7 +331,11 @@ class _SearchViewState extends State<SearchView>
         if (searchController.type.value == 5) {
           return Obx(() {
             var businessTypes =
-                searchController.filteredB2bList.value.b2bAccountsList?.businessTypes;
+                searchController
+                    .filteredB2bList
+                    .value
+                    .b2bAccountsList
+                    ?.businessTypes;
 
             if (searchController.isLoading.value) {
               return Center(
@@ -343,121 +347,176 @@ class _SearchViewState extends State<SearchView>
             } else if (businessTypes == null ||
                 businessTypes.isEmpty &&
                     (searchController.b2bList.value.b2bAccountsList == null ||
-                        searchController.b2bList.value.b2bAccountsList!.businessTypes.isEmpty)) {
+                        searchController
+                            .b2bList
+                            .value
+                            .b2bAccountsList!
+                            .businessTypes
+                            .isEmpty)) {
               return _buildNoResultsFound();
-            } else if (businessTypes.isEmpty && _searchController.text.isNotEmpty) {
+            } else if (businessTypes.isEmpty &&
+                _searchController.text.isNotEmpty) {
               return _buildNoResultsFound();
             } else {
               return SingleChildScrollView(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  children: businessTypes.entries.map((entry) {
-                    String businessType = entry.key;
-                    List<BusinessAccount> businesses = entry.value;
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                          child: Text(
-                            businessType,
-                            style: TextStyle(
-                              fontSize: 16.sp,
-                              fontWeight: FontWeight.w700,
+                  children:
+                      businessTypes.entries.map((entry) {
+                        String businessType = entry.key;
+                        List<BusinessAccount> businesses = entry.value;
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // Business Type Header
+                            Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16.0,
+                              ),
+                              child: Text(
+                                businessType,
+                                style: TextStyle(
+                                  fontSize: 16.sp,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
                             ),
-                          ),
-                        ),
-                        SizedBox(height: 8.h),
-                        SizedBox(
-                          height: Get.height * 0.17,
-                          child: ListView.builder(
-                            scrollDirection: Axis.horizontal,
-                            itemCount: businesses.length,
-                            itemBuilder: (context, index) {
-                              var business = businesses[index];
+                            SizedBox(height: 8.h),
+
+                            // Business Accounts List
+                            ...businesses.map((business) {
                               return InkWell(
                                 onTap: () async {
-                                  bool isAuthenticated = await _isUserAuthenticated();
+                                  bool isAuthenticated =
+                                      await _isUserAuthenticated();
                                   if (isAuthenticated) {
-                                    Get.to(VisitProfileView(userId: business.id!));
+                                    Get.to(
+                                      VisitProfileView(userId: business.id!),
+                                    );
                                   } else {
                                     Get.toNamed(AppRoutes.signIn);
                                   }
                                 },
                                 child: Container(
-                                  margin: EdgeInsets.only(left: 16),
-                                  child: Stack(
-                                    alignment: Alignment.bottomCenter,
+                                  margin: EdgeInsets.only(
+                                    left: 16,
+                                    right: 16,
+                                    bottom: 12,
+                                  ),
+                                  padding: EdgeInsets.all(12),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    borderRadius: BorderRadius.circular(12),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.grey.withOpacity(0.1),
+                                        spreadRadius: 1,
+                                        blurRadius: 4,
+                                        offset: Offset(0, 2),
+                                      ),
+                                    ],
+                                  ),
+                                  child: Row(
                                     children: [
+                                      // Profile Picture
                                       ClipRRect(
-                                        borderRadius: BorderRadius.circular(10),
+                                        borderRadius: BorderRadius.circular(
+                                          100,
+                                        ),
                                         child: CachedNetworkImage(
-                                          imageUrl: business.image != null &&
-                                              business.image!.isNotEmpty
-                                              ? '${Common.profileImage}/${business.image!}'
-                                              : "",
-                                          width: Get.height * 0.17,
-                                          height: Get.height * 0.4,
+                                          imageUrl:
+                                              business.image != null &&
+                                                      business.image!.isNotEmpty
+                                                  ? '${Common.profileImage}/${business.image!}'
+                                                  : "",
+                                          width: 60,
+                                          height: 60,
                                           fit: BoxFit.cover,
-                                          errorWidget: (context, url, error) => Container(
-                                            color: ColorUtils.primaryColor,
-                                            child: Image.asset(
-                                              'assets/images/appIcon.png',
-                                              width: 100,
-                                              height: 100,
-                                              fit: BoxFit.cover,
-                                            ),
-                                          ),
-                                          placeholder: (context, url) => Container(
-                                            width: 100,
-                                            height: 100,
-                                            color: Colors.grey[300],
-                                            child: Center(
-                                              child: CircularProgressIndicator(
-                                                strokeWidth: 2,
-                                                color: Colors.grey[700],
+                                          errorWidget:
+                                              (
+                                                context,
+                                                url,
+                                                error,
+                                              ) => Container(
+                                                width: 60,
+                                                height: 60,
+                                                color: ColorUtils.primaryColor,
+                                                child: Image.asset(
+                                                  'assets/images/appIcon.png',
+                                                  width: 30,
+                                                  height: 30,
+                                                  fit: BoxFit.cover,
+                                                ),
                                               ),
-                                            ),
-                                          ),
+                                          placeholder:
+                                              (context, url) => Container(
+                                                width: 60,
+                                                height: 60,
+                                                color: Colors.grey[300],
+                                                child: Center(
+                                                  child:
+                                                      CircularProgressIndicator(
+                                                        strokeWidth: 2,
+                                                        color: Colors.grey[700],
+                                                      ),
+                                                ),
+                                              ),
                                         ),
                                       ),
-                                      Positioned(
-                                        bottom: 0,
-                                        left: 0,
-                                        right: 0,
-                                        child: Container(
-                                          padding: EdgeInsets.symmetric(
-                                            horizontal: 8,
-                                            vertical: 5,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            borderRadius: BorderRadius.only(
-                                              bottomLeft: Radius.circular(10),
-                                              bottomRight: Radius.circular(10),
+                                      SizedBox(width: 12),
+
+                                      // Business Info
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            // Business Name
+                                            Text(
+                                              business.name ??
+                                                  "Unknown Business",
+                                              style: TextStyle(
+                                                fontSize: 14.sp,
+                                                fontWeight: FontWeight.w600,
+                                                color: Colors.black87,
+                                              ),
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
                                             ),
-                                            color: Colors.black.withOpacity(0.6),
-                                          ),
-                                          child: Text(
-                                            business.name ?? "Unknown Business",
-                                            style: TextStyle(
-                                              color: Colors.white,
-                                              fontSize: 12,
-                                              fontWeight: FontWeight.bold,
+                                            SizedBox(height: 4),
+
+                                            // Business Email
+                                            Text(
+                                              business.email ??
+                                                  "No email available",
+                                              style: TextStyle(
+                                                fontSize: 12.sp,
+                                                fontWeight: FontWeight.w400,
+                                                color: Colors.grey[600],
+                                              ),
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
                                             ),
-                                          ),
+                                          ],
                                         ),
+                                      ),
+
+                                      // Optional: Add arrow icon
+                                      Icon(
+                                        Icons.arrow_forward_ios,
+                                        size: 16,
+                                        color: Colors.grey[400],
                                       ),
                                     ],
                                   ),
                                 ),
                               );
-                            },
-                          ),
-                        ),
-                        SizedBox(height: 16.h),
-                      ],
-                    );
-                  }).toList(),
+                            }).toList(),
+
+                            SizedBox(height: 16.h),
+                          ],
+                        );
+                      }).toList(),
                 ),
               );
             }
