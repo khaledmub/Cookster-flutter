@@ -14,6 +14,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../appRoutes/appRoutes.dart';
 import '../../../appUtils/apiEndPoints.dart';
 import '../../../appUtils/colorUtils.dart';
+import '../../../appUtils/openToWork.dart';
 import '../../../loaders/pulseLoader.dart';
 import '../../chatScreen/chatScreenView.dart';
 import '../../followersFollowing/followersFollowingView/followersFollowingView.dart';
@@ -260,25 +261,16 @@ class _VisitProfileViewState extends State<VisitProfileView>
                         left: 0,
                         right: 0,
                         child: Center(
-                          child: Container(
-                            height: 60.h,
-                            width: 60.h,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              border: Border.all(color: Colors.white, width: 2),
-                            ),
-                            child: ClipOval(
-                              child:
-                                  userDetails.image == null
-                                      ? Image.asset(
-                                        "assets/images/sd.png",
-                                        fit: BoxFit.cover,
-                                      )
-                                      : CachedNetworkImage(
-                                        imageUrl:
-                                            '${Common.profileImage}/${userDetails.image!}',
-                                        fit: BoxFit.cover,
-                                      ),
+                          child: Center(
+                            child: OpenToWorkBadge(
+                              size: 65.h,
+                              showOpenToWork:
+                                  professionalAdditionalData!.isB2B == 0
+                                      ? false
+                                      : true,
+
+                              imageUrl:
+                                  '${Common.profileImage}/${userDetails.image}',
                             ),
                           ),
                         ),
@@ -291,37 +283,19 @@ class _VisitProfileViewState extends State<VisitProfileView>
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Stack(
-                      children: [
-                        Container(
-                          height: 80.h,
-                          width: 80.h,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            border: Border.all(color: ColorUtils.primaryColor),
-                          ),
-                          child: ClipOval(
-                            child:
-                                userDetails.image == null
-                                    ? Image.asset(
-                                      "assets/images/sd.png",
-                                      fit: BoxFit.cover,
-                                    )
-                                    : CachedNetworkImage(
-                                      imageUrl:
-                                          '${Common.profileImage}/${userDetails.image!}',
-                                      fit: BoxFit.cover,
-                                      placeholder:
-                                          (context, url) => const Center(
-                                            child: CircularProgressIndicator(),
-                                          ),
-                                      errorWidget:
-                                          (context, url, error) =>
-                                              const Icon(Icons.person),
-                                    ),
-                          ),
+                    Center(
+                      child: Center(
+                        child: OpenToWorkBadge(
+                          size: 70.h,
+                          showOpenToWork:
+                              professionalAdditionalData!.isB2B == 0
+                                  ? false
+                                  : true,
+
+                          imageUrl:
+                              '${Common.profileImage}/${userDetails.image}',
                         ),
-                      ],
+                      ),
                     ),
                   ],
                 ),

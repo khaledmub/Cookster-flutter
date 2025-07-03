@@ -175,6 +175,7 @@ class AdditionalData {
   dynamic status;
   dynamic createdAt;
   dynamic updatedAt;
+  dynamic isB2B;
 
   AdditionalData({
     this.id,
@@ -190,6 +191,7 @@ class AdditionalData {
     this.status,
     this.createdAt,
     this.updatedAt,
+    this.isB2B
   });
 
   AdditionalData.fromJson(Map<dynamic, dynamic> json) {
@@ -206,6 +208,7 @@ class AdditionalData {
     status = json['status'] as dynamic;
     createdAt = json['created_at'] as dynamic;
     updatedAt = json['updated_at'] as dynamic;
+    isB2B = json['is_b2b'] as dynamic;
   }
 
   Map<dynamic, dynamic> toJson() {
@@ -223,6 +226,7 @@ class AdditionalData {
     data['status'] = status;
     data['created_at'] = createdAt;
     data['updated_at'] = updatedAt;
+    data['is_b2b'] = isB2B;
     return data;
   }
 }
