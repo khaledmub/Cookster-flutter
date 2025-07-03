@@ -354,7 +354,7 @@ class _ProfessionalProfileViewState extends State<ProfessionalProfileView>
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
                                   Text(
-                                    "B2B",
+                                    "b2b".tr,
                                     style: TextStyle(
                                       fontWeight: FontWeight.w700,
                                     ),

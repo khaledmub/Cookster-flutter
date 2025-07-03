@@ -49,7 +49,7 @@ class OpenToWorkBadge extends StatelessWidget {
               ),
             ),
           ),
-          // Green crescent band overlay with fade effect (top layer, conditional)
+          // Green crescent band overlay (top layer, conditional)
           if (showOpenToWork)
             CustomPaint(
               size: Size(size, size),
@@ -81,23 +81,23 @@ class ImprovedCrescentPainter extends CustomPainter {
       double radius,
       double bandWidth,
       ) {
-    // Professional LinkedIn-style positioning
-    const startAngle = math.pi * 0.12; // Optimal starting position
-    const sweepAngle = math.pi * 1.45; // Perfect coverage
+    // Adjusted positioning for bottom left quadrant
+    const startAngle = math.pi * 0.5; // Start at 270° (bottom left)
+    const sweepAngle = math.pi * 0.4; // Short arc for "B2B"
 
     // Create multiple layers for depth and professionalism
 
-    // Main professional gradient band
+    // Main professional solid band (no fade)
     final gradientRect = Rect.fromCircle(center: center, radius: radius);
     final professionalGradient = SweepGradient(
       center: Alignment.center,
       startAngle: startAngle,
       endAngle: startAngle + sweepAngle,
       colors: [
-        ColorUtils.primaryColor.withOpacity(0.3), // LinkedIn blue fade
-        ColorUtils.primaryColor, // LinkedIn blue
-        ColorUtils.primaryColor, // LinkedIn blue
-        ColorUtils.primaryColor.withOpacity(0.3), // LinkedIn blue fade
+        ColorUtils.primaryColor, // Solid LinkedIn blue
+        ColorUtils.primaryColor, // Solid LinkedIn blue
+        ColorUtils.primaryColor, // Solid LinkedIn blue
+        ColorUtils.primaryColor, // Solid LinkedIn blue
       ],
       stops: const [0.0, 0.1, 0.9, 1.0],
     );
@@ -153,9 +153,9 @@ class ImprovedCrescentPainter extends CustomPainter {
       double radius,
       double totalSize,
       ) {
-    const text = 'B2BACCOUNT'; // Professional standard text
-    const textStartAngle = math.pi * 0.15; // Aligned with band
-    const textSweepAngle = math.pi * 1.35; // Perfect distribution
+    const text = 'B2B'; // Text to display
+    const textStartAngle = math.pi * 0.55; // Slightly offset from arc start
+    const textSweepAngle = math.pi * 0.35; // Adjusted for "B2B"
     final anglePerChar = textSweepAngle / (text.length - 1);
 
     for (int i = 0; i < text.length; i++) {
@@ -166,14 +166,8 @@ class ImprovedCrescentPainter extends CustomPainter {
       final x = center.dx + radius * math.cos(angle);
       final y = center.dy + radius * math.sin(angle);
 
-      // Professional opacity calculation - minimal fade
-      final progress = i / (text.length - 1);
-      double opacity = 1.0;
-      if (progress < 0.05) {
-        opacity = 0.85 + (progress / 0.05) * 0.15; // Very subtle fade
-      } else if (progress > 0.95) {
-        opacity = 0.85 + ((1.0 - progress) / 0.05) * 0.15;
-      }
+      // Solid opacity (no fade)
+      const opacity = 1.0;
 
       // Professional font sizing
       final fontSize = totalSize * 0.08; // Slightly smaller for elegance
@@ -215,7 +209,8 @@ class ImprovedCrescentPainter extends CustomPainter {
 
         canvas.save();
         canvas.translate(x, y);
-        canvas.rotate(angle + math.pi / 2);
+        // Adjust rotation to make text upright in bottom left quadrant
+        canvas.rotate(angle - math.pi / 2); // Subtract π/2 to correct orientation
 
         // Draw shadow with slight offset
         canvas.translate(

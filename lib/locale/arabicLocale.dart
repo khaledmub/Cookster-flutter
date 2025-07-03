@@ -468,6 +468,8 @@ const Map<String, String> ar = {
   "cancel_button": "إلغاء",
   "end_stream_button": "إنهاء البث",
   "leave_button": "مغادرة",
-  "live_stream_end_message" : "البث المباشر انتهى: تم الوصول إلى الحد الأقصى البالغ 15 دقيقة",
-  "business": "الأعمال"
+  "live_stream_end_message":
+      "البث المباشر انتهى: تم الوصول إلى الحد الأقصى البالغ 15 دقيقة",
+  "business": "الأعمال",
+  "b2b": "التعامل التجاري",
 };

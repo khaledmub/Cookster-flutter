@@ -34,6 +34,7 @@ class ProfessionalProfileController extends GetxController {
   // Toggle function
   void toggleB2B(bool value) {
     isB2B.value = value;
+    userDetails.value!.additionalData!.isB2B = value ? 1 : 0;
     changeB2BStatus(value);
   }
 

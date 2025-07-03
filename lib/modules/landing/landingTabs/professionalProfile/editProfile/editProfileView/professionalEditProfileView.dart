@@ -528,7 +528,6 @@ class _EditProfessionalProfileViewState
                       // )),
                       // SizedBox(height: 20),
 
-                      dir.Switch(value: true, onChanged: (value) {}),
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 16.0),
                         child: CustomTextField(

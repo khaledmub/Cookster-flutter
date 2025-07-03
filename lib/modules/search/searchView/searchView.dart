@@ -214,7 +214,7 @@ class _SearchViewState extends State<SearchView>
                           searchController.type.value = 4; // Top Rated
                         } else if (index == 3) {
                           searchController.type.value = 5;
-                          searchController.fetchB2BList();
+                          searchController.fetchB2BCategories();
                         } else if (_searchController.text.length >= 3) {
                           searchController.fetchSearchResults(
                             _searchController.text,
@@ -240,7 +240,7 @@ class _SearchViewState extends State<SearchView>
                         Tab(text: "General Search".tr),
                         Tab(text: "business".tr),
                         Tab(text: "Top Rated".tr),
-                        Tab(text: "B2B".tr),
+                        Tab(text: "b2b".tr),
                       ],
                     ),
                   ),
@@ -275,7 +275,7 @@ class _SearchViewState extends State<SearchView>
                           onTap: () {
                             if (_searchController.text.isNotEmpty) {
                               if (searchController.type.value == 5) {
-                                searchController.searchB2BAccounts(
+                                searchController.searchB2BCategories(
                                   _searchController.text,
                                 );
                               } else {
@@ -341,12 +341,8 @@ class _SearchViewState extends State<SearchView>
 
         if (searchController.type.value == 5) {
           return Obx(() {
-            var businessTypes =
-                searchController
-                    .filteredB2bList
-                    .value
-                    .b2bAccountsList
-                    ?.businessTypes;
+            var categories =
+                searchController.filteredB2bCategories.value.businessTypes;
 
             if (searchController.isLoading.value) {
               return Center(
@@ -355,179 +351,73 @@ class _SearchViewState extends State<SearchView>
                   size: 80,
                 ),
               );
-            } else if (businessTypes == null ||
-                businessTypes.isEmpty &&
-                    (searchController.b2bList.value.b2bAccountsList == null ||
-                        searchController
-                            .b2bList
-                            .value
-                            .b2bAccountsList!
-                            .businessTypes
-                            .isEmpty)) {
-              return _buildNoResultsFound();
-            } else if (businessTypes.isEmpty &&
-                _searchController.text.isNotEmpty) {
+            } else if (categories == null || categories.isEmpty) {
               return _buildNoResultsFound();
             } else {
               return SingleChildScrollView(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children:
-                      businessTypes.entries.map((entry) {
-                        String businessType = entry.key;
-                        List<BusinessAccount> businesses = entry.value;
-                        return Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            // Business Type Header
-                            Padding(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 16.0,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16.0,
+                    vertical: 16,
+                  ),
+                  child: GridView.count(
+                    crossAxisCount: 2,
+                    shrinkWrap: true,
+                    physics: NeverScrollableScrollPhysics(),
+                    mainAxisSpacing: 12,
+                    crossAxisSpacing: 12,
+                    childAspectRatio: 3,
+                    children:
+                        categories.asMap().entries.map((entry) {
+                          int index = entry.key;
+                          var category = entry.value;
+
+                          return InkWell(
+                            onTap: () async {
+                              bool isAuthenticated =
+                                  await _isUserAuthenticated();
+                              if (isAuthenticated) {
+                                // Update search controller or navigate
+                              } else {
+                                Get.toNamed(AppRoutes.signIn);
+                              }
+                            },
+                            child: Container(
+                              padding: EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: Colors.grey[200]!),
                               ),
-                              child: Text(
-                                businessType,
-                                style: TextStyle(
-                                  fontSize: 16.sp,
-                                  fontWeight: FontWeight.w700,
-                                ),
+                              child: Row(
+                                children: [
+                                  // Index number badge
+                                  Text(
+                                    '${index + 1}.', // Show 1-based index
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                  SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      category.name ?? "Unknown",
+                                      style: TextStyle(
+                                        fontSize: 12.sp,
+                                        fontWeight: FontWeight.w600,
+                                        color: Colors.black87,
+                                      ),
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                  Icon(Icons.chevron_right),
+                                ],
                               ),
                             ),
-                            SizedBox(height: 8.h),
-
-                            // Business Accounts List
-                            ...businesses.map((business) {
-                              return InkWell(
-                                onTap: () async {
-                                  bool isAuthenticated =
-                                      await _isUserAuthenticated();
-                                  if (isAuthenticated) {
-                                    Get.to(
-                                      VisitProfileView(userId: business.id!),
-                                    );
-                                  } else {
-                                    Get.toNamed(AppRoutes.signIn);
-                                  }
-                                },
-                                child: Container(
-                                  margin: EdgeInsets.only(
-                                    left: 16,
-                                    right: 16,
-                                    bottom: 12,
-                                  ),
-                                  padding: EdgeInsets.all(12),
-                                  decoration: BoxDecoration(
-                                    color: Colors.white,
-                                    borderRadius: BorderRadius.circular(12),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: Colors.grey.withOpacity(0.1),
-                                        spreadRadius: 1,
-                                        blurRadius: 4,
-                                        offset: Offset(0, 2),
-                                      ),
-                                    ],
-                                  ),
-                                  child: Row(
-                                    children: [
-                                      // Profile Picture
-                                      ClipRRect(
-                                        borderRadius: BorderRadius.circular(
-                                          100,
-                                        ),
-                                        child: CachedNetworkImage(
-                                          imageUrl:
-                                              business.image != null &&
-                                                      business.image!.isNotEmpty
-                                                  ? '${Common.profileImage}/${business.image!}'
-                                                  : "",
-                                          width: 60,
-                                          height: 60,
-                                          fit: BoxFit.cover,
-                                          errorWidget:
-                                              (
-                                                context,
-                                                url,
-                                                error,
-                                              ) => Container(
-                                                width: 60,
-                                                height: 60,
-                                                color: ColorUtils.primaryColor,
-                                                child: Image.asset(
-                                                  'assets/images/appIcon.png',
-                                                  width: 30,
-                                                  height: 30,
-                                                  fit: BoxFit.cover,
-                                                ),
-                                              ),
-                                          placeholder:
-                                              (context, url) => Container(
-                                                width: 60,
-                                                height: 60,
-                                                color: Colors.grey[300],
-                                                child: Center(
-                                                  child:
-                                                      CircularProgressIndicator(
-                                                        strokeWidth: 2,
-                                                        color: Colors.grey[700],
-                                                      ),
-                                                ),
-                                              ),
-                                        ),
-                                      ),
-                                      SizedBox(width: 12),
-
-                                      // Business Info
-                                      Expanded(
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            // Business Name
-                                            Text(
-                                              business.name ??
-                                                  "Unknown Business",
-                                              style: TextStyle(
-                                                fontSize: 14.sp,
-                                                fontWeight: FontWeight.w600,
-                                                color: Colors.black87,
-                                              ),
-                                              maxLines: 1,
-                                              overflow: TextOverflow.ellipsis,
-                                            ),
-                                            SizedBox(height: 4),
-
-                                            // Business Email
-                                            Text(
-                                              business.email ??
-                                                  "No email available",
-                                              style: TextStyle(
-                                                fontSize: 12.sp,
-                                                fontWeight: FontWeight.w400,
-                                                color: Colors.grey[600],
-                                              ),
-                                              maxLines: 1,
-                                              overflow: TextOverflow.ellipsis,
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-
-                                      // Optional: Add arrow icon
-                                      Icon(
-                                        Icons.arrow_forward_ios,
-                                        size: 16,
-                                        color: Colors.grey[400],
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              );
-                            }).toList(),
-
-                            SizedBox(height: 16.h),
-                          ],
-                        );
-                      }).toList(),
+                          );
+                        }).toList(),
+                  ),
                 ),
               );
             }
