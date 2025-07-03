@@ -1,4 +1,3 @@
-
 import 'dart:async';
 import 'dart:convert';
 import 'package:cookster/appUtils/apiEndPoints.dart';
@@ -10,6 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../../services/apiClient.dart';
 import '../searchModel/b2bCategoryList.dart';
 import '../searchModel/b2bList.dart';
+import '../searchModel/b2bUsersListModel.dart';
 import '../searchModel/searchModel.dart';
 
 class UserSearchController extends GetxController {
@@ -23,6 +23,9 @@ class UserSearchController extends GetxController {
   var filteredB2bList = B2BList().obs;
   var b2bCategories = B2BCategoryModel().obs;
   var filteredB2bCategories = B2BCategoryModel().obs;
+  var b2bUsersList = B2BUsersList().obs; // Add observable for B2BUsersList
+  var filteredB2bUsersList =
+      B2BUsersList().obs; // Add observable for filtered B2BUsersList
   RxList<String> recentSearches = <String>[].obs;
 
   @override
@@ -32,10 +35,10 @@ class UserSearchController extends GetxController {
     try {
       Position position = await _getCurrentPosition();
       Map<String, String?> locationData =
-      await _getCityAndCountryFromCoordinates(
-        position.latitude,
-        position.longitude,
-      );
+          await _getCityAndCountryFromCoordinates(
+            position.latitude,
+            position.longitude,
+          );
       String? city = locationData['city'];
       String? country = locationData['country'];
       if (city != null && city.isNotEmpty) {
@@ -61,6 +64,8 @@ class UserSearchController extends GetxController {
     hasSearched.value = false;
     filteredB2bList.value = b2bList.value;
     filteredB2bCategories.value = b2bCategories.value;
+    filteredB2bUsersList.value =
+        b2bUsersList.value; // Clear filtered B2B users list
   }
 
   // Load recent searches from SharedPreferences
@@ -102,12 +107,12 @@ class UserSearchController extends GetxController {
 
   // Fetch search results
   Future<void> fetchSearchResults(
-      String keywords, {
-        String? city,
-        String? country,
-        int? isGeneral = 0,
-        int? isFollowing = 0,
-      }) async {
+    String keywords, {
+    String? city,
+    String? country,
+    int? isGeneral = 0,
+    int? isFollowing = 0,
+  }) async {
     if (keywords.isEmpty) {
       clearSearchResults();
       return;
@@ -140,7 +145,7 @@ class UserSearchController extends GetxController {
         if (isGeneral != 1 || city != null || country != null) {
           requestBody["city"] = finalCity.isNotEmpty ? finalCity : "Unknown";
           requestBody["country"] =
-          finalCountry.isNotEmpty ? finalCountry : "Unknown";
+              finalCountry.isNotEmpty ? finalCountry : "Unknown";
         }
       }
 
@@ -181,13 +186,14 @@ class UserSearchController extends GetxController {
     );
 
     if (b2bCategories.value.businessTypes != null) {
-      filtered.businessTypes = b2bCategories.value.businessTypes!
-          .where(
-            (category) =>
-        category.name != null &&
-            category.name!.toLowerCase().contains(query.toLowerCase()),
-      )
-          .toList();
+      filtered.businessTypes =
+          b2bCategories.value.businessTypes!
+              .where(
+                (category) =>
+                    category.name != null &&
+                    category.name!.toLowerCase().contains(query.toLowerCase()),
+              )
+              .toList();
     }
 
     filteredB2bCategories.value = filtered;
@@ -197,39 +203,30 @@ class UserSearchController extends GetxController {
     }
   }
 
-  // Search B2B accounts by name
-  void searchB2BAccounts(String query) {
+  // Search B2B users by name (new method for B2BUsersList)
+  void searchB2BUsers(String query) {
     if (query.isEmpty) {
-      filteredB2bList.value = b2bList.value;
+      filteredB2bUsersList.value = b2bUsersList.value;
       return;
     }
 
-    B2BList filtered = B2BList(
-      status: b2bList.value.status,
-      b2bAccountsList: B2bAccountsList(businessTypes: {}),
+    B2BUsersList filtered = B2BUsersList(
+      status: b2bUsersList.value.status,
+      b2bAccountsList: [],
     );
 
-    if (b2bList.value.b2bAccountsList != null) {
-      b2bList.value.b2bAccountsList!.businessTypes.forEach((
-          businessType,
-          accounts,
-          ) {
-        List<BusinessAccount> filteredAccounts = accounts
-            .where(
-              (account) =>
-          account.name != null &&
-              account.name!.toLowerCase().contains(query.toLowerCase()),
-        )
-            .toList();
-
-        if (filteredAccounts.isNotEmpty) {
-          filtered.b2bAccountsList!.businessTypes[businessType] =
-              filteredAccounts;
-        }
-      });
+    if (b2bUsersList.value.b2bAccountsList != null) {
+      filtered.b2bAccountsList =
+          b2bUsersList.value.b2bAccountsList!
+              .where(
+                (account) =>
+                    account.name != null &&
+                    account.name!.toLowerCase().contains(query.toLowerCase()),
+              )
+              .toList();
     }
 
-    filteredB2bList.value = filtered;
+    filteredB2bUsersList.value = filtered;
 
     if (query.isNotEmpty) {
       _saveSearchQuery(query);
@@ -303,6 +300,41 @@ class UserSearchController extends GetxController {
     }
   }
 
+  // New method to fetch B2B users list with optional category ID
+  Future<void> fetchB2BUsersList({int? categoryId}) async {
+    isLoading.value = true;
+
+    try {
+      String endpoint = 'b2b/b2b_accounts_list'; // Base endpoint
+      if (categoryId != null) {
+        endpoint += '?category_id=$categoryId';
+      }
+
+      final response = await ApiClient.getRequest(endpoint);
+
+      print('B2B Users List API Request: ${ApiClient.baseUrl}$endpoint');
+      print('Response Status: ${response.statusCode}');
+      print('Response Body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final jsonResponse = json.decode(response.body);
+        b2bUsersList.value = B2BUsersList.fromJson(jsonResponse);
+        filteredB2bUsersList.value = b2bUsersList.value;
+      } else {
+        Get.snackbar("Error", "Failed to fetch B2B users list");
+        b2bUsersList.value = B2BUsersList();
+        filteredB2bUsersList.value = B2BUsersList();
+      }
+    } catch (e) {
+      print('Error fetching B2B users list: $e');
+      Get.snackbar("Error", "Something went wrong: $e");
+      b2bUsersList.value = B2BUsersList();
+      filteredB2bUsersList.value = B2BUsersList();
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
   // Helper function to get current position
   Future<Position> _getCurrentPosition() async {
     bool serviceEnabled;
@@ -332,9 +364,9 @@ class UserSearchController extends GetxController {
 
   // Helper function to get city and country from coordinates
   Future<Map<String, String?>> _getCityAndCountryFromCoordinates(
-      double latitude,
-      double longitude,
-      ) async {
+    double latitude,
+    double longitude,
+  ) async {
     try {
       List<Placemark> placemarks = await placemarkFromCoordinates(
         latitude,

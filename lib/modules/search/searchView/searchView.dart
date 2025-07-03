@@ -21,6 +21,8 @@ import '../../auth/signUp/signUpController/cityController.dart';
 import '../../landing/landingController/landingController.dart';
 import '../../landing/landingTabs/add/videoAddController/videoAddController.dart';
 import '../../landing/landingTabs/home/homeController/homeController.dart';
+import '../b2bUsersList/b2bUsersList.dart';
+import '../searchModel/b2bCategoryList.dart';
 import '../searchModel/b2bList.dart';
 import '../searchModel/searchModel.dart';
 
@@ -84,6 +86,8 @@ class _SearchViewState extends State<SearchView>
     searchController.searchResult.value = SearchResult();
     searchController.b2bList.value = B2BList();
     searchController.filteredB2bList.value = B2BList();
+    searchController.b2bCategories.value = B2BCategoryModel();
+    searchController.filteredB2bCategories.value = B2BCategoryModel();
     searchController.hasSearched.value = false;
     searchController.isLoading.value = false;
     // Optional: Clear search controller text if you want to start fresh
@@ -262,7 +266,7 @@ class _SearchViewState extends State<SearchView>
                           );
                         } else if (value.isNotEmpty &&
                             searchController.type.value == 5) {
-                          searchController.searchB2BAccounts(value);
+                          searchController.searchB2BCategories(value);
                         }
                       },
                       decoration: InputDecoration(
@@ -377,7 +381,12 @@ class _SearchViewState extends State<SearchView>
                               bool isAuthenticated =
                                   await _isUserAuthenticated();
                               if (isAuthenticated) {
-                                // Update search controller or navigate
+                                Get.to(
+                                  B2bUsersList(
+                                    categoryId: category.id.toString(),
+                                    categoryName: category.name.toString(),
+                                  ),
+                                );
                               } else {
                                 Get.toNamed(AppRoutes.signIn);
                               }
