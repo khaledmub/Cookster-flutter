@@ -7,6 +7,7 @@ import 'package:get/get.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../services/apiClient.dart';
+import '../searchModel/b2bList.dart';
 import '../searchModel/searchModel.dart';
 
 class UserSearchController extends GetxController {
@@ -16,7 +17,8 @@ class UserSearchController extends GetxController {
   var hasSearched = false.obs;
   var currentCity = "".obs;
   var currentCountry = "".obs;
-
+  var b2bList = B2BList().obs;
+  var filteredB2bList = B2BList().obs;
   RxList<String> recentSearches = <String>[].obs;
 
   @override
@@ -53,6 +55,7 @@ class UserSearchController extends GetxController {
   void clearSearchResults() {
     searchResult.value = SearchResult();
     hasSearched.value = false;
+    filteredB2bList.value = b2bList.value; // Reset filteredB2bList to b2bList
   }
 
   // Load recent searches from SharedPreferences
@@ -94,12 +97,12 @@ class UserSearchController extends GetxController {
 
   // Fetch search results
   Future<void> fetchSearchResults(
-      String keywords, {
-        String? city,
-        String? country,
-        int? isGeneral = 0,
-        int? isFollowing = 0,
-      }) async {
+    String keywords, {
+    String? city,
+    String? country,
+    int? isGeneral = 0,
+    int? isFollowing = 0,
+  }) async {
     if (keywords.isEmpty) {
       clearSearchResults();
       return;
@@ -109,7 +112,6 @@ class UserSearchController extends GetxController {
     hasSearched.value = true;
 
     try {
-      // Step 1: Get city and country - use provided values, else fall back to current values
       String? finalCity = city ?? currentCity.value;
       String? finalCountry = country ?? currentCountry.value;
 
@@ -120,31 +122,23 @@ class UserSearchController extends GetxController {
         );
       }
 
-      print(isGeneral);
-
-      // Step 2: Prepare API request body
       final requestBody = <String, dynamic>{};
 
       if (isFollowing == 1) {
-        // If isFollowing is 1, only include is_following in the request body
         requestBody["is_following"] = isFollowing;
         requestBody["type"] = type.value;
-
         requestBody["keywords"] = keywords;
       } else {
-        // Otherwise, include the usual fields
         requestBody["type"] = type.value;
         requestBody["keywords"] = keywords;
 
-        // Only include city and country if isGeneral is 0 or if user explicitly provides city/country
         if (isGeneral != 1 || city != null || country != null) {
           requestBody["city"] = finalCity.isNotEmpty ? finalCity : "Unknown";
           requestBody["country"] =
-          finalCountry.isNotEmpty ? finalCountry : "Unknown";
+              finalCountry.isNotEmpty ? finalCountry : "Unknown";
         }
       }
 
-      // Step 3: Make API request
       final response = await ApiClient.postRequest(
         EndPoints.search,
         requestBody,
@@ -164,6 +158,78 @@ class UserSearchController extends GetxController {
     } catch (e) {
       print(e);
       Get.snackbar("Error", "Something went wrong: $e");
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
+  // Search B2B accounts by name
+  void searchB2BAccounts(String query) {
+    if (query.isEmpty) {
+      filteredB2bList.value = b2bList.value; // Reset to full list
+      return;
+    }
+
+    B2BList filtered = B2BList(
+      status: b2bList.value.status,
+      b2bAccountsList: B2bAccountsList(businessTypes: {}),
+    );
+
+    if (b2bList.value.b2bAccountsList != null) {
+      b2bList.value.b2bAccountsList!.businessTypes.forEach((
+        businessType,
+        accounts,
+      ) {
+        List<BusinessAccount> filteredAccounts =
+            accounts
+                .where(
+                  (account) =>
+                      account.name != null &&
+                      account.name!.toLowerCase().contains(query.toLowerCase()),
+                )
+                .toList();
+
+        if (filteredAccounts.isNotEmpty) {
+          filtered.b2bAccountsList!.businessTypes[businessType] =
+              filteredAccounts;
+        }
+      });
+    }
+
+    filteredB2bList.value = filtered;
+
+    if (query.isNotEmpty) {
+      _saveSearchQuery(query);
+    }
+  }
+
+  // Fetch B2B list
+  Future<void> fetchB2BList() async {
+    isLoading.value = true;
+
+    try {
+      final response = await ApiClient.getRequest(EndPoints.getB2BList);
+
+      print(
+        'B2B List API Request: ${ApiClient.baseUrl}${EndPoints.getB2BList}',
+      );
+      print('Response Status: ${response.statusCode}');
+      print('Response Body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final jsonResponse = json.decode(response.body);
+        b2bList.value = B2BList.fromJson(jsonResponse);
+        filteredB2bList.value = b2bList.value; // Initialize filtered list
+      } else {
+        Get.snackbar("Error", "Failed to fetch B2B list");
+        b2bList.value = B2BList();
+        filteredB2bList.value = B2BList();
+      }
+    } catch (e) {
+      print('Error fetching B2B list: $e');
+      Get.snackbar("Error", "Something went wrong: $e");
+      b2bList.value = B2BList();
+      filteredB2bList.value = B2BList();
     } finally {
       isLoading.value = false;
     }

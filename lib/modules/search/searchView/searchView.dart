@@ -22,6 +22,7 @@ import '../../landing/landingController/landingController.dart';
 import '../../landing/landingTabs/add/videoAddController/videoAddController.dart';
 import '../../landing/landingTabs/home/homeController/homeController.dart';
 import '../../landing/landingTabs/profile/profileControlller/profileController.dart';
+import '../searchModel/b2bList.dart';
 
 class SearchView extends StatefulWidget {
   final String? tag; // Optional tag parameter
@@ -63,7 +64,7 @@ class _SearchViewState extends State<SearchView>
   void initState() {
     super.initState();
     _loadLanguage();
-    _tabController = TabController(length: 3, vsync: this);
+    _tabController = TabController(length: 4, vsync: this);
 
     // If tag is provided, set it in the text field and trigger search
     if (widget.tag != null && widget.tag!.isNotEmpty) {
@@ -200,8 +201,10 @@ class _SearchViewState extends State<SearchView>
                           searchController.type.value = 2; // Business Accounts
                         } else if (index == 2) {
                           searchController.type.value = 4; // Top Rated
-                        }
-                        if (_searchController.text.length >= 3) {
+                        } else if (index == 3) {
+                          searchController.type.value = 5;
+                          searchController.fetchB2BList();
+                        } else if (_searchController.text.length >= 3) {
                           searchController.fetchSearchResults(
                             _searchController.text,
                             isGeneral: widget.isGeneral,
@@ -239,13 +242,16 @@ class _SearchViewState extends State<SearchView>
                       },
                       onChanged: _onSearchChanged,
                       onSubmitted: (value) {
-                        if (value.isNotEmpty) {
+                        if (value.isNotEmpty &&
+                            searchController.type.value != 5) {
                           searchController.fetchSearchResults(
                             isGeneral: widget.isGeneral,
                             isFollowing: widget.isFollowing,
-
                             value,
                           );
+                        } else if (value.isNotEmpty &&
+                            searchController.type.value == 5) {
+                          searchController.searchB2BAccounts(value);
                         }
                       },
                       decoration: InputDecoration(
@@ -257,12 +263,17 @@ class _SearchViewState extends State<SearchView>
                         suffixIcon: InkWell(
                           onTap: () {
                             if (_searchController.text.isNotEmpty) {
-                              searchController.fetchSearchResults(
-                                isGeneral: widget.isGeneral,
-                                isFollowing: widget.isFollowing,
-
-                                _searchController.text,
-                              );
+                              if (searchController.type.value == 5) {
+                                searchController.searchB2BAccounts(
+                                  _searchController.text,
+                                );
+                              } else {
+                                searchController.fetchSearchResults(
+                                  isGeneral: widget.isGeneral,
+                                  isFollowing: widget.isFollowing,
+                                  _searchController.text,
+                                );
+                              }
                             }
                           },
                           child: Container(
@@ -317,7 +328,141 @@ class _SearchViewState extends State<SearchView>
 
         bool hasNotSearchedYet = !searchController.hasSearched.value;
 
-        if (searchController.isLoading.value) {
+        if (searchController.type.value == 5) {
+          return Obx(() {
+            var businessTypes =
+                searchController.filteredB2bList.value.b2bAccountsList?.businessTypes;
+
+            if (searchController.isLoading.value) {
+              return Center(
+                child: PulseLogoLoader(
+                  logoPath: "assets/images/appIcon.png",
+                  size: 80,
+                ),
+              );
+            } else if (businessTypes == null ||
+                businessTypes.isEmpty &&
+                    (searchController.b2bList.value.b2bAccountsList == null ||
+                        searchController.b2bList.value.b2bAccountsList!.businessTypes.isEmpty)) {
+              return _buildNoResultsFound();
+            } else if (businessTypes.isEmpty && _searchController.text.isNotEmpty) {
+              return _buildNoResultsFound();
+            } else {
+              return SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: businessTypes.entries.map((entry) {
+                    String businessType = entry.key;
+                    List<BusinessAccount> businesses = entry.value;
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                          child: Text(
+                            businessType,
+                            style: TextStyle(
+                              fontSize: 16.sp,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                        SizedBox(height: 8.h),
+                        SizedBox(
+                          height: Get.height * 0.17,
+                          child: ListView.builder(
+                            scrollDirection: Axis.horizontal,
+                            itemCount: businesses.length,
+                            itemBuilder: (context, index) {
+                              var business = businesses[index];
+                              return InkWell(
+                                onTap: () async {
+                                  bool isAuthenticated = await _isUserAuthenticated();
+                                  if (isAuthenticated) {
+                                    Get.to(VisitProfileView(userId: business.id!));
+                                  } else {
+                                    Get.toNamed(AppRoutes.signIn);
+                                  }
+                                },
+                                child: Container(
+                                  margin: EdgeInsets.only(left: 16),
+                                  child: Stack(
+                                    alignment: Alignment.bottomCenter,
+                                    children: [
+                                      ClipRRect(
+                                        borderRadius: BorderRadius.circular(10),
+                                        child: CachedNetworkImage(
+                                          imageUrl: business.image != null &&
+                                              business.image!.isNotEmpty
+                                              ? '${Common.profileImage}/${business.image!}'
+                                              : "",
+                                          width: Get.height * 0.17,
+                                          height: Get.height * 0.4,
+                                          fit: BoxFit.cover,
+                                          errorWidget: (context, url, error) => Container(
+                                            color: ColorUtils.primaryColor,
+                                            child: Image.asset(
+                                              'assets/images/appIcon.png',
+                                              width: 100,
+                                              height: 100,
+                                              fit: BoxFit.cover,
+                                            ),
+                                          ),
+                                          placeholder: (context, url) => Container(
+                                            width: 100,
+                                            height: 100,
+                                            color: Colors.grey[300],
+                                            child: Center(
+                                              child: CircularProgressIndicator(
+                                                strokeWidth: 2,
+                                                color: Colors.grey[700],
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                      Positioned(
+                                        bottom: 0,
+                                        left: 0,
+                                        right: 0,
+                                        child: Container(
+                                          padding: EdgeInsets.symmetric(
+                                            horizontal: 8,
+                                            vertical: 5,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            borderRadius: BorderRadius.only(
+                                              bottomLeft: Radius.circular(10),
+                                              bottomRight: Radius.circular(10),
+                                            ),
+                                            color: Colors.black.withOpacity(0.6),
+                                          ),
+                                          child: Text(
+                                            business.name ?? "Unknown Business",
+                                            style: TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                        SizedBox(height: 16.h),
+                      ],
+                    );
+                  }).toList(),
+                ),
+              );
+            }
+          });
+        } else if (searchController.isLoading.value) {
           return Center(
             child: PulseLogoLoader(
               logoPath: "assets/images/appIcon.png",
@@ -406,7 +551,7 @@ class _SearchViewState extends State<SearchView>
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        SizedBox(height: 16,),
+                        SizedBox(height: 16),
                         Text(
                           "Discover".tr,
                           style: TextStyle(
