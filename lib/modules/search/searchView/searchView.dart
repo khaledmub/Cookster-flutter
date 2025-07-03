@@ -23,6 +23,7 @@ import '../../landing/landingTabs/add/videoAddController/videoAddController.dart
 import '../../landing/landingTabs/home/homeController/homeController.dart';
 import '../../landing/landingTabs/profile/profileControlller/profileController.dart';
 import '../searchModel/b2bList.dart';
+import '../searchModel/searchModel.dart';
 
 class SearchView extends StatefulWidget {
   final String? tag; // Optional tag parameter
@@ -65,6 +66,7 @@ class _SearchViewState extends State<SearchView>
     super.initState();
     _loadLanguage();
     _tabController = TabController(length: 4, vsync: this);
+    _clearSearchData();
 
     // If tag is provided, set it in the text field and trigger search
     if (widget.tag != null && widget.tag!.isNotEmpty) {
@@ -77,6 +79,16 @@ class _SearchViewState extends State<SearchView>
         );
       }
     }
+  }
+
+  void _clearSearchData() {
+    searchController.searchResult.value = SearchResult();
+    searchController.b2bList.value = B2BList();
+    searchController.filteredB2bList.value = B2BList();
+    searchController.hasSearched.value = false;
+    searchController.isLoading.value = false;
+    // Optional: Clear search controller text if you want to start fresh
+    // _searchController.clear();
   }
 
   @override
