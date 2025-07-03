@@ -81,25 +81,26 @@ class ImprovedCrescentPainter extends CustomPainter {
       double radius,
       double bandWidth,
       ) {
-    // Adjusted positioning for bottom left quadrant
-    const startAngle = math.pi * 0.5; // Start at 270° (bottom left)
-    const sweepAngle = math.pi * 0.4; // Short arc for "B2B"
+    // Adjusted positioning for bottom left quadrant with longer arc
+    const startAngle = math.pi * 0.25; // Start at 270° (bottom left)
+    const sweepAngle = math.pi * 1; // Arc length for the band
 
     // Create multiple layers for depth and professionalism
-
-    // Main professional solid band (no fade)
+    // Main professional solid band with fade effect
     final gradientRect = Rect.fromCircle(center: center, radius: radius);
     final professionalGradient = SweepGradient(
       center: Alignment.center,
       startAngle: startAngle,
       endAngle: startAngle + sweepAngle,
       colors: [
-        ColorUtils.primaryColor, // Solid LinkedIn blue
-        ColorUtils.primaryColor, // Solid LinkedIn blue
-        ColorUtils.primaryColor, // Solid LinkedIn blue
-        ColorUtils.primaryColor, // Solid LinkedIn blue
+        Colors.transparent, // Fade in
+        ColorUtils.primaryColor.withOpacity(0.2),
+        ColorUtils.primaryColor, // Solid in the middle
+        ColorUtils.primaryColor, // Solid in the middle
+        ColorUtils.primaryColor.withOpacity(0.2),
+        Colors.transparent, // Fade out
       ],
-      stops: const [0.0, 0.1, 0.9, 1.0],
+      stops: const [0.0, 0.1, 0.3, 0.7, 0.9, 1.0], // Adjusted stops for smooth fade
     );
 
     final mainPaint = Paint()
@@ -153,10 +154,12 @@ class ImprovedCrescentPainter extends CustomPainter {
       double radius,
       double totalSize,
       ) {
-    const text = 'B2B'; // Text to display
-    const textStartAngle = math.pi * 0.55; // Slightly offset from arc start
-    const textSweepAngle = math.pi * 0.35; // Adjusted for "B2B"
-    final anglePerChar = textSweepAngle / (text.length - 1);
+    const text = 'B2B#'; // Text to display
+    // Reducing textSweepAngle to minimize or eliminate gaps between characters
+    const textStartAngle = math.pi * 0.65; // Adjusted to center text on arc
+    const textSweepAngle = math.pi * 0.3; // Reduced from 0.54π to 0.3π to reduce character gaps
+    // Note: Smaller textSweepAngle brings characters closer together; increase for more spacing
+    final anglePerChar = textSweepAngle / (text.length );
 
     for (int i = 0; i < text.length; i++) {
       final angle = textStartAngle + (anglePerChar * i);
@@ -170,7 +173,7 @@ class ImprovedCrescentPainter extends CustomPainter {
       const opacity = 1.0;
 
       // Professional font sizing
-      final fontSize = totalSize * 0.08; // Slightly smaller for elegance
+      final fontSize = totalSize * 0.12; // Slightly smaller for elegance
       final isSpace = char == ' ';
 
       if (!isSpace) {
