@@ -224,8 +224,9 @@ class _SearchViewState extends State<SearchView>
                       labelPadding: EdgeInsets.zero,
                       tabs: [
                         Tab(text: "General Search".tr),
-                        Tab(text: "Business Accounts".tr),
+                        Tab(text: "business".tr),
                         Tab(text: "Top Rated".tr),
+                        Tab(text: "B2B".tr),
                       ],
                     ),
                   ),

@@ -4,15 +4,21 @@ import 'dart:math' as math;
 class OpenToWorkBadge extends StatelessWidget {
   final String? imageUrl;
   final double size;
+  final bool showOpenToWork;
 
-  const OpenToWorkBadge({super.key, this.imageUrl, this.size = 100});
+  const OpenToWorkBadge({
+    super.key,
+    this.imageUrl,
+    this.size = 100,
+    this.showOpenToWork = true,
+  });
 
   @override
   Widget build(BuildContext context) {
     final ImageProvider imageProvider =
-        (imageUrl != null && imageUrl!.isNotEmpty)
-            ? NetworkImage(imageUrl!)
-            : const AssetImage("assets/images/sd.png");
+    (imageUrl != null && imageUrl!.isNotEmpty)
+        ? NetworkImage(imageUrl!)
+        : const AssetImage("assets/images/sd.png");
 
     return SizedBox(
       width: size,
@@ -27,16 +33,17 @@ class OpenToWorkBadge extends StatelessWidget {
               shape: BoxShape.circle,
               color: Colors.grey[200],
               image:
-                  imageProvider != null
-                      ? DecorationImage(image: imageProvider, fit: BoxFit.cover)
-                      : null,
+              imageProvider != null
+                  ? DecorationImage(image: imageProvider, fit: BoxFit.cover)
+                  : null,
             ),
           ),
-          // Green crescent band overlay with fade effect (top layer)
-          CustomPaint(
-            size: Size(size, size),
-            painter: FadeOutCrescentPainter(),
-          ),
+          // Green crescent band overlay with fade effect (top layer, conditional)
+          if (showOpenToWork)
+            CustomPaint(
+              size: Size(size, size),
+              painter: FadeOutCrescentPainter(),
+            ),
         ],
       ),
     );
@@ -58,11 +65,11 @@ class FadeOutCrescentPainter extends CustomPainter {
   }
 
   void _drawFadedBand(
-    Canvas canvas,
-    Offset center,
-    double radius,
-    double bandWidth,
-  ) {
+      Canvas canvas,
+      Offset center,
+      double radius,
+      double bandWidth,
+      ) {
     // Define the arc parameters to match the image
     const startAngle = math.pi * 0.05; // Start from top-left
     const sweepAngle = math.pi * 1.5; // 270 degrees clockwise
@@ -76,20 +83,13 @@ class FadeOutCrescentPainter extends CustomPainter {
 
       // Modified fade effect to ensure ends are visible
       double opacity = 1;
-      // if (progress < 0.1) {
-      //   opacity = 1.0; // Keep first part fully visible
-      // } else if (progress > 0.9) {
-      //   opacity = 1.0; // Keep last part fully visible
-      // } else {
-      //   opacity = 0.8; // Slightly reduced opacity in middle
-      // }
 
       final paint =
-          Paint()
-            ..color = const Color(0xFF0F7B0F).withOpacity(opacity)
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = bandWidth
-            ..strokeCap = StrokeCap.butt;
+      Paint()
+        ..color = const Color(0xFF0F7B0F).withOpacity(opacity)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = bandWidth
+        ..strokeCap = StrokeCap.butt;
 
       // Draw small arc segment
       canvas.drawArc(
@@ -103,12 +103,12 @@ class FadeOutCrescentPainter extends CustomPainter {
   }
 
   void _drawTextAlongCurve(
-    Canvas canvas,
-    Offset center,
-    double radius,
-    double totalSize,
-  ) {
-    const text = '#OPENTOWORK';
+      Canvas canvas,
+      Offset center,
+      double radius,
+      double totalSize,
+      ) {
+    const text = 'B2BACCOUNT';
 
     // Match text with the band positioning from top-left to bottom-right
     const textStartAngle = math.pi * 0.15; // Start from top-left

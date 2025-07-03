@@ -1,12 +1,12 @@
 class Common {
-  static String baseUrl = "https://cookster.org/api/";
+  // static String baseUrl = "https://cookster.org/api/";
 
-  // static String baseUrl = "http://192.168.1.12/cookster_admin/public/api/";
+  static String baseUrl = "http://192.168.1.16/cookster_admin/public/api/";
 
-  static String imageBaseUrl = "https://cookster.org/storage/";
+  // static String imageBaseUrl = "https://cookster.org/storage/";
 
-  // static String imageBaseUrl =
-  //     "http://192.168.1.12/cookster_admin/public/storage/";
+  static String imageBaseUrl =
+      "http://192.168.1.16/cookster_admin/public/storage/";
   static String imageScreen = "${imageBaseUrl}screens";
   static String profileImage = "${imageBaseUrl}front_users";
   static String audioThumbnail = "${imageBaseUrl}audios";
@@ -17,6 +17,7 @@ class Common {
 }
 
 class EndPoints {
+  static String b2bStatus = "b2b/change_b2b_status";
   static String blockedUsersList = "blocked_users_list";
   static String blockUser = "block_user";
   static String editVideo = "videos/edit";

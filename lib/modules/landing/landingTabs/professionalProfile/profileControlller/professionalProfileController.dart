@@ -29,6 +29,37 @@ class ProfessionalProfileController extends GetxController {
   var selectCountryId = "".obs;
   var selectedCityId = "".obs;
 
+  final isB2B = false.obs;
+
+  // Toggle function
+  void toggleB2B(bool value) {
+    isB2B.value = value;
+    changeB2BStatus(value);
+  }
+
+  // API function to change B2B status using ApiClient
+  Future<bool> changeB2BStatus(bool isB2BStatus) async {
+    try {
+      final response = await ApiClient.postRequest(EndPoints.b2bStatus, {
+        'is_b2b': isB2BStatus ? 1 : 0,
+      });
+
+      print(response.body);
+
+      if (response.statusCode == 200) {
+        // Update the local state on success
+        isB2B.value = isB2BStatus;
+        return true;
+      } else {
+        print('Failed to change B2B status: ${response.statusCode}');
+        return false;
+      }
+    } catch (e) {
+      print('Error changing B2B status: $e');
+      return false;
+    }
+  }
+
   // Observable lists for followers and following with user details
   RxList<String> followersList = <String>[].obs;
   RxList<String> followingList = <String>[].obs;

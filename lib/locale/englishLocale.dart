@@ -469,5 +469,6 @@ const Map<String, String> en = {
   "cancel_button": "Cancel",
   "end_stream_button": "End Stream",
   "leave_button": "Leave",
-  "live_stream_end_message" : "Live stream ended: 15-minute limit reached"
+  "live_stream_end_message" : "Live stream ended: 15-minute limit reached",
+  "business" : "Business"
 };

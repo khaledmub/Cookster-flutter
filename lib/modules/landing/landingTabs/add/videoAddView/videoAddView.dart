@@ -41,10 +41,12 @@ class _VideoPreviewScreenState extends State<VideoPreviewScreen> {
   void initState() {
     super.initState();
     _loadLanguage();
+
     videoAddController.isImage.value =
         (widget.isImage == null || widget.isImage == "")
             ? "0"
             : widget.isImage!;
+    videoAddController.tagsList.value = []; // Set tagsList to an empty list
   }
 
   // @override

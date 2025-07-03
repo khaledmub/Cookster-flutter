@@ -522,6 +522,13 @@ class _EditProfessionalProfileViewState
                           fontWeight: FontWeight.w700,
                         ),
                       ),
+                      // Obx(() => Text(
+                      //   'B2B Status: ${controller.isB2B.value ? 'Enabled' : 'Disabled'}',
+                      //   style: TextStyle(fontSize: 20),
+                      // )),
+                      // SizedBox(height: 20),
+
+                      dir.Switch(value: true, onChanged: (value) {}),
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 16.0),
                         child: CustomTextField(

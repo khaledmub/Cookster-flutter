@@ -106,6 +106,11 @@ class _ProfessionalProfileViewState extends State<ProfessionalProfileView>
       final professionalAdditionalData =
           profileController.userDetails.value?.additionalData;
 
+      profileController.isB2B.value =
+          profileController.userDetails.value?.additionalData?.isB2B == 0
+              ? false
+              : true;
+
       // Initialize TabController only once
       if (_tabController == null &&
           videoTypes != null &&
@@ -317,14 +322,19 @@ class _ProfessionalProfileViewState extends State<ProfessionalProfileView>
                                       ),
                                     ),
                                   ),
-                                  Positioned(
-                                    bottom: 0,
-                                    left: 0,
-                                    right: 0,
-                                    child: Center(
-                                      child: OpenToWorkBadge(
-                                        imageUrl:
-                                            '${Common.profileImage}/${userDetails.image}',
+                                  Obx(
+                                    () => Positioned(
+                                      bottom: 0,
+                                      left: 0,
+                                      right: 0,
+                                      child: Center(
+                                        child: OpenToWorkBadge(
+                                          showOpenToWork:
+                                              profileController.isB2B.value,
+
+                                          imageUrl:
+                                              '${Common.profileImage}/${userDetails.image}',
+                                        ),
                                       ),
                                     ),
                                   ),
@@ -337,6 +347,30 @@ class _ProfessionalProfileViewState extends State<ProfessionalProfileView>
                                 color: ColorUtils.darkBrown,
                                 fontSize: 16.sp,
                                 fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            Obx(
+                              () => Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Text(
+                                    "B2B",
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                  Transform.scale(
+                                    scale: 0.8,
+                                    child: Switch(
+                                      activeColor: ColorUtils.primaryColor,
+                                      value: profileController.isB2B.value,
+                                      // Bind switch to isB2B value
+                                      onChanged:
+                                          profileController
+                                              .toggleB2B, // Call toggle function on change
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
                             if (professionalAdditionalData != null &&
