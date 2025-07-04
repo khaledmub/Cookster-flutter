@@ -559,13 +559,13 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                         Icon(
                           Icons.chat_bubble_outline,
                           size: 64,
-                          color: Colors.grey[400],
+                          color: ColorUtils.primaryColor
                         ),
                         SizedBox(height: 16),
                         Text(
                           'no_messages_yet'.tr,
                           style: TextStyle(
-                            color: Colors.grey[600],
+                            color: ColorUtils.primaryColor,
                             fontSize: 16,
                           ),
                         ),
