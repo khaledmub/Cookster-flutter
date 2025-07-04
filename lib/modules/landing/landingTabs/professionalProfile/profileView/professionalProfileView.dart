@@ -909,6 +909,60 @@ class _ProfessionalProfileViewState extends State<ProfessionalProfileView>
                                                       ),
                                                     ),
 
+                                                    Positioned(
+                                                      bottom: 8,
+                                                      right: 8,
+                                                      child: Row(
+                                                        children: [
+                                                          Icon(
+                                                            CupertinoIcons.eye_fill,
+                                                            color: Colors.white,
+                                                            size: 14.sp,
+                                                          ),
+                                                          SizedBox(width: 4),
+                                                          StreamBuilder<DocumentSnapshot>(
+                                                            stream: FirebaseFirestore.instance
+                                                                .collection('videos')
+                                                                .doc(video.id)
+                                                                .snapshots(),
+                                                            builder: (context, snapshot) {
+                                                              if (snapshot.connectionState == ConnectionState.waiting) {
+                                                                return Text(
+                                                                  "...",
+                                                                  style: TextStyle(
+                                                                    color: Colors.white,
+                                                                  ),
+                                                                );
+                                                              }
+                                                              if (!snapshot.hasData || !snapshot.data!.exists) {
+                                                                return Text(
+                                                                  "0",
+                                                                  style: TextStyle(
+                                                                    color: Colors.white,
+                                                                  ),
+                                                                );
+                                                              }
+                                                              final data = snapshot.data!.data() as Map<String, dynamic>? ?? {};
+                                                              List<dynamic> views = data['views'] ?? [];
+                                                              int viewCount = views.length; // Count views from array length
+                                                              String formattedViewCount = viewCount > 1000
+                                                                  ? '${(viewCount / 1000).toStringAsFixed(1)}K'
+                                                                  : viewCount.toString();
+
+                                                              return Text(
+                                                                formattedViewCount,
+                                                                style: TextStyle(
+                                                                  color: Colors.white,
+                                                                  fontSize: 10.sp,
+                                                                ),
+                                                              );
+                                                            },
+                                                          ),
+                                                        ],
+                                                      ),
+                                                    ),
+
+
                                                     if (video.sponsorType !=
                                                         null)
                                                       Positioned(
