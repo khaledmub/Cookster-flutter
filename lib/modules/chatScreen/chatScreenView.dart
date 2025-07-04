@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:intl/intl.dart';
@@ -17,6 +18,12 @@ class ChatView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // SystemChrome.setSystemUIOverlayStyle(
+    //   const SystemUiOverlayStyle(
+    //     statusBarIconBrightness: Brightness.dark, // White icons
+    //     statusBarColor: Colors.transparent, // Transparent status bar
+    //   ),
+    // );
     final controller = Get.put(
       ChatController(senderId: senderId, receiverId: receiverId),
     );
@@ -24,17 +31,27 @@ class ChatView extends StatelessWidget {
     return Scaffold(
       resizeToAvoidBottomInset: true,
       backgroundColor: Colors.grey[100],
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        title: Obx(() => _buildAppBarContent(controller)),
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back, color: Colors.black87),
-          onPressed: () => Get.back(),
-        ),
-      ),
+
       body: Column(
         children: [
+          Container(
+            height: 110,
+            width: double.infinity,
+            decoration: BoxDecoration(color: Colors.white),
+            child: Column(
+              // crossAxisAlignment: CrossAxisAlignment.center,
+              // mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  width: double.infinity,
+                  height: 45,
+                  color: Colors.black,
+                ),
+                SizedBox(height: 16,),
+                Obx(() => _buildAppBarContent(controller)),
+              ],
+            ),
+          ),
           Expanded(
             child: GestureDetector(
               onTap: () => FocusScope.of(context).unfocus(),
@@ -129,14 +146,17 @@ class ChatView extends StatelessWidget {
                     messageWidgets.add(
                       Align(
                         alignment:
-                            isMe ? Alignment.centerRight : Alignment.centerLeft,
+                            isMe
+                                ? Alignment.centerRight
+                                : Alignment.centerLeft,
                         child: Container(
                           margin: EdgeInsets.symmetric(
                             vertical: 4,
                             horizontal: 12,
                           ),
                           constraints: BoxConstraints(
-                            maxWidth: MediaQuery.of(context).size.width * 0.75,
+                            maxWidth:
+                                MediaQuery.of(context).size.width * 0.75,
                           ),
                           child: Column(
                             crossAxisAlignment:
@@ -167,7 +187,8 @@ class ChatView extends StatelessWidget {
                                   message['message'] ?? '',
                                   style: TextStyle(
                                     fontSize: 16,
-                                    color: isMe ? Colors.white : Colors.black87,
+                                    color:
+                                        isMe ? Colors.white : Colors.black87,
                                   ),
                                 ),
                               ),
@@ -238,6 +259,14 @@ class ChatView extends StatelessWidget {
 
         return Row(
           children: [
+            SizedBox(width: 16),
+            InkWell(
+              onTap: () {
+                Get.back();
+              },
+              child: Icon(Icons.arrow_back),
+            ),
+            SizedBox(width: 8),
             CircleAvatar(
               radius: 20,
               backgroundColor: Colors.grey[200],
@@ -253,27 +282,13 @@ class ChatView extends StatelessWidget {
                       : null,
             ),
             SizedBox(width: 12),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  receiverName,
-                  style: TextStyle(
-                    color: Colors.black87,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                if (controller.isBlocked.value)
-                  Text(
-                    'blocked'.tr,
-                    style: TextStyle(
-                      color: Colors.redAccent,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-              ],
+            Text(
+              receiverName,
+              style: TextStyle(
+                color: Colors.black87,
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ],
         );
