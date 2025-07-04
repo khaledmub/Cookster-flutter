@@ -220,6 +220,41 @@ class _ChatListScreenState extends State<ChatListScreen> {
                   ),
                   // Center App Icon
                   AppCenterIcon(),
+
+                  Positioned(
+                    right: isRtl ? null : 16,
+                    left: isRtl ? 16 : null,
+                    top: 10.h,
+                    child: InkWell(
+                      onTap: () {
+                        ChatListScreen._userDataCache
+                            .clear(); // Clear cache on refresh
+                        Navigator.pushReplacement(
+                          context,
+                          MaterialPageRoute(
+                            builder:
+                                (context) =>
+                                    ChatListScreen(userId: currentUserId),
+                          ),
+                        );
+                      },
+                      child: Container(
+                        height: 40,
+                        width: 40,
+                        decoration: BoxDecoration(
+                          color: Color(0xFFE6BE00),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Center(
+                          child: Icon(
+                            Icons.refresh,
+                            color: ColorUtils.darkBrown,
+                            size: 24,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
                 ],
               ),
             ],
@@ -296,160 +331,184 @@ class _ChatListScreenState extends State<ChatListScreen> {
             );
           }
 
-          return ListView.builder(
-            itemCount: chatData.length,
-            itemBuilder: (context, index) {
-              final chat = chatData[index];
-              final partnerId = chat['partnerId'];
-              final chatId = chat['chatId'];
-              final lastMessage = chat['lastMessage'];
-              final timestamp = chat['timestamp'] as DateTime;
-              final blockedBy = List<String>.from(chat['blockedBy'] ?? []);
-              final isBlocked = blockedBy.contains(currentUserId);
-
-              // Use a unique key to prevent unnecessary rebuilds
-              return FutureBuilder<Map<String, dynamic>>(
-                key: ValueKey(chatId), // Unique key for each ListTile
-                future: Future.wait([
-                  _fetchUserData(partnerId),
-                  _getUnreadCount(chatId, currentUserId),
-                ]).then(
-                  (results) => {
-                    'userData': results[0],
-                    'unreadCount': results[1],
-                  },
+          return Column(
+            children: [
+              SizedBox(height: 8,),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                child: Row(
+                  children: [
+                    Text(
+                      "chats".tr,
+                      style: TextStyle(fontWeight: FontWeight.w700, fontSize: 24),
+                    ),
+                  ],
                 ),
-                builder: (context, snapshot) {
-                  if (snapshot.hasError || snapshot.data == null) {
-                    return const SizedBox.shrink(); // or an error widget
-                  }
+              ),
+              Expanded(
+                child: ListView.builder(
+                  itemCount: chatData.length,
+                  itemBuilder: (context, index) {
+                    final chat = chatData[index];
+                    final partnerId = chat['partnerId'];
+                    final chatId = chat['chatId'];
+                    final lastMessage = chat['lastMessage'];
+                    final timestamp = chat['timestamp'] as DateTime;
+                    final blockedBy = List<String>.from(
+                      chat['blockedBy'] ?? [],
+                    );
+                    final isBlocked = blockedBy.contains(currentUserId);
 
-                  final data = snapshot.data as Map<String, dynamic>;
-                  final userData = data['userData'] as Map<String, dynamic>;
-                  final unreadCount = data['unreadCount'] as int;
+                    // Use a unique key to prevent unnecessary rebuilds
+                    return FutureBuilder<Map<String, dynamic>>(
+                      key: ValueKey(chatId), // Unique key for each ListTile
+                      future: Future.wait([
+                        _fetchUserData(partnerId),
+                        _getUnreadCount(chatId, currentUserId),
+                      ]).then(
+                        (results) => {
+                          'userData': results[0],
+                          'unreadCount': results[1],
+                        },
+                      ),
+                      builder: (context, snapshot) {
+                        if (snapshot.hasError || snapshot.data == null) {
+                          return const SizedBox.shrink(); // or an error widget
+                        }
 
-                  return data.isNotEmpty
-                      ? ListTile(
-                        key: ValueKey(chatId),
-                        // Ensure stable identity
-                        contentPadding: EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 8,
-                        ),
-                        leading: CircleAvatar(
-                          radius: 26,
-                          backgroundColor: Colors.grey[200],
-                          backgroundImage:
-                              userData['image'].isNotEmpty
-                                  ? CachedNetworkImageProvider(
-                                    '${Common.profileImage}/${userData['image']}',
-                                  )
-                                  : null,
-                          child:
-                              userData['image'].isEmpty
-                                  ? Icon(
-                                    Icons.person,
-                                    color: Colors.grey[600],
-                                    size: 30,
-                                  )
-                                  : null,
-                        ),
-                        title: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Expanded(
-                              child: Row(
+                        final data = snapshot.data as Map<String, dynamic>;
+                        final userData =
+                            data['userData'] as Map<String, dynamic>;
+                        final unreadCount = data['unreadCount'] as int;
+
+                        return data.isNotEmpty
+                            ? ListTile(
+                              key: ValueKey(chatId),
+                              // Ensure stable identity
+                              contentPadding: EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 8,
+                              ),
+                              leading: CircleAvatar(
+                                radius: 26,
+                                backgroundColor: Colors.grey[200],
+                                backgroundImage:
+                                    userData['image'].isNotEmpty
+                                        ? CachedNetworkImageProvider(
+                                          '${Common.profileImage}/${userData['image']}',
+                                        )
+                                        : null,
+                                child:
+                                    userData['image'].isEmpty
+                                        ? Icon(
+                                          Icons.person,
+                                          color: Colors.grey[600],
+                                          size: 30,
+                                        )
+                                        : null,
+                              ),
+                              title: Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
                                 children: [
-                                  Text(
-                                    isBlocked
-                                        ? "cookster_user".tr
-                                        : userData['name'],
-                                    style: TextStyle(
-                                      fontSize: 16,
-                                      fontWeight:
-                                          unreadCount > 0 && !isBlocked
-                                              ? FontWeight.w600
-                                              : FontWeight.w500,
-                                      color:
+                                  Expanded(
+                                    child: Row(
+                                      children: [
+                                        Text(
                                           isBlocked
-                                              ? Colors.grey[600]
-                                              : Colors.black87,
+                                              ? "cookster_user".tr
+                                              : userData['name'],
+                                          style: TextStyle(
+                                            fontSize: 16,
+                                            fontWeight:
+                                                unreadCount > 0 && !isBlocked
+                                                    ? FontWeight.w600
+                                                    : FontWeight.w500,
+                                            color:
+                                                isBlocked
+                                                    ? Colors.grey[600]
+                                                    : Colors.black87,
+                                          ),
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ],
                                     ),
-                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  Column(
+                                    crossAxisAlignment: CrossAxisAlignment.end,
+                                    children: [
+                                      Text(
+                                        _formatTimestamp(timestamp),
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color:
+                                              unreadCount > 0 && !isBlocked
+                                                  ? Colors.teal
+                                                  : Colors.grey[600],
+                                        ),
+                                      ),
+                                      if (unreadCount > 0)
+                                        Container(
+                                          margin: EdgeInsets.only(top: 4),
+                                          padding: EdgeInsets.symmetric(
+                                            horizontal: 6,
+                                            vertical: 2,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: Colors.teal,
+                                            borderRadius: BorderRadius.circular(
+                                              12,
+                                            ),
+                                          ),
+                                          child: Text(
+                                            '$unreadCount',
+                                            style: TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                        ),
+                                    ],
                                   ),
                                 ],
                               ),
-                            ),
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.end,
-                              children: [
-                                Text(
-                                  _formatTimestamp(timestamp),
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color:
-                                        unreadCount > 0 && !isBlocked
-                                            ? Colors.teal
-                                            : Colors.grey[600],
-                                  ),
+                              subtitle: Text(
+                                lastMessage != null
+                                    ? (lastMessage['message']?.substring(
+                                          0,
+                                          lastMessage['message'].length > 30
+                                              ? 30
+                                              : lastMessage['message'].length,
+                                        ) ??
+                                        '')
+                                    : 'no_messages'.tr,
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color:
+                                      unreadCount > 0 && !isBlocked
+                                          ? Colors.black87
+                                          : Colors.grey[600],
                                 ),
-                                if (unreadCount > 0)
-                                  Container(
-                                    margin: EdgeInsets.only(top: 4),
-                                    padding: EdgeInsets.symmetric(
-                                      horizontal: 6,
-                                      vertical: 2,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: Colors.teal,
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    child: Text(
-                                      '$unreadCount',
-                                      style: TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              onTap: () {
+                                Get.to(
+                                  ChatView(
+                                    senderId: currentUserId,
+                                    receiverId: partnerId,
                                   ),
-                              ],
-                            ),
-                          ],
-                        ),
-                        subtitle: Text(
-                          lastMessage != null
-                              ? (lastMessage['message']?.substring(
-                                    0,
-                                    lastMessage['message'].length > 30
-                                        ? 30
-                                        : lastMessage['message'].length,
-                                  ) ??
-                                  '')
-                              : 'no_messages'.tr,
-                          style: TextStyle(
-                            fontSize: 14,
-                            color:
-                                unreadCount > 0 && !isBlocked
-                                    ? Colors.black87
-                                    : Colors.grey[600],
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        onTap: () {
-                          Get.to(
-                            ChatView(
-                              senderId: currentUserId,
-                              receiverId: partnerId,
-                            ),
-                          );
-                        },
-                      )
-                      : SizedBox.shrink();
-                },
-              );
-            },
+                                );
+                              },
+                            )
+                            : SizedBox.shrink();
+                      },
+                    );
+                  },
+                ),
+              ),
+            ],
           );
         },
       ),
