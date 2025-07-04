@@ -275,7 +275,7 @@ const Map<String, String> ar = {
   "choose_your_plan": "اختر خطتك",
   "activate_now": "تفعيل الآن",
   "please_select_package": "يرجى اختيار باقة",
-  "please_select_account_type": "يرجى اختيار نوع الحساب.",
+  "please_select_account_type": "يرجى اختيار نوع الشركة.",
 
   "package_title_placeholder": "باقة",
   "package_amount_prefix": "SAR",

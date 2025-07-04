@@ -67,8 +67,6 @@ void main() async {
   } else if (settings.authorizationStatus == AuthorizationStatus.provisional) {
   } else {}
 
-  await setupFirebaseMessaging();
-
   SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
     DeviceOrientation.portraitDown,
@@ -107,7 +105,7 @@ class MyApp extends StatefulWidget {
   State<MyApp> createState() => _MyAppState();
 }
 
-class _MyAppState extends State<MyApp> {
+class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   // Remove the navigator key completely - GetX handles navigation
   late final AppLinks _appLinks;
   bool _handlingDeepLink = false;
@@ -120,6 +118,8 @@ class _MyAppState extends State<MyApp> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    setupNotifications();
 
     _wasOnNoInternetScreen = !widget.hasInternet;
     // _initialRouteSet = true;
@@ -140,6 +140,37 @@ class _MyAppState extends State<MyApp> {
     );
 
     _listenForConnectivity();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+
+    switch (state) {
+      case AppLifecycleState.resumed:
+        // App came to foreground - clear badge
+        print('App resumed - clearing notification badge');
+        clearNotificationBadge();
+        break;
+      case AppLifecycleState.inactive:
+        // App is inactive
+        break;
+      case AppLifecycleState.paused:
+        // App is paused
+        break;
+      case AppLifecycleState.detached:
+        // App is detached
+        break;
+      case AppLifecycleState.hidden:
+        // App is hidden
+        break;
+    }
   }
 
   /// Handle initial deep link when the app is launched
@@ -252,12 +283,6 @@ class _MyAppState extends State<MyApp> {
       AppRoutes.noInternet,
       arguments: {'savedRoute': _lastRouteBeforeNoInternet},
     );
-  }
-
-  @override
-  void dispose() {
-    // Clean up resources
-    super.dispose();
   }
 
   @override

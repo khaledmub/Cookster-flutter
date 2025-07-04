@@ -388,7 +388,7 @@ const Map<String, String> en = {
   "sign_in": "Sign In",
   "dob": "DOB",
   "please_select_business_type": "Please select a business type.",
-  "please_select_account_type": "Please select a account type.",
+  "please_select_account_type": "Please select a company type.",
   "search_not_found_result":
       "We couldn't find any matches for your search. Please try different keywords.We couldn't find any matches for your search. Please try different keywords.",
   "no_music": "No Music",

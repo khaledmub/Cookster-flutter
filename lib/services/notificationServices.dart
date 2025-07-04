@@ -7,7 +7,10 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:http/http.dart' as http;
 
-// This function handles background messages
+// Global instance for notifications
+final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
+FlutterLocalNotificationsPlugin();
+
 // This function handles background messages
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
@@ -51,11 +54,12 @@ void handleForegroundMessages() {
     print("Notification details:");
     print("Title: ${message.notification?.title}");
     print("Body: ${message.notification?.body}");
+
+    // Clear badge when notification is tapped
+    clearNotificationBadge();
   });
 }
 
-// Function to show notification with network image
-// Function to show notification with network image and a small icon
 // Function to show notification with network image and small icon in collapsed view
 Future<void> _showNetworkImageNotification(
     String? title, String? body, String imageUrl) async {
@@ -96,14 +100,12 @@ Future<void> _showNetworkImageNotification(
       styleInformation: bigPictureStyleInformation,
       importance: Importance.high,
       priority: Priority.high,
+      autoCancel: true, // This helps with clearing notifications when tapped
     );
 
     final platformChannelSpecifics = NotificationDetails(
       android: androidPlatformChannelSpecifics,
     );
-
-    final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
-    FlutterLocalNotificationsPlugin();
 
     await flutterLocalNotificationsPlugin.cancelAll();
     await flutterLocalNotificationsPlugin.show(
@@ -134,11 +136,41 @@ Future<ByteData> _networkImageToByteData(String imageUrl) async {
   }
 }
 
+// Function to clear notification badge
+Future<void> clearNotificationBadge() async {
+  try {
+    // Cancel all notifications
+    await flutterLocalNotificationsPlugin.cancelAll();
+
+    // For iOS, you might need to set the badge count to 0
+    // This requires additional setup for iOS badge management
+    print('Notification badge cleared');
+  } catch (e) {
+    print('Error clearing notification badge: $e');
+  }
+}
+
 // Initializes Firebase notifications
 Future<void> setupNotifications() async {
   await FirebaseMessaging.instance.setForegroundNotificationPresentationOptions(
     alert: true,
     badge: true,
     sound: true,
+  );
+
+  // Initialize local notifications
+  const AndroidInitializationSettings initializationSettingsAndroid =
+  AndroidInitializationSettings('@mipmap/ic_launcher');
+
+  const InitializationSettings initializationSettings =
+  InitializationSettings(android: initializationSettingsAndroid);
+
+  await flutterLocalNotificationsPlugin.initialize(
+    initializationSettings,
+    onDidReceiveNotificationResponse: (NotificationResponse response) async {
+      // Handle notification tap
+      print('Notification tapped: ${response.payload}');
+      clearNotificationBadge();
+    },
   );
 }
