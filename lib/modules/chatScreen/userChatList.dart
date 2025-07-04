@@ -3,13 +3,16 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cookster/appUtils/colorUtils.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
-import 'package:shimmer/shimmer.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../appUtils/apiEndPoints.dart';
+import '../../appUtils/appCenterIcon.dart';
 import 'chatScreenView.dart';
 
-class ChatListScreen extends StatelessWidget {
+class ChatListScreen extends StatefulWidget {
   final String userId;
 
   const ChatListScreen({Key? key, required this.userId}) : super(key: key);
@@ -17,9 +20,30 @@ class ChatListScreen extends StatelessWidget {
   // Cache for user data to avoid repeated Firestore calls
   static final Map<String, Map<String, dynamic>> _userDataCache = {};
 
+  @override
+  State<ChatListScreen> createState() => _ChatListScreenState();
+}
+
+class _ChatListScreenState extends State<ChatListScreen> {
+  String _language = 'en'; // Default to English
+
+  void initState() {
+    // TODO: implement initState
+    super.initState();
+    _loadLanguage();
+  }
+
+  Future<void> _loadLanguage() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _language =
+          prefs.getString('language') ?? 'en'; // Default to 'en' if not set
+    });
+  }
+
   Future<Map<String, dynamic>> _fetchUserData(String userId) async {
-    if (_userDataCache.containsKey(userId)) {
-      return _userDataCache[userId]!;
+    if (ChatListScreen._userDataCache.containsKey(userId)) {
+      return ChatListScreen._userDataCache[userId]!;
     }
 
     try {
@@ -35,7 +59,7 @@ class ChatListScreen extends StatelessWidget {
                 'image': userDoc.data()?['image'] ?? '',
               }
               : {'name': userId, 'image': ''};
-      _userDataCache[userId] = data;
+      ChatListScreen._userDataCache[userId] = data;
       return data;
     } catch (e) {
       print('🚨 Error fetching user data for $userId: $e');
@@ -139,37 +163,104 @@ class ChatListScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final currentUserId = userId;
+    final currentUserId = widget.userId;
+    bool isRtl = _language == 'ar';
 
     return Scaffold(
       backgroundColor: Colors.white,
-      appBar: AppBar(
-        title: Text(
-          'chats'.tr,
-          style: TextStyle(
-            color: Colors.black87,
-            fontSize: 22,
-            fontWeight: FontWeight.w600,
+      appBar: PreferredSize(
+        preferredSize: Size.fromHeight(115), // Adjusted height to fit content
+        child: Container(
+          padding: EdgeInsets.only(top: 40.h),
+          decoration: BoxDecoration(
+            borderRadius: const BorderRadius.only(
+              bottomRight: Radius.circular(30),
+              bottomLeft: Radius.circular(30),
+            ),
+            gradient: const LinearGradient(
+              colors: [Color(0xFFFFD700), Color(0xFFFFFADC)],
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+            ),
+          ),
+          child: Column(
+            children: [
+              Stack(
+                children: [
+                  // Back Button
+                  Positioned(
+                    left: isRtl ? null : 16,
+                    right: isRtl ? 16 : null,
+                    top: 10.h,
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: () {
+                        try {
+                          Get.back();
+                        } catch (e) {
+                          print("Error navigating back: $e");
+                        }
+                      },
+                      child: Container(
+                        height: 40,
+                        width: 40,
+                        decoration: const BoxDecoration(
+                          color: Color(0xFFE6BE00),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Center(
+                          child: Icon(
+                            isRtl ? Icons.arrow_back : Icons.arrow_back,
+                            color: ColorUtils.darkBrown,
+                            size: 24,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  // Center App Icon
+                  AppCenterIcon(),
+                ],
+              ),
+            ],
           ),
         ),
-        backgroundColor: Colors.white,
-        elevation: 0,
-        shadowColor: Colors.grey[200],
-        actions: [
-          IconButton(
-            icon: Icon(Icons.refresh, color: Colors.black54),
-            onPressed: () {
-              _userDataCache.clear(); // Clear cache on refresh
-              Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => ChatListScreen(userId: currentUserId),
-                ),
-              );
-            },
-          ),
-        ],
       ),
+
+      // appBar: AppBar(
+      //   leading: InkWell(
+      //     onTap: () {
+      //       Get.back();
+      //     },
+      //     child: Icon(Icons.arrow_back),
+      //   ),
+      //   titleSpacing: 0,
+      //   title: Text(
+      //     'chats'.tr,
+      //     style: TextStyle(
+      //       color: Colors.black87,
+      //       fontSize: 22,
+      //       fontWeight: FontWeight.w600,
+      //     ),
+      //   ),
+      //   backgroundColor: Colors.white,
+      //   elevation: 0,
+      //   shadowColor: Colors.grey[200],
+      //   actions: [
+      //     IconButton(
+      //       icon: Icon(Icons.refresh, color: Colors.black54),
+      //       onPressed: () {
+      //         ChatListScreen._userDataCache.clear(); // Clear cache on refresh
+      //         Navigator.pushReplacement(
+      //           context,
+      //           MaterialPageRoute(
+      //             builder: (context) => ChatListScreen(userId: currentUserId),
+      //           ),
+      //         );
+      //       },
+      //     ),
+      //   ],
+      // ),
       body: StreamBuilder<List<Map<String, dynamic>>>(
         stream: _fetchChatUsers(currentUserId),
         builder: (context, snapshot) {

@@ -149,6 +149,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _swiperController.dispose();
+
     WakelockPlus.disable();
     // Do not dispose controllers here to preserve state
     super.dispose();
@@ -157,6 +158,8 @@ class _VideoReelScreenState extends State<VideoReelScreen>
   void _handleScreenExit() {
     controller.handleNavigation(); // Save state and pause
   }
+
+
 
   @override
   void deactivate() {
@@ -181,6 +184,13 @@ class _VideoReelScreenState extends State<VideoReelScreen>
   void didChangeDependencies() {
     super.didChangeDependencies();
     print('didChangeDependencies called');
+
+    SystemChrome.setSystemUIOverlayStyle(
+      const SystemUiOverlayStyle(
+        statusBarIconBrightness: Brightness.light, // White icons
+        statusBarColor: Colors.transparent, // Transparent status bar
+      ),
+    );
 
     // Step 1: Check if currentIndex is within valid range
     int index = controller.currentIndex.value;
@@ -273,13 +283,6 @@ class _VideoReelScreenState extends State<VideoReelScreen>
 
   @override
   Widget build(BuildContext context) {
-    SystemChrome.setSystemUIOverlayStyle(
-      const SystemUiOverlayStyle(
-        statusBarIconBrightness: Brightness.light, // White icons ke liye
-        statusBarColor:
-            Colors.transparent, // Optional: Status bar background color
-      ),
-    );
     super.build(context);
     isAuthenticated = isAuthenticated;
     print("PRINTING IS AUTHENTICATED ${isAuthenticated}");
@@ -843,7 +846,9 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                 isAuthenticated: isAuthenticated,
                 onTap: () {
                   isAuthenticated
-                      ? Get.to(ChatListScreen(userId: userId!))
+                      ? Get.to(ChatListScreen(userId: userId!))?.then((_) {
+                        controller.restoreVideoState();
+                      })
                       : Get.toNamed(AppRoutes.signIn);
                 },
               ),
