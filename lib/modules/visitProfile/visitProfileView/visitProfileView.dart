@@ -287,10 +287,7 @@ class _VisitProfileViewState extends State<VisitProfileView>
                       child: Center(
                         child: OpenToWorkBadge(
                           size: 70.h,
-                          showOpenToWork:
-                              professionalAdditionalData!.isB2B == 0
-                                  ? false
-                                  : true,
+                          showOpenToWork: false,
 
                           imageUrl:
                               '${Common.profileImage}/${userDetails.image}',
