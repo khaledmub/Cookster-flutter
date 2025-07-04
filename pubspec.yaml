@@ -87,6 +87,7 @@ dependencies:
   flutter_tawkto: ^0.0.5
   googleapis_auth: ^2.0.0
   flutter_keyboard_visibility: ^6.0.0
+  rxdart: ^0.27.7
 
 
 dependency_overrides:

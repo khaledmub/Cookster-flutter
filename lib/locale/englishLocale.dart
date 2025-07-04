@@ -471,5 +471,9 @@ const Map<String, String> en = {
   "leave_button": "Leave",
   "live_stream_end_message" : "Live stream ended: 15-minute limit reached",
   "business" : "Business",
-  "b2b" : "B2B"
+  "b2b" : "B2B",
+  "view_statistics" : "View Statistics",
+  "likes" : "Likes",
+  "views" : "Views",
+  "total_clicks" : "Total Clicks"
 };

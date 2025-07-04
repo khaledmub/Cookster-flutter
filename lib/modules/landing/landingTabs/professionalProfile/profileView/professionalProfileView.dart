@@ -20,6 +20,7 @@ import '../../../../promoteVideo/promoteVideoView/promoteVideoView.dart';
 import '../../../../singleVideoView/singleVideoView.dart';
 import '../../add/editVideo/editVideoView.dart';
 import '../../packagePopupDialog/packagePopupDialog.dart';
+import '../../packagePopupDialog/statisticsPopup.dart';
 import '../../profile/profileModel/profileModel.dart';
 import '../../savedVideosScreen/savedVideosView/savedVideosView.dart';
 import '../editProfile/editProfileView/professionalEditProfileView.dart';
@@ -915,45 +916,87 @@ class _ProfessionalProfileViewState extends State<ProfessionalProfileView>
                                                       child: Row(
                                                         children: [
                                                           Icon(
-                                                            CupertinoIcons.eye_fill,
+                                                            CupertinoIcons
+                                                                .eye_fill,
                                                             color: Colors.white,
                                                             size: 14.sp,
                                                           ),
                                                           SizedBox(width: 4),
-                                                          StreamBuilder<DocumentSnapshot>(
-                                                            stream: FirebaseFirestore.instance
-                                                                .collection('videos')
-                                                                .doc(video.id)
-                                                                .snapshots(),
-                                                            builder: (context, snapshot) {
-                                                              if (snapshot.connectionState == ConnectionState.waiting) {
+                                                          StreamBuilder<
+                                                            DocumentSnapshot
+                                                          >(
+                                                            stream:
+                                                                FirebaseFirestore
+                                                                    .instance
+                                                                    .collection(
+                                                                      'videos',
+                                                                    )
+                                                                    .doc(
+                                                                      video.id,
+                                                                    )
+                                                                    .snapshots(),
+                                                            builder: (
+                                                              context,
+                                                              snapshot,
+                                                            ) {
+                                                              if (snapshot
+                                                                      .connectionState ==
+                                                                  ConnectionState
+                                                                      .waiting) {
                                                                 return Text(
                                                                   "...",
                                                                   style: TextStyle(
-                                                                    color: Colors.white,
+                                                                    color:
+                                                                        Colors
+                                                                            .white,
                                                                   ),
                                                                 );
                                                               }
-                                                              if (!snapshot.hasData || !snapshot.data!.exists) {
+                                                              if (!snapshot
+                                                                      .hasData ||
+                                                                  !snapshot
+                                                                      .data!
+                                                                      .exists) {
                                                                 return Text(
                                                                   "0",
                                                                   style: TextStyle(
-                                                                    color: Colors.white,
+                                                                    color:
+                                                                        Colors
+                                                                            .white,
                                                                   ),
                                                                 );
                                                               }
-                                                              final data = snapshot.data!.data() as Map<String, dynamic>? ?? {};
-                                                              List<dynamic> views = data['views'] ?? [];
-                                                              int viewCount = views.length; // Count views from array length
-                                                              String formattedViewCount = viewCount > 1000
-                                                                  ? '${(viewCount / 1000).toStringAsFixed(1)}K'
-                                                                  : viewCount.toString();
+                                                              final data =
+                                                                  snapshot.data!
+                                                                          .data()
+                                                                      as Map<
+                                                                        String,
+                                                                        dynamic
+                                                                      >? ??
+                                                                  {};
+                                                              List<dynamic>
+                                                              views =
+                                                                  data['views'] ??
+                                                                  [];
+                                                              int viewCount =
+                                                                  views
+                                                                      .length; // Count views from array length
+                                                              String
+                                                              formattedViewCount =
+                                                                  viewCount >
+                                                                          1000
+                                                                      ? '${(viewCount / 1000).toStringAsFixed(1)}K'
+                                                                      : viewCount
+                                                                          .toString();
 
                                                               return Text(
                                                                 formattedViewCount,
                                                                 style: TextStyle(
-                                                                  color: Colors.white,
-                                                                  fontSize: 10.sp,
+                                                                  color:
+                                                                      Colors
+                                                                          .white,
+                                                                  fontSize:
+                                                                      10.sp,
                                                                 ),
                                                               );
                                                             },
@@ -961,7 +1004,6 @@ class _ProfessionalProfileViewState extends State<ProfessionalProfileView>
                                                         ],
                                                       ),
                                                     ),
-
 
                                                     if (video.sponsorType !=
                                                         null)
@@ -1069,6 +1111,21 @@ class _ProfessionalProfileViewState extends State<ProfessionalProfileView>
                       ;
                     },
                   ),
+                ListTile(
+                  leading: Icon(Icons.auto_graph_rounded),
+                  trailing: Icon(Icons.chevron_right_rounded),
+                  title: Text(
+                    'view_statistics'.tr,
+                    style: TextStyle(fontSize: 14.sp),
+                  ),
+                  onTap: () async {
+                    Navigator.pop(bottomSheetContext);
+                    showVideoStatsDialog(
+                      context,
+                      video: videoId
+                    );
+                  },
+                ),
                 ListTile(
                   leading: Icon(Icons.edit),
                   trailing: Icon(Icons.chevron_right_rounded),
