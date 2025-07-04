@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cookster/appUtils/colorUtils.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
@@ -199,7 +200,7 @@ class ChatListScreen extends StatelessWidget {
             return Center(
               child: Text(
                 'no_chats_found'.tr,
-                style: TextStyle(color: Colors.grey[600], fontSize: 16),
+                style: TextStyle(color: ColorUtils.primaryColor, fontSize: 16),
               ),
             );
           }
@@ -228,8 +229,6 @@ class ChatListScreen extends StatelessWidget {
                   },
                 ),
                 builder: (context, snapshot) {
-
-
                   if (snapshot.hasError || snapshot.data == null) {
                     return const SizedBox.shrink(); // or an error widget
                   }
@@ -238,123 +237,125 @@ class ChatListScreen extends StatelessWidget {
                   final userData = data['userData'] as Map<String, dynamic>;
                   final unreadCount = data['unreadCount'] as int;
 
-                  return data.isNotEmpty ? ListTile(
-                    key: ValueKey(chatId),
-                    // Ensure stable identity
-                    contentPadding: EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 8,
-                    ),
-                    leading: CircleAvatar(
-                      radius: 26,
-                      backgroundColor: Colors.grey[200],
-                      backgroundImage:
-                          userData['image'].isNotEmpty
-                              ? CachedNetworkImageProvider(
-                                '${Common.profileImage}/${userData['image']}',
-                              )
-                              : null,
-                      child:
-                          userData['image'].isEmpty
-                              ? Icon(
-                                Icons.person,
-                                color: Colors.grey[600],
-                                size: 30,
-                              )
-                              : null,
-                    ),
-                    title: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Expanded(
-                          child: Row(
-                            children: [
-                              Text(
-                                isBlocked
-                                    ? "cookster_user".tr
-                                    : userData['name'],
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight:
-                                      unreadCount > 0 && !isBlocked
-                                          ? FontWeight.w600
-                                          : FontWeight.w500,
-                                  color:
-                                      isBlocked
-                                          ? Colors.grey[600]
-                                          : Colors.black87,
-                                ),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ],
-                          ),
+                  return data.isNotEmpty
+                      ? ListTile(
+                        key: ValueKey(chatId),
+                        // Ensure stable identity
+                        contentPadding: EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 8,
                         ),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.end,
+                        leading: CircleAvatar(
+                          radius: 26,
+                          backgroundColor: Colors.grey[200],
+                          backgroundImage:
+                              userData['image'].isNotEmpty
+                                  ? CachedNetworkImageProvider(
+                                    '${Common.profileImage}/${userData['image']}',
+                                  )
+                                  : null,
+                          child:
+                              userData['image'].isEmpty
+                                  ? Icon(
+                                    Icons.person,
+                                    color: Colors.grey[600],
+                                    size: 30,
+                                  )
+                                  : null,
+                        ),
+                        title: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Text(
-                              _formatTimestamp(timestamp),
-                              style: TextStyle(
-                                fontSize: 12,
-                                color:
-                                    unreadCount > 0 && !isBlocked
-                                        ? Colors.teal
-                                        : Colors.grey[600],
+                            Expanded(
+                              child: Row(
+                                children: [
+                                  Text(
+                                    isBlocked
+                                        ? "cookster_user".tr
+                                        : userData['name'],
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight:
+                                          unreadCount > 0 && !isBlocked
+                                              ? FontWeight.w600
+                                              : FontWeight.w500,
+                                      color:
+                                          isBlocked
+                                              ? Colors.grey[600]
+                                              : Colors.black87,
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ],
                               ),
                             ),
-                            if (unreadCount > 0)
-                              Container(
-                                margin: EdgeInsets.only(top: 4),
-                                padding: EdgeInsets.symmetric(
-                                  horizontal: 6,
-                                  vertical: 2,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: Colors.teal,
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                child: Text(
-                                  '$unreadCount',
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+                                Text(
+                                  _formatTimestamp(timestamp),
                                   style: TextStyle(
-                                    color: Colors.white,
                                     fontSize: 12,
-                                    fontWeight: FontWeight.w600,
+                                    color:
+                                        unreadCount > 0 && !isBlocked
+                                            ? Colors.teal
+                                            : Colors.grey[600],
                                   ),
                                 ),
-                              ),
+                                if (unreadCount > 0)
+                                  Container(
+                                    margin: EdgeInsets.only(top: 4),
+                                    padding: EdgeInsets.symmetric(
+                                      horizontal: 6,
+                                      vertical: 2,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: Colors.teal,
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: Text(
+                                      '$unreadCount',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            ),
                           ],
                         ),
-                      ],
-                    ),
-                    subtitle: Text(
-                      lastMessage != null
-                          ? (lastMessage['message']?.substring(
-                                0,
-                                lastMessage['message'].length > 30
-                                    ? 30
-                                    : lastMessage['message'].length,
-                              ) ??
-                              '')
-                          : 'no_messages'.tr,
-                      style: TextStyle(
-                        fontSize: 14,
-                        color:
-                            unreadCount > 0 && !isBlocked
-                                ? Colors.black87
-                                : Colors.grey[600],
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    onTap: () {
-                      Get.to(
-                        ChatScreen(
-                          senderId: currentUserId,
-                          receiverId: partnerId,
+                        subtitle: Text(
+                          lastMessage != null
+                              ? (lastMessage['message']?.substring(
+                                    0,
+                                    lastMessage['message'].length > 30
+                                        ? 30
+                                        : lastMessage['message'].length,
+                                  ) ??
+                                  '')
+                              : 'no_messages'.tr,
+                          style: TextStyle(
+                            fontSize: 14,
+                            color:
+                                unreadCount > 0 && !isBlocked
+                                    ? Colors.black87
+                                    : Colors.grey[600],
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
-                      );
-                    },
-                  ) : SizedBox.shrink();
+                        onTap: () {
+                          Get.to(
+                            ChatView(
+                              senderId: currentUserId,
+                              receiverId: partnerId,
+                            ),
+                          );
+                        },
+                      )
+                      : SizedBox.shrink();
                 },
               );
             },

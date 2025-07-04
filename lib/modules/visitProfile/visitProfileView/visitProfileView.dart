@@ -160,9 +160,7 @@ class _VisitProfileViewState extends State<VisitProfileView>
                   );
                 }
               } else if (value == 'message_label'.tr) {
-                Get.to(
-                  ChatScreen(senderId: userId!, receiverId: widget.userId),
-                );
+                Get.to(ChatView(senderId: userId!, receiverId: widget.userId));
               }
             },
             itemBuilder:
