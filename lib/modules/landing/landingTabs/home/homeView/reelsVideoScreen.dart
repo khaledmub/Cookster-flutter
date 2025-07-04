@@ -218,6 +218,26 @@ class _VideoReelScreenState extends State<VideoReelScreen>
     }
   }
 
+  Future<void> _trackVideoView(String videoId, String userId) async {
+    try {
+      final videoRef = FirebaseFirestore.instance
+          .collection('videos')
+          .doc(videoId);
+
+      // Use arrayUnion to add userId to the views array if it doesn't already exist
+      await videoRef.set(
+        {
+          'views': FieldValue.arrayUnion([userId]),
+        },
+        SetOptions(merge: true),
+      ); // merge: true ensures other fields are not overwritten
+      print("PRINTING VIDEO ID: $videoId Printing USER ID: $userId");
+    } catch (e) {
+      print('Error tracking video view: $e');
+      // Optionally handle the error (e.g., show a toast or log it)
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     SystemChrome.setSystemUIOverlayStyle(
@@ -579,19 +599,27 @@ class _VideoReelScreenState extends State<VideoReelScreen>
             children: [
               PageView.builder(
                 dragStartBehavior: DragStartBehavior.down,
-                // 👈 Apply here
                 scrollBehavior: ScrollBehavior(),
-                // physics: PageScrollPhysics(),
                 scrollDirection: Axis.vertical,
                 controller: pageController,
-                onPageChanged: (index) {
+                onPageChanged: (index) async {
                   controller.visiblePageIndex.value = index;
                   int actualIndex =
                       index % controller.videoFeed.value.videos!.length;
                   controller.handlePageChange(actualIndex);
                   if (mounted) setState(() {});
-                },
 
+                  // Track view in Firestore
+                  if (isAuthenticated && userId != null) {
+                    String? videoId =
+                        controller
+                            .videoFeed
+                            .value
+                            .videos![actualIndex]
+                            .id; // Assuming videoDetail has a videoId field
+                    await _trackVideoView(videoId!, userId);
+                  }
+                },
                 itemCount: 10000,
                 itemBuilder: (context, index) {
                   int currentPage = controller.visiblePageIndex.value;
