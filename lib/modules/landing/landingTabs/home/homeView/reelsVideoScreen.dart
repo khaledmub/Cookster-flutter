@@ -46,6 +46,7 @@ import '../../../../singleVideoView/singleVideoView.dart';
 import '../../add/videoAddController/videoAddController.dart';
 import '../homeController/addCommentControllr.dart';
 import '../homeController/homeController.dart';
+import '../homeWidgets/chatIconWithCounter.dart';
 import '../homeWidgets/contactNowDialog.dart';
 import '../homeWidgets/reviewSheet.dart';
 
@@ -279,29 +280,14 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                   ),
                 ),
 
-                SafeArea(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16.0,
-                      vertical: 8,
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: [
-                        InkWell(
-                          onTap: () {
-                            isAuthenticated
-                                ? Get.to(ChatListScreen(userId: userId!))
-                                : Get.toNamed(AppRoutes.signIn);
-                          },
-                          child: SvgPicture.asset(
-                            "assets/icons/chatIcon.svg",
-                            color: Colors.white,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
+                ChatIconWithCounter(
+                  userId: userId ?? '',
+                  isAuthenticated: isAuthenticated,
+                  onTap: () {
+                    isAuthenticated
+                        ? Get.to(ChatListScreen(userId: userId!))
+                        : Get.toNamed(AppRoutes.signIn);
+                  },
                 ),
                 Align(
                   alignment: Alignment.topCenter,
@@ -793,30 +779,16 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                 ),
               ),
 
-              SafeArea(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16.0,
-                    vertical: 8,
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      InkWell(
-                        onTap: () {
-                          isAuthenticated
-                              ? Get.to(ChatListScreen(userId: userId!))
-                              : Get.toNamed(AppRoutes.signIn);
-                        },
-                        child: SvgPicture.asset(
-                          "assets/icons/chatIcon.svg",
-                          color: Colors.white,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+              ChatIconWithCounter(
+                userId: userId ?? '',
+                isAuthenticated: isAuthenticated,
+                onTap: () {
+                  isAuthenticated
+                      ? Get.to(ChatListScreen(userId: userId!))
+                      : Get.toNamed(AppRoutes.signIn);
+                },
               ),
+
               Align(
                 alignment: Alignment.topCenter,
                 child: Obx(
