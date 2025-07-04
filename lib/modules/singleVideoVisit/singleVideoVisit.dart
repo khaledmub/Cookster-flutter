@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:developer';
+import 'dart:io';
 import 'dart:ui';
 import 'package:awesome_dialog/awesome_dialog.dart';
 import 'package:chewie/chewie.dart';
@@ -10,6 +11,7 @@ import 'package:cookster/appUtils/colorUtils.dart';
 import 'package:cookster/loaders/pulseLoader.dart';
 import 'package:cookster/modules/singleVideoView/singleVideoController.dart';
 import 'package:cookster/modules/singleVideoVisit/singleVideoController/singleVisitVideoController.dart';
+import 'package:device_info_plus/device_info_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -75,6 +77,58 @@ class _SingleVideoVisitState extends State<SingleVisitVideo>
     });
   }
 
+  Future<String> _getDeviceId() async {
+    final prefs = await SharedPreferences.getInstance();
+    String? deviceId = prefs.getString('device_id');
+
+    if (deviceId == null) {
+      // Generate a new device ID (you could also use UUID package)
+      DeviceInfoPlugin deviceInfo = DeviceInfoPlugin();
+      if (Platform.isAndroid) {
+        AndroidDeviceInfo androidInfo = await deviceInfo.androidInfo;
+        deviceId = androidInfo.id; // Unique device ID for Android
+      } else if (Platform.isIOS) {
+        IosDeviceInfo iosInfo = await deviceInfo.iosInfo;
+        deviceId = iosInfo.identifierForVendor; // Unique device ID for iOS
+      } else {
+        deviceId = DateTime.now().millisecondsSinceEpoch.toString(); // Fallback
+      }
+      await prefs.setString('device_id', deviceId!);
+    }
+    return deviceId;
+  }
+
+  // Updated _trackVideoView function to handle both user and device views
+  Future<void> _trackVideoView(
+    String videoId,
+    String? userId,
+    bool isAuthenticated,
+  ) async {
+    try {
+      final videoRef = FirebaseFirestore.instance
+          .collection('videos')
+          .doc(videoId);
+
+      if (isAuthenticated && userId != null) {
+        // Track view for authenticated user
+        await videoRef.set({
+          'views': FieldValue.arrayUnion([userId]),
+        }, SetOptions(merge: true));
+        print("PRINTING VIDEO ID: $videoId Printing USER ID: $userId");
+      } else {
+        // Track view for non-authenticated user using device ID
+        String deviceId = await _getDeviceId();
+        await videoRef.set({
+          'views': FieldValue.arrayUnion([deviceId]),
+        }, SetOptions(merge: true));
+        print("PRINTING VIDEO ID: $videoId Printing DEVICE ID: $deviceId");
+      }
+    } catch (e) {
+      print('Error tracking video view: $e');
+      // Optionally handle the error (e.g., show a toast or log it)
+    }
+  }
+
   // Load language from SharedPreferences
   Future<void> _loadLanguage() async {
     final prefs = await SharedPreferences.getInstance();
@@ -91,7 +145,9 @@ class _SingleVideoVisitState extends State<SingleVisitVideo>
       _frontUserImage = prefs.getString('user_image');
     });
   }
-  static final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+
+  static final GlobalKey<ScaffoldState> _scaffoldKey =
+      GlobalKey<ScaffoldState>();
   final VideoCommentsController videoCommentsController = Get.put(
     VideoCommentsController(),
   );
@@ -232,7 +288,6 @@ class _SingleVideoVisitState extends State<SingleVisitVideo>
 
   @override
   Widget build(BuildContext context) {
-
     print("PRINTING THE VIDEO ID: ${widget.videoId}");
     super.build(context);
     bool isRtl = _language == 'ar';
@@ -262,6 +317,12 @@ class _SingleVideoVisitState extends State<SingleVisitVideo>
               ),
             );
           }
+
+          _trackVideoView(
+            video.id.toString(),
+            _frontUserId!,
+            _frontUserId != null ? true : false,
+          );
 
           return Stack(
             clipBehavior: Clip.none,

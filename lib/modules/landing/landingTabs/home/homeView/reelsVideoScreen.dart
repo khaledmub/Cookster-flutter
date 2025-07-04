@@ -22,6 +22,7 @@ import 'package:cookster/modules/landing/landingTabs/profile/profileModel/simple
 import 'package:cookster/modules/landing/landingTabs/reportContent/reportContentView/reportContentView.dart';
 import 'package:cookster/modules/search/searchView/searchView.dart';
 import 'package:cookster/modules/visitProfile/visitProfileView/visitProfileView.dart';
+import 'package:device_info_plus/device_info_plus.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -218,20 +219,52 @@ class _VideoReelScreenState extends State<VideoReelScreen>
     }
   }
 
-  Future<void> _trackVideoView(String videoId, String userId) async {
+  Future<String> _getDeviceId() async {
+    final prefs = await SharedPreferences.getInstance();
+    String? deviceId = prefs.getString('device_id');
+
+    if (deviceId == null) {
+      // Generate a new device ID (you could also use UUID package)
+      DeviceInfoPlugin deviceInfo = DeviceInfoPlugin();
+      if (Platform.isAndroid) {
+        AndroidDeviceInfo androidInfo = await deviceInfo.androidInfo;
+        deviceId = androidInfo.id; // Unique device ID for Android
+      } else if (Platform.isIOS) {
+        IosDeviceInfo iosInfo = await deviceInfo.iosInfo;
+        deviceId = iosInfo.identifierForVendor; // Unique device ID for iOS
+      } else {
+        deviceId = DateTime.now().millisecondsSinceEpoch.toString(); // Fallback
+      }
+      await prefs.setString('device_id', deviceId!);
+    }
+    return deviceId;
+  }
+
+  // Updated _trackVideoView function to handle both user and device views
+  Future<void> _trackVideoView(
+    String videoId,
+    String? userId,
+    bool isAuthenticated,
+  ) async {
     try {
       final videoRef = FirebaseFirestore.instance
           .collection('videos')
           .doc(videoId);
 
-      // Use arrayUnion to add userId to the views array if it doesn't already exist
-      await videoRef.set(
-        {
+      if (isAuthenticated && userId != null) {
+        // Track view for authenticated user
+        await videoRef.set({
           'views': FieldValue.arrayUnion([userId]),
-        },
-        SetOptions(merge: true),
-      ); // merge: true ensures other fields are not overwritten
-      print("PRINTING VIDEO ID: $videoId Printing USER ID: $userId");
+        }, SetOptions(merge: true));
+        print("PRINTING VIDEO ID: $videoId Printing USER ID: $userId");
+      } else {
+        // Track view for non-authenticated user using device ID
+        String deviceId = await _getDeviceId();
+        await videoRef.set({
+          'views': FieldValue.arrayUnion([deviceId]),
+        }, SetOptions(merge: true));
+        print("PRINTING VIDEO ID: $videoId Printing DEVICE ID: $deviceId");
+      }
     } catch (e) {
       print('Error tracking video view: $e');
       // Optionally handle the error (e.g., show a toast or log it)
@@ -610,14 +643,12 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                   if (mounted) setState(() {});
 
                   // Track view in Firestore
-                  if (isAuthenticated && userId != null) {
-                    String? videoId =
-                        controller
-                            .videoFeed
-                            .value
-                            .videos![actualIndex]
-                            .id; // Assuming videoDetail has a videoId field
-                    await _trackVideoView(videoId!, userId);
+                  String? videoId =
+                      controller.videoFeed.value.videos![actualIndex].id;
+                  if (videoId != null) {
+                    await _trackVideoView(videoId, userId, isAuthenticated);
+                  } else {
+                    print('Error: Video ID is null for index $actualIndex');
                   }
                 },
                 itemCount: 10000,

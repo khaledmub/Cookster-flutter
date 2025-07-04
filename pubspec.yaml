@@ -89,6 +89,7 @@ dependencies:
   flutter_keyboard_visibility: ^6.0.0
   rxdart: ^0.27.7
   flutter_app_badge: ^2.0.2
+  device_info_plus: ^11.5.0
 
 
 dependency_overrides:

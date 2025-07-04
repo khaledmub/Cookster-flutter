@@ -106,7 +106,7 @@ class _B2bUsersListState extends State<B2bUsersList> {
                         ),
                         child: Center(
                           child: Icon(
-                            isRtl ? Icons.arrow_forward : Icons.arrow_back,
+                            isRtl ? Icons.arrow_back : Icons.arrow_back,
                             color: ColorUtils.darkBrown,
                             size: 24,
                           ),

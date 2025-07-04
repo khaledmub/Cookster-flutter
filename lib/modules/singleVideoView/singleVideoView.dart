@@ -12,6 +12,7 @@ import 'package:cookster/modules/landing/landingTabs/home/homeView/hashTagReels.
 import 'package:cookster/modules/landing/landingView/landingView.dart';
 import 'package:cookster/modules/search/searchView/searchView.dart';
 import 'package:cookster/modules/singleVideoView/singleVideoController.dart';
+import 'package:device_info_plus/device_info_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
@@ -113,10 +114,67 @@ class _SingleVideoScreenState extends State<SingleVideoScreen>
   void initState() {
     super.initState();
     _loadLanguage();
+    _trackVideoView(
+      widget.videoId ?? '',
+      widget.frondUserId,
+      widget.frondUserId != null ? true : false,
+    );
     WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _initializePlayer();
     });
+  }
+
+  Future<String> _getDeviceId() async {
+    final prefs = await SharedPreferences.getInstance();
+    String? deviceId = prefs.getString('device_id');
+
+    if (deviceId == null) {
+      // Generate a new device ID (you could also use UUID package)
+      DeviceInfoPlugin deviceInfo = DeviceInfoPlugin();
+      if (Platform.isAndroid) {
+        AndroidDeviceInfo androidInfo = await deviceInfo.androidInfo;
+        deviceId = androidInfo.id; // Unique device ID for Android
+      } else if (Platform.isIOS) {
+        IosDeviceInfo iosInfo = await deviceInfo.iosInfo;
+        deviceId = iosInfo.identifierForVendor; // Unique device ID for iOS
+      } else {
+        deviceId = DateTime.now().millisecondsSinceEpoch.toString(); // Fallback
+      }
+      await prefs.setString('device_id', deviceId!);
+    }
+    return deviceId;
+  }
+
+  // Updated _trackVideoView function to handle both user and device views
+  Future<void> _trackVideoView(
+    String videoId,
+    String? userId,
+    bool isAuthenticated,
+  ) async {
+    try {
+      final videoRef = FirebaseFirestore.instance
+          .collection('videos')
+          .doc(videoId);
+
+      if (isAuthenticated && userId != null) {
+        // Track view for authenticated user
+        await videoRef.set({
+          'views': FieldValue.arrayUnion([userId]),
+        }, SetOptions(merge: true));
+        print("PRINTING VIDEO ID: $videoId Printing USER ID: $userId");
+      } else {
+        // Track view for non-authenticated user using device ID
+        String deviceId = await _getDeviceId();
+        await videoRef.set({
+          'views': FieldValue.arrayUnion([deviceId]),
+        }, SetOptions(merge: true));
+        print("PRINTING VIDEO ID: $videoId Printing DEVICE ID: $deviceId");
+      }
+    } catch (e) {
+      print('Error tracking video view: $e');
+      // Optionally handle the error (e.g., show a toast or log it)
+    }
   }
 
   @override
