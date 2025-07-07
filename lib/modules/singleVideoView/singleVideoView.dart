@@ -372,9 +372,8 @@ class _SingleVideoScreenState extends State<SingleVideoScreen>
                 child:
                     _isInitializing
                         ? Center(
-                          child: PulseLogoLoader(
-                            logoPath: "assets/images/appIcon.png",
-                            size: 80,
+                          child: Image.network(
+                            "${Common.videoUrl}/${widget.image}",
                           ),
                         )
                         : _chewieController != null

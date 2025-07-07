@@ -302,12 +302,6 @@ class _SingleVideoVisitState extends State<SingleVisitVideo>
         backgroundColor: Colors.black,
         appBar: AppBar(toolbarHeight: 0),
         body: Obx(() {
-          if (singleVideoController.isLoading.value) {
-            return Center(
-              child: PulseLogoLoader(logoPath: "assets/icons/appLogo.png"),
-            );
-          }
-
           final video = singleVideoController.singleVideoContent.value.video;
           if (video == null) {
             return Center(
@@ -316,6 +310,9 @@ class _SingleVideoVisitState extends State<SingleVisitVideo>
                 style: TextStyle(color: Colors.white, fontSize: 16.sp),
               ),
             );
+          }
+          if (singleVideoController.isLoading.value) {
+            return Image.network("${Common.videoUrl}/${video.image}");
           }
 
           _trackVideoView(

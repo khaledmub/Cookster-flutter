@@ -677,115 +677,113 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                             clipBehavior: Clip.none,
                             alignment: Alignment.bottomLeft,
                             children: [
-                              Positioned.fill(
-                                child: GestureDetector(
-                                  onTap: _togglePlayPause,
-                                  onDoubleTap: controller.toggleMute,
-                                  child: Stack(
-                                    children: [
-                                      Center(
-                                        child:
-                                            isInitialized
-                                                ? Chewie(
-                                                  controller: chewieController,
-                                                )
-                                                : Container(
-                                                  width:
-                                                      MediaQuery.of(
-                                                        context,
-                                                      ).size.width,
-                                                  height:
-                                                      MediaQuery.of(
-                                                        context,
-                                                      ).size.height,
-                                                  color: Colors.black,
-                                                  child: CachedNetworkImage(
-                                                    imageUrl:
-                                                        '${Common.videoUrl}/${videoDetail.image}',
-                                                  ),
-                                                ),
-                                      ),
-                                      if (_showIcon &&
-                                          isInitialized &&
-                                          index ==
-                                              controller.currentIndex.value)
-                                        Center(
+                              GestureDetector(
+                                onTap: _togglePlayPause,
+                                onDoubleTap: controller.toggleMute,
+                                child: Stack(
+                                  children: [
+                                    isInitialized
+                                        ? Container(
+                                      height: MediaQuery.of(context).size.height,
+                                          width: MediaQuery.of(context).size.width,
+                                          child: Chewie(
+
+                                            controller: chewieController,
+                                          ),
+                                        )
+                                        : Center(
+
+
                                           child: Container(
-                                            decoration: BoxDecoration(
-                                              color: Colors.black.withOpacity(
-                                                0.3,
-                                              ),
-                                              shape: BoxShape.circle,
-                                            ),
-                                            padding: const EdgeInsets.all(8),
-                                            child: Icon(
-                                              chewieController.isPlaying
-                                                  ? Icons.pause_circle_filled
-                                                  : Icons.play_circle_filled,
-                                              size: 64.0,
-                                              color: Colors.white.withOpacity(
-                                                0.7,
-                                              ),
+                                            height: MediaQuery.of(context).size.height,
+                                            width: MediaQuery.of(context).size.width,
+                                            child: CachedNetworkImage(
+                                              fit: BoxFit.cover,
+                                              imageUrl:
+                                                  '${Common.videoUrl}/${videoDetail.image}',
                                             ),
                                           ),
                                         ),
-                                      if (videoDetail.isImage == 0 &&
-                                          isInitialized)
-                                        Positioned(
-                                          bottom: Platform.isAndroid ? 70 : 100,
-                                          left: 0.0,
-                                          right: 0.0,
-                                          child: StreamBuilder<Duration>(
-                                            stream: Stream.periodic(
-                                              const Duration(milliseconds: 100),
-                                              (_) {
-                                                return chewieController
-                                                    .videoPlayerController
-                                                    .value
-                                                    .position;
-                                              },
+                                    if (_showIcon &&
+                                        isInitialized &&
+                                        index ==
+                                            controller.currentIndex.value)
+                                      Center(
+                                        child: Container(
+                                          decoration: BoxDecoration(
+                                            color: Colors.black.withOpacity(
+                                              0.3,
                                             ),
-                                            builder: (context, snapshot) {
-                                              final position =
-                                                  snapshot.data ??
-                                                  Duration.zero;
-                                              final duration =
-                                                  chewieController
-                                                      .videoPlayerController
-                                                      .value
-                                                      .duration ??
-                                                  Duration.zero;
-                                              return SliderTheme(
-                                                data: const SliderThemeData(),
-                                                child: Slider(
-                                                  value:
-                                                      position.inSeconds
-                                                          .toDouble(),
-                                                  max:
-                                                      duration.inSeconds > 0
-                                                          ? duration.inSeconds
-                                                              .toDouble()
-                                                          : 1.0,
-                                                  onChanged: (value) {
-                                                    chewieController.seekTo(
-                                                      Duration(
-                                                        seconds: value.toInt(),
-                                                      ),
-                                                    );
-                                                  },
-                                                  thumbColor:
-                                                      ColorUtils.primaryColor,
-                                                  activeColor:
-                                                      ColorUtils.primaryColor,
-                                                  inactiveColor:
-                                                      ColorUtils.darkBrown,
-                                                ),
-                                              );
+                                            shape: BoxShape.circle,
+                                          ),
+                                          padding: const EdgeInsets.all(8),
+                                          child: Icon(
+                                            chewieController.isPlaying
+                                                ? Icons.pause_circle_filled
+                                                : Icons.play_circle_filled,
+                                            size: 64.0,
+                                            color: Colors.white.withOpacity(
+                                              0.7,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    if (videoDetail.isImage == 0 &&
+                                        isInitialized)
+                                      Positioned(
+                                        bottom: Platform.isAndroid ? 70 : 100,
+                                        left: 0.0,
+                                        right: 0.0,
+                                        child: StreamBuilder<Duration>(
+                                          stream: Stream.periodic(
+                                            const Duration(milliseconds: 100),
+                                            (_) {
+                                              return chewieController
+                                                  .videoPlayerController
+                                                  .value
+                                                  .position;
                                             },
                                           ),
+                                          builder: (context, snapshot) {
+                                            final position =
+                                                snapshot.data ??
+                                                Duration.zero;
+                                            final duration =
+                                                chewieController
+                                                    .videoPlayerController
+                                                    .value
+                                                    .duration ??
+                                                Duration.zero;
+                                            return SliderTheme(
+                                              data: const SliderThemeData(),
+                                              child: Slider(
+                                                value:
+                                                    position.inSeconds
+                                                        .toDouble(),
+                                                max:
+                                                    duration.inSeconds > 0
+                                                        ? duration.inSeconds
+                                                            .toDouble()
+                                                        : 1.0,
+                                                onChanged: (value) {
+                                                  chewieController.seekTo(
+                                                    Duration(
+                                                      seconds: value.toInt(),
+                                                    ),
+                                                  );
+                                                },
+                                                thumbColor:
+                                                    ColorUtils.primaryColor,
+                                                activeColor:
+                                                    ColorUtils.primaryColor,
+                                                inactiveColor:
+                                                    ColorUtils.darkBrown,
+                                              ),
+                                            );
+                                          },
                                         ),
-                                    ],
-                                  ),
+                                      ),
+                                  ],
                                 ),
                               ),
                               Obx(
