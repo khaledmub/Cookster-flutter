@@ -391,6 +391,7 @@ class _LandingState extends State<Landing> {
                 )
                 : Scaffold(
                   resizeToAvoidBottomInset: false,
+                  bottomNavigationBar: _buildBottomNavBar(context),
                   body: FutureBuilder<List<Widget>>(
                     future: _screens(context),
                     builder: (context, snapshot) {
@@ -411,14 +412,7 @@ class _LandingState extends State<Landing> {
                               snapshot.data![navBarController
                                   .selectedIndex
                                   .value],
-                              Positioned(
-                                bottom: 0,
-                                left: 0,
-                                right: 0,
-                                child: SafeArea(
-                                  child: _buildBottomNavBar(context),
-                                ),
-                              ),
+
                             ],
                           );
                         });
@@ -440,48 +434,45 @@ class _LandingState extends State<Landing> {
           decoration: BoxDecoration(
             color:
                 navBarController.selectedIndex.value == 0
-                    ? Colors.black.withOpacity(0.15)
+                    ? Colors.black
                     : Colors.white,
             border: Border(
               top: BorderSide(color: Colors.grey.withOpacity(0.2), width: 0.5),
             ),
           ),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8.0),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: [
-                _buildNavItem(
-                  svgIcon: 'assets/icons/home.svg',
-                  selectedSvgIcon: 'assets/icons/homeFilled.svg',
-                  label: 'Home',
-                  index: 0,
-                  context: context,
-                ),
-                _buildNavItem(
-                  svgIcon: 'assets/icons/chat.svg',
-                  selectedSvgIcon: 'assets/icons/chatFilled.svg',
-                  label: 'Discover'.tr,
-                  index: 1,
-                  context: context,
-                ),
-                _buildAddButton(context),
-                _buildNavItem(
-                  svgIcon: 'assets/icons/notificaion.svg',
-                  selectedSvgIcon: 'assets/icons/notificationFilled.svg',
-                  label: 'Notifications',
-                  index: 2,
-                  context: context,
-                ),
-                _buildNavItem(
-                  svgIcon: 'assets/icons/profile.svg',
-                  selectedSvgIcon: 'assets/icons/userFilled.svg',
-                  label: 'Profile',
-                  index: 3,
-                  context: context,
-                ),
-              ],
-            ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [
+              _buildNavItem(
+                svgIcon: 'assets/icons/home.svg',
+                selectedSvgIcon: 'assets/icons/homeFilled.svg',
+                label: 'Home',
+                index: 0,
+                context: context,
+              ),
+              _buildNavItem(
+                svgIcon: 'assets/icons/chat.svg',
+                selectedSvgIcon: 'assets/icons/chatFilled.svg',
+                label: 'Discover'.tr,
+                index: 1,
+                context: context,
+              ),
+              _buildAddButton(context),
+              _buildNavItem(
+                svgIcon: 'assets/icons/notificaion.svg',
+                selectedSvgIcon: 'assets/icons/notificationFilled.svg',
+                label: 'Notifications',
+                index: 2,
+                context: context,
+              ),
+              _buildNavItem(
+                svgIcon: 'assets/icons/profile.svg',
+                selectedSvgIcon: 'assets/icons/userFilled.svg',
+                label: 'Profile',
+                index: 3,
+                context: context,
+              ),
+            ],
           ),
         ),
       ),

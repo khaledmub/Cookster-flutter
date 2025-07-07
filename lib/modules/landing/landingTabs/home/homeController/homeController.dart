@@ -702,18 +702,15 @@ class HomeController extends GetxController with WidgetsBindingObserver {
         print("  Position: ${_videoControllers[index]!.value.position}");
 
         _chewieControllers[index] = ChewieController(
+
           videoPlayerController: _videoControllers[index]!,
           autoInitialize: false,
           looping: true,
           autoPlay: false,
-          allowMuting: true,
           showControls: false,
-          materialProgressColors: ChewieProgressColors(
-            playedColor: Colors.red,
-            handleColor: Colors.redAccent,
-            backgroundColor: Colors.grey,
-            bufferedColor: Colors.white30,
-          ),
+          showControlsOnInitialize: false,
+          allowMuting: true,
+
         );
 
         _chewieControllers[index]!.setVolume(isMuted.value ? 0 : 1);
