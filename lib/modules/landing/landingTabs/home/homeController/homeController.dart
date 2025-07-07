@@ -39,7 +39,7 @@ class HomeController extends GetxController with WidgetsBindingObserver {
   Timer? _debounceTimer;
 
   final int maxConcurrentVideos = 0; // Reduced for buffer management
-  final int retentionRange = 3; // Retain controllers for ±3 indices
+  final int retentionRange = 15; // Retain controllers for ±3 indices
 
   // Custom cache manager for videos
   final CacheManager _videoCacheManager = CacheManager(

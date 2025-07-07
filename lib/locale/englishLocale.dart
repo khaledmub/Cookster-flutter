@@ -475,5 +475,6 @@ const Map<String, String> en = {
   "view_statistics" : "View Statistics",
   "likes" : "Likes",
   "views" : "Views",
-  "total_clicks" : "Total Clicks"
+  "total_clicks" : "Total Clicks",
+  "failed_to_load_video" : "Failed to load video"
 };

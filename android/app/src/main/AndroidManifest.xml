@@ -121,5 +121,8 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
+        <meta-data
+            android:name="android.media.prefer_software_codecs"
+            android:value="false" />
     </application>
 </manifest>

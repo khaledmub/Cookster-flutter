@@ -150,54 +150,35 @@ class ProfessionalProfileController extends GetxController {
   var isFollowingProcess = false.obs;
 
   Future<void> toggleFollowStatus(String userId) async {
+    print('PRINTING THE USER ID FOR FOLLOWERS: ${userId}');
+
+    // Set loading state to true
     isFollowingProcess.value = true;
 
     try {
       final endpoint =
-          isFollowing(userId) ? '${EndPoints.unfollow}' : '${EndPoints.follow}';
+      isFollowing(userId) ? '${EndPoints.unfollow}' : '${EndPoints.follow}';
 
       final response = await ApiClient.postRequest(endpoint, {
         'following_id': userId,
       });
 
       if (response.statusCode == 200) {
-        print("Response status: 200 - Success");
-
-        // Check if user is already followed
+        // Update local following list
         if (isFollowing(userId)) {
-          print("User is currently following: $userId");
-
-          // Remove user from following list
-          userDetails.value!.following!.remove(userId);
-          print(
-            "User removed from userDetails following list: ${userDetails.value!.following}",
-          );
-
+          simpleUserDetails.value!.following!.remove(userId);
           followingList.removeWhere((id) => id.toString() == userId);
-          print("User removed from followingList: $followingList");
         } else {
-          print("User is not following: $userId");
-
-          // Add user to following list
-          userDetails.value!.following!.add(userId);
-          print(
-            "User added to userDetails following list: ${userDetails.value!.following}",
-          );
-
+          simpleUserDetails.value!.following!.add(userId);
           // Fetch user details and add to followingList
-          print("Fetching user details to add in followingList...");
         }
 
-        // Refresh UI
-        userDetails.refresh();
-        print("userDetails refreshed");
-
+        // Update UI
+        simpleUserDetails.refresh();
         followingList.refresh();
-        print("followingList refreshed");
 
         // Show toast message instead of snackbar
         String message = isFollowing(userId) ? "Following".tr : "unfollowed".tr;
-        print("Toast message: $message");
 
         Fluttertoast.showToast(
           msg: message,
@@ -211,6 +192,7 @@ class ProfessionalProfileController extends GetxController {
       } else {
         print("Failed to toggle follow status: ${response.body}");
 
+        // Show error as toast
         Fluttertoast.showToast(
           msg: "Couldn't update follow status",
           backgroundColor: Colors.black.withOpacity(0.7),
@@ -219,17 +201,19 @@ class ProfessionalProfileController extends GetxController {
       }
     } catch (e) {
       print("Error toggling follow status: $e");
-      isFollowingProcess.value = false;
 
+      // Show error as toast
       Fluttertoast.showToast(
         msg: "Something went wrong",
         backgroundColor: Colors.black.withOpacity(0.7),
         textColor: Colors.white,
       );
     } finally {
+      // Set loading state back to false regardless of success or failure
       isFollowingProcess.value = false;
     }
   }
+
 
   Future<void> showLogoutDialog(BuildContext context) async {
     AwesomeDialog(

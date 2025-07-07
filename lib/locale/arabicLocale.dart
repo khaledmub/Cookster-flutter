@@ -475,6 +475,7 @@ const Map<String, String> ar = {
   "view_statistics" : "عرض الإحصائيات",
   "likes": "الإعجابات",
   "views": "المشاهدات",
-  "total_clicks": "إجمالي النقرات"
+  "total_clicks": "إجمالي النقرات",
+  "failed_to_load_video" : "فشل في تحميل الفيديو"
 
 };

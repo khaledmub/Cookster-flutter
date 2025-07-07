@@ -252,12 +252,16 @@ class _SingleVideoScreenState extends State<SingleVideoScreen>
         setState(() {
           _isInitializing = false;
         });
-        Get.snackbar(
-          'Error',
-          'Failed to load video',
-          snackPosition: SnackPosition.BOTTOM,
-          backgroundColor: Colors.red,
-          colorText: Colors.white,
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'failed_to_load_video'.tr,
+              style: TextStyle(color: Colors.white),
+            ),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+            margin: EdgeInsets.only(bottom: 20.0, left: 10.0, right: 10.0),
+          ),
         );
       }
     }

@@ -159,8 +159,6 @@ class _VideoReelScreenState extends State<VideoReelScreen>
     controller.handleNavigation(); // Save state and pause
   }
 
-
-
   @override
   void deactivate() {
     // Save the current video's position and pause it
@@ -633,193 +631,230 @@ class _VideoReelScreenState extends State<VideoReelScreen>
 
           return Stack(
             children: [
-              PageView.builder(
-                dragStartBehavior: DragStartBehavior.down,
-                scrollBehavior: ScrollBehavior(),
+              PageView(
+                // dragStartBehavior: DragStartBehavior.down,
+                // scrollBehavior: const ScrollBehavior(),
                 scrollDirection: Axis.vertical,
                 controller: pageController,
                 onPageChanged: (index) async {
                   controller.visiblePageIndex.value = index;
                   int actualIndex =
-                      index % controller.videoFeed.value.videos!.length;
+                      controller.videoFeed.value.videos != null
+                          ? index % controller.videoFeed.value.videos!.length
+                          : 0;
                   controller.handlePageChange(actualIndex);
                   if (mounted) setState(() {});
 
                   // Track view in Firestore
                   String? videoId =
-                      controller.videoFeed.value.videos![actualIndex].id;
+                      controller.videoFeed.value.videos != null
+                          ? controller.videoFeed.value.videos![actualIndex].id
+                          : null;
                   if (videoId != null) {
                     await _trackVideoView(videoId, userId, isAuthenticated);
                   } else {
                     print('Error: Video ID is null for index $actualIndex');
                   }
                 },
-                itemCount: 10000,
-                itemBuilder: (context, index) {
-                  int currentPage = controller.visiblePageIndex.value;
-                  bool isCurrentPage = currentPage == index;
-                  int actualIndex =
-                      index % controller.videoFeed.value.videos!.length;
-                  var videoDetail =
-                      controller.videoFeed.value.videos![actualIndex];
-                  var chewieController =
-                      controller.chewieControllers[actualIndex];
+                children:
+                    controller.videoFeed.value.videos != null
+                        ? controller.videoFeed.value.videos!.asMap().entries.map((
+                          entry,
+                        ) {
+                          int index = entry.key;
+                          var videoDetail = entry.value;
+                          var chewieController =
+                              controller.chewieControllers[index];
 
-                  bool isInitialized =
-                      chewieController != null &&
-                      chewieController
-                          .videoPlayerController
-                          .value
-                          .isInitialized;
+                          bool isInitialized =
+                              chewieController != null &&
+                              chewieController
+                                  .videoPlayerController
+                                  .value
+                                  .isInitialized;
 
-                  return Stack(
-                    clipBehavior: Clip.none,
-                    alignment: Alignment.bottomLeft,
-                    children: [
-                      Positioned.fill(
-                        child: GestureDetector(
-                          onTap: _togglePlayPause,
-                          onDoubleTap: controller.toggleMute,
-                          child: Stack(
+                          return Stack(
+                            clipBehavior: Clip.none,
+                            alignment: Alignment.bottomLeft,
                             children: [
-                              Center(
-                                child:
-                                    isInitialized
-                                        ? Chewie(controller: chewieController)
-                                        : Container(
-                                          width:
-                                              MediaQuery.of(context).size.width,
-                                          height:
-                                              MediaQuery.of(
-                                                context,
-                                              ).size.height,
-                                          color: Colors.black,
-                                          child: Center(
-                                            child: PulseLogoLoader(
-                                              logoPath:
-                                                  "assets/images/appIcon.png",
-                                              size: 80,
+                              Positioned.fill(
+                                child: GestureDetector(
+                                  onTap: _togglePlayPause,
+                                  onDoubleTap: controller.toggleMute,
+                                  child: Stack(
+                                    children: [
+                                      Center(
+                                        child:
+                                            isInitialized
+                                                ? Chewie(
+                                                  controller: chewieController,
+                                                )
+                                                : Container(
+                                                  width:
+                                                      MediaQuery.of(
+                                                        context,
+                                                      ).size.width,
+                                                  height:
+                                                      MediaQuery.of(
+                                                        context,
+                                                      ).size.height,
+                                                  color: Colors.black,
+                                                  child: CachedNetworkImage(
+                                                    imageUrl:
+                                                        '${Common.videoUrl}/${videoDetail.image}',
+                                                  ),
+                                                ),
+                                      ),
+                                      if (_showIcon &&
+                                          isInitialized &&
+                                          index ==
+                                              controller.currentIndex.value)
+                                        Center(
+                                          child: Container(
+                                            decoration: BoxDecoration(
+                                              color: Colors.black.withOpacity(
+                                                0.3,
+                                              ),
+                                              shape: BoxShape.circle,
+                                            ),
+                                            padding: const EdgeInsets.all(8),
+                                            child: Icon(
+                                              chewieController.isPlaying
+                                                  ? Icons.pause_circle_filled
+                                                  : Icons.play_circle_filled,
+                                              size: 64.0,
+                                              color: Colors.white.withOpacity(
+                                                0.7,
+                                              ),
                                             ),
                                           ),
                                         ),
-                              ),
-                              if (_showIcon &&
-                                  isInitialized &&
-                                  index == controller.currentIndex.value)
-                                Center(
-                                  child: Container(
-                                    decoration: BoxDecoration(
-                                      color: Colors.black.withOpacity(0.3),
-                                      shape: BoxShape.circle,
-                                    ),
-                                    padding: EdgeInsets.all(8),
-                                    child: Icon(
-                                      chewieController.isPlaying
-                                          ? Icons.pause_circle_filled
-                                          : Icons.play_circle_filled,
-                                      size: 64.0,
-                                      color: Colors.white.withOpacity(0.7),
-                                    ),
-                                  ),
-                                ),
-                              if (videoDetail.isImage == 0 && isInitialized)
-                                Positioned(
-                                  bottom: Platform.isAndroid ? 70 : 100,
-                                  left: 0.0,
-                                  right: 0.0,
-                                  child: StreamBuilder<Duration>(
-                                    stream: Stream.periodic(
-                                      Duration(milliseconds: 100),
-                                      (_) {
-                                        return chewieController
-                                            .videoPlayerController
-                                            .value
-                                            .position;
-                                      },
-                                    ),
-                                    builder: (context, snapshot) {
-                                      final position =
-                                          snapshot.data ?? Duration.zero;
-                                      final duration =
-                                          chewieController
-                                              .videoPlayerController
-                                              .value
-                                              .duration ??
-                                          Duration.zero;
-                                      return SliderTheme(
-                                        data: SliderThemeData(),
-                                        child: Slider(
-                                          value: position.inSeconds.toDouble(),
-                                          max:
-                                              duration.inSeconds > 0
-                                                  ? duration.inSeconds
-                                                      .toDouble()
-                                                  : 1.0,
-                                          onChanged: (value) {
-                                            chewieController.seekTo(
-                                              Duration(seconds: value.toInt()),
-                                            );
-                                          },
-                                          thumbColor: ColorUtils.primaryColor,
-                                          activeColor: ColorUtils.primaryColor,
-                                          inactiveColor: ColorUtils.darkBrown,
+                                      if (videoDetail.isImage == 0 &&
+                                          isInitialized)
+                                        Positioned(
+                                          bottom: Platform.isAndroid ? 70 : 100,
+                                          left: 0.0,
+                                          right: 0.0,
+                                          child: StreamBuilder<Duration>(
+                                            stream: Stream.periodic(
+                                              const Duration(milliseconds: 100),
+                                              (_) {
+                                                return chewieController
+                                                    .videoPlayerController
+                                                    .value
+                                                    .position;
+                                              },
+                                            ),
+                                            builder: (context, snapshot) {
+                                              final position =
+                                                  snapshot.data ??
+                                                  Duration.zero;
+                                              final duration =
+                                                  chewieController
+                                                      .videoPlayerController
+                                                      .value
+                                                      .duration ??
+                                                  Duration.zero;
+                                              return SliderTheme(
+                                                data: const SliderThemeData(),
+                                                child: Slider(
+                                                  value:
+                                                      position.inSeconds
+                                                          .toDouble(),
+                                                  max:
+                                                      duration.inSeconds > 0
+                                                          ? duration.inSeconds
+                                                              .toDouble()
+                                                          : 1.0,
+                                                  onChanged: (value) {
+                                                    chewieController.seekTo(
+                                                      Duration(
+                                                        seconds: value.toInt(),
+                                                      ),
+                                                    );
+                                                  },
+                                                  thumbColor:
+                                                      ColorUtils.primaryColor,
+                                                  activeColor:
+                                                      ColorUtils.primaryColor,
+                                                  inactiveColor:
+                                                      ColorUtils.darkBrown,
+                                                ),
+                                              );
+                                            },
+                                          ),
                                         ),
-                                      );
-                                    },
+                                    ],
                                   ),
                                 ),
+                              ),
+                              Obx(
+                                () =>
+                                    controller.isMuted.value
+                                        ? Positioned(
+                                          top: 100,
+                                          right: 20,
+                                          child: InkWell(
+                                            onTap: controller.toggleMute,
+                                            child: Container(
+                                              padding: const EdgeInsets.all(8),
+                                              decoration: BoxDecoration(
+                                                color: Colors.black.withOpacity(
+                                                  0.6,
+                                                ),
+                                                borderRadius:
+                                                    BorderRadius.circular(20),
+                                              ),
+                                              child: Icon(
+                                                Icons.volume_off,
+                                                color: Colors.white,
+                                                size: 24.sp,
+                                              ),
+                                            ),
+                                          ),
+                                        )
+                                        : const SizedBox(),
+                              ),
+                              VideoDescriptionWidget(
+                                title: videoDetail.title,
+                                description: videoDetail.description,
+                                tags: videoDetail.tags,
+                                controller: controller,
+                              ),
+                              videoUserDetails(
+                                profileController: profileController,
+                                professionalProfileController:
+                                    professionalProfileController,
+                                videoDetail: videoDetail,
+                                controller: controller,
+                                userId: userId,
+                                isAuthenticated: isAuthenticated,
+                              ),
+                              videoActions(
+                                videoDetail,
+                                currentUserDetails,
+                                currentUser,
+                                context,
+                              ),
                             ],
+                          );
+                        }).toList()
+                        : [
+                          Container(
+                            width: MediaQuery.of(context).size.width,
+                            height: MediaQuery.of(context).size.height,
+                            color: Colors.black,
+                            child: const Center(
+                              child: Text(
+                                'No videos available',
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  color: Colors.grey,
+                                ),
+                              ),
+                            ),
                           ),
-                        ),
-                      ),
-                      Obx(
-                        () =>
-                            controller.isMuted.value
-                                ? Positioned(
-                                  top: 100,
-                                  right: 20,
-                                  child: InkWell(
-                                    onTap: controller.toggleMute,
-                                    child: Container(
-                                      padding: EdgeInsets.all(8),
-                                      decoration: BoxDecoration(
-                                        color: Colors.black.withOpacity(0.6),
-                                        borderRadius: BorderRadius.circular(20),
-                                      ),
-                                      child: Icon(
-                                        Icons.volume_off,
-                                        color: Colors.white,
-                                        size: 24.sp,
-                                      ),
-                                    ),
-                                  ),
-                                )
-                                : SizedBox(),
-                      ),
-                      VideoDescriptionWidget(
-                        title: videoDetail.title,
-                        description: videoDetail.description,
-                        tags: videoDetail.tags,
-                        controller: controller,
-                      ),
-                      videoUserDetails(
-                        profileController: profileController,
-                        professionalProfileController:
-                            professionalProfileController,
-                        videoDetail: videoDetail,
-                        controller: controller,
-                        userId: userId,
-                        isAuthenticated: isAuthenticated,
-                      ),
-                      videoActions(
-                        videoDetail,
-                        currentUserDetails,
-                        currentUser,
-                        context,
-                      ),
-                    ],
-                  );
-                },
+                        ],
               ),
               SafeArea(
                 child: Padding(
