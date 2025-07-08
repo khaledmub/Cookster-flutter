@@ -355,7 +355,7 @@ class _SearchViewState extends State<SearchView>
                   size: 80,
                 ),
               );
-            } else if (categories == null || categories.isEmpty) {
+            } else if (categories == null) {
               return _buildNoResultsFound();
             } else {
               return SingleChildScrollView(
@@ -371,62 +371,60 @@ class _SearchViewState extends State<SearchView>
                     mainAxisSpacing: 12,
                     crossAxisSpacing: 12,
                     childAspectRatio: 3,
-                    children:
-                        categories.asMap().entries.map((entry) {
-                          int index = entry.key;
-                          var category = entry.value;
+                    children: categories.values?.asMap().entries.map((entry) {
+                      int index = entry.key;
+                      var value = entry.value;
 
-                          return InkWell(
-                            onTap: () async {
-                              bool isAuthenticated =
-                                  await _isUserAuthenticated();
-                              if (isAuthenticated) {
-                                Get.to(
-                                  B2bUsersList(
-                                    categoryId: category.id.toString(),
-                                    categoryName: category.name.toString(),
-                                  ),
-                                );
-                              } else {
-                                Get.toNamed(AppRoutes.signIn);
-                              }
-                            },
-                            child: Container(
-                              padding: EdgeInsets.all(12),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(color: Colors.grey[200]!),
+                      return InkWell(
+                        onTap: () async {
+                          bool isAuthenticated = await _isUserAuthenticated();
+                          if (isAuthenticated) {
+                            Get.to(
+                              B2bUsersList(
+                                categoryId: value.id.toString(),
+                                categoryName: value.name.toString(),
                               ),
-                              child: Row(
-                                children: [
-                                  // Index number badge
-                                  Text(
-                                    '${index + 1}.', // Show 1-based index
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                  SizedBox(width: 8),
-                                  Expanded(
-                                    child: Text(
-                                      category.name ?? "Unknown",
-                                      style: TextStyle(
-                                        fontSize: 12.sp,
-                                        fontWeight: FontWeight.w600,
-                                        color: Colors.black87,
-                                      ),
-                                      maxLines: 2,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ),
-                                  Icon(Icons.chevron_right),
-                                ],
+                            );
+                          } else {
+                            Get.toNamed(AppRoutes.signIn);
+                          }
+                        },
+                        child: Container(
+                          padding: EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: Colors.grey[200]!),
+                          ),
+                          child: Row(
+                            children: [
+                              // Index number badge
+                              Text(
+                                '${index + 1}.', // Show 1-based index
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w500,
+                                ),
                               ),
-                            ),
-                          );
-                        }).toList(),
-                  ),
+                              SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  value.name ?? "Unknown",
+                                  style: TextStyle(
+                                    fontSize: 12.sp,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.black87,
+                                  ),
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              Icon(Icons.chevron_right),
+                            ],
+                          ),
+                        ),
+                      );
+                    }).toList() ?? [],
+                  )
                 ),
               );
             }

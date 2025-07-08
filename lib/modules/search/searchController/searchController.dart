@@ -182,18 +182,20 @@ class UserSearchController extends GetxController {
 
     B2BCategoryModel filtered = B2BCategoryModel(
       status: b2bCategories.value.status,
-      businessTypes: [],
+      businessTypes: BusinessTypes(
+        key: b2bCategories.value.businessTypes?.key,
+        values: [],
+      ),
     );
 
-    if (b2bCategories.value.businessTypes != null) {
-      filtered.businessTypes =
-          b2bCategories.value.businessTypes!
-              .where(
-                (category) =>
-                    category.name != null &&
-                    category.name!.toLowerCase().contains(query.toLowerCase()),
-              )
-              .toList();
+    if (b2bCategories.value.businessTypes?.values != null) {
+      filtered.businessTypes!.values = b2bCategories.value.businessTypes!.values!
+          .where(
+            (value) =>
+        value.name != null &&
+            value.name!.toLowerCase().contains(query.toLowerCase()),
+      )
+          .toList();
     }
 
     filteredB2bCategories.value = filtered;

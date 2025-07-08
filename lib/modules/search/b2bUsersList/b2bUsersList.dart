@@ -194,7 +194,24 @@ class _B2bUsersListState extends State<B2bUsersList> {
                         .value
                         .b2bAccountsList!
                         .isEmpty
-                ? const Center(child: Text("No users found for this category"))
+                ? Center(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Image.asset("assets/images/notfound.png", height: 250),
+                      SizedBox(height: 16),
+                      Text(
+                        "${"no_b2b_found".tr} ${widget.categoryName} ",
+                        style: TextStyle(
+                          color: ColorUtils.primaryColor,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                )
                 : Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
