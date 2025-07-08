@@ -118,7 +118,7 @@ class UpdatesList extends StatelessWidget {
           .notifications
           ?.isEmpty ??
           true) {
-        return Center(child: Text("No notifications available".tr));
+        return Center(child: Text("No notifications available".tr, style: TextStyle(color: ColorUtils.primaryColor)));
       }
 
       // Build scrollable list of notifications

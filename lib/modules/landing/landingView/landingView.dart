@@ -293,7 +293,6 @@ class _LandingState extends State<Landing> {
 
   @override
   Widget build(BuildContext context) {
-
     appLinks.getInitialLink().then((uri) async {
       bool isAuthenticated = await _isUserAuthenticated();
       if (uri != null) {
@@ -391,7 +390,9 @@ class _LandingState extends State<Landing> {
                 )
                 : Scaffold(
                   resizeToAvoidBottomInset: false,
-                  bottomNavigationBar: _buildBottomNavBar(context),
+                  bottomNavigationBar: SafeArea(
+                    child: _buildBottomNavBar(context),
+                  ),
                   body: FutureBuilder<List<Widget>>(
                     future: _screens(context),
                     builder: (context, snapshot) {
@@ -412,7 +413,6 @@ class _LandingState extends State<Landing> {
                               snapshot.data![navBarController
                                   .selectedIndex
                                   .value],
-
                             ],
                           );
                         });

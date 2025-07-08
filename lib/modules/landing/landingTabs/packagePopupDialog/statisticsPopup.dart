@@ -107,9 +107,7 @@ class _VideoStatsDialog extends StatelessWidget {
             Flexible(
               child: SingleChildScrollView(
                 physics: const BouncingScrollPhysics(),
-                child: StreamBuilder<
-                  List<DocumentSnapshot<Map<String, dynamic>>>
-                >(
+                child: StreamBuilder<List<DocumentSnapshot<Map<String, dynamic>>>>(
                   stream: ZipStream.zip2(
                     FirebaseFirestore.instance
                         .collection('videos')
@@ -119,14 +117,15 @@ class _VideoStatsDialog extends StatelessWidget {
                         .collection('countContactClick')
                         .doc(video)
                         .snapshots(),
-                    (videoSnap, clickSnap) => [videoSnap, clickSnap],
+                        (videoSnap, clickSnap) => [videoSnap, clickSnap],
                   ),
                   builder: (context, snapshot) {
                     if (snapshot.connectionState == ConnectionState.waiting) {
                       return const Center(child: CircularProgressIndicator());
                     }
-                    if (!snapshot.hasData ||
-                        snapshot.data!.any((s) => !s.exists)) {
+
+                    if (!snapshot.hasData || snapshot.data![0].exists == false) {
+                      // Show default values with colored icons when video document doesn't exist
                       return Column(
                         children: [
                           _DetailTile(
@@ -134,43 +133,84 @@ class _VideoStatsDialog extends StatelessWidget {
                             value: '0',
                             valueIcon: Icons.favorite_border,
                             valueIconSize: 16,
+                            valueColor: Colors.redAccent,
                           ),
                           _DetailTile(
                             label: 'views'.tr,
                             value: '0',
                             valueIcon: Icons.visibility_outlined,
                             valueIconSize: 16,
+                            valueColor: Colors.blueAccent,
                           ),
                           _DetailTile(
                             label: 'total_clicks'.tr,
                             value: '0',
                             valueIcon: Icons.touch_app_outlined,
                             valueIconSize: 16,
+                            valueColor: Colors.greenAccent,
                           ),
                         ],
                       );
                     }
+
                     final videoSnapshot = snapshot.data![0];
                     final clickSnapshot = snapshot.data![1];
                     final videoData = videoSnapshot.data() ?? {};
-                    final clickData = clickSnapshot.data() ?? {};
                     final likes = videoData['likes'] as List<dynamic>? ?? [];
                     final views = videoData['views'] as List<dynamic>? ?? [];
-                    final totalClicks = clickData['totalClicks'] as int? ?? 0;
                     final likeCount = likes.length;
                     final viewCount = views.length;
-                    final formattedLikeCount =
-                        likeCount > 1000
-                            ? _numberFormat.format(likeCount)
-                            : likeCount.toString();
-                    final formattedViewCount =
-                        viewCount > 1000
-                            ? _numberFormat.format(viewCount)
-                            : viewCount.toString();
-                    final formattedTotalClicks =
-                        totalClicks > 1000
-                            ? _numberFormat.format(totalClicks)
-                            : totalClicks.toString();
+                    final formattedLikeCount = likeCount > 1000
+                        ? _numberFormat.format(likeCount)
+                        : likeCount.toString();
+                    final formattedViewCount = viewCount > 1000
+                        ? _numberFormat.format(viewCount)
+                        : viewCount.toString();
+
+                    // If clickSnapshot doesn't exist, create the node with totalClicks = 0
+                    if (!clickSnapshot.exists) {
+                      FirebaseFirestore.instance
+                          .collection('countContactClick')
+                          .doc(video)
+                          .set({'totalClicks': 0}).catchError((e) {
+                        print('Error creating countContactClick node: $e');
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('error_creating_stats'.tr)),
+                        );
+                      });
+                      // Return tiles with actual likes/views and 0 clicks
+                      return Column(
+                        children: [
+                          _DetailTile(
+                            label: 'likes'.tr,
+                            value: formattedLikeCount,
+                            valueIcon: Icons.favorite_border,
+                            valueIconSize: 16,
+                            valueColor: Colors.redAccent,
+                          ),
+                          _DetailTile(
+                            label: 'views'.tr,
+                            value: formattedViewCount,
+                            valueIcon: Icons.visibility_outlined,
+                            valueIconSize: 16,
+                            valueColor: Colors.blueAccent,
+                          ),
+                          _DetailTile(
+                            label: 'total_clicks'.tr,
+                            value: '0',
+                            valueIcon: Icons.touch_app_outlined,
+                            valueIconSize: 16,
+                            valueColor: Colors.greenAccent,
+                          ),
+                        ],
+                      );
+                    }
+
+                    final clickData = clickSnapshot.data() ?? {};
+                    final totalClicks = clickData['totalClicks'] as int? ?? 0;
+                    final formattedTotalClicks = totalClicks > 1000
+                        ? _numberFormat.format(totalClicks)
+                        : totalClicks.toString();
 
                     return Column(
                       children: [
