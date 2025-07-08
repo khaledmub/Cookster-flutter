@@ -217,26 +217,25 @@ class _ILSViewState extends State<ILSView> {
                                                       )
                                                       : null,
                                             ),
-                                            child:
-                                                ClipOval(
-                                                      child: Image.network(
-                                                        '${Common.profileImage}/${userImage}',
-                                                        fit: BoxFit.cover,
-                                                        width: 40,
-                                                        height: 40,
-                                                        errorBuilder: (
-                                                          context,
-                                                          error,
-                                                          stackTrace,
-                                                        ) {
-                                                          return const Icon(
-                                                            Icons.person,
-                                                            color: Colors.white,
-                                                            size: 24,
-                                                          );
-                                                        },
-                                                      ),
-                                                    ),
+                                            child: ClipOval(
+                                              child: Image.network(
+                                                '${Common.profileImage}/${userImage}',
+                                                fit: BoxFit.cover,
+                                                width: 40,
+                                                height: 40,
+                                                errorBuilder: (
+                                                  context,
+                                                  error,
+                                                  stackTrace,
+                                                ) {
+                                                  return const Icon(
+                                                    Icons.person,
+                                                    color: Colors.white,
+                                                    size: 24,
+                                                  );
+                                                },
+                                              ),
+                                            ),
                                           ),
                                           const SizedBox(width: 8),
                                           // User Name and Likes Count
@@ -263,7 +262,6 @@ class _ILSViewState extends State<ILSView> {
                                                   ),
                                                 ],
                                               ),
-
                                             ],
                                           ),
                                         ],
@@ -290,20 +288,23 @@ class _ILSViewState extends State<ILSView> {
                                           );
                                         }
                                         int count =
-                                            snapshot.data!['joinedUsersCount'] ??
+                                            snapshot
+                                                .data!['joinedUsersCount'] ??
                                             0;
                                         return Row(
                                           children: [
                                             Container(
-                                              padding: const EdgeInsets.symmetric(
-                                                horizontal: 8,
-                                                vertical: 2,
-                                              ),
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 8,
+                                                    vertical: 2,
+                                                  ),
                                               decoration: BoxDecoration(
-                                                color: Colors.black.withOpacity(0.3),
-                                                borderRadius: BorderRadius.circular(
-                                                  18,
+                                                color: Colors.black.withOpacity(
+                                                  0.3,
                                                 ),
+                                                borderRadius:
+                                                    BorderRadius.circular(18),
                                               ),
                                               child: Row(
                                                 children: [
@@ -323,17 +324,13 @@ class _ILSViewState extends State<ILSView> {
                                               ),
                                             ),
 
-                                            SizedBox(width: 8,),
+                                            SizedBox(width: 8),
 
-                                            _buildLivestreamControls()
-
+                                            _buildLivestreamControls(),
                                           ],
                                         );
                                       },
                                     ),
-
-
-
                                   ],
                                 ),
                               );
@@ -431,7 +428,14 @@ class _ILSViewState extends State<ILSView> {
                 // End the entire meeting/livestream
                 widget.room.end();
                 endLivestream(widget.roomId);
-                // Or if you want to just leave: widget.room.leave();
+                // Show snackbar to confirm livestream ended
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    backgroundColor: Colors.orange,
+                    content: Text("livestream_ended".tr),
+                    duration: Duration(seconds: 3),
+                  ),
+                );
               },
             ),
           ],
@@ -440,14 +444,36 @@ class _ILSViewState extends State<ILSView> {
     );
   }
 
-  // listening to room events for participants join, left and hls state changes
+  // Listening to room events for participants join, left and hls state changes
   void setlivestreamEventListener() {
-    widget.room.on(Events.participantJoined, (Participant participant) {
-      //Adding only Conference participant to show in grid
+    widget.room.on(Events.participantJoined, (Participant participant) async {
+      // Adding only Conference participant to show in grid
       if (participant.mode == Mode.SEND_AND_RECV) {
         setState(
           () => participants.putIfAbsent(participant.id, () => participant),
         );
+        // Fetch user data from Firestore
+        try {
+          DocumentSnapshot userDoc =
+              await FirebaseFirestore.instance
+                  .collection('users')
+                  .doc(participant.id)
+                  .get();
+          if (userDoc.exists) {
+            final userData = userDoc.data() as Map<String, dynamic>?;
+            final userName = userData?['name'] ?? 'Unknown User';
+            // Show snackbar for participant joining
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                backgroundColor: Colors.green,
+                content: Text('${userName} ${"joined_livestream".tr}'),
+                duration: Duration(seconds: 3),
+              ),
+            );
+          }
+        } catch (e) {
+          print('Error fetching user data: $e');
+        }
       }
     });
 
@@ -465,17 +491,15 @@ class _ILSViewState extends State<ILSView> {
     });
   }
 
-
-
   Widget _buildLivestreamControls() {
     if (localMode == Mode.SEND_AND_RECV) {
       return LivestreamControls(
         mode: Mode.SEND_AND_RECV,
-        micEnabled: micEnabled, // Pass micEnabled
+        micEnabled: micEnabled,
         onToggleMicButtonPressed: () {
           micEnabled ? widget.room.muteMic() : widget.room.unmuteMic();
           setState(() {
-            micEnabled = !micEnabled; // Update state to trigger rebuild
+            micEnabled = !micEnabled;
           });
         },
         onToggleCameraButtonPressed: () {
@@ -496,7 +520,7 @@ class _ILSViewState extends State<ILSView> {
         children: [
           LivestreamControls(
             mode: Mode.RECV_ONLY,
-            micEnabled: micEnabled, // Pass micEnabled
+            micEnabled: micEnabled,
             onToggleMicButtonPressed: () {
               micEnabled ? widget.room.muteMic() : widget.room.unmuteMic();
               setState(() {
@@ -521,7 +545,7 @@ class _ILSViewState extends State<ILSView> {
     } else {
       return LivestreamControls(
         mode: Mode.RECV_ONLY,
-        micEnabled: micEnabled, // Pass micEnabled
+        micEnabled: micEnabled,
         onToggleMicButtonPressed: () {
           micEnabled ? widget.room.muteMic() : widget.room.unmuteMic();
           setState(() {

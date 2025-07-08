@@ -477,5 +477,6 @@ const Map<String, String> en = {
   "views" : "Views",
   "total_clicks" : "Total Clicks",
   "failed_to_load_video" : "Failed to load video",
-  "no_b2b_found" : "No B2B Account found for"
+  "no_b2b_found" : "No B2B Account found for",
+  "livestream_ended" : "Livestream ended"
 };

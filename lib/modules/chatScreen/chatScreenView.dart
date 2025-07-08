@@ -9,29 +9,34 @@ import '../../appUtils/apiEndPoints.dart';
 import '../../appUtils/colorUtils.dart';
 import 'chatController/chatController.dart';
 
-class ChatView extends StatelessWidget {
+class ChatView extends StatefulWidget {
   final String senderId;
   final String receiverId;
 
   const ChatView({required this.senderId, required this.receiverId, Key? key})
-    : super(key: key);
+      : super(key: key);
+
+  @override
+  State<ChatView> createState() => _ChatViewState();
+}
+
+class _ChatViewState extends State<ChatView> {
+  late final ChatController controller;
+
+  @override
+  void initState() {
+    super.initState();
+    controller = Get.put(
+      ChatController(senderId: widget.senderId, receiverId: widget.receiverId),
+    );
+    controller.markMessagesAsRead();
+  }
 
   @override
   Widget build(BuildContext context) {
-    // SystemChrome.setSystemUIOverlayStyle(
-    //   const SystemUiOverlayStyle(
-    //     statusBarIconBrightness: Brightness.dark, // White icons
-    //     statusBarColor: Colors.transparent, // Transparent status bar
-    //   ),
-    // );
-    final controller = Get.put(
-      ChatController(senderId: senderId, receiverId: receiverId),
-    );
-
     return Scaffold(
       resizeToAvoidBottomInset: true,
       backgroundColor: Colors.grey[100],
-
       body: Column(
         children: [
           Container(
@@ -39,15 +44,13 @@ class ChatView extends StatelessWidget {
             width: double.infinity,
             decoration: BoxDecoration(color: Colors.white),
             child: Column(
-              // crossAxisAlignment: CrossAxisAlignment.center,
-              // mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Container(
                   width: double.infinity,
                   height: 45,
                   color: Colors.black,
                 ),
-                SizedBox(height: 16,),
+                SizedBox(height: 16),
                 Obx(() => _buildAppBarContent(controller)),
               ],
             ),
@@ -108,7 +111,7 @@ class ChatView extends StatelessWidget {
                     if (timestamp == null) continue;
 
                     final messageDate = timestamp.toDate();
-                    final isMe = message['senderId'] == senderId;
+                    final isMe = message['senderId'] == widget.senderId;
 
                     if (_shouldShowDateHeader(messageDate, previousDate)) {
                       messageWidgets.add(
@@ -145,24 +148,21 @@ class ChatView extends StatelessWidget {
 
                     messageWidgets.add(
                       Align(
-                        alignment:
-                            isMe
-                                ? Alignment.centerRight
-                                : Alignment.centerLeft,
+                        alignment: isMe
+                            ? Alignment.centerRight
+                            : Alignment.centerLeft,
                         child: Container(
                           margin: EdgeInsets.symmetric(
                             vertical: 4,
                             horizontal: 12,
                           ),
                           constraints: BoxConstraints(
-                            maxWidth:
-                                MediaQuery.of(context).size.width * 0.75,
+                            maxWidth: MediaQuery.of(context).size.width * 0.75,
                           ),
                           child: Column(
-                            crossAxisAlignment:
-                                isMe
-                                    ? CrossAxisAlignment.end
-                                    : CrossAxisAlignment.start,
+                            crossAxisAlignment: isMe
+                                ? CrossAxisAlignment.end
+                                : CrossAxisAlignment.start,
                             children: [
                               Container(
                                 padding: EdgeInsets.symmetric(
@@ -170,10 +170,9 @@ class ChatView extends StatelessWidget {
                                   vertical: 10,
                                 ),
                                 decoration: BoxDecoration(
-                                  color:
-                                      isMe
-                                          ? ColorUtils.primaryColor
-                                          : Colors.white,
+                                  color: isMe
+                                      ? ColorUtils.primaryColor
+                                      : Colors.white,
                                   borderRadius: BorderRadius.circular(16),
                                   boxShadow: [
                                     BoxShadow(
@@ -187,8 +186,7 @@ class ChatView extends StatelessWidget {
                                   message['message'] ?? '',
                                   style: TextStyle(
                                     fontSize: 16,
-                                    color:
-                                        isMe ? Colors.white : Colors.black87,
+                                    color: isMe ? Colors.white : Colors.black87,
                                   ),
                                 ),
                               ),
@@ -218,7 +216,7 @@ class ChatView extends StatelessWidget {
                     padding: EdgeInsets.symmetric(vertical: 12),
                     children: messageWidgets,
                     keyboardDismissBehavior:
-                        ScrollViewKeyboardDismissBehavior.onDrag,
+                    ScrollViewKeyboardDismissBehavior.onDrag,
                   );
                 },
               ),
@@ -251,7 +249,7 @@ class ChatView extends StatelessWidget {
         if (snapshot.hasData && snapshot.data!.exists) {
           final data = snapshot.data!.data() as Map<String, dynamic>?;
           final blockedBy = List<String>.from(data?['blockedBy'] ?? []);
-          controller.isBlocked.value = blockedBy.contains(senderId);
+          controller.isBlocked.value = blockedBy.contains(widget.senderId);
         }
 
         final receiverName = controller.receiverData['name'] as String;
@@ -270,16 +268,14 @@ class ChatView extends StatelessWidget {
             CircleAvatar(
               radius: 20,
               backgroundColor: Colors.grey[200],
-              backgroundImage:
-                  receiverImage.isNotEmpty
-                      ? CachedNetworkImageProvider(
-                        '${Common.profileImage}/$receiverImage',
-                      )
-                      : null,
-              child:
-                  receiverImage.isEmpty
-                      ? Icon(Icons.person, color: Colors.grey[600])
-                      : null,
+              backgroundImage: receiverImage.isNotEmpty
+                  ? CachedNetworkImageProvider(
+                '${Common.profileImage}/$receiverImage',
+              )
+                  : null,
+              child: receiverImage.isEmpty
+                  ? Icon(Icons.person, color: Colors.grey[600])
+                  : null,
             ),
             SizedBox(width: 12),
             Text(
@@ -303,125 +299,125 @@ class ChatView extends StatelessWidget {
         if (snapshot.hasData && snapshot.data!.exists) {
           final data = snapshot.data!.data() as Map<String, dynamic>?;
           final blockedBy = List<String>.from(data?['blockedBy'] ?? []);
-          controller.isBlocked.value = blockedBy.contains(senderId);
+          controller.isBlocked.value = blockedBy.contains(widget.senderId);
         }
 
-        if (controller.isBlocked.value) {
+        return Obx(() {
+          if (controller.isBlocked.value) {
+            return Container(
+              padding: EdgeInsets.all(16),
+              color: Colors.red[50],
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.lock, color: Colors.redAccent, size: 24),
+                  SizedBox(width: 8),
+                  Text(
+                    'you_blocked_user'.tr,
+                    style: TextStyle(
+                      color: Colors.redAccent,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }
+
           return Container(
-            padding: EdgeInsets.all(16),
-            color: Colors.red[50],
+            padding: EdgeInsets.only(
+              left: 16,
+              right: 16,
+              top: 12,
+              bottom: 12 + MediaQuery.of(context).viewPadding.bottom,
+            ),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.1),
+                  blurRadius: 8,
+                  offset: Offset(0, -2),
+                ),
+              ],
+            ),
             child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(Icons.lock, color: Colors.redAccent, size: 24),
+                Expanded(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.grey[100],
+                      borderRadius: BorderRadius.circular(25),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.1),
+                          blurRadius: 4,
+                          offset: Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: TextField(
+                      controller: controller.messageController,
+                      focusNode: controller.messageFocusNode,
+                      style: TextStyle(color: Colors.black87),
+                      maxLines: 4,
+                      minLines: 1,
+                      textCapitalization: TextCapitalization.sentences,
+                      decoration: InputDecoration(
+                        hintText: 'type_message'.tr,
+                        hintStyle: TextStyle(color: Colors.grey[500]),
+                        border: InputBorder.none,
+                        contentPadding: EdgeInsets.symmetric(
+                          horizontal: 20,
+                          vertical: 12,
+                        ),
+                      ),
+                      onSubmitted: (_) => controller.sendMessage(),
+                      textInputAction: TextInputAction.send,
+                      onTap: () => controller.scrollToBottom(),
+                    ),
+                  ),
+                ),
                 SizedBox(width: 8),
-                Text(
-                  'you_blocked_user'.tr,
-                  style: TextStyle(
-                    color: Colors.redAccent,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
+                Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [ColorUtils.primaryColor, Color(0xFFFFE55C)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: ColorUtils.primaryColor.withOpacity(0.3),
+                        blurRadius: 8,
+                        offset: Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: IconButton(
+                    icon: controller.isSendingMessage.value
+                        ? SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(
+                          Colors.white,
+                        ),
+                      ),
+                    )
+                        : Icon(Icons.send, color: Colors.white, size: 24),
+                    onPressed: controller.isSendingMessage.value
+                        ? null
+                        : controller.sendMessage,
                   ),
                 ),
               ],
             ),
           );
-        }
-
-        return Container(
-          padding: EdgeInsets.only(
-            left: 16,
-            right: 16,
-            top: 12,
-            bottom: 12 + MediaQuery.of(context).viewPadding.bottom,
-          ),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.1),
-                blurRadius: 8,
-                offset: Offset(0, -2),
-              ),
-            ],
-          ),
-          child: Row(
-            children: [
-              Expanded(
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: Colors.grey[100],
-                    borderRadius: BorderRadius.circular(25),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.1),
-                        blurRadius: 4,
-                        offset: Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child: TextField(
-                    controller: controller.messageController,
-                    focusNode: controller.messageFocusNode,
-                    style: TextStyle(color: Colors.black87),
-                    maxLines: 4,
-                    minLines: 1,
-                    textCapitalization: TextCapitalization.sentences,
-                    decoration: InputDecoration(
-                      hintText: 'type_message'.tr,
-                      hintStyle: TextStyle(color: Colors.grey[500]),
-                      border: InputBorder.none,
-                      contentPadding: EdgeInsets.symmetric(
-                        horizontal: 20,
-                        vertical: 12,
-                      ),
-                    ),
-                    onSubmitted: (_) => controller.sendMessage(),
-                    textInputAction: TextInputAction.send,
-                    onTap: () => controller.scrollToBottom(),
-                  ),
-                ),
-              ),
-              SizedBox(width: 8),
-              Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [ColorUtils.primaryColor, Color(0xFFFFE55C)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                      color: ColorUtils.primaryColor.withOpacity(0.3),
-                      blurRadius: 8,
-                      offset: Offset(0, 2),
-                    ),
-                  ],
-                ),
-                child: IconButton(
-                  icon:
-                      controller.isSendingMessage.value
-                          ? SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              valueColor: AlwaysStoppedAnimation<Color>(
-                                Colors.white,
-                              ),
-                            ),
-                          )
-                          : Icon(Icons.send, color: Colors.white, size: 24),
-                  onPressed:
-                      controller.isSendingMessage.value
-                          ? null
-                          : controller.sendMessage,
-                ),
-              ),
-            ],
-          ),
-        );
+        });
       },
     );
   }
