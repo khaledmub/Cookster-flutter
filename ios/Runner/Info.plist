@@ -1,56 +1,47 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
-  <dict>
+<dict>
     <!-- Custom URL scheme for Cookster -->
     <key>CFBundleURLTypes</key>
     <array>
-      <dict>
-        <!-- Custom scheme -->
-        <key>CFBundleURLSchemes</key>
-        <array>
-          <string>cookster</string>
-        </array>
-        <!-- Identifier to distinguish the app -->
-        <key>CFBundleURLName</key>
-        <string>com.cookster.cooksterapp</string>
-      </dict>
+        <dict>
+            <key>CFBundleURLSchemes</key>
+            <array>
+                <string>cookster</string>
+            </array>
+            <key>CFBundleURLName</key>
+            <string>com.cookster.cooksterapp</string>
+        </dict>
     </array>
-    <!-- END Custom URL scheme -->
 
     <!-- Permission Descriptions -->
     <key>NSCameraUsageDescription</key>
-    <key>NSCameraUsageDescription</key>
-    <string>Camera access is required to enable live streaming functionality.</string>
-
+    <string>This app requires camera access to enable live streaming, record videos, and capture photos for your cooking content.</string>
     <key>NSPhotoLibraryUsageDescription</key>
     <string>Photo library access is required to allow users to select images for upload.</string>
-
     <key>NSPhotoLibraryAddUsageDescription</key>
-    <string>Photo library access is required to save images to your device.</string>
-    <key>UIBackgroundModes</key>
-    <array>
-        <string>remote-notification</string>
-    </array>
-
+    <string>Photo library access is required to save images and videos to your device.</string>
     <key>NSLocationWhenInUseUsageDescription</key>
-    <string>This app requires location access to tag photos with your location</string>
+    <string>This app requires location access to tag photos with your location.</string>
     <key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-    <string>This app requires location access to tag photos with your location, even when the app is in the background</string>
+    <string>This app requires location access to tag photos with your location, even when the app is in the background.</string>
+    <key>NSLocationAlwaysUsageDescription</key>
+    <string>This app needs access to your location at all times for full functionality.</string>
     <key>NSMicrophoneUsageDescription</key>
-    <string>This app requires microphone access to record audio for videos</string>
+    <string>This app requires microphone access to record audio for live streams and videos.</string>
     <key>NSFaceIDUsageDescription</key>
-    <string>This app requires Face ID to secure your account</string>
+    <string>This app requires Face ID to secure your account.</string>
     <key>NSAppleMusicUsageDescription</key>
-    <string>This app requires media library access to select music for your creations</string>
+    <string>This app requires media library access to select music for your creations.</string>
     <key>NSCalendarsUsageDescription</key>
-    <string>This app requires calendar access to help you schedule and manage cooking-related events and reminders</string>
+    <string>This app requires calendar access to help you schedule and manage cooking-related events and reminders.</string>
 
     <!-- Notification Settings -->
     <key>UIBackgroundModes</key>
     <array>
-      <string>fetch</string>
-      <string>remote-notification</string>
+        <string>fetch</string>
+        <string>remote-notification</string>
     </array>
     <key>FirebaseAppDelegateProxyEnabled</key>
     <false/>
@@ -80,22 +71,20 @@
     <true/>
     <key>UILaunchStoryboardName</key>
     <string>LaunchScreen</string>
-    <key>NSLocationAlwaysUsageDescription</key>
-    <string>This app needs access to your location at all times for full functionality.</string>
     <key>UIMainStoryboardFile</key>
     <string>Main</string>
     <key>UISupportedInterfaceOrientations</key>
     <array>
-      <string>UIInterfaceOrientationPortrait</string>
-      <string>UIInterfaceOrientationLandscapeLeft</string>
-      <string>UIInterfaceOrientationLandscapeRight</string>
+        <string>UIInterfaceOrientationPortrait</string>
+        <string>UIInterfaceOrientationLandscapeLeft</string>
+        <string>UIInterfaceOrientationLandscapeRight</string>
     </array>
     <key>UISupportedInterfaceOrientations~ipad</key>
     <array>
-      <string>UIInterfaceOrientationPortrait</string>
-      <string>UIInterfaceOrientationPortraitUpsideDown</string>
-      <string>UIInterfaceOrientationLandscapeLeft</string>
-      <string>UIInterfaceOrientationLandscapeRight</string>
+        <string>UIInterfaceOrientationPortrait</string>
+        <string>UIInterfaceOrientationPortraitUpsideDown</string>
+        <string>UIInterfaceOrientationLandscapeLeft</string>
+        <string>UIInterfaceOrientationLandscapeRight</string>
     </array>
     <key>CADisableMinimumFrameDurationOnPhone</key>
     <true/>
@@ -103,5 +92,5 @@
     <true/>
     <key>FlutterDeepLinkingEnabled</key>
     <false/>
-  </dict>
+</dict>
 </plist>
