@@ -683,11 +683,12 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                                 child: Stack(
                                   children: [
                                     isInitialized
-                                        ? Chewie(
-                                          controller: chewieController,
-                                        )
+                                        ? Chewie(controller: chewieController)
                                         : Center(
-                                          child: PulseLogoLoader(logoPath: "assets/images/appLogo.png")
+                                          child: CachedNetworkImage(
+                                            imageUrl:
+                                                "${Common.videoUrl}/${videoDetail.image}",
+                                          ),
                                         ),
                                     if (_showIcon &&
                                         isInitialized &&
@@ -712,72 +713,109 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                                           ),
                                         ),
                                       ),
-                                    if (videoDetail.isImage == 0 && isInitialized)
+                                    if (videoDetail.isImage == 0 &&
+                                        isInitialized)
                                       Positioned(
                                         left: 0,
                                         right: 0,
                                         bottom: 3,
                                         child: StreamBuilder<Duration>(
                                           stream: Stream.periodic(
-                                            const Duration(milliseconds: 200), // Increased to 200ms for better performance
-                                                (_) => chewieController.videoPlayerController.value.position,
+                                            const Duration(milliseconds: 200),
+                                            // Increased to 200ms for better performance
+                                            (_) =>
+                                                chewieController
+                                                    .videoPlayerController
+                                                    .value
+                                                    .position,
                                           ),
                                           builder: (context, snapshot) {
-                                            final position = snapshot.data ?? Duration.zero;
-                                            final duration = chewieController.videoPlayerController.value.duration ?? Duration.zero;
-                                            final isInitialized = chewieController.videoPlayerController.value.isInitialized;
+                                            final position =
+                                                snapshot.data ?? Duration.zero;
+                                            final duration =
+                                                chewieController
+                                                    .videoPlayerController
+                                                    .value
+                                                    .duration ??
+                                                Duration.zero;
+                                            final isInitialized =
+                                                chewieController
+                                                    .videoPlayerController
+                                                    .value
+                                                    .isInitialized;
 
                                             // Disable slider if video is not initialized
-                                            if (!isInitialized || duration == Duration.zero) {
+                                            if (!isInitialized ||
+                                                duration == Duration.zero) {
                                               return Slider(
                                                 value: 0,
                                                 max: 1,
-                                                onChanged: null, // Disable interaction
-                                                thumbColor: ColorUtils.primaryColor,
-                                                activeColor: ColorUtils.primaryColor,
-                                                inactiveColor: ColorUtils.darkBrown,
+                                                onChanged: null,
+                                                // Disable interaction
+                                                thumbColor:
+                                                    ColorUtils.primaryColor,
+                                                activeColor:
+                                                    ColorUtils.primaryColor,
+                                                inactiveColor:
+                                                    ColorUtils.darkBrown,
                                               );
                                             }
 
                                             return SliderTheme(
                                               data: const SliderThemeData(
-                                                thumbShape: RoundSliderThumbShape(
-                                                  enabledThumbRadius: 2.0,
-                                                  disabledThumbRadius: 2.0,
-                                                  elevation: 0,
-                                                  pressedElevation: 0,
-                                                ),
-                                                overlayShape: RoundSliderOverlayShape(overlayRadius: 0),
+                                                thumbShape:
+                                                    RoundSliderThumbShape(
+                                                      enabledThumbRadius: 2.0,
+                                                      disabledThumbRadius: 2.0,
+                                                      elevation: 0,
+                                                      pressedElevation: 0,
+                                                    ),
+                                                overlayShape:
+                                                    RoundSliderOverlayShape(
+                                                      overlayRadius: 0,
+                                                    ),
                                                 trackHeight: 2,
                                               ),
                                               child: Slider(
-                                                value: position.inSeconds.toDouble(),
-                                                max: duration.inSeconds.toDouble(),
+                                                value:
+                                                    position.inSeconds
+                                                        .toDouble(),
+                                                max:
+                                                    duration.inSeconds
+                                                        .toDouble(),
                                                 onChanged: (value) {
                                                   // Seek to the new position
-                                                  chewieController.seekTo(Duration(seconds: value.toInt()));
+                                                  chewieController.seekTo(
+                                                    Duration(
+                                                      seconds: value.toInt(),
+                                                    ),
+                                                  );
                                                 },
                                                 onChangeStart: (_) {
                                                   // Pause video when scrubbing starts
-                                                  if (chewieController.isPlaying) {
+                                                  if (chewieController
+                                                      .isPlaying) {
                                                     chewieController.pause();
                                                   }
                                                 },
                                                 onChangeEnd: (_) {
                                                   // Resume playback after scrubbing ends
-                                                  if (!chewieController.isPlaying) {
+                                                  if (!chewieController
+                                                      .isPlaying) {
                                                     chewieController.play();
                                                   }
                                                 },
-                                                thumbColor: ColorUtils.primaryColor,
-                                                activeColor: ColorUtils.primaryColor,
-                                                inactiveColor: ColorUtils.darkBrown,
+                                                thumbColor:
+                                                    ColorUtils.primaryColor,
+                                                activeColor:
+                                                    ColorUtils.primaryColor,
+                                                inactiveColor:
+                                                    ColorUtils.darkBrown,
                                               ),
                                             );
                                           },
                                         ),
                                       ),
-
                                   ],
                                 ),
                               ),
@@ -2096,9 +2134,6 @@ class videoUserDetails extends StatelessWidget {
   }
 }
 
-
-
-
 void showLocationDialog(BuildContext context) {
   final HomeController homeController = Get.find();
   final VideoAddController controller = Get.find();
@@ -2784,6 +2819,9 @@ class _VideoDescriptionWidgetState extends State<VideoDescriptionWidget>
                                   recognizer:
                                       TapGestureRecognizer()
                                         ..onTap = () {
+                                          widget.controller
+                                              ?.pauseCurrentVideo();
+
                                           Get.to(
                                             () => SearchView(
                                               tag: trimmedTag,

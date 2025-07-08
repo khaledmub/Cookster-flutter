@@ -649,16 +649,24 @@ class HomeController extends GetxController with WidgetsBindingObserver {
   }
 
   Future<void> initializeControllerAtIndex(
-    int index, {
-    int retryCount = 3,
-  }) async {
-    if (index < 0 || index >= videoFeed.value.videos!.length) return;
-
-    if (_videoControllers[index] != null &&
-        _videoControllers[index]!.value.isInitialized)
+      int index, {
+        int retryCount = 3,
+      }) async {
+    // Guard against invalid index
+    if (index < 0 || index >= videoFeed.value.videos!.length) {
+      print("Invalid index: $index");
       return;
+    }
 
-    _cleanupUnusedControllers(index);
+    // Check if controller is already initialized and valid
+    if (_videoControllers[index] != null &&
+        _videoControllers[index]!.value.isInitialized) {
+      print("Controller at index $index is already initialized");
+      return;
+    }
+
+    // Clean up any existing controller at this index
+    await _disposeControllerAtIndex(index);
 
     int attempts = 0;
 
@@ -691,9 +699,11 @@ class HomeController extends GetxController with WidgetsBindingObserver {
           await _videoCacheManager.downloadFile(videoUrl);
         }
 
+        // Initialize the controller
         await _videoControllers[index]!.initialize();
         print("Initialization successful for index $index");
 
+        // Log video details
         print("Video details for index $index:");
         print(
           "  Resolution: ${_videoControllers[index]!.value.size.width}x${_videoControllers[index]!.value.size.height}",
@@ -701,8 +711,8 @@ class HomeController extends GetxController with WidgetsBindingObserver {
         print("  Duration: ${_videoControllers[index]!.value.duration}");
         print("  Position: ${_videoControllers[index]!.value.position}");
 
+        // Initialize ChewieController
         _chewieControllers[index] = ChewieController(
-
           videoPlayerController: _videoControllers[index]!,
           autoInitialize: false,
           looping: true,
@@ -710,13 +720,12 @@ class HomeController extends GetxController with WidgetsBindingObserver {
           showControls: false,
           showControlsOnInitialize: false,
           allowMuting: true,
-
         );
 
         _chewieControllers[index]!.setVolume(isMuted.value ? 0 : 1);
         _chewieControllers.refresh();
         print("Video initialized at index $index on attempt $attempts");
-        return;
+        return; // Success, exit the function
       } catch (e) {
         attempts++;
         print(
@@ -726,11 +735,29 @@ class HomeController extends GetxController with WidgetsBindingObserver {
           print(
             "Max retries reached for index $index. Falling back to recreate.",
           );
+          await _disposeControllerAtIndex(index);
           await recreateControllerAtIndex(index);
           return;
         }
+        // Wait before retrying
         await Future.delayed(Duration(milliseconds: 500));
       }
+    }
+  }
+
+// Helper method to dispose of a controller at a specific index
+  Future<void> _disposeControllerAtIndex(int index) async {
+    try {
+      if (_chewieControllers[index] != null) {
+        _chewieControllers[index]?.dispose();
+        _chewieControllers[index] = null;
+      }
+      if (_videoControllers[index] != null) {
+        await _videoControllers[index]?.dispose();
+        _videoControllers[index] = null;
+      }
+    } catch (e) {
+      print("Error disposing controller at index $index: $e");
     }
   }
 
