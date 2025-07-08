@@ -406,30 +406,42 @@ class _ILSScreenState extends State<ILSScreen> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
+    SystemChrome.setSystemUIOverlayStyle(
+      const SystemUiOverlayStyle(
+        statusBarIconBrightness: Brightness.light, // White icons ke liye
+        statusBarColor:
+            Colors.transparent, // Optional: Status bar background color
+      ),
+    );
     return PopScope(
       canPop: false, // Prevent default pop behavior
       onPopInvoked: _onPopInvoked,
-      child: Scaffold(
-        backgroundColor: Colors.black,
-        body:
-            isJoined
-                ? Column(
-                  children: [
-                    Expanded(
-                      child: ILSView(
-                        room: _room,
-                        liveStreamId: widget.liveStreamId,
-                        bar: false,
-                        mode: widget.mode,
-                        roomId: widget.liveStreamId,
+      child: SafeArea(
+        child: Scaffold(
+          backgroundColor: Colors.black,
+          appBar: AppBar(toolbarHeight: 0, elevation: 0),
+          body:
+              isJoined
+                  ? Column(
+                    children: [
+                      Expanded(
+                        child: ILSView(
+                          room: _room,
+                          liveStreamId: widget.liveStreamId,
+                          bar: false,
+                          mode: widget.mode,
+                          roomId: widget.liveStreamId,
+                        ),
                       ),
+                      // You can add a real-time user count widget here if needed
+                    ],
+                  )
+                  : const Center(
+                    child: PulseLogoLoader(
+                      logoPath: "assets/images/appLogo.png",
                     ),
-                    // You can add a real-time user count widget here if needed
-                  ],
-                )
-                : const Center(
-                  child: PulseLogoLoader(logoPath: "assets/images/appLogo.png"),
-                ),
+                  ),
+        ),
       ),
     );
   }

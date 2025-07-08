@@ -175,164 +175,167 @@ class _ILSViewState extends State<ILSView> {
                                   userData?['image'] ??
                                   'https://via.placeholder.com/40/FF6B6B/FFFFFF?text=U';
 
-                              return Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 8,
-                                      vertical: 4,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: Colors.black.withOpacity(0.3),
-                                      borderRadius: BorderRadius.circular(18),
-                                    ),
-                                    child: Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        // User Image
-                                        Container(
-                                          width: 40,
-                                          height: 40,
-                                          decoration: BoxDecoration(
-                                            shape: BoxShape.circle,
-                                            color: Colors.grey[700],
-                                            image:
-                                                userImage.isNotEmpty
-                                                    ? DecorationImage(
-                                                      image: NetworkImage(
+                              return Padding(
+                                padding: const EdgeInsets.only(top: 8.0),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                        vertical: 4,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: Colors.black.withOpacity(0.3),
+                                        borderRadius: BorderRadius.circular(18),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          // User Image
+                                          Container(
+                                            width: 40,
+                                            height: 40,
+                                            decoration: BoxDecoration(
+                                              shape: BoxShape.circle,
+                                              color: Colors.grey[700],
+                                              image:
+                                                  userImage.isNotEmpty
+                                                      ? DecorationImage(
+                                                        image: NetworkImage(
+                                                          '${Common.profileImage}/${userImage}',
+                                                        ),
+                                                        fit: BoxFit.cover,
+                                                        onError: (
+                                                          exception,
+                                                          stackTrace,
+                                                        ) {
+                                                          print(
+                                                            'Image load error: $exception',
+                                                          );
+                                                        },
+                                                      )
+                                                      : null,
+                                            ),
+                                            child:
+                                                ClipOval(
+                                                      child: Image.network(
                                                         '${Common.profileImage}/${userImage}',
+                                                        fit: BoxFit.cover,
+                                                        width: 40,
+                                                        height: 40,
+                                                        errorBuilder: (
+                                                          context,
+                                                          error,
+                                                          stackTrace,
+                                                        ) {
+                                                          return const Icon(
+                                                            Icons.person,
+                                                            color: Colors.white,
+                                                            size: 24,
+                                                          );
+                                                        },
                                                       ),
-                                                      fit: BoxFit.cover,
-                                                      onError: (
-                                                        exception,
-                                                        stackTrace,
-                                                      ) {
-                                                        print(
-                                                          'Image load error: $exception',
-                                                        );
-                                                      },
-                                                    )
-                                                    : null,
+                                                    ),
                                           ),
-                                          child:
-                                              ClipOval(
-                                                    child: Image.network(
-                                                      '${Common.profileImage}/${userImage}',
-                                                      fit: BoxFit.cover,
-                                                      width: 40,
-                                                      height: 40,
-                                                      errorBuilder: (
-                                                        context,
-                                                        error,
-                                                        stackTrace,
-                                                      ) {
-                                                        return const Icon(
-                                                          Icons.person,
-                                                          color: Colors.white,
-                                                          size: 24,
-                                                        );
-                                                      },
+                                          const SizedBox(width: 8),
+                                          // User Name and Likes Count
+                                          Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                userName,
+                                                style: const TextStyle(
+                                                  color: Colors.white,
+                                                  fontSize: 14,
+                                                  fontWeight: FontWeight.bold,
+                                                ),
+                                              ),
+                                              Row(
+                                                children: [
+                                                  Text(
+                                                    '${"Likes".tr} $count',
+                                                    style: const TextStyle(
+                                                      color: Colors.white,
+                                                      fontSize: 12,
                                                     ),
                                                   ),
-                                        ),
-                                        const SizedBox(width: 8),
-                                        // User Name and Likes Count
-                                        Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            Text(
-                                              userName,
-                                              style: const TextStyle(
+                                                ],
+                                              ),
+
+                                            ],
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    SizedBox(height: 8),
+                                    StreamBuilder<DocumentSnapshot>(
+                                      stream:
+                                          FirebaseFirestore.instance
+                                              .collection('liveVideos')
+                                              .doc(widget.roomId)
+                                              .snapshots(),
+                                      builder: (context, snapshot) {
+                                        if (!snapshot.hasData ||
+                                            snapshot.data == null) {
+                                          return const Padding(
+                                            padding: EdgeInsets.all(8.0),
+                                            child: Text(
+                                              'Loading count...',
+                                              style: TextStyle(
                                                 color: Colors.white,
-                                                fontSize: 14,
-                                                fontWeight: FontWeight.bold,
                                               ),
                                             ),
-                                            Row(
-                                              children: [
-                                                Text(
-                                                  '${"Likes".tr} $count',
-                                                  style: const TextStyle(
-                                                    color: Colors.white,
-                                                    fontSize: 12,
-                                                  ),
+                                          );
+                                        }
+                                        int count =
+                                            snapshot.data!['joinedUsersCount'] ??
+                                            0;
+                                        return Row(
+                                          children: [
+                                            Container(
+                                              padding: const EdgeInsets.symmetric(
+                                                horizontal: 8,
+                                                vertical: 2,
+                                              ),
+                                              decoration: BoxDecoration(
+                                                color: Colors.black.withOpacity(0.3),
+                                                borderRadius: BorderRadius.circular(
+                                                  18,
                                                 ),
-                                              ],
+                                              ),
+                                              child: Row(
+                                                children: [
+                                                  const Icon(
+                                                    Icons.person,
+                                                    color: Colors.white,
+                                                    size: 14,
+                                                  ),
+                                                  Text(
+                                                    ' $count',
+                                                    style: const TextStyle(
+                                                      color: Colors.white,
+                                                      fontSize: 14,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
                                             ),
+
+                                            SizedBox(width: 8,),
+
+                                            _buildLivestreamControls()
 
                                           ],
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  SizedBox(height: 8),
-                                  StreamBuilder<DocumentSnapshot>(
-                                    stream:
-                                        FirebaseFirestore.instance
-                                            .collection('liveVideos')
-                                            .doc(widget.roomId)
-                                            .snapshots(),
-                                    builder: (context, snapshot) {
-                                      if (!snapshot.hasData ||
-                                          snapshot.data == null) {
-                                        return const Padding(
-                                          padding: EdgeInsets.all(8.0),
-                                          child: Text(
-                                            'Loading count...',
-                                            style: TextStyle(
-                                              color: Colors.white,
-                                            ),
-                                          ),
                                         );
-                                      }
-                                      int count =
-                                          snapshot.data!['joinedUsersCount'] ??
-                                          0;
-                                      return Row(
-                                        children: [
-                                          Container(
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 8,
-                                              vertical: 2,
-                                            ),
-                                            decoration: BoxDecoration(
-                                              color: Colors.black.withOpacity(0.3),
-                                              borderRadius: BorderRadius.circular(
-                                                18,
-                                              ),
-                                            ),
-                                            child: Row(
-                                              children: [
-                                                const Icon(
-                                                  Icons.person,
-                                                  color: Colors.white,
-                                                  size: 14,
-                                                ),
-                                                Text(
-                                                  ' $count',
-                                                  style: const TextStyle(
-                                                    color: Colors.white,
-                                                    fontSize: 14,
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-
-                                          SizedBox(width: 8,),
-
-                                          _buildLivestreamControls()
-
-                                        ],
-                                      );
-                                    },
-                                  ),
+                                      },
+                                    ),
 
 
 
-                                ],
+                                  ],
+                                ),
                               );
                             },
                           );
