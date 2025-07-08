@@ -99,6 +99,77 @@ class _ILSViewState extends State<ILSView> {
     super.dispose();
   }
 
+  // Listening to room events and Firestore status changes
+  void setlivestreamEventListener() {
+    widget.room.on(Events.participantJoined, (Participant participant) async {
+      // Adding only Conference participant to show in grid
+      if (participant.mode == Mode.SEND_AND_RECV) {
+        setState(
+          () => participants.putIfAbsent(participant.id, () => participant),
+        );
+        // Fetch user data from Firestore
+        try {
+          DocumentSnapshot userDoc =
+              await FirebaseFirestore.instance
+                  .collection('users')
+                  .doc(participant.id)
+                  .get();
+          if (userDoc.exists) {
+            final userData = userDoc.data() as Map<String, dynamic>?;
+            final userName = userData?['name'] ?? 'Unknown User';
+            // Show snackbar for participant joining
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                backgroundColor: Colors.green,
+                content: Text('${userName} ${"joined_livestream".tr}'),
+                duration: Duration(seconds: 3),
+              ),
+            );
+          }
+        } catch (e) {
+          print('Error fetching user data: $e');
+        }
+      }
+    });
+
+    widget.room.on(Events.participantModeChanged, (data) {
+      // Update host status when mode changes
+      setState(() {
+        isHost = _checkIfUserIsHost();
+      });
+    });
+
+    widget.room.on(Events.participantLeft, (String participantId) {
+      if (participants.containsKey(participantId)) {
+        setState(() => participants.remove(participantId));
+      }
+    });
+
+    // Listen for Firestore status changes
+    FirebaseFirestore.instance
+        .collection('liveVideos')
+        .doc(widget.roomId)
+        .snapshots()
+        .listen((DocumentSnapshot snapshot) {
+          if (snapshot.exists) {
+            final data = snapshot.data() as Map<String, dynamic>?;
+            final status = data?['status'] ?? '';
+            if (status == 'ended' && !isHost) {
+              // Show snackbar for receivers when livestream ends
+              ScaffoldMessenger.of(Get.context!).showSnackBar(
+                SnackBar(
+                  backgroundColor: Colors.orange,
+                  content: Text("livestream_ended".tr),
+                  duration: Duration(seconds: 1),
+                ),
+              );
+              // Leave the room gracefully
+              widget.room.leave();
+            }
+          }
+        });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Padding(
@@ -323,9 +394,7 @@ class _ILSViewState extends State<ILSView> {
                                                 ],
                                               ),
                                             ),
-
                                             SizedBox(width: 8),
-
                                             _buildLivestreamControls(),
                                           ],
                                         );
@@ -339,7 +408,6 @@ class _ILSViewState extends State<ILSView> {
                         },
                       ),
                       const Spacer(),
-
                       // Timer display for host
                       if (isHost) const SizedBox(width: 8),
                       // Host gets "End" button, others get "Leave" button
@@ -442,53 +510,6 @@ class _ILSViewState extends State<ILSView> {
         );
       },
     );
-  }
-
-  // Listening to room events for participants join, left and hls state changes
-  void setlivestreamEventListener() {
-    widget.room.on(Events.participantJoined, (Participant participant) async {
-      // Adding only Conference participant to show in grid
-      if (participant.mode == Mode.SEND_AND_RECV) {
-        setState(
-          () => participants.putIfAbsent(participant.id, () => participant),
-        );
-        // Fetch user data from Firestore
-        try {
-          DocumentSnapshot userDoc =
-              await FirebaseFirestore.instance
-                  .collection('users')
-                  .doc(participant.id)
-                  .get();
-          if (userDoc.exists) {
-            final userData = userDoc.data() as Map<String, dynamic>?;
-            final userName = userData?['name'] ?? 'Unknown User';
-            // Show snackbar for participant joining
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                backgroundColor: Colors.green,
-                content: Text('${userName} ${"joined_livestream".tr}'),
-                duration: Duration(seconds: 3),
-              ),
-            );
-          }
-        } catch (e) {
-          print('Error fetching user data: $e');
-        }
-      }
-    });
-
-    widget.room.on(Events.participantModeChanged, (data) {
-      // Update host status when mode changes
-      setState(() {
-        isHost = _checkIfUserIsHost();
-      });
-    });
-
-    widget.room.on(Events.participantLeft, (String participantId) {
-      if (participants.containsKey(participantId)) {
-        setState(() => participants.remove(participantId));
-      }
-    });
   }
 
   Widget _buildLivestreamControls() {
