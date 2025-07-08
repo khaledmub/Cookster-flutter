@@ -166,15 +166,15 @@ class ProfessionalProfileController extends GetxController {
       if (response.statusCode == 200) {
         // Update local following list
         if (isFollowing(userId)) {
-          simpleUserDetails.value!.following!.remove(userId);
+          userDetails.value!.following!.remove(userId);
           followingList.removeWhere((id) => id.toString() == userId);
         } else {
-          simpleUserDetails.value!.following!.add(userId);
+          userDetails.value!.following!.add(userId);
           // Fetch user details and add to followingList
         }
 
         // Update UI
-        simpleUserDetails.refresh();
+        userDetails.refresh();
         followingList.refresh();
 
         // Show toast message instead of snackbar
