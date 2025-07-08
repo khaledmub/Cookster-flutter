@@ -33,7 +33,7 @@ class _NotificationsState extends State<Notifications> {
       const SystemUiOverlayStyle(
         statusBarIconBrightness: Brightness.dark, // White icons ke liye
         statusBarColor:
-        Colors.transparent, // Optional: Status bar background color
+            Colors.transparent, // Optional: Status bar background color
       ),
     );
     return SafeArea(
@@ -99,7 +99,7 @@ class UpdatesList extends StatelessWidget {
   UpdatesList({Key? key}) : super(key: key);
 
   final NotificationController notificationController =
-  Get.find<NotificationController>();
+      Get.find<NotificationController>();
 
   @override
   Widget build(BuildContext context) {
@@ -113,30 +113,39 @@ class UpdatesList extends StatelessWidget {
 
       // Show message if no notifications
       if (notificationController
-          .notificationData
-          .value
-          .notifications
-          ?.isEmpty ??
+              .notificationData
+              .value
+              .notifications
+              ?.isEmpty ??
           true) {
-        return Center(child: Text("No notifications available".tr, style: TextStyle(color: ColorUtils.primaryColor)));
+        return Center(
+          child: Text(
+            "No notifications available".tr,
+            style: TextStyle(
+              color: ColorUtils.primaryColor,
+              fontWeight: FontWeight.w500,
+              fontSize: 14
+            ),
+          ),
+        );
       }
 
       // Build scrollable list of notifications
       return ListView.separated(
         padding: const EdgeInsets.only(top: 16, bottom: 70),
         itemCount:
-        notificationController
-            .notificationData
-            .value
-            .notifications
-            ?.length ??
+            notificationController
+                .notificationData
+                .value
+                .notifications
+                ?.length ??
             0,
         itemBuilder: (context, index) {
           final notification =
-          notificationController
-              .notificationData
-              .value
-              .notifications![index];
+              notificationController
+                  .notificationData
+                  .value
+                  .notifications![index];
           return ListTile(
             leading: CircleAvatar(
               backgroundColor: ColorUtils.primaryColor,
