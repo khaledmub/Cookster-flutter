@@ -100,6 +100,13 @@ class _VisitProfileViewState extends State<VisitProfileView>
 
   @override
   Widget build(BuildContext context) {
+    SystemChrome.setSystemUIOverlayStyle(
+      const SystemUiOverlayStyle(
+        statusBarIconBrightness: Brightness.light, // White icons
+        statusBarColor: Colors.transparent, // Transparent status bar
+      ),
+    );
+
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
