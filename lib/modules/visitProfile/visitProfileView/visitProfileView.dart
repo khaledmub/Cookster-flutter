@@ -74,6 +74,16 @@ class _VisitProfileViewState extends State<VisitProfileView>
   @override
   void dispose() {
     _tabController?.dispose();
+    // Reset SystemChrome settings to default
+    SystemChrome.setSystemUIOverlayStyle(
+      SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        // Or your app's default color
+        statusBarIconBrightness: Brightness.dark,
+        // Or your app's default brightness
+        statusBarBrightness: Brightness.light, // For iOS
+      ),
+    );
     super.dispose();
   }
 
@@ -100,96 +110,8 @@ class _VisitProfileViewState extends State<VisitProfileView>
 
   @override
   Widget build(BuildContext context) {
-    SystemChrome.setSystemUIOverlayStyle(
-      const SystemUiOverlayStyle(
-        statusBarIconBrightness: Brightness.light, // White icons
-        statusBarColor: Colors.transparent, // Transparent status bar
-      ),
-    );
-
     return Scaffold(
       backgroundColor: Colors.white,
-      appBar: AppBar(
-        elevation: 0,
-        surfaceTintColor: Colors.transparent,
-        backgroundColor: Colors.white,
-        centerTitle: true,
-        title: Text(
-          "Profile".tr,
-          style: TextStyle(fontSize: 20.sp, fontWeight: FontWeight.w700),
-        ),
-        actions: [
-          PopupMenuButton<String>(
-            icon: const Icon(Icons.more_vert),
-            offset: const Offset(0, 50),
-            color: Colors.white,
-            onSelected: (value) async {
-              if (value == 'block') {
-                bool isAuthenticated = await _isUserAuthenticated();
-                if (!isAuthenticated) {
-                  Get.toNamed(AppRoutes.signIn);
-                  return;
-                }
-                final user = visitProfileController.visitProfile.value?.user;
-                if (user != null) {
-                  // Prepare the image provider
-                  ImageProvider imageProvider =
-                      user.image != null && user.image!.isNotEmpty
-                          ? CachedNetworkImageProvider(
-                            '${Common.profileImage}/${user.image!}',
-                          )
-                          : const AssetImage('assets/images/sd.png')
-                              as ImageProvider;
-
-                  // Show the block confirmation dialog
-                  showBlockConfirmationBottomSheet(
-                    context: context,
-                    name: user.name ?? 'Unknown',
-                    image: imageProvider,
-                    onBlock: () async {
-                      try {
-                        await homeController.blockUser(userId, widget.userId);
-                        Get.back();
-                      } catch (e) {
-                        Fluttertoast.showToast(
-                          msg: "Failed to block user",
-                          toastLength: Toast.LENGTH_SHORT,
-                          gravity: ToastGravity.BOTTOM,
-                        );
-                      }
-                    },
-                  );
-                } else {
-                  Fluttertoast.showToast(
-                    msg: "User data not available",
-                    toastLength: Toast.LENGTH_SHORT,
-                    gravity: ToastGravity.BOTTOM,
-                  );
-                }
-              } else if (value == 'message_label'.tr) {
-                Get.to(ChatView(senderId: userId!, receiverId: widget.userId));
-              }
-            },
-            itemBuilder:
-                (context) => [
-                  PopupMenuItem<String>(
-                    value: 'message_label'.tr,
-                    child: Text(
-                      'message_label'.tr,
-                      style: const TextStyle(color: Colors.black),
-                    ),
-                  ),
-                  PopupMenuItem<String>(
-                    value: 'block',
-                    child: Text(
-                      'block'.tr,
-                      style: const TextStyle(color: Colors.red),
-                    ),
-                  ),
-                ],
-          ),
-        ],
-      ),
       body: Obx(() {
         final user = visitProfileController.visitProfile.value;
         final userDetails = visitProfileController.visitProfile.value?.user;
@@ -233,6 +155,108 @@ class _VisitProfileViewState extends State<VisitProfileView>
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
+              Container(height: 30, color: Colors.white),
+
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    InkWell(
+                      onTap: () {
+                        Get.back();
+                      },
+                      child: Icon(Icons.arrow_back),
+                    ),
+                    Text(
+                      "Profile".tr,
+                      style: TextStyle(
+                        fontSize: 20.sp,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    PopupMenuButton<String>(
+                      icon: const Icon(Icons.more_vert),
+                      offset: const Offset(0, 50),
+                      color: Colors.white,
+                      onSelected: (value) async {
+                        if (value == 'block') {
+                          bool isAuthenticated = await _isUserAuthenticated();
+                          if (!isAuthenticated) {
+                            Get.toNamed(AppRoutes.signIn);
+                            return;
+                          }
+                          final user =
+                              visitProfileController.visitProfile.value?.user;
+                          if (user != null) {
+                            // Prepare the image provider
+                            ImageProvider imageProvider =
+                                user.image != null && user.image!.isNotEmpty
+                                    ? CachedNetworkImageProvider(
+                                      '${Common.profileImage}/${user.image!}',
+                                    )
+                                    : const AssetImage('assets/images/sd.png')
+                                        as ImageProvider;
+
+                            // Show the block confirmation dialog
+                            showBlockConfirmationBottomSheet(
+                              context: context,
+                              name: user.name ?? 'Unknown',
+                              image: imageProvider,
+                              onBlock: () async {
+                                try {
+                                  await homeController.blockUser(
+                                    userId,
+                                    widget.userId,
+                                  );
+                                  Get.back();
+                                } catch (e) {
+                                  Fluttertoast.showToast(
+                                    msg: "Failed to block user",
+                                    toastLength: Toast.LENGTH_SHORT,
+                                    gravity: ToastGravity.BOTTOM,
+                                  );
+                                }
+                              },
+                            );
+                          } else {
+                            Fluttertoast.showToast(
+                              msg: "User data not available",
+                              toastLength: Toast.LENGTH_SHORT,
+                              gravity: ToastGravity.BOTTOM,
+                            );
+                          }
+                        } else if (value == 'message_label'.tr) {
+                          Get.to(
+                            ChatView(
+                              senderId: userId!,
+                              receiverId: widget.userId,
+                            ),
+                          );
+                        }
+                      },
+                      itemBuilder:
+                          (context) => [
+                            PopupMenuItem<String>(
+                              value: 'message_label'.tr,
+                              child: Text(
+                                'message_label'.tr,
+                                style: const TextStyle(color: Colors.black),
+                              ),
+                            ),
+                            PopupMenuItem<String>(
+                              value: 'block',
+                              child: Text(
+                                'block'.tr,
+                                style: const TextStyle(color: Colors.red),
+                              ),
+                            ),
+                          ],
+                    ),
+                  ],
+                ),
+              ),
+
               if (userDetails.coverImage != null &&
                   userDetails.coverImage!.isNotEmpty)
                 SizedBox(
