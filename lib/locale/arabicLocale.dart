@@ -362,7 +362,7 @@ const Map<String, String> ar = {
       "غير قادر على الوصول إلى الخادوم. من فضلك، حاول مرة أخرى لاحقًا.",
   "post": "منشور",
   "enter_inform_to_signup": "يرجى إدخال معلوماتك لإكمال التسجيل",
-  "select_account_type": "اختر نوع الحساب",
+  "select_account_type": "اختر نوع الشركة",
   "pick_a_location": "اختر موقعًا",
   "search_location": "ابحث عن موقع",
   "location_error": "خطأ في الموقع",

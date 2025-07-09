@@ -75,7 +75,9 @@
             android:windowSoftInputMode="adjustResize">
 
             <!-- Disable default Flutter deep linking -->
-            <meta-data android:name="flutter_deeplinking_enabled" android:value="false" />
+            <meta-data
+                android:name="flutter_deeplinking_enabled"
+                android:value="false" />
 
             <!-- Launcher intent -->
             <intent-filter>
@@ -86,18 +88,30 @@
             <!-- App Link for visitSingleVideo -->
             <intent-filter android:autoVerify="true">
                 <action android:name="android.intent.action.VIEW" />
+
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="http" android:host="cookster.org" android:path="/visitSingleVideo" />
-                <data android:scheme="https" android:host="cookster.org" android:path="/visitSingleVideo" />
+
+                <data
+                    android:host="cookster.org"
+                    android:path="/visitSingleVideo"
+                    android:scheme="http" />
+                <data
+                    android:host="cookster.org"
+                    android:path="/visitSingleVideo"
+                    android:scheme="https" />
             </intent-filter>
 
             <!-- Deep Link with custom scheme -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
+
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="cookster" android:host="open.cookster.app" />
+
+                <data
+                    android:host="open.cookster.app"
+                    android:scheme="cookster" />
             </intent-filter>
 
             <!-- Specifies an Android theme to apply to this Activity -->
@@ -124,5 +138,8 @@
         <meta-data
             android:name="android.media.prefer_software_codecs"
             android:value="false" />
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_icon"
+            android:resource="@drawable/ic_stat_name" />
     </application>
 </manifest>
