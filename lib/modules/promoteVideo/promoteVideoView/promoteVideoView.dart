@@ -807,9 +807,11 @@ class _PromoteVideoViewState extends State<PromoteVideoView> {
                                                     color: ColorUtils.darkBrown,
                                                     fontWeight: FontWeight.w500,
                                                   ),
-                                                  textDirection: Get.locale?.languageCode == 'ar'
-                                                      ? TextDirection.rtl
-                                                      : TextDirection.ltr,
+                                                  textDirection:
+                                                      Get.locale?.languageCode ==
+                                                              'ar'
+                                                          ? TextDirection.rtl
+                                                          : TextDirection.ltr,
                                                 ),
                                                 if (controller
                                                             .entityDetails
@@ -822,20 +824,27 @@ class _PromoteVideoViewState extends State<PromoteVideoView> {
                                                             ?.sponsorVideoDiscount !=
                                                         null)
                                                   Row(
-                                                    mainAxisAlignment: MainAxisAlignment.end,
+                                                    mainAxisAlignment:
+                                                        MainAxisAlignment.end,
                                                     children: [
                                                       Flexible(
                                                         child: Text(
-                                                         '${'discount'.tr} (${controller.siteSettings.value!.settings!.sponsorVideoDiscount}%): ${controller.siteSettings.value!.settings!.currencySymbol} ${controller.calculateDiscountAmount(video.id).toStringAsFixed(2)}',
+                                                          '${'discount'.tr} (${controller.siteSettings.value!.settings!.sponsorVideoDiscount}%): ${controller.siteSettings.value!.settings!.currencySymbol} ${controller.calculateDiscountAmount(video.id).toStringAsFixed(2)}',
                                                           style: TextStyle(
                                                             fontSize: 12.sp,
                                                             color: Colors.green,
-                                                            fontWeight: FontWeight.w500,
+                                                            fontWeight:
+                                                                FontWeight.w500,
                                                           ),
-                                                          textAlign: TextAlign.end,
-                                                          textDirection: Get.locale?.languageCode == 'ar'
-                                                              ? TextDirection.rtl
-                                                              : TextDirection.ltr,
+                                                          textAlign:
+                                                              TextAlign.end,
+                                                          textDirection:
+                                                              Get.locale?.languageCode ==
+                                                                      'ar'
+                                                                  ? TextDirection
+                                                                      .rtl
+                                                                  : TextDirection
+                                                                      .ltr,
                                                         ),
                                                       ),
                                                     ],
@@ -847,9 +856,12 @@ class _PromoteVideoViewState extends State<PromoteVideoView> {
                                                     color: ColorUtils.darkBrown,
                                                     fontWeight: FontWeight.bold,
                                                   ),
-                                                  textDirection: Get.locale?.languageCode == 'ar'
-                                                      ? TextDirection.rtl
-                                                      : TextDirection.ltr, // LTR for numbers and currency
+                                                  textDirection:
+                                                      Get.locale?.languageCode ==
+                                                              'ar'
+                                                          ? TextDirection.rtl
+                                                          : TextDirection
+                                                              .ltr, // LTR for numbers and currency
                                                 ),
                                               ],
                                             ),
@@ -1112,10 +1124,11 @@ class _PromoteVideoViewState extends State<PromoteVideoView> {
     final CityController cityController = Get.put(CityController());
 
     Map<String, int> cityMap = {};
-    List<String> cityName = cityController.cityList.map((city) {
-      cityMap[city.name!] = city.id!;
-      return city.name!;
-    }).toList();
+    List<String> cityName =
+        cityController.cityList.map((city) {
+          cityMap[city.name!] = city.id!;
+          return city.name!;
+        }).toList();
 
     final TextEditingController searchController = TextEditingController();
     RxList<String> filteredCityName = cityName.obs;
@@ -1128,9 +1141,12 @@ class _PromoteVideoViewState extends State<PromoteVideoView> {
       if (query.isEmpty) {
         filteredCityName.value = cityName;
       } else {
-        filteredCityName.value = cityName
-            .where((city) => city.toLowerCase().contains(query.toLowerCase()))
-            .toList();
+        filteredCityName.value =
+            cityName
+                .where(
+                  (city) => city.toLowerCase().contains(query.toLowerCase()),
+                )
+                .toList();
       }
     }
 
@@ -1140,168 +1156,187 @@ class _PromoteVideoViewState extends State<PromoteVideoView> {
           borderRadius: BorderRadius.circular(20.r),
         ),
         child: Obx(
-              () => Container(
+          () => Container(
             width: 350.w,
             padding: EdgeInsets.all(16.w),
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(20.r),
             ),
-            child: cityController.isLoading.value
-                ? Center(child: CircularProgressIndicator())
-                : Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Row(
+            child:
+                cityController.isLoading.value
+                    ? Center(child: CircularProgressIndicator())
+                    : Column(
+                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.location_on, color: Colors.black),
-                        SizedBox(width: 8.w),
-                        Text(
-                          "select_cities_dialog_label".tr,
-                          style: TextStyle(
-                            fontSize: 14.sp,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.black,
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(Icons.location_on, color: Colors.black),
+                                SizedBox(width: 8.w),
+                                Text(
+                                  "select_cities_dialog_label".tr,
+                                  style: TextStyle(
+                                    fontSize: 14.sp,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.black,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            InkWell(
+                              onTap: () => Get.back(),
+                              child: Icon(Icons.close, color: Colors.grey),
+                            ),
+                          ],
+                        ),
+                        SizedBox(height: 16.h),
+                        TextField(
+                          controller: searchController,
+                          decoration: InputDecoration(
+                            hintText: 'search_city_placeholder'.tr,
+                            prefixIcon: Icon(Icons.search, color: Colors.grey),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(10.r),
+                              borderSide: BorderSide(color: Colors.grey),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(10.r),
+                              borderSide: BorderSide(
+                                color: ColorUtils.primaryColor,
+                              ),
+                            ),
+                            contentPadding: EdgeInsets.symmetric(
+                              vertical: 10.h,
+                              horizontal: 12.w,
+                            ),
+                          ),
+                          onChanged: (value) => filterCities(value),
+                        ),
+                        SizedBox(height: 16.h),
+                        Container(
+                          height: 230.h,
+                          child: SingleChildScrollView(
+                            child: Obx(
+                              () => Column(
+                                children: List.generate(
+                                  filteredCityName.length,
+                                  (index) {
+                                    String city = filteredCityName[index];
+                                    bool isSelected = selectedCities.contains(
+                                      city,
+                                    );
+
+                                    return Column(
+                                      children: [
+                                        InkWell(
+                                          onTap: () {
+                                            controller.toggleCity(
+                                              city,
+                                              cityMap[city]!,
+                                            );
+                                            if (isSelected) {
+                                              selectedCities.remove(city);
+                                            } else {
+                                              selectedCities.add(city);
+                                            }
+                                          },
+                                          child: Padding(
+                                            padding: EdgeInsets.symmetric(
+                                              vertical: 12.h,
+                                            ),
+                                            child: Row(
+                                              mainAxisAlignment:
+                                                  MainAxisAlignment
+                                                      .spaceBetween,
+                                              children: [
+                                                ConstrainedBox(
+                                                  constraints: BoxConstraints(
+                                                    maxWidth: 200.w,
+                                                  ),
+                                                  child: Text(
+                                                    city,
+                                                    overflow:
+                                                        TextOverflow.ellipsis,
+                                                    style: TextStyle(
+                                                      fontSize: 13.sp,
+                                                      fontWeight:
+                                                          isSelected
+                                                              ? FontWeight.bold
+                                                              : FontWeight
+                                                                  .normal,
+                                                      color: Colors.black,
+                                                    ),
+                                                  ),
+                                                ),
+                                                Checkbox(
+                                                  value: isSelected,
+                                                  onChanged: (bool? value) {
+                                                    if (value != null) {
+                                                      controller.toggleCity(
+                                                        city,
+                                                        cityMap[city]!,
+                                                      );
+                                                      if (value) {
+                                                        selectedCities.add(
+                                                          city,
+                                                        );
+                                                      } else {
+                                                        selectedCities.remove(
+                                                          city,
+                                                        );
+                                                      }
+                                                    }
+                                                  },
+                                                  activeColor:
+                                                      ColorUtils.primaryColor,
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ),
+                                        if (index < filteredCityName.length - 1)
+                                          Divider(
+                                            height: 1.h,
+                                            thickness: 1.r,
+                                            color: Colors.grey.shade300,
+                                          ),
+                                      ],
+                                    );
+                                  },
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        SizedBox(height: 20.h),
+                        Obx(
+                          () => ElevatedButton(
+                            onPressed:
+                                controller.selectedCities.isNotEmpty
+                                    ? () => Get.back()
+                                    : null,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: ColorUtils.primaryColor,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10.r),
+                              ),
+                              minimumSize: Size(double.infinity, 44.h),
+                            ),
+                            child: Text(
+                              "Submit".tr,
+                              style: TextStyle(
+                                fontSize: 14.sp,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.white,
+                              ),
+                            ),
                           ),
                         ),
                       ],
                     ),
-                    InkWell(
-                      onTap: () => Get.back(),
-                      child: Icon(Icons.close, color: Colors.grey),
-                    ),
-                  ],
-                ),
-                SizedBox(height: 16.h),
-                TextField(
-                  controller: searchController,
-                  decoration: InputDecoration(
-                    hintText: 'search_city_placeholder'.tr,
-                    prefixIcon: Icon(Icons.search, color: Colors.grey),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(10.r),
-                      borderSide: BorderSide(color: Colors.grey),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(10.r),
-                      borderSide: BorderSide(
-                        color: ColorUtils.primaryColor,
-                      ),
-                    ),
-                    contentPadding: EdgeInsets.symmetric(
-                      vertical: 10.h,
-                      horizontal: 12.w,
-                    ),
-                  ),
-                  onChanged: (value) => filterCities(value),
-                ),
-                SizedBox(height: 16.h),
-                Container(
-                  height: 230.h,
-                  child: SingleChildScrollView(
-                    child: Obx(
-                          () => Column(
-                        children: List.generate(
-                          filteredCityName.length,
-                              (index) {
-                            String city = filteredCityName[index];
-                            bool isSelected = selectedCities.contains(city);
-
-                            return Column(
-                              children: [
-                                InkWell(
-                                  onTap: () {
-                                    controller.toggleCity(city, cityMap[city]!);
-                                    if (isSelected) {
-                                      selectedCities.remove(city);
-                                    } else {
-                                      selectedCities.add(city);
-                                    }
-                                  },
-                                  child: Padding(
-                                    padding: EdgeInsets.symmetric(
-                                      vertical: 12.h,
-                                    ),
-                                    child: Row(
-                                      mainAxisAlignment:
-                                      MainAxisAlignment.spaceBetween,
-                                      children: [
-                                        ConstrainedBox(
-                                          constraints: BoxConstraints(
-                                            maxWidth: 200.w,
-                                          ),
-                                          child: Text(
-                                            city,
-                                            overflow: TextOverflow.ellipsis,
-                                            style: TextStyle(
-                                              fontSize: 13.sp,
-                                              fontWeight: isSelected
-                                                  ? FontWeight.bold
-                                                  : FontWeight.normal,
-                                              color: Colors.black,
-                                            ),
-                                          ),
-                                        ),
-                                        Checkbox(
-                                          value: isSelected,
-                                          onChanged: (bool? value) {
-                                            if (value != null) {
-                                              controller.toggleCity(city, cityMap[city]!);
-                                              if (value) {
-                                                selectedCities.add(city);
-                                              } else {
-                                                selectedCities.remove(city);
-                                              }
-                                            }
-                                          },
-                                          activeColor: ColorUtils.primaryColor,
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                                if (index < filteredCityName.length - 1)
-                                  Divider(
-                                    height: 1.h,
-                                    thickness: 1.r,
-                                    color: Colors.grey.shade300,
-                                  ),
-                              ],
-                            );
-                          },
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-                SizedBox(height: 20.h),
-                Obx(
-                      () => ElevatedButton(
-                    onPressed: controller.selectedCities.isNotEmpty
-                        ? () => Get.back()
-                        : null,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: ColorUtils.primaryColor,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10.r),
-                      ),
-                      minimumSize: Size(double.infinity, 44.h),
-                    ),
-                    child: Text(
-                      "Submit".tr,
-                      style: TextStyle(
-                        fontSize: 14.sp,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
           ),
         ),
       ),
