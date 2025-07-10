@@ -13,6 +13,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../appRoutes/appRoutes.dart';
 import '../../../appUtils/apiEndPoints.dart';
+import '../../../appUtils/appCenterIcon.dart';
 import '../../../appUtils/colorUtils.dart';
 import '../../../appUtils/openToWork.dart';
 import '../../../loaders/pulseLoader.dart';
@@ -60,10 +61,13 @@ class _VisitProfileViewState extends State<VisitProfileView>
     userId = prefs.getString('user_id');
   }
 
+  String _language = 'en'; // Default to English
+
   @override
   void initState() {
     super.initState();
     _initializeProfile();
+    _loadLanguage();
     fetchUserId();
   }
 
@@ -75,15 +79,7 @@ class _VisitProfileViewState extends State<VisitProfileView>
   void dispose() {
     _tabController?.dispose();
     // Reset SystemChrome settings to default
-    SystemChrome.setSystemUIOverlayStyle(
-      SystemUiOverlayStyle(
-        statusBarColor: Colors.transparent,
-        // Or your app's default color
-        statusBarIconBrightness: Brightness.dark,
-        // Or your app's default brightness
-        statusBarBrightness: Brightness.light, // For iOS
-      ),
-    );
+
     super.dispose();
   }
 
@@ -108,10 +104,165 @@ class _VisitProfileViewState extends State<VisitProfileView>
     }
   }
 
+  Future<void> _loadLanguage() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _language =
+          prefs.getString('language') ?? 'en'; // Default to 'en' if not set
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
+    bool isRtl = _language == 'ar';
+
     return Scaffold(
       backgroundColor: Colors.white,
+      appBar: PreferredSize(
+        preferredSize: Size.fromHeight(155.h), // Adjusted height to fit content
+        child: Container(
+          padding: EdgeInsets.only(top: 40.h),
+          decoration: BoxDecoration(
+            borderRadius: const BorderRadius.only(
+              bottomRight: Radius.circular(30),
+              bottomLeft: Radius.circular(30),
+            ),
+            gradient: const LinearGradient(
+              colors: [Color(0xFFFFD700), Color(0xFFFFFADC)],
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+            ),
+          ),
+          child: Stack(
+            children: [
+              // Back Button
+              GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () {
+                  try {
+                    Get.back();
+                  } catch (e) {
+                    print("Error navigating back: $e");
+                  }
+                },
+                child: Container(
+                  margin: EdgeInsets.symmetric(horizontal: 16),
+                  height: 40,
+                  width: 40,
+                  decoration: const BoxDecoration(
+                    color: Color(0xFFE6BE00),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Center(
+                    child: Icon(
+                      isRtl ? Icons.arrow_back : Icons.arrow_back,
+                      color: ColorUtils.darkBrown,
+                      size: 24,
+                    ),
+                  ),
+                ),
+              ),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    textAlign: TextAlign.center,
+                    "Profile".tr,
+                    style: TextStyle(
+                      fontSize: 20.sp,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  PopupMenuButton<String>(
+                    icon: const Icon(Icons.more_vert),
+                    offset: const Offset(0, 50),
+                    color: Colors.white,
+                    onSelected: (value) async {
+                      if (value == 'block') {
+                        bool isAuthenticated = await _isUserAuthenticated();
+                        if (!isAuthenticated) {
+                          Get.toNamed(AppRoutes.signIn);
+                          return;
+                        }
+                        final user =
+                            visitProfileController.visitProfile.value?.user;
+                        if (user != null) {
+                          // Prepare the image provider
+                          ImageProvider imageProvider =
+                              user.image != null && user.image!.isNotEmpty
+                                  ? CachedNetworkImageProvider(
+                                    '${Common.profileImage}/${user.image!}',
+                                  )
+                                  : const AssetImage('assets/images/sd.png')
+                                      as ImageProvider;
+
+                          // Show the block confirmation dialog
+                          showBlockConfirmationBottomSheet(
+                            context: context,
+                            name: user.name ?? 'Unknown',
+                            image: imageProvider,
+                            onBlock: () async {
+                              try {
+                                await homeController.blockUser(
+                                  userId,
+                                  widget.userId,
+                                );
+                                Get.back();
+                              } catch (e) {
+                                Fluttertoast.showToast(
+                                  msg: "Failed to block user",
+                                  toastLength: Toast.LENGTH_SHORT,
+                                  gravity: ToastGravity.BOTTOM,
+                                );
+                              }
+                            },
+                          );
+                        } else {
+                          Fluttertoast.showToast(
+                            msg: "User data not available",
+                            toastLength: Toast.LENGTH_SHORT,
+                            gravity: ToastGravity.BOTTOM,
+                          );
+                        }
+                      } else if (value == 'message_label'.tr) {
+                        Get.to(
+                          ChatView(
+                            senderId: userId!,
+                            receiverId: widget.userId,
+                          ),
+                        );
+                      }
+                    },
+                    itemBuilder:
+                        (context) => [
+                          PopupMenuItem<String>(
+                            value: 'message_label'.tr,
+                            child: Text(
+                              'message_label'.tr,
+                              style: const TextStyle(color: Colors.black),
+                            ),
+                          ),
+                          PopupMenuItem<String>(
+                            value: 'block',
+                            child: Text(
+                              'block'.tr,
+                              style: const TextStyle(color: Colors.red),
+                            ),
+                          ),
+                        ],
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+
       body: Obx(() {
         final user = visitProfileController.visitProfile.value;
         final userDetails = visitProfileController.visitProfile.value?.user;
@@ -155,110 +306,9 @@ class _VisitProfileViewState extends State<VisitProfileView>
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              Container(height: 30, color: Colors.white),
+              SizedBox(height: 16),
 
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    InkWell(
-                      onTap: () {
-                        Get.back();
-                      },
-                      child: Icon(Icons.arrow_back),
-                    ),
-                    Text(
-                      "Profile".tr,
-                      style: TextStyle(
-                        fontSize: 20.sp,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    PopupMenuButton<String>(
-                      icon: const Icon(Icons.more_vert),
-                      offset: const Offset(0, 50),
-                      color: Colors.white,
-                      onSelected: (value) async {
-                        if (value == 'block') {
-                          bool isAuthenticated = await _isUserAuthenticated();
-                          if (!isAuthenticated) {
-                            Get.toNamed(AppRoutes.signIn);
-                            return;
-                          }
-                          final user =
-                              visitProfileController.visitProfile.value?.user;
-                          if (user != null) {
-                            // Prepare the image provider
-                            ImageProvider imageProvider =
-                                user.image != null && user.image!.isNotEmpty
-                                    ? CachedNetworkImageProvider(
-                                      '${Common.profileImage}/${user.image!}',
-                                    )
-                                    : const AssetImage('assets/images/sd.png')
-                                        as ImageProvider;
-
-                            // Show the block confirmation dialog
-                            showBlockConfirmationBottomSheet(
-                              context: context,
-                              name: user.name ?? 'Unknown',
-                              image: imageProvider,
-                              onBlock: () async {
-                                try {
-                                  await homeController.blockUser(
-                                    userId,
-                                    widget.userId,
-                                  );
-                                  Get.back();
-                                } catch (e) {
-                                  Fluttertoast.showToast(
-                                    msg: "Failed to block user",
-                                    toastLength: Toast.LENGTH_SHORT,
-                                    gravity: ToastGravity.BOTTOM,
-                                  );
-                                }
-                              },
-                            );
-                          } else {
-                            Fluttertoast.showToast(
-                              msg: "User data not available",
-                              toastLength: Toast.LENGTH_SHORT,
-                              gravity: ToastGravity.BOTTOM,
-                            );
-                          }
-                        } else if (value == 'message_label'.tr) {
-                          Get.to(
-                            ChatView(
-                              senderId: userId!,
-                              receiverId: widget.userId,
-                            ),
-                          );
-                        }
-                      },
-                      itemBuilder:
-                          (context) => [
-                            PopupMenuItem<String>(
-                              value: 'message_label'.tr,
-                              child: Text(
-                                'message_label'.tr,
-                                style: const TextStyle(color: Colors.black),
-                              ),
-                            ),
-                            PopupMenuItem<String>(
-                              value: 'block',
-                              child: Text(
-                                'block'.tr,
-                                style: const TextStyle(color: Colors.red),
-                              ),
-                            ),
-                          ],
-                    ),
-                  ],
-                ),
-              ),
-
-              if (userDetails.coverImage != null &&
-                  userDetails.coverImage!.isNotEmpty)
+              if (professionalAdditionalData != null)
                 SizedBox(
                   height: 200,
                   child: Stack(
@@ -308,7 +358,7 @@ class _VisitProfileViewState extends State<VisitProfileView>
                   ),
                 ),
 
-              if (userDetails.coverImage == null)
+              if (professionalAdditionalData == null)
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
@@ -317,7 +367,6 @@ class _VisitProfileViewState extends State<VisitProfileView>
                         child: OpenToWorkBadge(
                           size: 70.h,
                           showOpenToWork: false,
-
                           imageUrl:
                               '${Common.profileImage}/${userDetails.image}',
                         ),
@@ -505,6 +554,27 @@ class _VisitProfileViewState extends State<VisitProfileView>
                             controller: visitProfileController,
                           ),
                         ),
+
+                        if (professionalAdditionalData != null) ...[
+                          const SizedBox(width: 8),
+
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: ColorUtils.primaryColor,
+                              ),
+                            ),
+                            child: Center(
+                              child: Icon(
+                                Icons.star_rounded,
+                                size: 30,
+                                color: ColorUtils.primaryColor,
+                              ),
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                   );
