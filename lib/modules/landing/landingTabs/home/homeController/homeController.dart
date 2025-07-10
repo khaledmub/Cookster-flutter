@@ -70,6 +70,65 @@ class HomeController extends GetxController with WidgetsBindingObserver {
     }
   }
 
+  Future<void> fetchMoreVideos() async {
+    if (isLoading.value ||
+        videoFeed.value.videos == null ||
+        videoFeed.value.videos!.isEmpty) {
+      print(
+        "Cannot fetch more videos: loading=${isLoading.value}, videos=${videoFeed.value.videos?.length}",
+      );
+      return;
+    }
+
+    // isLoading.value = true;
+    try {
+      // Create a copy of the existing videos to append
+      List<WallVideos> currentVideos = List<WallVideos>.from(
+        videoFeed.value.videos!,
+      );
+      // Append the current videos to the existing list
+      videoFeed.value.videos!.addAll(currentVideos);
+
+      print(
+        "Appended ${currentVideos.length} videos. New total: ${videoFeed.value.videos!.length}",
+      );
+
+      // Update controllers to match the new video count
+      await _updateControllersForNewVideos(currentVideos.length);
+
+      // Refresh the video feed observable
+      videoFeed.refresh();
+    } catch (e) {
+      print("Error in fetchMoreVideos: $e");
+      error.value = "Error appending more videos: $e";
+    } finally {
+      // isLoading.value = false;
+    }
+  }
+
+  Future<void> _updateControllersForNewVideos(int additionalVideoCount) async {
+    // Extend video controllers list
+    _videoControllers.addAll(
+      List.generate(additionalVideoCount, (index) => null),
+    );
+
+    // Extend chewie controllers list
+    _chewieControllers.addAll(
+      List.generate(additionalVideoCount, (index) => null),
+    );
+
+    // Preload controllers for the newly appended videos
+    int startIndex = _videoControllers.length - additionalVideoCount;
+    for (int i = startIndex; i < _videoControllers.length; i++) {
+      if (!_viewedIndices.contains(i)) {
+        await initializeControllerAtIndex(i);
+      }
+    }
+
+    // Refresh the chewie controllers observable
+    _chewieControllers.refresh();
+  }
+
   Future<void> checkLocationStatus() async {
     isLocationServiceEnabled.value =
         !await Permission.location.serviceStatus.isDisabled;
@@ -183,12 +242,9 @@ class HomeController extends GetxController with WidgetsBindingObserver {
         // Update Firestore to mark the user as blocked in the chat
         if (currentUserId != null && userId != null) {
           final chatId = _getChatId(currentUserId, userId);
-          await FirebaseFirestore.instance.collection('chats').doc(chatId).set(
-            {
-              'blockedBy': FieldValue.arrayUnion([currentUserId]),
-            },
-            SetOptions(merge: true),
-          );
+          await FirebaseFirestore.instance.collection('chats').doc(chatId).set({
+            'blockedBy': FieldValue.arrayUnion([currentUserId]),
+          }, SetOptions(merge: true));
           print('✅ Updated Firestore: User $userId blocked in chat $chatId');
         }
 
@@ -253,9 +309,9 @@ class HomeController extends GetxController with WidgetsBindingObserver {
 
     // Remove videos from blocked user
     List<WallVideos> updatedVideos =
-    videoFeed.value.videos!
-        .where((video) => video.frontUserId != blockedUserId)
-        .toList();
+        videoFeed.value.videos!
+            .where((video) => video.frontUserId != blockedUserId)
+            .toList();
 
     // Update the video feed
     videoFeed.value = VideoFeed(
@@ -280,6 +336,7 @@ class HomeController extends GetxController with WidgetsBindingObserver {
     List<String> ids = [userId1, userId2]..sort();
     return '${ids[0]}_${ids[1]}';
   }
+
   // Helper method to remove blocked user's videos from current list
 
   // Helper method to dispose controllers for removed videos
@@ -368,6 +425,10 @@ class HomeController extends GetxController with WidgetsBindingObserver {
         if (response.statusCode == 200) {
           var jsonData = jsonDecode(response.body);
           videoFeed.value = VideoFeed.fromJson(jsonData);
+
+          print(
+            "This is the length of videos: ${videoFeed.value.videos!.length}",
+          );
           await prepareControllers();
           if (_chewieControllers.isNotEmpty) {
             await initializeControllerAtIndex(0);
@@ -649,9 +710,9 @@ class HomeController extends GetxController with WidgetsBindingObserver {
   }
 
   Future<void> initializeControllerAtIndex(
-      int index, {
-        int retryCount = 3,
-      }) async {
+    int index, {
+    int retryCount = 3,
+  }) async {
     // Guard against invalid index
     if (index < 0 || index >= videoFeed.value.videos!.length) {
       print("Invalid index: $index");
@@ -745,7 +806,7 @@ class HomeController extends GetxController with WidgetsBindingObserver {
     }
   }
 
-// Helper method to dispose of a controller at a specific index
+  // Helper method to dispose of a controller at a specific index
   Future<void> _disposeControllerAtIndex(int index) async {
     try {
       if (_chewieControllers[index] != null) {

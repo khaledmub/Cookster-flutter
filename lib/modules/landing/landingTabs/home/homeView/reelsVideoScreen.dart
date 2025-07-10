@@ -636,6 +636,13 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                 // scrollBehavior: const ScrollBehavior(),
                 scrollDirection: Axis.vertical,
                 controller: pageController,
+                clipBehavior: Clip.none,
+                // reverse: true,
+                pageSnapping: true,
+                padEnds: true,
+                // physics: CarouselScrollPhysics(),
+
+                // allowImplicitScrolling: true,
                 onPageChanged: (index) async {
                   controller.visiblePageIndex.value = index;
                   int actualIndex =
@@ -643,6 +650,15 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                           ? index % controller.videoFeed.value.videos!.length
                           : 0;
                   controller.handlePageChange(actualIndex);
+
+                  // Check if we're nearing the end of the list (3 videos left)
+                  if (controller.videoFeed.value.videos != null &&
+                      actualIndex >=
+                          controller.videoFeed.value.videos!.length - 3) {
+                    // Fetch more videos to append to the list
+                    await controller.fetchMoreVideos();
+                  }
+
                   if (mounted) setState(() {});
 
                   // Track view in Firestore
