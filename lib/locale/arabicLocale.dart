@@ -489,5 +489,13 @@ const Map<String, String> ar = {
   "good": "جيد",
   "average": "متوسط",
   "poor": "ضعيف",
-  "terrible": "سيئ للغاية"
+  "terrible": "سيئ للغاية",
+  "add_review": "أضف تقييمًا",
+  "please_select_rating": "الرجاء اختيار تقييم",
+  "please_enter_review": "الرجاء كتابة تقييم",
+  "review_submitted_successfully": "تم إرسال التقييم بنجاح",
+  "tap_to_rate": "اضغط للتقييم",
+  "stars": "نجوم",
+  "share_your_experience": "شارك تجربتك",
+  "submit_review": "إرسال التقييم",
 };

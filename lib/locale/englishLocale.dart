@@ -489,5 +489,13 @@ const Map<String, String> en = {
   "good": "Good",
   "average": "Average",
   "poor": "Poor",
-  "terrible": "Terrible"
+  "terrible": "Terrible",
+  "add_review" : "Add Review",
+  "please_select_rating": "Please select a rating",
+  "please_enter_review": "Please enter a review",
+  "review_submitted_successfully": "Review submitted successfully",
+  "tap_to_rate": "Tap to rate",
+  "stars": "Stars",
+  "share_your_experience": "Share your experience",
+  "submit_review": "Submit Review"
 };

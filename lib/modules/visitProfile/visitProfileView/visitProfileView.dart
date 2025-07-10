@@ -561,7 +561,9 @@ class _VisitProfileViewState extends State<VisitProfileView>
 
                           InkWell(
                             onTap: () {
-                              Get.to(ViewReviews());
+                              Get.to(
+                                ViewReviews(professionalId: widget.userId),
+                              );
                             },
                             child: Container(
                               padding: const EdgeInsets.all(8),

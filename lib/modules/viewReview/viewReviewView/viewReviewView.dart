@@ -5,9 +5,12 @@ import 'package:get/get.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../appUtils/colorUtils.dart';
+import '../addReview/addReviewView/addReviewView.dart';
 
 class ViewReviews extends StatefulWidget {
-  const ViewReviews({super.key});
+  final String professionalId;
+
+  ViewReviews({super.key, required this.professionalId});
 
   @override
   State<ViewReviews> createState() => _ViewReviewsState();
@@ -39,23 +42,23 @@ class _ViewReviewsState extends State<ViewReviews> {
       backgroundColor: Colors.white,
       appBar: PreferredSize(
         preferredSize: Size.fromHeight(155.h),
-        // Adjusted height to fit content
         child: Container(
           padding: EdgeInsets.only(top: 40.h),
-          decoration: BoxDecoration(
-            borderRadius: const BorderRadius.only(
+          decoration: const BoxDecoration(
+            borderRadius: BorderRadius.only(
               bottomRight: Radius.circular(30),
               bottomLeft: Radius.circular(30),
             ),
-            gradient: const LinearGradient(
+            gradient: LinearGradient(
               colors: [Color(0xFFFFD700), Color(0xFFFFFADC)],
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
             ),
           ),
-          child: Stack(
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              // Back Button
               GestureDetector(
                 behavior: HitTestBehavior.opaque,
                 onTap: () {
@@ -66,9 +69,9 @@ class _ViewReviewsState extends State<ViewReviews> {
                   }
                 },
                 child: Container(
-                  margin: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  height: 40,
-                  width: 40,
+                  margin: EdgeInsets.symmetric(horizontal: 16.w, vertical: 8.h),
+                  height: 40.h,
+                  width: 40.w,
                   decoration: const BoxDecoration(
                     color: Color(0xFFE6BE00),
                     shape: BoxShape.circle,
@@ -77,24 +80,23 @@ class _ViewReviewsState extends State<ViewReviews> {
                     child: Icon(
                       isRtl ? Icons.arrow_back : Icons.arrow_back,
                       color: ColorUtils.darkBrown,
-                      size: 24,
+                      size: 24.sp,
                     ),
                   ),
                 ),
               ),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    textAlign: TextAlign.center,
-                    "reviews".tr,
-                    style: TextStyle(
-                      fontSize: 20.sp,
-                      fontWeight: FontWeight.w700,
-                    ),
+              Expanded(
+                child: Text(
+                  textAlign: TextAlign.center,
+                  "reviews".tr,
+                  style: TextStyle(
+                    fontSize: 20.sp,
+                    fontWeight: FontWeight.w700,
                   ),
-                ],
+                ),
               ),
+              SizedBox(width: 56.w),
+              // Balances the back button's width and margin
             ],
           ),
         ),
@@ -242,7 +244,12 @@ class _ViewReviewsState extends State<ViewReviews> {
 
             SizedBox(height: 16.h),
 
-            AppButton(text: "write_review".tr),
+            AppButton(
+              onTap: () {
+                Get.to(AddReviewView(professionalId: widget.professionalId));
+              },
+              text: "write_review".tr,
+            ),
           ],
         ),
       ),
