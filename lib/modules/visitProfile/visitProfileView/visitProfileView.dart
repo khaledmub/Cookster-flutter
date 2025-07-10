@@ -17,6 +17,7 @@ import '../../../appUtils/appCenterIcon.dart';
 import '../../../appUtils/colorUtils.dart';
 import '../../../appUtils/openToWork.dart';
 import '../../../loaders/pulseLoader.dart';
+import '../../viewReview/viewReviewView/viewReviewView.dart';
 import '../../chatScreen/chatScreenView.dart';
 import '../../followersFollowing/followersFollowingView/followersFollowingView.dart';
 import '../../landing/landingTabs/professionalProfile/profileControlller/professionalProfileController.dart';
@@ -558,19 +559,24 @@ class _VisitProfileViewState extends State<VisitProfileView>
                         if (professionalAdditionalData != null) ...[
                           const SizedBox(width: 8),
 
-                          Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              border: Border.all(
-                                color: ColorUtils.primaryColor,
+                          InkWell(
+                            onTap: () {
+                              Get.to(ViewReviews());
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: ColorUtils.primaryColor,
+                                ),
                               ),
-                            ),
-                            child: Center(
-                              child: Icon(
-                                Icons.star_rounded,
-                                size: 30,
-                                color: ColorUtils.primaryColor,
+                              child: Center(
+                                child: Icon(
+                                  Icons.star_rounded,
+                                  size: 30,
+                                  color: ColorUtils.primaryColor,
+                                ),
                               ),
                             ),
                           ),

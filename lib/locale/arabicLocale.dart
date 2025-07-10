@@ -479,4 +479,15 @@ const Map<String, String> ar = {
   "failed_to_load_video": "فشل في تحميل الفيديو",
   "no_b2b_found": "لا يوجد حساب للتعامل التجاري",
   "livestream_ended": "البث المباشر انتهى",
+  "based_on_reviews": "بناءً على {count} من التقييمات",
+  "write_review": "اكتب تقييمًا",
+  "rate_your_experience": "قيم تجربتك",
+  "write_your_review": "اكتب مراجعتك",
+  "submit": "إرسال",
+  "review_submitted": "تم إرسال التقييم بنجاح",
+  "excellent": "ممتاز",
+  "good": "جيد",
+  "average": "متوسط",
+  "poor": "ضعيف",
+  "terrible": "سيئ للغاية"
 };

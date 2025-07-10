@@ -478,5 +478,16 @@ const Map<String, String> en = {
   "total_clicks" : "Total Clicks",
   "failed_to_load_video" : "Failed to load video",
   "no_b2b_found" : "No B2B Account found for",
-  "livestream_ended" : "Livestream ended"
+  "livestream_ended" : "Livestream ended",
+  "based_on_reviews": "Based on {count} reviews",
+  "write_review": "Write a Review",
+  "rate_your_experience": "Rate your experience",
+  "write_your_review": "Write your review",
+  "submit": "Submit",
+  "review_submitted": "Review submitted successfully",
+  "excellent": "Excellent",
+  "good": "Good",
+  "average": "Average",
+  "poor": "Poor",
+  "terrible": "Terrible"
 };
