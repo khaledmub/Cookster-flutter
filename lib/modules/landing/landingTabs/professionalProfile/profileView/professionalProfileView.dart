@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cookster/appUtils/apiEndPoints.dart';
+import 'package:cookster/modules/viewReview/viewReviewView/viewReviewView.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -532,8 +533,35 @@ class _ProfessionalProfileViewState extends State<ProfessionalProfileView>
                                       ),
                                     ),
                                   ),
+                                  SizedBox(width: 8),
 
-                                  SizedBox(width: 16),
+                                  InkWell(
+                                    onTap: () {
+                                      Get.to(
+                                        ViewReviews(
+                                          professionalId: userDetails.id,
+                                        ),
+                                      );
+                                    },
+                                    child: Container(
+                                      // padding: EdgeInsets.all(8),
+                                      height: 40,
+                                      width: 40,
+                                      decoration: BoxDecoration(
+                                        shape: BoxShape.circle,
+                                        border: Border.all(
+                                          color: ColorUtils.darkBrown,
+                                        ),
+                                      ),
+                                      child: Icon(
+                                        Icons.star_rounded,
+                                        color: ColorUtils.primaryColor,
+                                        size: 30,
+                                      ),
+                                    ),
+                                  ),
+
+                                  SizedBox(width: 8),
                                   InkWell(
                                     onTap: () {
                                       showMoreOptionsProfile(
@@ -1120,10 +1148,7 @@ class _ProfessionalProfileViewState extends State<ProfessionalProfileView>
                   ),
                   onTap: () async {
                     Navigator.pop(bottomSheetContext);
-                    showVideoStatsDialog(
-                      context,
-                      video: videoId
-                    );
+                    showVideoStatsDialog(context, video: videoId);
                   },
                 ),
                 ListTile(

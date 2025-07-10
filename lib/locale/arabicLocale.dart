@@ -498,4 +498,6 @@ const Map<String, String> ar = {
   "stars": "نجوم",
   "share_your_experience": "شارك تجربتك",
   "submit_review": "إرسال التقييم",
+  "approve": "الموافقة",
+  "reject": "الرفض",
 };

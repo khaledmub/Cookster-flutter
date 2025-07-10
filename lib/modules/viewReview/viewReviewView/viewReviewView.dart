@@ -6,6 +6,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../appUtils/colorUtils.dart';
 import '../addReview/addReviewView/addReviewView.dart';
+import '../viewReviewController/viewReviewController.dart';
+
+// GetX Controller for managing review states
 
 class ViewReviews extends StatefulWidget {
   final String professionalId;
@@ -18,25 +21,29 @@ class ViewReviews extends StatefulWidget {
 
 class _ViewReviewsState extends State<ViewReviews> {
   String _language = 'en'; // Default to English
+  String loggedInUser = '';
+  final ReviewController reviewController = Get.put(ReviewController());
 
   Future<void> _loadLanguage() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
       _language =
           prefs.getString('language') ?? 'en'; // Default to 'en' if not set
+      loggedInUser = prefs.getString('user_id') ?? '';
+      print("Logged In User: $loggedInUser");
     });
   }
 
   @override
   void initState() {
     _loadLanguage();
-    // TODO: implement initState
     super.initState();
   }
 
   @override
   Widget build(BuildContext context) {
     bool isRtl = _language == 'ar';
+    bool isProfessional = widget.professionalId == loggedInUser;
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -96,12 +103,10 @@ class _ViewReviewsState extends State<ViewReviews> {
                 ),
               ),
               SizedBox(width: 56.w),
-              // Balances the back button's width and margin
             ],
           ),
         ),
       ),
-      // Replace the body: Column section with this:
       body: Padding(
         padding: EdgeInsets.all(16.w),
         child: Column(
@@ -208,48 +213,68 @@ class _ViewReviewsState extends State<ViewReviews> {
                 ],
               ),
             ),
-
             SizedBox(height: 24.h),
-
             // Reviews List
             Expanded(
-              child: ListView(
-                children: [
-                  _buildReviewCard(
-                    "Jean Perkins",
-                    "assets/images/user1.png", // Add your asset path
-                    5,
-                    "1 week ago",
-                    "Service is great but delivery was a bit slow. Overall good experience. Will definitely order again when I need fresh fish. The quality is excellent and the fish was very fresh.",
-                  ),
-                  SizedBox(height: 16.h),
-                  _buildReviewCard(
-                    "Frank Garrett",
-                    "assets/images/user2.png", // Add your asset path
-                    4,
-                    "4 days ago",
-                    "Assolutement parfait. Muiam consequat ipsum tellus tempor non mauris. Consequat est sed velit sed faucibus aliquet.",
-                  ),
-                  SizedBox(height: 16.h),
-                  _buildReviewCard(
-                    "Randy Palmer",
-                    "assets/images/user3.png", // Add your asset path
-                    5,
-                    "1 month ago",
-                    "Amazing amb nice, pryvate non rutting tempor, velit et gravida elit.",
-                  ),
-                ],
+              child: Obx(
+                () => ListView(
+                  children: [
+                    _buildReviewCard(
+                      "Jean Perkins",
+                      "assets/images/user1.png",
+                      5,
+                      "1 week ago",
+                      "Service is great but delivery was a bit slow. Overall good experience. Will definitely order again when I need fresh fish. The quality is excellent and the fish was very fresh.",
+                      reviewController.toggleStates["Jean Perkins"]!,
+                      () => reviewController.toggleReview("Jean Perkins"),
+                      () => reviewController.approveReview("Jean Perkins"),
+                      () => reviewController.rejectReview("Jean Perkins"),
+                      isProfessional,
+                    ),
+                    SizedBox(height: 16.h),
+                    _buildReviewCard(
+                      "Frank Garrett",
+                      "assets/images/user2.png",
+                      4,
+                      "4 days ago",
+                      "Assolutement parfait. Muiam consequat ipsum tellus tempor non mauris. Consequat est sed velit sed faucibus aliquet.",
+                      reviewController.toggleStates["Frank Garrett"]!,
+                      () => reviewController.toggleReview("Frank Garrett"),
+                      () => reviewController.approveReview("Frank Garrett"),
+                      () => reviewController.rejectReview("Frank Garrett"),
+                      isProfessional,
+                    ),
+                    SizedBox(height: 16.h),
+                    _buildReviewCard(
+                      "Randy Palmer",
+                      "assets/images/user3.png",
+                      5,
+                      "1 month ago",
+                      "Amazing amb nice, pryvate non rutting tempor, velit et gravida elit.",
+                      reviewController.toggleStates["Randy Palmer"]!,
+                      () => reviewController.toggleReview("Randy Palmer"),
+                      () => reviewController.approveReview("Randy Palmer"),
+                      () => reviewController.rejectReview("Randy Palmer"),
+                      isProfessional,
+                    ),
+                  ],
+                ),
               ),
             ),
 
-            SizedBox(height: 16.h),
-
-            AppButton(
-              onTap: () {
-                Get.to(AddReviewView(professionalId: widget.professionalId));
-              },
-              text: "write_review".tr,
-            ),
+            if (!isProfessional) ...[
+              SizedBox(height: 16.h),
+              SafeArea(
+                child: AppButton(
+                  onTap: () {
+                    Get.to(
+                      AddReviewView(professionalId: widget.professionalId),
+                    );
+                  },
+                  text: "write_review".tr,
+                ),
+              ),
+            ],
           ],
         ),
       ),
@@ -306,6 +331,11 @@ class _ViewReviewsState extends State<ViewReviews> {
     int rating,
     String timeAgo,
     String review,
+    bool isToggled,
+    VoidCallback onToggle,
+    VoidCallback onApprove,
+    VoidCallback onReject,
+    bool isProfessional,
   ) {
     return Container(
       padding: EdgeInsets.all(16.w),
@@ -338,13 +368,24 @@ class _ViewReviewsState extends State<ViewReviews> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      name,
-                      style: TextStyle(
-                        fontSize: 14.sp,
-                        fontWeight: FontWeight.w600,
-                        color: ColorUtils.darkBrown,
-                      ),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          name,
+                          style: TextStyle(
+                            fontSize: 14.sp,
+                            fontWeight: FontWeight.w600,
+                            color: ColorUtils.darkBrown,
+                          ),
+                        ),
+                        if (isProfessional)
+                          Switch(
+                            value: isToggled,
+                            onChanged: (value) => onToggle(),
+                            activeColor: ColorUtils.primaryColor,
+                          ),
+                      ],
                     ),
                     Row(
                       children: [
@@ -383,6 +424,57 @@ class _ViewReviewsState extends State<ViewReviews> {
               height: 1.4,
             ),
           ),
+          if (isProfessional) ...[
+            SizedBox(height: 12.h),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                TextButton(
+                  onPressed: onApprove,
+                  style: TextButton.styleFrom(
+                    backgroundColor: Colors.green[100],
+                    padding: EdgeInsets.symmetric(
+                      horizontal: 16.w,
+                      vertical: 8.h,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8.r),
+                    ),
+                  ),
+                  child: Text(
+                    'approve'.tr,
+                    style: TextStyle(
+                      color: Colors.green[800],
+                      fontSize: 14.sp,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                SizedBox(width: 8.w),
+                TextButton(
+                  onPressed: onReject,
+                  style: TextButton.styleFrom(
+                    backgroundColor: Colors.red[100],
+                    padding: EdgeInsets.symmetric(
+                      horizontal: 16.w,
+                      vertical: 8.h,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8.r),
+                    ),
+                  ),
+                  child: Text(
+                    'reject'.tr,
+                    style: TextStyle(
+                      color: Colors.red[800],
+                      fontSize: 14.sp,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
         ],
       ),
     );

@@ -497,5 +497,7 @@ const Map<String, String> en = {
   "tap_to_rate": "Tap to rate",
   "stars": "Stars",
   "share_your_experience": "Share your experience",
-  "submit_review": "Submit Review"
+  "submit_review": "Submit Review",
+  "approve": "Approve",
+  "reject": "Reject"
 };
