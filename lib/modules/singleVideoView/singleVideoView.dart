@@ -1658,22 +1658,21 @@ class _VideoDescriptionWidgetState extends State<VideoDescriptionWidget> {
                     alignment: Alignment.topLeft,
                     child: ConstrainedBox(
                       constraints: BoxConstraints(maxWidth: 250),
-                      child: InkWell(
-                        onTap: () {
-                          Get.to(SearchView(tag: widget.tags, isGeneral: 1));
-                        },
-                        child: Text(
-                          widget.tags!
-                              .split(',')
-                              .map((t) => '#${t.trim()}')
-                              .join(' '),
-                          style: tagStyle,
-                          maxLines: _isTagExpanded ? null : 1,
-                          overflow:
-                              _isTagExpanded
-                                  ? TextOverflow.visible
-                                  : TextOverflow.ellipsis,
-                        ),
+                      child: Wrap(
+                        spacing: 8.0,
+                        runSpacing: 4.0,
+                        children:
+                            widget.tags!.split(',').map((tag) {
+                              final trimmedTag = tag.trim();
+                              return InkWell(
+                                onTap: () {
+                                  Get.to(
+                                    SearchView(tag: trimmedTag, isGeneral: 1),
+                                  );
+                                },
+                                child: Text('#$trimmedTag', style: tagStyle),
+                              );
+                            }).toList(),
                       ),
                     ),
                   ),
