@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
@@ -9,11 +10,13 @@ class ReviewController extends GetxController {
   // Observable for storing the full review model
   final reviewsModel = AllReviewList().obs;
 
+
   // Observable for storing review list (userReviews from reviewsModel)
   final reviews = RxList<UserReviews>([]);
 
   // Observable for loading state
   final isLoading = false.obs;
+  final isApproving = false.obs;
 
   // Observable for toggle states
   final toggleStates = <String, bool>{}.obs;
@@ -72,69 +75,89 @@ class ReviewController extends GetxController {
     toggleStates.refresh();
   }
 
-  // Approve review
-  // Future<void> approveReview(String reviewId) async {
-  //   try {
-  //     isLoading.value = true;
-  //     final response = await ApiClient.postRequest(
-  //       EndPoints.updateReviewStatus,
-  //       {
-  //         'review_id': reviewId,
-  //         'status': 1, // 1 for approved
-  //         'is_visible': 1,
-  //       },
-  //     );
-  //
-  //     if (response.statusCode == 200) {
-  //       Get.snackbar('Success', 'Review approved successfully');
-  //       // Update local review status
-  //       final review = reviews.firstWhere((r) => r.id == reviewId);
-  //       review.status = 1;
-  //       review.isVisible = 1;
-  //       reviews.refresh();
-  //       // Update toggle state
-  //       toggleStates[review.reviewerName ?? 'Unknown'] = true;
-  //       toggleStates.refresh();
-  //     } else {
-  //       Get.snackbar('Error', 'Failed to approve review: ${response.statusCode}');
-  //     }
-  //   } catch (e) {
-  //     Get.snackbar('Error', 'Failed to approve review: $e');
-  //   } finally {
-  //     isLoading.value = false;
-  //   }
-  // }
+  // Update review status (approve or reject)
+  Future<void> updateReviewStatus(
+    BuildContext context,
+    String reviewId,
+    int action,
+  ) async {
+    try {
+      isApproving.value = true;
+      int status;
+      int isVisible;
+      if (action == 0) {
+        // Pending state
+        status = 0;
+        isVisible = 0;
+      } else if (action == 1) {
+        // Approve
+        status = 1;
+        isVisible = 1;
+      } else if (action == 2) {
+        // Reject
+        status = 0;
+        isVisible = 0;
+      } else {
+        throw Exception('Invalid action value');
+      }
+      final response = await ApiClient.postRequest(
+        EndPoints.updateReviewStatus,
+        {'id': reviewId, 'status': status},
+      );
 
-  // Reject review
-  // Future<void> rejectReview(String reviewId) async {
-  //   try {
-  //     isLoading.value = true;
-  //     final response = await ApiClient.postRequest(
-  //       EndPoints.updateReviewStatus,
-  //       {
-  //         'review_id': reviewId,
-  //         'status': 0, // 0 for rejected
-  //         'is_visible': 0,
-  //       },
-  //     );
-  //
-  //     if (response.statusCode == 200) {
-  //       Get.snackbar('Success', 'Review rejected successfully');
-  //       // Update local review status
-  //       final review = reviews.firstWhere((r) => r.id == reviewId);
-  //       review.status = 0;
-  //       review.isVisible = 0;
-  //       reviews.refresh();
-  //       // Update toggle state
-  //       toggleStates[review.reviewerName ?? 'Unknown'] = false;
-  //       toggleStates.refresh();
-  //     } else {
-  //       Get.snackbar('Error', 'Failed to reject review: ${response.statusCode}');
-  //     }
-  //   } catch (e) {
-  //     Get.snackbar('Error', 'Failed to reject review: $e');
-  //   } finally {
-  //     isLoading.value = false;
-  //   }
-  // }
+      print(response.body);
+
+      if (response.statusCode == 200) {
+        ScaffoldMessenger.of(Get.context!).showSnackBar(
+          SnackBar(
+            content: Text(
+              action == 0
+                  ? 'Review set to pending'
+                  : action == 1
+                  ? 'Review approved successfully'
+                  : 'Review rejected successfully',
+              style: const TextStyle(color: Colors.white),
+            ),
+            backgroundColor: Colors.green,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+        final review = reviews.firstWhere(
+          (r) => r.id == reviewId,
+          orElse: () => UserReviews(),
+        );
+        if (review.id != null) {
+          review.status = status;
+          review.isVisible = isVisible;
+          reviews.refresh();
+          toggleStates[review.reviewerName ?? 'Unknown'] = action == 1;
+          toggleStates.refresh();
+        }
+      } else {
+        ScaffoldMessenger.of(Get.context!).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Failed to update review status: ${response.statusCode}',
+              style: const TextStyle(color: Colors.white),
+            ),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(Get.context!).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Failed to update review status: $e',
+            style: const TextStyle(color: Colors.white),
+          ),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 3),
+        ),
+      );
+    } finally {
+      isApproving.value = false;
+    }
+  }
 }

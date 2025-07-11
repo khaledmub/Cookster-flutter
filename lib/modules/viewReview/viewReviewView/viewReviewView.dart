@@ -310,8 +310,11 @@ class _ViewReviewsState extends State<ViewReviews> {
                                             final reviewerImage =
                                                 review.reviewerImage ??
                                                 'assets/images/default_user.png';
-                                            final isVisible =
-                                                review.isVisible == 1;
+                                            final isApproved =
+                                                review.status == 1;
+                                            final status =
+                                                review.status ??
+                                                0; // Ensure status is passed
 
                                             return Padding(
                                               padding: EdgeInsets.only(
@@ -328,11 +331,22 @@ class _ViewReviewsState extends State<ViewReviews> {
                                                     false,
                                                 () => reviewController
                                                     .toggleReview(reviewerName),
-                                                () {},
-                                                // Approve action
-                                                () {},
-                                                // Reject action
+                                                () => reviewController
+                                                    .updateReviewStatus(
+                                                      context,
+                                                      review.id!,
+                                                      1,
+                                                    ),
+                                                // Approve
+                                                () => reviewController
+                                                    .updateReviewStatus(
+                                                      context,
+                                                      review.id!,
+                                                      2,
+                                                    ),
+                                                // Reject
                                                 isProfessional,
+                                                isApproved,
                                               ),
                                             );
                                           },
@@ -388,7 +402,6 @@ class _ViewReviewsState extends State<ViewReviews> {
             child: FractionallySizedBox(
               alignment: Alignment.centerLeft,
               widthFactor: progress.clamp(0.0, 1.0),
-              // Ensure progress is between 0 and 1
               child: Container(
                 decoration: BoxDecoration(
                   color: color,
@@ -444,7 +457,20 @@ class _ViewReviewsState extends State<ViewReviews> {
     VoidCallback onApprove,
     VoidCallback onReject,
     bool isProfessional,
+    bool isApproved, // This is derived from review.status == 1
   ) {
+    // Determine the review status (assuming status is passed or derived)
+    // Note: Since isApproved is derived as review.status == 1, we need the actual status
+    // Assuming the review object has a status field
+    int status =
+        isApproved
+            ? 1
+            : 0; // Default to 0 if not approved, adjust based on your model
+
+    // You may need to pass the actual status from the review object
+    // For example, if review.status is available, use it directly:
+    // int status = review.status ?? 0;
+
     return Container(
       padding: EdgeInsets.all(16.w),
       decoration: BoxDecoration(
@@ -495,7 +521,7 @@ class _ViewReviewsState extends State<ViewReviews> {
                             color: ColorUtils.darkBrown,
                           ),
                         ),
-                        if (isProfessional)
+                        if (isProfessional && isApproved)
                           Switch(
                             value: isToggled,
                             onChanged: (value) => onToggle(),
@@ -545,49 +571,98 @@ class _ViewReviewsState extends State<ViewReviews> {
             Row(
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
-                TextButton(
-                  onPressed: onApprove,
-                  style: TextButton.styleFrom(
-                    backgroundColor: Colors.green[100],
-                    padding: EdgeInsets.symmetric(
-                      horizontal: 16.w,
-                      vertical: 8.h,
+                if (status == 0) ...[
+                  // Show both Approve and Reject buttons when status is 0 (pending)
+                  TextButton(
+                    onPressed: onApprove,
+                    style: TextButton.styleFrom(
+                      backgroundColor: Colors.green[100],
+                      padding: EdgeInsets.symmetric(
+                        horizontal: 16.w,
+                        vertical: 8.h,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8.r),
+                      ),
                     ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8.r),
-                    ),
-                  ),
-                  child: Text(
-                    'approve'.tr,
-                    style: TextStyle(
-                      color: Colors.green[800],
-                      fontSize: 14.sp,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-                SizedBox(width: 8.w),
-                TextButton(
-                  onPressed: onReject,
-                  style: TextButton.styleFrom(
-                    backgroundColor: Colors.red[100],
-                    padding: EdgeInsets.symmetric(
-                      horizontal: 16.w,
-                      vertical: 8.h,
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8.r),
+                    child: Text(
+                      'approve'.tr,
+                      style: TextStyle(
+                        color: Colors.green[800],
+                        fontSize: 14.sp,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
-                  child: Text(
-                    'reject'.tr,
-                    style: TextStyle(
-                      color: Colors.red[800],
-                      fontSize: 14.sp,
-                      fontWeight: FontWeight.w600,
+                  SizedBox(width: 8.w),
+                  TextButton(
+                    onPressed: onReject,
+                    style: TextButton.styleFrom(
+                      backgroundColor: Colors.red[100],
+                      padding: EdgeInsets.symmetric(
+                        horizontal: 16.w,
+                        vertical: 8.h,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8.r),
+                      ),
+                    ),
+                    child: Text(
+                      'reject'.tr,
+                      style: TextStyle(
+                        color: Colors.red[800],
+                        fontSize: 14.sp,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
-                ),
+                ] else if (status == 1) ...[
+                  // Show disabled Approve button when status is 1 (approved)
+                  TextButton(
+                    onPressed: null, // Disabled
+                    style: TextButton.styleFrom(
+                      backgroundColor: Colors.green[50],
+                      padding: EdgeInsets.symmetric(
+                        horizontal: 16.w,
+                        vertical: 8.h,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8.r),
+                      ),
+                    ),
+                    child: Text(
+                      'approved'.tr,
+                      style: TextStyle(
+                        color: Colors.green[400],
+                        fontSize: 14.sp,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ] else if (status == 2) ...[
+                  // Show disabled Reject button when status is 2 (rejected)
+                  TextButton(
+                    onPressed: null, // Disabled
+                    style: TextButton.styleFrom(
+                      backgroundColor: Colors.red[50],
+                      padding: EdgeInsets.symmetric(
+                        horizontal: 16.w,
+                        vertical: 8.h,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8.r),
+                      ),
+                    ),
+                    child: Text(
+                      'rejected'.tr,
+                      style: TextStyle(
+                        color: Colors.red[400],
+                        fontSize: 14.sp,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
               ],
             ),
           ],

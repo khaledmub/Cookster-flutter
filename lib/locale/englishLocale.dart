@@ -499,5 +499,7 @@ const Map<String, String> en = {
   "share_your_experience": "Share your experience",
   "submit_review": "Submit Review",
   "approve": "Approve",
-  "reject": "Reject"
+  "reject": "Reject",
+  "approved" : "Approved",
+  "rejected" : "Rejected"
 };

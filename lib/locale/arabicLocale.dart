@@ -500,4 +500,6 @@ const Map<String, String> ar = {
   "submit_review": "إرسال التقييم",
   "approve": "الموافقة",
   "reject": "الرفض",
+  "approved": "مقبول",
+  "rejected": "مرفوض",
 };
