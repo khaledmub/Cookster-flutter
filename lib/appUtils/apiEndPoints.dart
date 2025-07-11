@@ -17,6 +17,7 @@ class Common {
 }
 
 class EndPoints {
+  static String updateReviewVisibility = "update_review_visibility";
   static String updateReviewStatus = "update_review_status";
   static String getReviewList = "user_reviews_list";
   static String addReview = "add_user_review";

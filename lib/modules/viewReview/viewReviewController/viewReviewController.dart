@@ -10,7 +10,6 @@ class ReviewController extends GetxController {
   // Observable for storing the full review model
   final reviewsModel = AllReviewList().obs;
 
-
   // Observable for storing review list (userReviews from reviewsModel)
   final reviews = RxList<UserReviews>([]);
 
@@ -69,10 +68,75 @@ class ReviewController extends GetxController {
     }
   }
 
-  // Toggle review visibility (local state for UI)
-  void toggleReview(String name) {
-    toggleStates[name] = !toggleStates[name]!;
-    toggleStates.refresh();
+  // Toggle review visibility (API call)
+  Future<void> toggleReviewVisibility(
+    BuildContext context,
+    String reviewId,
+  ) async {
+    try {
+      isApproving.value = true;
+      final review = reviews.firstWhere(
+        (r) => r.id == reviewId,
+        orElse: () => UserReviews(),
+      );
+      if (review.id == null) throw Exception('Review not found');
+
+      // Determine the new visibility state (toggle between 0 and 1)
+      final newIsVisible = review.isVisible == 1 ? 0 : 1;
+
+      final response = await ApiClient.postRequest(
+        EndPoints.updateReviewVisibility,
+        // Use the correct endpoint for visibility
+        {'id': reviewId, 'is_visible': newIsVisible},
+      );
+
+      print(response.body);
+
+      if (response.statusCode == 200) {
+        final jsonResponse = jsonDecode(response.body);
+        final successMessage =
+            jsonResponse['message'] as String? ?? 'Updated successfully.';
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              successMessage,
+              style: const TextStyle(color: Colors.white),
+            ),
+            backgroundColor: Colors.green,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+        // Update local state
+        review.isVisible = newIsVisible;
+        reviews.refresh();
+        toggleStates[review.reviewerName ?? 'Unknown'] = newIsVisible == 1;
+        toggleStates.refresh();
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Failed to toggle review visibility: ${response.statusCode}',
+              style: const TextStyle(color: Colors.white),
+            ),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Failed to toggle review visibility: $e',
+            style: const TextStyle(color: Colors.white),
+          ),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 3),
+        ),
+      );
+    } finally {
+      isApproving.value = false;
+    }
   }
 
   // Update review status (approve or reject)
@@ -108,7 +172,7 @@ class ReviewController extends GetxController {
       print(response.body);
 
       if (response.statusCode == 200) {
-        ScaffoldMessenger.of(Get.context!).showSnackBar(
+        ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
               action == 0
@@ -134,7 +198,7 @@ class ReviewController extends GetxController {
           toggleStates.refresh();
         }
       } else {
-        ScaffoldMessenger.of(Get.context!).showSnackBar(
+        ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
               'Failed to update review status: ${response.statusCode}',
@@ -146,7 +210,7 @@ class ReviewController extends GetxController {
         );
       }
     } catch (e) {
-      ScaffoldMessenger.of(Get.context!).showSnackBar(
+      ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
             'Failed to update review status: $e',

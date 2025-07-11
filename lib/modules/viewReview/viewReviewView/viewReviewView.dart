@@ -326,25 +326,10 @@ class _ViewReviewsState extends State<ViewReviews> {
                                                 rating,
                                                 _formatTimeAgo(createdAt),
                                                 reviewText,
-                                                reviewController
-                                                        .toggleStates[reviewerName] ??
-                                                    false,
-                                                () => reviewController
-                                                    .toggleReview(reviewerName),
-                                                () => reviewController
-                                                    .updateReviewStatus(
-                                                      context,
-                                                      review.id!,
-                                                      1,
-                                                    ),
-                                                // Approve
-                                                () => reviewController
-                                                    .updateReviewStatus(
-                                                      context,
-                                                      review.id!,
-                                                      2,
-                                                    ),
-                                                // Reject
+                                                reviewController.toggleStates[reviewerName] ?? false,
+                                                    () => reviewController.toggleReviewVisibility(context, review.id!), // Updated to use toggleReviewVisibility
+                                                    () => reviewController.updateReviewStatus(context, review.id!, 1), // Approve
+                                                    () => reviewController.updateReviewStatus(context, review.id!, 2), // Reject
                                                 isProfessional,
                                                 isApproved,
                                               ),
