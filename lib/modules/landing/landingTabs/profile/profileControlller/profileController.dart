@@ -43,30 +43,30 @@ class ProfileController extends GetxController {
   var cityId = -1.obs;
   var profileLikesCount = 0.obs;
 
-  Future<void> checkReceivedLikes(String currentUserId) async {
-    try {
-      print("Step 1: Function called with currentUserId: $currentUserId");
+  Stream<int> checkReceivedLikes(String currentUserId) {
+    print("Step 1: Stream initialized for currentUserId: $currentUserId");
 
-      // Query the document where profileId matches currentUserId
-      print("Step 2: Querying Firestore for received likes...");
-      final QuerySnapshot receivedLikes =
-          await FirebaseFirestore.instance
-              .collection('profileLikes')
-              .where('profileId', isEqualTo: currentUserId)
-              .get();
-
-      if (receivedLikes.docs.isNotEmpty) {
-        // Fetch the likeCount from the first document
-        int likeCount = receivedLikes.docs.first['likeCount'] ?? 0;
-        profileLikesCount.value = likeCount;
-        print("Step 3: Updated profileLikesCount to $likeCount");
-      } else {
-        profileLikesCount.value = 0;
-        print("Step 3: No likes found. profileLikesCount set to 0.");
-      }
-    } catch (e) {
-      print("Error checking received like status: $e");
-    }
+    return FirebaseFirestore.instance
+        .collection('profileLikes')
+        .where('profileId', isEqualTo: currentUserId)
+        .snapshots()
+        .map((QuerySnapshot snapshot) {
+          print("Step 2: Received snapshot for profileLikes");
+          if (snapshot.docs.isNotEmpty) {
+            int likeCount = snapshot.docs.first['likeCount'] ?? 0;
+            print("Step 3: Updating profileLikesCount to $likeCount");
+            profileLikesCount.value = likeCount;
+            return likeCount;
+          } else {
+            print("Step 3: No likes found. profileLikesCount set to 0.");
+            profileLikesCount.value = 0;
+            return 0;
+          }
+        })
+        .handleError((e) {
+          print("Error in stream: $e");
+          return 0;
+        });
   }
 
   final TextEditingController nameController = TextEditingController();

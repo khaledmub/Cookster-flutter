@@ -105,6 +105,11 @@ class _ProfessionalProfileViewState extends State<ProfessionalProfileView>
       final userDetails = profileController.userDetails.value?.user;
       final videoTypes = profileController.userDetails.value?.videoTypes;
       final subscribed = profileController.userDetails.value?.subscription;
+      // if (userDetails?.id != null) {
+      //   profileController.checkReceivedLikes(userDetails!.id.toString());
+      // } else {
+      //   print("Skipping checkReceivedLikes: userDetails or ID is null");
+      // }
       final professionalAdditionalData =
           profileController.userDetails.value?.additionalData;
 
@@ -432,10 +437,31 @@ class _ProfessionalProfileViewState extends State<ProfessionalProfileView>
                                       label: "Following".tr,
                                     ),
                                   ),
-                                  ProfileStat(
-                                    number:
-                                        "${profileController.profileLikesCount.value}",
-                                    label: "Likes".tr,
+                                  StreamBuilder<int>(
+                                    stream: profileController
+                                        .checkReceivedLikes(userDetails.id),
+                                    builder: (
+                                      context,
+                                      AsyncSnapshot<int> snapshot,
+                                    ) {
+                                      if (snapshot.connectionState ==
+                                          ConnectionState.waiting) {
+                                        return ProfileStat(
+                                          number: "0",
+                                          label: "Likes".tr,
+                                        ); // Show loading state with default value
+                                      }
+                                      if (snapshot.hasError) {
+                                        return ProfileStat(
+                                          number: "Error",
+                                          label: "Likes".tr,
+                                        );
+                                      }
+                                      return ProfileStat(
+                                        number: "${snapshot.data ?? 0}",
+                                        label: "Likes".tr,
+                                      );
+                                    },
                                   ),
                                 ],
                               );
