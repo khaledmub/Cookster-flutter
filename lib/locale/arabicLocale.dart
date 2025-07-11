@@ -502,4 +502,5 @@ const Map<String, String> ar = {
   "reject": "الرفض",
   "approved": "مقبول",
   "rejected": "مرفوض",
+  "no_reviews_found": "لم يتم العثور على مراجعات",
 };

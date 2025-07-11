@@ -10,7 +10,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../../appUtils/colorUtils.dart';
 import '../addReview/addReviewView/addReviewView.dart';
 import '../viewReviewController/viewReviewController.dart';
-import '../viewReviewModel/viewReviewModel.dart';
 
 class ViewReviews extends StatefulWidget {
   final String professionalId;
@@ -37,7 +36,7 @@ class _ViewReviewsState extends State<ViewReviews> {
 
     if (loggedInUser.value.isNotEmpty && !_hasInitiallyFetched) {
       _hasInitiallyFetched = true;
-      reviewController.fetchReviews(loggedInUser.value);
+      reviewController.fetchReviews(widget.professionalId);
     }
   }
 
@@ -271,8 +270,12 @@ class _ViewReviewsState extends State<ViewReviews> {
                                   : reviewController.reviews.isEmpty
                                   ? Center(
                                     child: Text(
-                                      "no_reviews".tr,
-                                      style: TextStyle(fontSize: 16.sp),
+                                      "no_reviews_found".tr,
+                                      style: TextStyle(
+                                        fontSize: 16.sp,
+                                        fontWeight: FontWeight.w500,
+                                        color: ColorUtils.primaryColor,
+                                      ),
                                     ),
                                   )
                                   : () {
@@ -326,10 +329,29 @@ class _ViewReviewsState extends State<ViewReviews> {
                                                 rating,
                                                 _formatTimeAgo(createdAt),
                                                 reviewText,
-                                                reviewController.toggleStates[reviewerName] ?? false,
-                                                    () => reviewController.toggleReviewVisibility(context, review.id!), // Updated to use toggleReviewVisibility
-                                                    () => reviewController.updateReviewStatus(context, review.id!, 1), // Approve
-                                                    () => reviewController.updateReviewStatus(context, review.id!, 2), // Reject
+                                                reviewController
+                                                        .toggleStates[reviewerName] ??
+                                                    false,
+                                                () => reviewController
+                                                    .toggleReviewVisibility(
+                                                      context,
+                                                      review.id!,
+                                                    ),
+                                                // Updated to use toggleReviewVisibility
+                                                () => reviewController
+                                                    .updateReviewStatus(
+                                                      context,
+                                                      review.id!,
+                                                      1,
+                                                    ),
+                                                // Approve
+                                                () => reviewController
+                                                    .updateReviewStatus(
+                                                      context,
+                                                      review.id!,
+                                                      2,
+                                                    ),
+                                                // Reject
                                                 isProfessional,
                                                 isApproved,
                                               ),

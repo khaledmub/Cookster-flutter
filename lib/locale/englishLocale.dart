@@ -501,5 +501,6 @@ const Map<String, String> en = {
   "approve": "Approve",
   "reject": "Reject",
   "approved" : "Approved",
-  "rejected" : "Rejected"
+  "rejected" : "Rejected",
+  "no_reviews_found" : "No Reviews Found"
 };

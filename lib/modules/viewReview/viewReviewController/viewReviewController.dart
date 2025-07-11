@@ -141,10 +141,10 @@ class ReviewController extends GetxController {
 
   // Update review status (approve or reject)
   Future<void> updateReviewStatus(
-    BuildContext context,
-    String reviewId,
-    int action,
-  ) async {
+      BuildContext context,
+      String reviewId,
+      int action,
+      ) async {
     try {
       isApproving.value = true;
       int status;
@@ -159,11 +159,13 @@ class ReviewController extends GetxController {
         isVisible = 1;
       } else if (action == 2) {
         // Reject
-        status = 0;
+        status = 2;
         isVisible = 0;
       } else {
         throw Exception('Invalid action value');
       }
+
+      print("Status: $status");
       final response = await ApiClient.postRequest(
         EndPoints.updateReviewStatus,
         {'id': reviewId, 'status': status},
@@ -172,14 +174,12 @@ class ReviewController extends GetxController {
       print(response.body);
 
       if (response.statusCode == 200) {
+        final jsonResponse = jsonDecode(response.body);
+        final successMessage = jsonResponse['message'] as String? ?? 'Updated successfully.';
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              action == 0
-                  ? 'Review set to pending'
-                  : action == 1
-                  ? 'Review approved successfully'
-                  : 'Review rejected successfully',
+              successMessage,
               style: const TextStyle(color: Colors.white),
             ),
             backgroundColor: Colors.green,
@@ -187,13 +187,18 @@ class ReviewController extends GetxController {
           ),
         );
         final review = reviews.firstWhere(
-          (r) => r.id == reviewId,
+              (r) => r.id == reviewId,
           orElse: () => UserReviews(),
         );
         if (review.id != null) {
           review.status = status;
           review.isVisible = isVisible;
-          reviews.refresh();
+          if (action == 2) {
+            // Remove the review from the list when rejected
+            reviews.removeWhere((r) => r.id == reviewId);
+          } else {
+            reviews.refresh();
+          }
           toggleStates[review.reviewerName ?? 'Unknown'] = action == 1;
           toggleStates.refresh();
         }
