@@ -1,3 +1,6 @@
+import 'dart:math';
+
+import 'package:cookster/appUtils/apiEndPoints.dart';
 import 'package:cookster/appUtils/appUtils.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -7,8 +10,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../../appUtils/colorUtils.dart';
 import '../addReview/addReviewView/addReviewView.dart';
 import '../viewReviewController/viewReviewController.dart';
-
-// GetX Controller for managing review states
+import '../viewReviewModel/viewReviewModel.dart';
 
 class ViewReviews extends StatefulWidget {
   final String professionalId;
@@ -20,30 +22,35 @@ class ViewReviews extends StatefulWidget {
 }
 
 class _ViewReviewsState extends State<ViewReviews> {
-  String _language = 'en'; // Default to English
-  String loggedInUser = '';
+  String _language = 'en';
+  final RxString loggedInUser = ''.obs;
   final ReviewController reviewController = Get.put(ReviewController());
+  bool _hasInitiallyFetched = false;
 
   Future<void> _loadLanguage() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
-      _language =
-          prefs.getString('language') ?? 'en'; // Default to 'en' if not set
-      loggedInUser = prefs.getString('user_id') ?? '';
-      print("Logged In User: $loggedInUser");
+      _language = prefs.getString('language') ?? 'en';
+      loggedInUser.value = prefs.getString('user_id') ?? '';
+      print("Logged In User: ${loggedInUser.value}");
     });
+
+    if (loggedInUser.value.isNotEmpty && !_hasInitiallyFetched) {
+      _hasInitiallyFetched = true;
+      reviewController.fetchReviews(loggedInUser.value);
+    }
   }
 
   @override
   void initState() {
-    _loadLanguage();
     super.initState();
+    _loadLanguage();
   }
 
   @override
   Widget build(BuildContext context) {
     bool isRtl = _language == 'ar';
-    bool isProfessional = widget.professionalId == loggedInUser;
+    bool isProfessional = widget.professionalId == loggedInUser.value;
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -85,7 +92,7 @@ class _ViewReviewsState extends State<ViewReviews> {
                   ),
                   child: Center(
                     child: Icon(
-                      isRtl ? Icons.arrow_back : Icons.arrow_back,
+                      isRtl ? Icons.arrow_forward : Icons.arrow_back,
                       color: ColorUtils.darkBrown,
                       size: 24.sp,
                     ),
@@ -107,176 +114,250 @@ class _ViewReviewsState extends State<ViewReviews> {
           ),
         ),
       ),
-      body: Padding(
-        padding: EdgeInsets.all(16.w),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Rating Overview Section
-            Container(
-              padding: EdgeInsets.all(16.w),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(12.r),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.grey.withOpacity(0.1),
-                    spreadRadius: 1,
-                    blurRadius: 5,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
+      body: Obx(
+        () =>
+            reviewController.isLoading.value
+                ? const Center(child: CircularProgressIndicator())
+                : Padding(
+                  padding: EdgeInsets.all(16.w),
+                  child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Rating Score
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            "4.0",
-                            style: TextStyle(
-                              fontSize: 32.sp,
-                              fontWeight: FontWeight.bold,
-                              color: ColorUtils.darkBrown,
-                            ),
-                          ),
-                          Row(
-                            children: List.generate(5, (index) {
-                              return Icon(
-                                index < 4
-                                    ? Icons.star_rounded
-                                    : Icons.star_border_rounded,
-                                color: const Color(0xFFFFD700),
-                                size: 20.sp,
-                              );
-                            }),
-                          ),
-                          SizedBox(height: 4.h),
-                          Text(
-                            "based_on_reviews".tr.replaceAll("{count}", "24"),
-                            style: TextStyle(
-                              fontSize: 12.sp,
-                              color: Colors.grey[600],
-                            ),
-                          ),
-                        ],
-                      ),
-                      SizedBox(width: 24.w),
-                      // Rating Breakdown
-                      Expanded(
-                        child: Column(
-                          children: [
-                            _buildRatingBar(
-                              "excellent".tr,
-                              5,
-                              0.7,
-                              const Color(0xFF4CAF50),
-                            ),
-                            SizedBox(height: 8.h),
-                            _buildRatingBar(
-                              "good".tr,
-                              4,
-                              0.5,
-                              const Color(0xFF8BC34A),
-                            ),
-                            SizedBox(height: 8.h),
-                            _buildRatingBar(
-                              "average".tr,
-                              3,
-                              0.3,
-                              const Color(0xFFFFEB3B),
-                            ),
-                            SizedBox(height: 8.h),
-                            _buildRatingBar(
-                              "poor".tr,
-                              2,
-                              0.1,
-                              const Color(0xFFFF9800),
-                            ),
-                            SizedBox(height: 8.h),
-                            _buildRatingBar(
-                              "terrible".tr,
-                              1,
-                              0.05,
-                              const Color(0xFFF44336),
+                      // Rating Overview Section
+                      Container(
+                        padding: EdgeInsets.all(16.w),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(12.r),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.grey.withOpacity(0.1),
+                              spreadRadius: 1,
+                              blurRadius: 5,
+                              offset: const Offset(0, 2),
                             ),
                           ],
                         ),
+                        child: Obx(() {
+                          final reviewCounters =
+                              reviewController
+                                  .reviewsModel
+                                  .value
+                                  .reviewCounters;
+                          final averageRating =
+                              reviewCounters?.averageRating?.toStringAsFixed(
+                                1,
+                              ) ??
+                              "0.0";
+                          final totalReviews =
+                              reviewCounters?.totalReviews?.toString() ?? "0";
+                          final ratings = reviewCounters?.ratings;
+
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  // Rating Score
+                                  Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        averageRating,
+                                        style: TextStyle(
+                                          fontSize: 32.sp,
+                                          fontWeight: FontWeight.bold,
+                                          color: ColorUtils.darkBrown,
+                                        ),
+                                      ),
+                                      Row(
+                                        children: List.generate(5, (index) {
+                                          return Icon(
+                                            index <
+                                                    double.parse(
+                                                      averageRating,
+                                                    ).round()
+                                                ? Icons.star_rounded
+                                                : Icons.star_border_rounded,
+                                            color: const Color(0xFFFFD700),
+                                            size: 20.sp,
+                                          );
+                                        }),
+                                      ),
+                                      SizedBox(height: 4.h),
+                                      Text(
+                                        "based_on_reviews".tr.replaceAll(
+                                          "{count}",
+                                          totalReviews,
+                                        ),
+                                        style: TextStyle(
+                                          fontSize: 12.sp,
+                                          color: Colors.grey[600],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  SizedBox(width: 24.w),
+                                  // Rating Breakdown
+                                  Expanded(
+                                    child: Column(
+                                      children: [
+                                        _buildRatingBar(
+                                          "excellent".tr,
+                                          5,
+                                          _calculateProgress(
+                                            ratings?.five ?? 0,
+                                            totalReviews,
+                                          ),
+                                          const Color(0xFF4CAF50),
+                                        ),
+                                        SizedBox(height: 8.h),
+                                        _buildRatingBar(
+                                          "good".tr,
+                                          4,
+                                          _calculateProgress(
+                                            ratings?.four ?? 0,
+                                            totalReviews,
+                                          ),
+                                          const Color(0xFF8BC34A),
+                                        ),
+                                        _buildRatingBar(
+                                          "average".tr,
+                                          3,
+                                          _calculateProgress(
+                                            ratings?.three ?? 0,
+                                            totalReviews,
+                                          ),
+                                          const Color(0xFFFFEB3B),
+                                        ),
+                                        _buildRatingBar(
+                                          "poor".tr,
+                                          2,
+                                          _calculateProgress(
+                                            ratings?.two ?? 0,
+                                            totalReviews,
+                                          ),
+                                          const Color(0xFFFF9800),
+                                        ),
+                                        _buildRatingBar(
+                                          "terrible".tr,
+                                          1,
+                                          _calculateProgress(
+                                            ratings?.one ?? 0,
+                                            totalReviews,
+                                          ),
+                                          const Color(0xFFF44336),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          );
+                        }),
                       ),
+                      SizedBox(height: 24.h),
+                      // Reviews List
+                      Expanded(
+                        child: Obx(
+                          () =>
+                              reviewController.isLoading.value
+                                  ? const Center(
+                                    child: CircularProgressIndicator(),
+                                  )
+                                  : reviewController.reviews.isEmpty
+                                  ? Center(
+                                    child: Text(
+                                      "no_reviews".tr,
+                                      style: TextStyle(fontSize: 16.sp),
+                                    ),
+                                  )
+                                  : () {
+                                    // Filter reviews for non-professionals
+                                    final reviews =
+                                        isProfessional
+                                            ? reviewController.reviews
+                                            : reviewController.reviews
+                                                .where(
+                                                  (review) =>
+                                                      review.isVisible == 1 &&
+                                                      review.status == 1,
+                                                )
+                                                .toList();
+                                    return reviews.isEmpty
+                                        ? Center(
+                                          child: Text(
+                                            "no_reviews".tr,
+                                            style: TextStyle(fontSize: 16.sp),
+                                          ),
+                                        )
+                                        : ListView.builder(
+                                          itemCount: reviews.length,
+                                          itemBuilder: (context, index) {
+                                            final review = reviews[index];
+                                            final reviewerName =
+                                                review.reviewerName ??
+                                                'Anonymous';
+                                            final rating =
+                                                review.rating?.toInt() ?? 0;
+                                            final reviewText =
+                                                review.review ?? '';
+                                            final createdAt =
+                                                review.createdAt ?? '';
+                                            final reviewerImage =
+                                                review.reviewerImage ??
+                                                'assets/images/default_user.png';
+                                            final isVisible =
+                                                review.isVisible == 1;
+
+                                            return Padding(
+                                              padding: EdgeInsets.only(
+                                                bottom: 16.h,
+                                              ),
+                                              child: _buildReviewCard(
+                                                reviewerName,
+                                                reviewerImage,
+                                                rating,
+                                                _formatTimeAgo(createdAt),
+                                                reviewText,
+                                                reviewController
+                                                        .toggleStates[reviewerName] ??
+                                                    false,
+                                                () => reviewController
+                                                    .toggleReview(reviewerName),
+                                                () {},
+                                                // Approve action
+                                                () {},
+                                                // Reject action
+                                                isProfessional,
+                                              ),
+                                            );
+                                          },
+                                        );
+                                  }(),
+                        ),
+                      ),
+                      if (!isProfessional) ...[
+                        SizedBox(height: 16.h),
+                        SafeArea(
+                          child: AppButton(
+                            onTap: () {
+                              Get.to(
+                                AddReviewView(
+                                  professionalId: widget.professionalId,
+                                ),
+                              );
+                            },
+                            text: "write_review".tr,
+                          ),
+                        ),
+                      ],
                     ],
                   ),
-                ],
-              ),
-            ),
-            SizedBox(height: 24.h),
-            // Reviews List
-            Expanded(
-              child: Obx(
-                () => ListView(
-                  children: [
-                    _buildReviewCard(
-                      "Jean Perkins",
-                      "assets/images/user1.png",
-                      5,
-                      "1 week ago",
-                      "Service is great but delivery was a bit slow. Overall good experience. Will definitely order again when I need fresh fish. The quality is excellent and the fish was very fresh.",
-                      reviewController.toggleStates["Jean Perkins"]!,
-                      () => reviewController.toggleReview("Jean Perkins"),
-                      () => reviewController.approveReview("Jean Perkins"),
-                      () => reviewController.rejectReview("Jean Perkins"),
-                      isProfessional,
-                    ),
-                    SizedBox(height: 16.h),
-                    _buildReviewCard(
-                      "Frank Garrett",
-                      "assets/images/user2.png",
-                      4,
-                      "4 days ago",
-                      "Assolutement parfait. Muiam consequat ipsum tellus tempor non mauris. Consequat est sed velit sed faucibus aliquet.",
-                      reviewController.toggleStates["Frank Garrett"]!,
-                      () => reviewController.toggleReview("Frank Garrett"),
-                      () => reviewController.approveReview("Frank Garrett"),
-                      () => reviewController.rejectReview("Frank Garrett"),
-                      isProfessional,
-                    ),
-                    SizedBox(height: 16.h),
-                    _buildReviewCard(
-                      "Randy Palmer",
-                      "assets/images/user3.png",
-                      5,
-                      "1 month ago",
-                      "Amazing amb nice, pryvate non rutting tempor, velit et gravida elit.",
-                      reviewController.toggleStates["Randy Palmer"]!,
-                      () => reviewController.toggleReview("Randy Palmer"),
-                      () => reviewController.approveReview("Randy Palmer"),
-                      () => reviewController.rejectReview("Randy Palmer"),
-                      isProfessional,
-                    ),
-                  ],
                 ),
-              ),
-            ),
-
-            if (!isProfessional) ...[
-              SizedBox(height: 16.h),
-              SafeArea(
-                child: AppButton(
-                  onTap: () {
-                    Get.to(
-                      AddReviewView(professionalId: widget.professionalId),
-                    );
-                  },
-                  text: "write_review".tr,
-                ),
-              ),
-            ],
-          ],
-        ),
       ),
     );
   }
@@ -306,7 +387,8 @@ class _ViewReviewsState extends State<ViewReviews> {
             ),
             child: FractionallySizedBox(
               alignment: Alignment.centerLeft,
-              widthFactor: progress,
+              widthFactor: progress.clamp(0.0, 1.0),
+              // Ensure progress is between 0 and 1
               child: Container(
                 decoration: BoxDecoration(
                   color: color,
@@ -323,6 +405,32 @@ class _ViewReviewsState extends State<ViewReviews> {
         ),
       ],
     );
+  }
+
+  double _calculateProgress(int count, String totalReviews) {
+    final total = int.tryParse(totalReviews) ?? 0;
+    if (total == 0) return 0.0;
+    return count / total;
+  }
+
+  String _formatTimeAgo(String createdAt) {
+    try {
+      final date = DateTime.parse(createdAt);
+      final now = DateTime.now();
+      final difference = now.difference(date);
+
+      if (difference.inDays > 30) {
+        return "${(difference.inDays / 30).floor()} ${"months_ago".tr}";
+      } else if (difference.inDays > 0) {
+        return "${difference.inDays} ${"days_ago".tr}";
+      } else if (difference.inHours > 0) {
+        return "${difference.inHours} ${"hours_ago".tr}";
+      } else {
+        return "just_now".tr;
+      }
+    } catch (e) {
+      return "unknown_time".tr;
+    }
   }
 
   Widget _buildReviewCard(
@@ -358,10 +466,18 @@ class _ViewReviewsState extends State<ViewReviews> {
             children: [
               CircleAvatar(
                 radius: 20.r,
-                backgroundColor: Colors.grey[300],
-                child: Icon(Icons.person, color: Colors.grey[600], size: 24.sp),
-                // Use this when you have actual images:
-                // backgroundImage: AssetImage(avatarPath),
+                foregroundImage: NetworkImage(
+                  '${Common.profileImage}/${avatarPath}',
+                ),
+                backgroundImage: NetworkImage(
+                  '${Common.profileImage}/${avatarPath}',
+                ),
+                onBackgroundImageError:
+                    (_, __) => Icon(
+                      Icons.person,
+                      color: Colors.grey[600],
+                      size: 24.sp,
+                    ),
               ),
               SizedBox(width: 12.w),
               Expanded(

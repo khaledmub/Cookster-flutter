@@ -17,6 +17,7 @@ class Common {
 }
 
 class EndPoints {
+  static String getReviewList = "user_reviews_list";
   static String addReview = "add_user_review";
   static String getB2BCategoryList = "b2b/b2b_categories";
   static String getB2BList = "b2b/b2b_accounts_list";

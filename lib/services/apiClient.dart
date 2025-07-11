@@ -34,6 +34,9 @@ class ApiClient {
     print("Token: $token");
     print("Language: $_language");
 
+
+    print("GET Request URL: $baseUrl$endpoint");
+
     final response = await http.get(
       Uri.parse("$baseUrl$endpoint"),
       headers: {
@@ -42,6 +45,7 @@ class ApiClient {
         "Authorization": token != null ? "Bearer $token" : "",
       },
     );
+
 
     return response;
   }
