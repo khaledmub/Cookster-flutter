@@ -24,7 +24,7 @@ class _NotificationsState extends State<Notifications> {
     super.initState();
 
     // Fetch notifications when the screen loads
-    notificationController.fetchNotifications();
+    notificationController.fetchNotifications(context);
   }
 
   @override
@@ -124,7 +124,7 @@ class UpdatesList extends StatelessWidget {
             style: TextStyle(
               color: ColorUtils.primaryColor,
               fontWeight: FontWeight.w500,
-              fontSize: 14
+              fontSize: 14,
             ),
           ),
         );

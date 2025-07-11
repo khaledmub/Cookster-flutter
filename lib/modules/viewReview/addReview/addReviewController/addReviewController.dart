@@ -1,6 +1,9 @@
+import 'package:cookster/appUtils/apiEndPoints.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:convert'; // Added for JSON decoding
+import '../../../../services/apiClient.dart';
 
 class AddReviewController extends GetxController {
   final String professionalId;
@@ -8,6 +11,7 @@ class AddReviewController extends GetxController {
   var characterCount = 0.obs;
   final int maxCharacters = 500;
   var language = 'en'.obs;
+  var isLoading = false.obs;
   final TextEditingController reviewController = TextEditingController();
   final FocusNode reviewFocusNode = FocusNode();
 
@@ -34,7 +38,7 @@ class AddReviewController extends GetxController {
     language.value = prefs.getString('language') ?? 'en';
   }
 
-  void submitReview(BuildContext context) {
+  void submitReview(BuildContext context) async {
     if (rating.value == 0.0) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -55,18 +59,46 @@ class AddReviewController extends GetxController {
       return;
     }
 
-    // TODO: Implement review submission logic
-    print("Professional ID: $professionalId");
-    print("Rating: ${rating.value}");
-    print("Review: ${reviewController.text}");
+    isLoading.value = true;
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text("review_submitted_successfully".tr),
-        backgroundColor: Colors.green,
-      ),
-    );
+    final Map<String, dynamic> reviewData = {
+      'reviewed_user_id': professionalId,
+      'rating': rating.value,
+      'review': reviewController.text,
+    };
 
-    Get.back();
+    try {
+      final response = await ApiClient.postRequest(
+        EndPoints.addReview,
+        reviewData,
+      );
+
+      // Decode the response body
+      final responseBody = jsonDecode(response.body);
+      final String message = responseBody['message'] ?? "No message provided";
+      final bool status = responseBody['status'] ?? false;
+
+      print(response.body);
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(message),
+          backgroundColor: status ? Colors.green : Colors.red,
+        ),
+      );
+
+      if (status && response.statusCode == 200) {
+        Get.back();
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("Error: ${e.toString()}"), // Fallback message for exceptions
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      isLoading.value = false;
+    }
   }
 }

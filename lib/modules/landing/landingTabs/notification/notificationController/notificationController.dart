@@ -1,19 +1,15 @@
 import 'dart:convert';
+import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-
 import '../../../../../appUtils/apiEndPoints.dart';
 import '../../../../../services/apiClient.dart';
-import '../notificationModel/notificationModel.dart'; // Adjust path to your model
+import '../notificationModel/notificationModel.dart';
 
 class NotificationController extends GetxController {
-  // Observable for notification data
   var notificationData = NotificationModel().obs;
-
-  // Observable for loading state
   var isLoading = false.obs;
 
-  // Fetch notifications from API
-  Future<void> fetchNotifications() async {
+  Future<void> fetchNotifications(BuildContext context) async {
     isLoading.value = true;
 
     try {
@@ -25,17 +21,28 @@ class NotificationController extends GetxController {
         final jsonResponse = json.decode(response.body);
         notificationData.value = NotificationModel.fromJson(jsonResponse);
       } else {
-        Get.snackbar("Error", "Failed to fetch notifications");
+        // Decode the response body to extract the server message
+        final responseBody = jsonDecode(response.body);
+        final String message =
+            responseBody['message'] ?? "Failed to fetch notifications";
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(message), backgroundColor: Colors.red),
+        );
       }
     } catch (e) {
       print("Error fetching notifications: $e");
-      Get.snackbar("Error", "Something went wrong: $e");
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("Something went wrong: $e"),
+          backgroundColor: Colors.red,
+        ),
+      );
     } finally {
       isLoading.value = false;
     }
   }
 
-  // Optional: Clear notifications
   void clearNotifications() {
     notificationData.value = NotificationModel();
   }

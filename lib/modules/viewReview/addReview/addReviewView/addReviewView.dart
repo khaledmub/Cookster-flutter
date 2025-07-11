@@ -51,7 +51,7 @@ class AddReviewView extends StatelessWidget {
                   ),
                   child: Center(
                     child: Obx(
-                          () => Icon(
+                      () => Icon(
                         controller.language.value == 'ar'
                             ? Icons.arrow_back
                             : Icons.arrow_back,
@@ -72,7 +72,8 @@ class AddReviewView extends StatelessWidget {
                   ),
                 ),
               ),
-              SizedBox(width: 56.w), // Balances the back button's width and margin
+              SizedBox(width: 56.w),
+              // Balances the back button's width and margin
             ],
           ),
         ),
@@ -195,9 +196,12 @@ class AddReviewView extends StatelessWidget {
               ),
             ),
             SizedBox(height: 40.h),
-            AppButton(
-              text: "submit_review".tr,
-              onTap: () => controller.submitReview(context),
+            Obx(
+              () => AppButton(
+                isLoading: controller.isLoading.value,
+                text: "submit_review".tr,
+                onTap: () => controller.submitReview(context),
+              ),
             ),
             SizedBox(height: 20.h),
           ],
