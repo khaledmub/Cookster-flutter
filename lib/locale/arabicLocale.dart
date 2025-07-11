@@ -503,4 +503,8 @@ const Map<String, String> ar = {
   "approved": "مقبول",
   "rejected": "مرفوض",
   "no_reviews_found": "لم يتم العثور على مراجعات",
+  "months_ago": "منذ أشهر",
+  "days_ago": "منذ أيام",
+  "hours_ago": "منذ ساعات",
+  "unknown_time": "وقت غير معروف",
 };

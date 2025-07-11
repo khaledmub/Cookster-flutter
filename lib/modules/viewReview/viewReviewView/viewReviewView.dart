@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cookster/appUtils/apiEndPoints.dart';
 import 'package:cookster/appUtils/appUtils.dart';
 import 'package:flutter/material.dart';
@@ -495,20 +496,44 @@ class _ViewReviewsState extends State<ViewReviews> {
         children: [
           Row(
             children: [
-              CircleAvatar(
-                radius: 20.r,
-                foregroundImage: NetworkImage(
-                  '${Common.profileImage}/${avatarPath}',
+              Container(
+                width: 40.r,
+                height: 40.r,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color:
+                      Colors
+                          .grey[200], // Optional: background color for the container
                 ),
-                backgroundImage: NetworkImage(
-                  '${Common.profileImage}/${avatarPath}',
+                child: CachedNetworkImage(
+                  imageUrl: '${Common.profileImage}/${avatarPath}',
+                  imageBuilder:
+                      (context, imageProvider) => Container(
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          image: DecorationImage(
+                            image: imageProvider,
+                            fit: BoxFit.cover,
+                          ),
+                        ),
+                      ),
+                  placeholder:
+                      (context, url) => Center(
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.grey[400],
+                        ),
+                      ),
+                  errorWidget:
+                      (context, url, error) => Center(
+                        child: Icon(
+                          Icons.person,
+                          color: Colors.grey[600],
+                          size: 24.sp,
+                        ),
+                      ),
+                  fit: BoxFit.cover,
                 ),
-                onBackgroundImageError:
-                    (_, __) => Icon(
-                      Icons.person,
-                      color: Colors.grey[600],
-                      size: 24.sp,
-                    ),
               ),
               SizedBox(width: 12.w),
               Expanded(
