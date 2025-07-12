@@ -1350,45 +1350,49 @@ class _SearchViewState extends State<SearchView>
     final UserSearchController homeController = Get.find();
     final HomeController homeUpdateController = Get.find();
 
-    Map<String, int> cityMap = {};
-    List<String> cityName =
-        cityController.cityList.map((city) {
-          cityMap[city.name!] = city.id!;
-          return city.name!;
-        }).toList();
+    // Assuming City model has id and name properties
+    List<Map<String, dynamic>> cityList =
+        cityController.cityList
+            .map((city) => {'id': city.id, 'name': city.name})
+            .toList();
 
     // Controller for search field
     final TextEditingController searchController = TextEditingController();
-    RxList<String> filteredCityName = cityName.obs;
-    RxString selectedCityName =
-        (controller.selectedCity.value.isNotEmpty
-                ? controller.selectedCity.value
-                : '')
-            .obs;
+    RxList<Map<String, dynamic>> filteredCityList = cityList.obs;
+    Rx<Map<String, dynamic>> selectedCity = Rx<Map<String, dynamic>>(
+      controller.selectedCity.value.isNotEmpty
+          ? {
+            'id':
+                cityList.firstWhere(
+                  (city) => city['name'] == controller.selectedCity.value,
+                  orElse: () => {'id': -1, 'name': ''},
+                )['id'],
+            'name': controller.selectedCity.value,
+          }
+          : {'id': -1, 'name': ''},
+    );
 
     // Pre-select city if initialCity is provided
     if (initialCity != null) {
-      String? initialCityName =
-          cityMap.entries
-              .firstWhere(
-                (entry) => entry.value == initialCity,
-                orElse: () => MapEntry('', -1),
-              )
-              .key;
-      if (initialCityName.isNotEmpty) {
-        selectedCityName.value = initialCityName;
+      Map<String, dynamic> initialCityData = cityList.firstWhere(
+        (city) => city['id'] == initialCity,
+        orElse: () => {'id': -1, 'name': ''},
+      );
+      if (initialCityData['name'].isNotEmpty) {
+        selectedCity.value = initialCityData;
       }
     }
 
     // Filter cities based on search input
     void filterCities(String query) {
       if (query.isEmpty) {
-        filteredCityName.value = cityName;
+        filteredCityList.value = cityList;
       } else {
-        filteredCityName.value =
-            cityName
+        filteredCityList.value =
+            cityList
                 .where(
-                  (city) => city.toLowerCase().contains(query.toLowerCase()),
+                  (city) =>
+                      city['name'].toLowerCase().contains(query.toLowerCase()),
                 )
                 .toList();
       }
@@ -1471,17 +1475,20 @@ class _SearchViewState extends State<SearchView>
                             child: Obx(
                               () => Column(
                                 children: List.generate(
-                                  filteredCityName.length,
+                                  filteredCityList.length,
                                   (index) {
-                                    String city = filteredCityName[index];
+                                    var city = filteredCityList[index];
                                     bool isSelected =
-                                        selectedCityName.value == city;
+                                        selectedCity.value['id'] ==
+                                            city['id'] &&
+                                        selectedCity.value['name'] ==
+                                            city['name'];
 
                                     return Column(
                                       children: [
                                         InkWell(
                                           onTap: () {
-                                            selectedCityName.value = city;
+                                            selectedCity.value = city;
                                           },
                                           child: Padding(
                                             padding: EdgeInsets.symmetric(
@@ -1497,7 +1504,7 @@ class _SearchViewState extends State<SearchView>
                                                     maxWidth: 200.w,
                                                   ),
                                                   child: Text(
-                                                    city,
+                                                    city['name'],
                                                     overflow:
                                                         TextOverflow.ellipsis,
                                                     style: TextStyle(
@@ -1533,8 +1540,7 @@ class _SearchViewState extends State<SearchView>
                                             ),
                                           ),
                                         ),
-
-                                        if (index < filteredCityName.length - 1)
+                                        if (index < filteredCityList.length - 1)
                                           Divider(
                                             height: 1.h,
                                             thickness: 1.r,
@@ -1554,30 +1560,27 @@ class _SearchViewState extends State<SearchView>
                         Obx(
                           () => ElevatedButton(
                             onPressed:
-                                selectedCityName.value.isNotEmpty
+                                selectedCity.value['name'].isNotEmpty
                                     ? () {
                                       try {
-                                        int? selectedId =
-                                            cityMap[selectedCityName.value];
-                                        if (selectedId != null) {
-                                          print(
-                                            "Selected City: ${selectedCityName.value} (ID: $selectedId)",
-                                          );
-                                          homeController.currentCity.value =
-                                              selectedCityName.value;
-                                          homeUpdateController
-                                              .currentCity
-                                              .value = selectedCityName.value;
-                                          controller.selectedCity.value =
-                                              selectedCityName.value;
-                                          homeController.currentCity.value =
-                                              selectedCityName.value;
-                                          homeUpdateController
-                                              .currentCity
-                                              .value = selectedCityName.value;
+                                        int selectedId =
+                                            selectedCity.value['id'];
+                                        String selectedName =
+                                            selectedCity.value['name'];
+                                        print(
+                                          "Selected City: $selectedName (ID: $selectedId)",
+                                        );
 
-                                          Get.back(); // Close the city dialog
-                                        }
+                                        homeUpdateController
+                                            .currentCityId
+                                            .value = selectedId.toString();
+                                        homeController.currentCity.value =
+                                            selectedName;
+                                        homeUpdateController.currentCity.value =
+                                            selectedName;
+                                        controller.selectedCity.value =
+                                            selectedName;
+                                        Get.back(); // Close the city dialog
                                       } catch (e) {
                                         print('Error selecting city: $e');
                                         Get.snackbar(
