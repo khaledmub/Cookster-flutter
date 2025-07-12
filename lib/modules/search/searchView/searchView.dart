@@ -49,6 +49,7 @@ class _SearchViewState extends State<SearchView>
     return authToken != null && authToken.isNotEmpty;
   }
 
+
   // Debounce timer for search
   Timer? _debounce;
 
@@ -72,24 +73,27 @@ class _SearchViewState extends State<SearchView>
     // If tag is provided, set it in the text field and trigger search
     if (widget.tag != null && widget.tag!.isNotEmpty) {
       _searchController.text = widget.tag!;
-      searchController.fetchSearchResults(
-        isFollowing: widget.isFollowing,
-        isGeneral: widget.isGeneral,
-        _searchController.text,
-      );
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        searchController.fetchSearchResults(
+          isFollowing: widget.isFollowing,
+          isGeneral: widget.isGeneral,
+          _searchController.text,
+        );
+      });
     }
   }
 
   void _clearSearchData() {
-    searchController.searchResult.value = SearchResult();
-    searchController.b2bList.value = B2BList();
-    searchController.filteredB2bList.value = B2BList();
-    searchController.b2bCategories.value = B2BCategoryModel();
-    searchController.filteredB2bCategories.value = B2BCategoryModel();
-    searchController.hasSearched.value = false;
-    searchController.isLoading.value = false;
-    // Optional: Clear search controller text if you want to start fresh
-    // _searchController.clear();
+    // Use post frame callback to avoid modifying observables during build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      searchController.searchResult.value = SearchResult();
+      searchController.b2bList.value = B2BList();
+      searchController.filteredB2bList.value = B2BList();
+      searchController.b2bCategories.value = B2BCategoryModel();
+      searchController.filteredB2bCategories.value = B2BCategoryModel();
+      searchController.hasSearched.value = false;
+      searchController.isLoading.value = false;
+    });
   }
 
   @override

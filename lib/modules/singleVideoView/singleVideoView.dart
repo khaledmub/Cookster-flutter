@@ -583,6 +583,7 @@ class _SingleVideoScreenState extends State<SingleVideoScreen>
               title: widget.title,
               description: widget.description,
               tags: widget.tags,
+              pauseVideo: _pauseVideo,
             ),
             Positioned(
               right: 10,
@@ -1498,12 +1499,15 @@ class VideoDescriptionWidget extends StatefulWidget {
   final String? title;
   final String? description;
   final String? tags;
+   Function? pauseVideo; // Add a callback to pause the video
 
-  const VideoDescriptionWidget({
+
+   VideoDescriptionWidget({
     Key? key,
     this.title,
     this.description,
     this.tags,
+     this.pauseVideo,
   }) : super(key: key);
 
   @override
@@ -1666,6 +1670,7 @@ class _VideoDescriptionWidgetState extends State<VideoDescriptionWidget> {
                               final trimmedTag = tag.trim();
                               return InkWell(
                                 onTap: () {
+                                  // _pauseVideo();
                                   Get.to(
                                     SearchView(tag: trimmedTag, isGeneral: 1),
                                   );
