@@ -3,8 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:pro_image_editor/pro_image_editor.dart';
 
-import 'package:ffmpeg_kit_flutter_new/ffmpeg_kit.dart';
-// import 'package:ffmpeg_kit_flutter_full_gpl/ffmpeg_kit.dart';
+// import 'package:ffmpeg_kit_flutter_new/ffmpeg_kit.dart';
+import 'package:ffmpeg_kit_flutter_full_gpl/ffmpeg_kit.dart';
 import 'package:path_provider/path_provider.dart';
 
 import 'dart:io';
@@ -126,7 +126,7 @@ class _ImageEditScreenState extends State<ImageEditScreen> {
     });
     _showProcessingBottomSheet(context);
     final AudioSelectorController audioController =
-        Get.find<AudioSelectorController>();
+    Get.find<AudioSelectorController>();
     try {
       final tempDir = await getTemporaryDirectory();
       File finalImage; // Handle image
@@ -148,7 +148,9 @@ class _ImageEditScreenState extends State<ImageEditScreen> {
         print('Using original image: ${finalImage.path}');
       }
       final outputPath =
-          '${tempDir.path}/processed_${DateTime.now().millisecondsSinceEpoch}.mp4';
+          '${tempDir.path}/processed_${DateTime
+          .now()
+          .millisecondsSinceEpoch}.mp4';
       print('Output path: $outputPath');
 
       String command;
@@ -159,14 +161,14 @@ class _ImageEditScreenState extends State<ImageEditScreen> {
         print('Using audio: $audioPath, Duration: $videoDuration seconds');
         // FFmpeg command with H.264 and explicit AAC-LC
         command =
-            '-loop 1 -i "${finalImage.path}" -i "$audioPath" '
+        '-loop 1 -i "${finalImage.path}" -i "$audioPath" '
             '-c:v libx264 -r 30 -preset fast -pix_fmt yuv420p -profile:v main -level 4.0 '
             '-c:a aac -b:a 192k -ar 44100 -t $videoDuration -shortest -movflags +faststart '
             '-vf "scale=trunc(iw/2)*2:trunc(ih/2)*2" "$outputPath"';
       } else {
         // FFmpeg command without audio, using H.264
         command =
-            '-loop 1 -i "${finalImage.path}" '
+        '-loop 1 -i "${finalImage.path}" '
             '-c:v libx264 -r 30 -preset fast -pix_fmt yuv420p -profile:v main -level 4.0 '
             '-t $videoDuration -movflags +faststart '
             '-vf "scale=trunc(iw/2)*2:trunc(ih/2)*2" "$outputPath"';
@@ -181,7 +183,8 @@ class _ImageEditScreenState extends State<ImageEditScreen> {
           final outputFile = File(outputPath);
           if (await outputFile.exists()) {
             print(
-              'Output video created: $outputPath, Size: ${await outputFile.length()} bytes',
+              'Output video created: $outputPath, Size: ${await outputFile
+                  .length()} bytes',
             );
             setState(() {
               _processedVideo = outputFile;
@@ -189,7 +192,7 @@ class _ImageEditScreenState extends State<ImageEditScreen> {
             });
             Navigator.pop(context);
             Get.to(
-              () =>
+                  () =>
                   VideoPreviewScreen(videoFile: _processedVideo!, isImage: "1"),
             );
           } else {
