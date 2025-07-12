@@ -45,15 +45,15 @@ class PromoteVideoController extends GetxController {
   }
 
   void toggleCity(String city, int cityId) {
-    if (selectedCities.contains(city)) {
-      selectedCities.remove(city);
+    if (selectedCityIds.contains(cityId)) {
       selectedCityIds.remove(cityId);
+      selectedCities.remove(city);
     } else {
-      selectedCities.add(city);
       selectedCityIds.add(cityId);
+      selectedCities.add(city);
     }
 
-    if (selectedCities.length > 0) {
+    if (selectedCities.isNotEmpty) {
       validationErrors["cities"] = [];
     } else {
       validationErrors["cities"] = ["select_target_city_error".tr];
