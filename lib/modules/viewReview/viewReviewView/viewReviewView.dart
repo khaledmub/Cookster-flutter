@@ -655,52 +655,6 @@ class _ViewReviewsState extends State<ViewReviews> {
                       ),
                     ),
                   ),
-                ] else if (status == 1) ...[
-                  // Show disabled Approve button when status is 1 (approved)
-                  TextButton(
-                    onPressed: null, // Disabled
-                    style: TextButton.styleFrom(
-                      backgroundColor: Colors.green[50],
-                      padding: EdgeInsets.symmetric(
-                        horizontal: 16.w,
-                        vertical: 8.h,
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8.r),
-                      ),
-                    ),
-                    child: Text(
-                      'approved'.tr,
-                      style: TextStyle(
-                        color: Colors.green[400],
-                        fontSize: 14.sp,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ] else if (status == 2) ...[
-                  // Show disabled Reject button when status is 2 (rejected)
-                  TextButton(
-                    onPressed: null, // Disabled
-                    style: TextButton.styleFrom(
-                      backgroundColor: Colors.red[50],
-                      padding: EdgeInsets.symmetric(
-                        horizontal: 16.w,
-                        vertical: 8.h,
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8.r),
-                      ),
-                    ),
-                    child: Text(
-                      'rejected'.tr,
-                      style: TextStyle(
-                        color: Colors.red[400],
-                        fontSize: 14.sp,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
                 ],
               ],
             ),
