@@ -44,6 +44,7 @@ class UserReviews {
   String? updatedAt;
   String? reviewerName;
   String? reviewerImage;
+  String? utcTime;
 
   UserReviews({
     this.id,
@@ -58,6 +59,7 @@ class UserReviews {
     this.updatedAt,
     this.reviewerName,
     this.reviewerImage,
+    this.utcTime,
   });
 
   UserReviews.fromJson(Map<String, dynamic> json) {
@@ -73,6 +75,7 @@ class UserReviews {
     updatedAt = json['updated_at'];
     reviewerName = json['reviewer_name'];
     reviewerImage = json['reviewer_image'];
+    utcTime = json['human_utc_date'];
   }
 
   Map<String, dynamic> toJson() {
@@ -89,6 +92,7 @@ class UserReviews {
     data['updated_at'] = updatedAt;
     data['reviewer_name'] = reviewerName;
     data['reviewer_image'] = reviewerImage;
+    data['human_utc_date'] = utcTime;
     return data;
   }
 }

@@ -1322,38 +1322,47 @@ void showProfileCountrySelectionDialog(
 }
 
 void showProfileCitySelectionDialog(
-  BuildContext context,
-  Map<String, int> allCities,
-  List<String> cityName,
-  String? selectedCityName, {
-  int? cityId,
-}) {
+    BuildContext context,
+    Map<String, int> allCities,
+    List<String> cityName,
+    String? selectedCityName, {
+      int? cityId,
+    }) {
   final ProfessionalProfileController profileController = Get.find();
 
+  // Convert cityName to a list of city objects
+  List<Map<String, dynamic>> cityList = cityName
+      .map((name) => {'name': name, 'id': allCities[name] ?? 0})
+      .toList();
+
+  // Controller for search field
   final TextEditingController searchController = TextEditingController();
-  RxList<String> filteredCityName = cityName.obs;
+  RxList<Map<String, dynamic>> filteredCityList = cityList.obs;
 
-  // Set initial selected city name from cityId
-  String initialCityName = '';
-  if (cityId != null) {
-    initialCityName =
-        allCities.entries
-            .firstWhere(
-              (entry) => entry.value == cityId,
-              orElse: () => MapEntry('', 0),
-            )
-            .key;
-  }
-  RxString selectedCity = initialCityName.obs;
+  // Set initial selected city
+  Rx<Map<String, dynamic>> selectedCity = Rx<Map<String, dynamic>>(
+    cityId != null
+        ? cityList.firstWhere(
+          (city) => city['id'] == cityId,
+      orElse: () => {'name': '', 'id': 0},
+    )
+        : selectedCityName != null && allCities.containsKey(selectedCityName)
+        ? {
+      'name': selectedCityName,
+      'id': allCities[selectedCityName] ?? 0,
+    }
+        : {'name': '', 'id': 0},
+  );
 
+  // Filter cities based on search input
   void filterCities(String query) {
     if (query.isEmpty) {
-      filteredCityName.value = cityName;
+      filteredCityList.value = cityList;
     } else {
-      filteredCityName.value =
-          cityName
-              .where((city) => city.toLowerCase().contains(query.toLowerCase()))
-              .toList();
+      filteredCityList.value = cityList
+          .where((city) =>
+          city['name'].toLowerCase().contains(query.toLowerCase()))
+          .toList();
     }
   }
 
@@ -1434,12 +1443,12 @@ void showProfileCitySelectionDialog(
               height: 230.h,
               child: SingleChildScrollView(
                 child: Obx(
-                  () => Column(
-                    children: List.generate(filteredCityName.length, (index) {
-                      String city = filteredCityName[index];
-                      bool isSelected = selectedCity.value == city;
+                      () => Column(
+                    children: List.generate(filteredCityList.length, (index) {
+                      var city = filteredCityList[index];
+                      bool isSelected = selectedCity.value['id'] == city['id'];
 
-                      return dir.Column(
+                      return Column(
                         children: [
                           InkWell(
                             onTap: () {
@@ -1449,21 +1458,20 @@ void showProfileCitySelectionDialog(
                               padding: EdgeInsets.symmetric(vertical: 12.h),
                               child: Row(
                                 mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
+                                MainAxisAlignment.spaceBetween,
                                 children: [
                                   ConstrainedBox(
                                     constraints: BoxConstraints(
                                       maxWidth: 200.w,
                                     ),
                                     child: Text(
-                                      city,
+                                      city['name'],
                                       overflow: TextOverflow.ellipsis,
                                       style: TextStyle(
                                         fontSize: 13.sp,
-                                        fontWeight:
-                                            isSelected
-                                                ? FontWeight.bold
-                                                : FontWeight.normal,
+                                        fontWeight: isSelected
+                                            ? FontWeight.bold
+                                            : FontWeight.normal,
                                         color: Colors.black,
                                       ),
                                     ),
@@ -1477,17 +1485,16 @@ void showProfileCitySelectionDialog(
                                         color: ColorUtils.primaryColor,
                                         width: 2,
                                       ),
-                                      color:
-                                          isSelected
-                                              ? ColorUtils.primaryColor
-                                              : Colors.white,
+                                      color: isSelected
+                                          ? ColorUtils.primaryColor
+                                          : Colors.white,
                                     ),
                                   ),
                                 ],
                               ),
                             ),
                           ),
-                          if (index < filteredCityName.length - 1)
+                          if (index < filteredCityList.length - 1)
                             Divider(
                               height: 1.h,
                               thickness: 1.r,
@@ -1504,21 +1511,19 @@ void showProfileCitySelectionDialog(
 
             /// Submit Button
             Obx(
-              () => ElevatedButton(
-                onPressed:
-                    selectedCity.value.isNotEmpty
-                        ? () {
-                          int? selectedId = allCities[selectedCity.value];
-                          if (selectedId != null) {
-                            profileController.cityId = selectedId;
-                            profileController.selectedCityId.value =
-                                selectedId.toString();
-                            print('Selected City ID: $selectedId');
-                            print('Selected City Name: ${selectedCity.value}');
-                            Get.back();
-                          }
-                        }
-                        : null,
+                  () => ElevatedButton(
+                onPressed: selectedCity.value['name'].isNotEmpty
+                    ? () {
+                  int selectedId = selectedCity.value['id'];
+                  String selectedName = selectedCity.value['name'];
+                  profileController.cityId = selectedId;
+                  profileController.selectedCityId.value =
+                      selectedId.toString();
+                  print('Selected City ID: $selectedId');
+                  print('Selected City Name: $selectedName');
+                  Get.back();
+                }
+                    : null,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: ColorUtils.primaryColor,
                   shape: RoundedRectangleBorder(

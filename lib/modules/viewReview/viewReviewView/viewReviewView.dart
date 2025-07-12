@@ -4,6 +4,7 @@ import 'package:cookster/appUtils/appUtils.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:get/get.dart';
+import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../appUtils/colorUtils.dart';
@@ -308,7 +309,7 @@ class _ViewReviewsState extends State<ViewReviews> {
                                             final reviewText =
                                                 review.review ?? '';
                                             final createdAt =
-                                                review.createdAt ?? '';
+                                                review.utcTime ?? '';
                                             final reviewerImage =
                                                 review.reviewerImage ??
                                                 'assets/images/default_user.png';
@@ -434,9 +435,16 @@ class _ViewReviewsState extends State<ViewReviews> {
 
   String _formatTimeAgo(String createdAt) {
     try {
-      final date = DateTime.parse(createdAt);
+      // Define the input format for "July 9, 2025 at 8:41:44 PM UTC+3"
+      final dateFormat = DateFormat("MMMM d, yyyy 'at' h:mm:ss a 'UTC'Z");
+
+      // Parse the input string
+      final date = dateFormat.parse(createdAt, true); // true for UTC parsing
+
+      // Convert to local time for comparison
+      final localDate = date.toLocal();
       final now = DateTime.now();
-      final difference = now.difference(date);
+      final difference = now.difference(localDate);
 
       if (difference.inDays > 30) {
         return "${(difference.inDays / 30).floor()} ${"months_ago".tr}";
@@ -448,6 +456,7 @@ class _ViewReviewsState extends State<ViewReviews> {
         return "just_now".tr;
       }
     } catch (e) {
+      print('Error parsing date: $e');
       return "unknown_time".tr;
     }
   }
