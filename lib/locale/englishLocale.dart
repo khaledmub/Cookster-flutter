@@ -53,7 +53,7 @@ const Map<String, String> en = {
   "Top Rated": "Top Rated",
   "Search": "Search",
   "type_at_least_search":
-      "Type at least 3 characters in the search bar above to find what you're looking for",
+      "Type to search bar above to find what you're looking for",
   "search_video": "Search for Videos, Businesses and top Rated movies",
   "Find Business": "Find Business",
   "Search Radius": "Search Radius",

@@ -175,38 +175,33 @@ class UserSearchController extends GetxController {
 
   // Search B2B categories by name
   void searchB2BCategories(String query) {
-    if (query.isEmpty) {
-      filteredB2bCategories.value = b2bCategories.value;
+    final source = b2bCategories.value;
+
+    if (query.trim().isEmpty || source.businessTypes?.values == null) {
+      filteredB2bCategories.value = source;
       return;
     }
 
-    B2BCategoryModel filtered = B2BCategoryModel(
-      status: b2bCategories.value.status,
+    final filteredValues = source.businessTypes!.values!
+        .where((item) =>
+    item.name?.toLowerCase().contains(query.toLowerCase()) ?? false)
+        .toList();
+
+    filteredB2bCategories.value = B2BCategoryModel(
+      status: source.status,
       businessTypes: BusinessTypes(
-        key: b2bCategories.value.businessTypes?.key,
-        values: [],
+        key: source.businessTypes!.key,
+        values: filteredValues,
       ),
     );
 
-    if (b2bCategories.value.businessTypes?.values != null) {
-      filtered.businessTypes!.values = b2bCategories.value.businessTypes!.values!
-          .where(
-            (value) =>
-        value.name != null &&
-            value.name!.toLowerCase().contains(query.toLowerCase()),
-      )
-          .toList();
-    }
-
-    filteredB2bCategories.value = filtered;
-
-    if (query.isNotEmpty) {
-      _saveSearchQuery(query);
-    }
+    _saveSearchQuery(query);
   }
+
 
   // Search B2B users by name (new method for B2BUsersList)
   void searchB2BUsers(String query) {
+    print(query);
     if (query.isEmpty) {
       filteredB2bUsersList.value = b2bUsersList.value;
       return;

@@ -71,7 +71,6 @@ class _ProfileViewState extends State<ProfileView>
       final userDetails = profileController.simpleUserDetails.value?.user;
       // : profileController.userDetails.value?.user;
 
-
       final videoTypes = profileController.simpleUserDetails.value?.videoTypes;
 
       if (_tabController == null &&
@@ -275,16 +274,9 @@ class _ProfileViewState extends State<ProfileView>
                                     stream: profileController
                                         .checkReceivedLikes(userDetails.id),
                                     builder: (
-                                        context,
-                                        AsyncSnapshot<int> snapshot,
-                                        ) {
-                                      if (snapshot.connectionState ==
-                                          ConnectionState.waiting) {
-                                        return ProfileStat(
-                                          number: "0",
-                                          label: "Likes".tr,
-                                        ); // Show loading state with default value
-                                      }
+                                      context,
+                                      AsyncSnapshot<int> snapshot,
+                                    ) {
                                       if (snapshot.hasError) {
                                         return ProfileStat(
                                           number: "Error",
@@ -297,7 +289,6 @@ class _ProfileViewState extends State<ProfileView>
                                       );
                                     },
                                   ),
-
                                 ],
                               );
                             }),

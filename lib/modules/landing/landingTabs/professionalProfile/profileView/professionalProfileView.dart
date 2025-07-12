@@ -444,13 +444,6 @@ class _ProfessionalProfileViewState extends State<ProfessionalProfileView>
                                       context,
                                       AsyncSnapshot<int> snapshot,
                                     ) {
-                                      if (snapshot.connectionState ==
-                                          ConnectionState.waiting) {
-                                        return ProfileStat(
-                                          number: "0",
-                                          label: "Likes".tr,
-                                        ); // Show loading state with default value
-                                      }
                                       if (snapshot.hasError) {
                                         return ProfileStat(
                                           number: "Error",

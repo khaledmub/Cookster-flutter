@@ -72,13 +72,11 @@ class _SearchViewState extends State<SearchView>
     // If tag is provided, set it in the text field and trigger search
     if (widget.tag != null && widget.tag!.isNotEmpty) {
       _searchController.text = widget.tag!;
-      if (_searchController.text.length >= 3) {
-        searchController.fetchSearchResults(
-          isFollowing: widget.isFollowing,
-          isGeneral: widget.isGeneral,
-          _searchController.text,
-        );
-      }
+      searchController.fetchSearchResults(
+        isFollowing: widget.isFollowing,
+        isGeneral: widget.isGeneral,
+        _searchController.text,
+      );
     }
   }
 
@@ -113,6 +111,18 @@ class _SearchViewState extends State<SearchView>
 
           query,
         );
+      } else if (query.isEmpty) {
+        // Clear results when search is empty
+        searchController.clearSearchResults();
+      }
+    });
+  }
+
+  void _onB2bChanged(String query) {
+    if (_debounce?.isActive ?? false) _debounce!.cancel();
+    _debounce = Timer(const Duration(milliseconds: 500), () {
+      if (query.length >= 3) {
+        searchController.searchB2BCategories(query);
       } else if (query.isEmpty) {
         // Clear results when search is empty
         searchController.clearSearchResults();
@@ -255,7 +265,10 @@ class _SearchViewState extends State<SearchView>
                       onTapOutside: (event) {
                         FocusScope.of(context).unfocus();
                       },
-                      onChanged: _onSearchChanged,
+                      onChanged:
+                          searchController.type.value == 5
+                              ? _onB2bChanged
+                              : _onSearchChanged,
                       onSubmitted: (value) {
                         if (value.isNotEmpty &&
                             searchController.type.value != 5) {
@@ -371,60 +384,63 @@ class _SearchViewState extends State<SearchView>
                     mainAxisSpacing: 12,
                     crossAxisSpacing: 12,
                     childAspectRatio: 3,
-                    children: categories.values?.asMap().entries.map((entry) {
-                      int index = entry.key;
-                      var value = entry.value;
+                    children:
+                        categories.values?.asMap().entries.map((entry) {
+                          int index = entry.key;
+                          var value = entry.value;
 
-                      return InkWell(
-                        onTap: () async {
-                          bool isAuthenticated = await _isUserAuthenticated();
-                          if (isAuthenticated) {
-                            Get.to(
-                              B2bUsersList(
-                                categoryId: value.id.toString(),
-                                categoryName: value.name.toString(),
-                              ),
-                            );
-                          } else {
-                            Get.toNamed(AppRoutes.signIn);
-                          }
-                        },
-                        child: Container(
-                          padding: EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: Colors.grey[200]!),
-                          ),
-                          child: Row(
-                            children: [
-                              // Index number badge
-                              Text(
-                                '${index + 1}.', // Show 1-based index
-                                style: TextStyle(
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                              SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  value.name ?? "Unknown",
-                                  style: TextStyle(
-                                    fontSize: 12.sp,
-                                    fontWeight: FontWeight.w600,
-                                    color: Colors.black87,
+                          return InkWell(
+                            onTap: () async {
+                              bool isAuthenticated =
+                                  await _isUserAuthenticated();
+                              if (isAuthenticated) {
+                                Get.to(
+                                  B2bUsersList(
+                                    categoryId: value.id.toString(),
+                                    categoryName: value.name.toString(),
                                   ),
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
+                                );
+                              } else {
+                                Get.toNamed(AppRoutes.signIn);
+                              }
+                            },
+                            child: Container(
+                              padding: EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: Colors.grey[200]!),
                               ),
-                              Icon(Icons.chevron_right),
-                            ],
-                          ),
-                        ),
-                      );
-                    }).toList() ?? [],
-                  )
+                              child: Row(
+                                children: [
+                                  // Index number badge
+                                  Text(
+                                    '${index + 1}.', // Show 1-based index
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                  SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      value.name ?? "Unknown",
+                                      style: TextStyle(
+                                        fontSize: 12.sp,
+                                        fontWeight: FontWeight.w600,
+                                        color: Colors.black87,
+                                      ),
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                  Icon(Icons.chevron_right),
+                                ],
+                              ),
+                            ),
+                          );
+                        }).toList() ??
+                        [],
+                  ),
                 ),
               );
             }

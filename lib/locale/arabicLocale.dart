@@ -52,8 +52,7 @@ const Map<String, String> ar = {
   "Business Accounts": "حسابات تجارية",
   "Top Rated": "الأعلى تقييمًا",
   "Search": "بحث",
-  "type_at_least_search":
-      "اكتب 3 أحرف على الأقل في شريط البحث أعلاه للعثور على ما تبحث عنه",
+  "type_at_least_search": "اكتب في شريط البحث أعلاه للعثور على ما تبحث عنه",
   "search_video": "ابحث عن مقاطع الفيديو، الشركات، وأفضل الأفلام تقييمًا",
   "Find Business": "ابحث عن شركة",
   "Search Radius": "نطاق البحث",
