@@ -93,6 +93,8 @@ class _SearchViewState extends State<SearchView>
       searchController.filteredB2bCategories.value = B2BCategoryModel();
       searchController.hasSearched.value = false;
       searchController.isLoading.value = false;
+      searchController.recentSearches.clear();
+      searchController.type.value = 1;
     });
   }
 
@@ -144,7 +146,7 @@ class _SearchViewState extends State<SearchView>
         child: Column(
           children: [
             Container(
-              padding: EdgeInsets.only(top: 40.h),
+              padding: EdgeInsets.only(top: 30),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.only(
                   bottomRight: Radius.circular(30),

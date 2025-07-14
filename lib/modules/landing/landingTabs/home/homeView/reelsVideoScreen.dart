@@ -343,28 +343,73 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                         : Get.toNamed(AppRoutes.signIn);
                   },
                 ),
-                Align(
-                  alignment: Alignment.topCenter,
-                  child: Obx(
-                    () => Container(
-                      margin: EdgeInsets.only(top: 40),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          if (promoteVideoController
-                                  .siteSettings
-                                  .value!
-                                  .settings!
-                                  .allowGeneralVideos ==
-                              1)
+                SafeArea(
+                  child: Align(
+                    alignment: Alignment.topCenter,
+                    child: Obx(
+                      () => Container(
+                        margin: EdgeInsets.only(top: 10),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            if (promoteVideoController
+                                    .siteSettings
+                                    .value!
+                                    .settings!
+                                    .allowGeneralVideos ==
+                                1)
+                              GestureDetector(
+                                onTap: () async {
+                                  controller.disposeControllers();
+                                  controller.setSelectedType("General");
+                                  controller.fetchVideos();
+                                },
+                                child: Text(
+                                  "General".tr,
+                                  style: TextStyle(
+                                    shadows: <Shadow>[
+                                      // Subtle depth shadow
+                                      Shadow(
+                                        offset: Offset(0.0, 2.0),
+                                        blurRadius: 4.0,
+                                        color: Color.fromARGB(60, 0, 0, 0),
+                                      ),
+                                      // Soft outline for readability
+                                      Shadow(
+                                        offset: Offset(0.0, 0.0),
+                                        blurRadius: 8.0,
+                                        color: Color.fromARGB(80, 0, 0, 0),
+                                      ),
+                                      // Crisp edge definition
+                                      Shadow(
+                                        offset: Offset(0.5, 0.5),
+                                        blurRadius: 1.0,
+                                        color: Color.fromARGB(100, 0, 0, 0),
+                                      ),
+                                    ],
+                                    color:
+                                        controller.selectedType.value ==
+                                                "General"
+                                            ? Colors.white
+                                            : Colors.white.withOpacity(0.5),
+                                    fontWeight:
+                                        controller.selectedType.value ==
+                                                "General"
+                                            ? FontWeight.w500
+                                            : FontWeight.w300,
+                                    fontSize: 18,
+                                  ),
+                                ),
+                              ),
+                            SizedBox(width: 20),
                             GestureDetector(
-                              onTap: () async {
+                              onTap: () {
                                 controller.disposeControllers();
-                                controller.setSelectedType("General");
+                                controller.setSelectedType("Near Me");
                                 controller.fetchVideos();
                               },
                               child: Text(
-                                "General".tr,
+                                "Near Me".tr,
                                 style: TextStyle(
                                   shadows: <Shadow>[
                                     // Subtle depth shadow
@@ -387,117 +432,76 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                                     ),
                                   ],
                                   color:
-                                      controller.selectedType.value == "General"
+                                      controller.selectedType.value == "Near Me"
                                           ? Colors.white
                                           : Colors.white.withOpacity(0.5),
                                   fontWeight:
-                                      controller.selectedType.value == "General"
+                                      controller.selectedType.value == "Near Me"
                                           ? FontWeight.w500
                                           : FontWeight.w300,
                                   fontSize: 18,
                                 ),
                               ),
                             ),
-                          SizedBox(width: 20),
-                          GestureDetector(
-                            onTap: () {
-                              controller.disposeControllers();
-                              controller.setSelectedType("Near Me");
-                              controller.fetchVideos();
-                            },
-                            child: Text(
-                              "Near Me".tr,
-                              style: TextStyle(
-                                shadows: <Shadow>[
-                                  // Subtle depth shadow
-                                  Shadow(
-                                    offset: Offset(0.0, 2.0),
-                                    blurRadius: 4.0,
-                                    color: Color.fromARGB(60, 0, 0, 0),
+                            SizedBox(width: 20),
+                            if (promoteVideoController
+                                    .siteSettings
+                                    .value!
+                                    .settings!
+                                    .allowFollowingVideos ==
+                                1)
+                              GestureDetector(
+                                onTap: () async {
+                                  print(
+                                    "RINTING IS AUTHENTICAT ${isAuthenticated}",
+                                  );
+                                  if (isAuthenticated) {
+                                    controller.disposeControllers();
+                                    controller.setSelectedType("Following");
+                                    controller.fetchVideos();
+                                  } else {
+                                    Get.toNamed(AppRoutes.signIn);
+                                  }
+                                },
+                                child: Text(
+                                  "Following".tr,
+                                  style: TextStyle(
+                                    shadows: <Shadow>[
+                                      // Subtle depth shadow
+                                      Shadow(
+                                        offset: Offset(0.0, 2.0),
+                                        blurRadius: 4.0,
+                                        color: Color.fromARGB(60, 0, 0, 0),
+                                      ),
+                                      // Soft outline for readability
+                                      Shadow(
+                                        offset: Offset(0.0, 0.0),
+                                        blurRadius: 8.0,
+                                        color: Color.fromARGB(80, 0, 0, 0),
+                                      ),
+                                      // Crisp edge definition
+                                      Shadow(
+                                        offset: Offset(0.5, 0.5),
+                                        blurRadius: 1.0,
+                                        color: Color.fromARGB(100, 0, 0, 0),
+                                      ),
+                                    ],
+                                    color:
+                                        controller.selectedType.value ==
+                                                "Following"
+                                            ? Colors.white
+                                            : Colors.white.withOpacity(0.5),
+                                    fontWeight:
+                                        controller.selectedType.value ==
+                                                "Following"
+                                            ? FontWeight.w500
+                                            : FontWeight.w300,
+                                    fontSize: 18,
                                   ),
-                                  // Soft outline for readability
-                                  Shadow(
-                                    offset: Offset(0.0, 0.0),
-                                    blurRadius: 8.0,
-                                    color: Color.fromARGB(80, 0, 0, 0),
-                                  ),
-                                  // Crisp edge definition
-                                  Shadow(
-                                    offset: Offset(0.5, 0.5),
-                                    blurRadius: 1.0,
-                                    color: Color.fromARGB(100, 0, 0, 0),
-                                  ),
-                                ],
-                                color:
-                                    controller.selectedType.value == "Near Me"
-                                        ? Colors.white
-                                        : Colors.white.withOpacity(0.5),
-                                fontWeight:
-                                    controller.selectedType.value == "Near Me"
-                                        ? FontWeight.w500
-                                        : FontWeight.w300,
-                                fontSize: 18,
-                              ),
-                            ),
-                          ),
-                          SizedBox(width: 20),
-                          if (promoteVideoController
-                                  .siteSettings
-                                  .value!
-                                  .settings!
-                                  .allowFollowingVideos ==
-                              1)
-                            GestureDetector(
-                              onTap: () async {
-                                print(
-                                  "RINTING IS AUTHENTICAT ${isAuthenticated}",
-                                );
-                                if (isAuthenticated) {
-                                  controller.disposeControllers();
-                                  controller.setSelectedType("Following");
-                                  controller.fetchVideos();
-                                } else {
-                                  Get.toNamed(AppRoutes.signIn);
-                                }
-                              },
-                              child: Text(
-                                "Following".tr,
-                                style: TextStyle(
-                                  shadows: <Shadow>[
-                                    // Subtle depth shadow
-                                    Shadow(
-                                      offset: Offset(0.0, 2.0),
-                                      blurRadius: 4.0,
-                                      color: Color.fromARGB(60, 0, 0, 0),
-                                    ),
-                                    // Soft outline for readability
-                                    Shadow(
-                                      offset: Offset(0.0, 0.0),
-                                      blurRadius: 8.0,
-                                      color: Color.fromARGB(80, 0, 0, 0),
-                                    ),
-                                    // Crisp edge definition
-                                    Shadow(
-                                      offset: Offset(0.5, 0.5),
-                                      blurRadius: 1.0,
-                                      color: Color.fromARGB(100, 0, 0, 0),
-                                    ),
-                                  ],
-                                  color:
-                                      controller.selectedType.value ==
-                                              "Following"
-                                          ? Colors.white
-                                          : Colors.white.withOpacity(0.5),
-                                  fontWeight:
-                                      controller.selectedType.value ==
-                                              "Following"
-                                          ? FontWeight.w500
-                                          : FontWeight.w300,
-                                  fontSize: 18,
                                 ),
                               ),
-                            ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
                   ),
@@ -935,170 +939,172 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                 },
               ),
 
-              Align(
-                alignment: Alignment.topCenter,
-                child: Obx(
-                  () => Container(
-                    margin: EdgeInsets.only(top: 40),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        if (promoteVideoController
-                                .siteSettings
-                                .value!
-                                .settings!
-                                .allowGeneralVideos ==
-                            1)
+              SafeArea(
+                child: Align(
+                  alignment: Alignment.topCenter,
+                  child: Obx(
+                    () => Container(
+                      margin: EdgeInsets.only(top: 10),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          if (promoteVideoController
+                                  .siteSettings
+                                  .value!
+                                  .settings!
+                                  .allowGeneralVideos ==
+                              1)
+                            GestureDetector(
+                              onTap: () async {
+                                controller.disposeControllers();
+                                controller.setSelectedType("General");
+                                controller.fetchVideos();
+                              },
+                              child: Padding(
+                                padding: const EdgeInsets.only(left: 16.0),
+
+                                child: Text(
+                                  "General".tr,
+                                  style: TextStyle(
+                                    shadows: <Shadow>[
+                                      // Subtle depth shadow
+                                      Shadow(
+                                        offset: Offset(0.0, 2.0),
+                                        blurRadius: 4.0,
+                                        color: Color.fromARGB(60, 0, 0, 0),
+                                      ),
+                                      // Soft outline for readability
+                                      Shadow(
+                                        offset: Offset(0.0, 0.0),
+                                        blurRadius: 8.0,
+                                        color: Color.fromARGB(80, 0, 0, 0),
+                                      ),
+                                      // Crisp edge definition
+                                      Shadow(
+                                        offset: Offset(0.5, 0.5),
+                                        blurRadius: 1.0,
+                                        color: Color.fromARGB(100, 0, 0, 0),
+                                      ),
+                                    ],
+                                    color:
+                                        controller.selectedType.value == "General"
+                                            ? Colors.white
+                                            : Colors.white.withOpacity(0.5),
+                                    fontWeight:
+                                        controller.selectedType.value == "General"
+                                            ? FontWeight.w500
+                                            : FontWeight.w300,
+                                    fontSize: 18,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          SizedBox(width: 20),
                           GestureDetector(
-                            onTap: () async {
+                            onTap: () {
                               controller.disposeControllers();
-                              controller.setSelectedType("General");
+                              controller.setSelectedType("Near Me");
                               controller.fetchVideos();
                             },
-                            child: Padding(
-                              padding: const EdgeInsets.only(left: 16.0),
+                            child: Text(
+                              "Near Me".tr,
+                              style: TextStyle(
+                                shadows: <Shadow>[
+                                  // Subtle depth shadow
+                                  Shadow(
+                                    offset: Offset(0.0, 2.0),
+                                    blurRadius: 4.0,
+                                    color: Color.fromARGB(60, 0, 0, 0),
+                                  ),
+                                  // Soft outline for readability
+                                  Shadow(
+                                    offset: Offset(0.0, 0.0),
+                                    blurRadius: 8.0,
+                                    color: Color.fromARGB(80, 0, 0, 0),
+                                  ),
+                                  // Crisp edge definition
+                                  Shadow(
+                                    offset: Offset(0.5, 0.5),
+                                    blurRadius: 1.0,
+                                    color: Color.fromARGB(100, 0, 0, 0),
+                                  ),
+                                ],
 
-                              child: Text(
-                                "General".tr,
-                                style: TextStyle(
-                                  shadows: <Shadow>[
-                                    // Subtle depth shadow
-                                    Shadow(
-                                      offset: Offset(0.0, 2.0),
-                                      blurRadius: 4.0,
-                                      color: Color.fromARGB(60, 0, 0, 0),
-                                    ),
-                                    // Soft outline for readability
-                                    Shadow(
-                                      offset: Offset(0.0, 0.0),
-                                      blurRadius: 8.0,
-                                      color: Color.fromARGB(80, 0, 0, 0),
-                                    ),
-                                    // Crisp edge definition
-                                    Shadow(
-                                      offset: Offset(0.5, 0.5),
-                                      blurRadius: 1.0,
-                                      color: Color.fromARGB(100, 0, 0, 0),
-                                    ),
-                                  ],
-                                  color:
-                                      controller.selectedType.value == "General"
-                                          ? Colors.white
-                                          : Colors.white.withOpacity(0.5),
-                                  fontWeight:
-                                      controller.selectedType.value == "General"
-                                          ? FontWeight.w500
-                                          : FontWeight.w300,
-                                  fontSize: 18,
-                                ),
+                                color:
+                                    controller.selectedType.value == "Near Me"
+                                        ? Colors.white
+                                        : Colors.white.withOpacity(0.5),
+                                fontWeight:
+                                    controller.selectedType.value == "Near Me"
+                                        ? FontWeight.w500
+                                        : FontWeight.w300,
+                                fontSize: 18,
                               ),
                             ),
                           ),
-                        SizedBox(width: 20),
-                        GestureDetector(
-                          onTap: () {
-                            controller.disposeControllers();
-                            controller.setSelectedType("Near Me");
-                            controller.fetchVideos();
-                          },
-                          child: Text(
-                            "Near Me".tr,
-                            style: TextStyle(
-                              shadows: <Shadow>[
-                                // Subtle depth shadow
-                                Shadow(
-                                  offset: Offset(0.0, 2.0),
-                                  blurRadius: 4.0,
-                                  color: Color.fromARGB(60, 0, 0, 0),
-                                ),
-                                // Soft outline for readability
-                                Shadow(
-                                  offset: Offset(0.0, 0.0),
-                                  blurRadius: 8.0,
-                                  color: Color.fromARGB(80, 0, 0, 0),
-                                ),
-                                // Crisp edge definition
-                                Shadow(
-                                  offset: Offset(0.5, 0.5),
-                                  blurRadius: 1.0,
-                                  color: Color.fromARGB(100, 0, 0, 0),
-                                ),
-                              ],
+                          SizedBox(width: 20),
 
-                              color:
-                                  controller.selectedType.value == "Near Me"
-                                      ? Colors.white
-                                      : Colors.white.withOpacity(0.5),
-                              fontWeight:
-                                  controller.selectedType.value == "Near Me"
-                                      ? FontWeight.w500
-                                      : FontWeight.w300,
-                              fontSize: 18,
-                            ),
-                          ),
-                        ),
-                        SizedBox(width: 20),
-
-                        if (promoteVideoController
-                                .siteSettings
-                                .value!
-                                .settings!
-                                .allowFollowingVideos ==
-                            1)
-                          Padding(
-                            padding: const EdgeInsets.only(right: 16.0),
-                            child: GestureDetector(
-                              onTap: () async {
-                                print(
-                                  "RINTING IS AUTHENTICAT ${isAuthenticated}",
-                                );
-                                if (isAuthenticated) {
-                                  controller.disposeControllers();
-                                  controller.setSelectedType("Following");
-                                  controller.fetchVideos();
-                                } else {
-                                  Get.toNamed(AppRoutes.signIn);
-                                }
-                              },
-                              child: Text(
-                                "Following".tr,
-                                style: TextStyle(
-                                  shadows: <Shadow>[
-                                    // Subtle depth shadow
-                                    Shadow(
-                                      offset: Offset(0.0, 2.0),
-                                      blurRadius: 4.0,
-                                      color: Color.fromARGB(60, 0, 0, 0),
-                                    ),
-                                    // Soft outline for readability
-                                    Shadow(
-                                      offset: Offset(0.0, 0.0),
-                                      blurRadius: 8.0,
-                                      color: Color.fromARGB(80, 0, 0, 0),
-                                    ),
-                                    // Crisp edge definition
-                                    Shadow(
-                                      offset: Offset(0.5, 0.5),
-                                      blurRadius: 1.0,
-                                      color: Color.fromARGB(100, 0, 0, 0),
-                                    ),
-                                  ],
-                                  color:
-                                      controller.selectedType.value ==
-                                              "Following"
-                                          ? Colors.white
-                                          : Colors.white.withOpacity(0.5),
-                                  fontWeight:
-                                      controller.selectedType.value ==
-                                              "Following"
-                                          ? FontWeight.w500
-                                          : FontWeight.w300,
-                                  fontSize: 18,
+                          if (promoteVideoController
+                                  .siteSettings
+                                  .value!
+                                  .settings!
+                                  .allowFollowingVideos ==
+                              1)
+                            Padding(
+                              padding: const EdgeInsets.only(right: 16.0),
+                              child: GestureDetector(
+                                onTap: () async {
+                                  print(
+                                    "RINTING IS AUTHENTICAT ${isAuthenticated}",
+                                  );
+                                  if (isAuthenticated) {
+                                    controller.disposeControllers();
+                                    controller.setSelectedType("Following");
+                                    controller.fetchVideos();
+                                  } else {
+                                    Get.toNamed(AppRoutes.signIn);
+                                  }
+                                },
+                                child: Text(
+                                  "Following".tr,
+                                  style: TextStyle(
+                                    shadows: <Shadow>[
+                                      // Subtle depth shadow
+                                      Shadow(
+                                        offset: Offset(0.0, 2.0),
+                                        blurRadius: 4.0,
+                                        color: Color.fromARGB(60, 0, 0, 0),
+                                      ),
+                                      // Soft outline for readability
+                                      Shadow(
+                                        offset: Offset(0.0, 0.0),
+                                        blurRadius: 8.0,
+                                        color: Color.fromARGB(80, 0, 0, 0),
+                                      ),
+                                      // Crisp edge definition
+                                      Shadow(
+                                        offset: Offset(0.5, 0.5),
+                                        blurRadius: 1.0,
+                                        color: Color.fromARGB(100, 0, 0, 0),
+                                      ),
+                                    ],
+                                    color:
+                                        controller.selectedType.value ==
+                                                "Following"
+                                            ? Colors.white
+                                            : Colors.white.withOpacity(0.5),
+                                    fontWeight:
+                                        controller.selectedType.value ==
+                                                "Following"
+                                            ? FontWeight.w500
+                                            : FontWeight.w300,
+                                    fontSize: 18,
+                                  ),
                                 ),
                               ),
                             ),
-                          ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
                 ),
@@ -2374,6 +2380,7 @@ void showLocationDialog(BuildContext context) {
     ),
   );
 }
+
 void showCityDialog(BuildContext context, {int? initialCity}) {
   final VideoAddController controller = Get.find();
   final CityController cityController = Get.find<CityController>();
@@ -2381,9 +2388,10 @@ void showCityDialog(BuildContext context, {int? initialCity}) {
   final HomeController homeUpdateController = Get.find();
 
   // Assuming City model has id and name properties
-  List<Map<String, dynamic>> cityList = cityController.cityList
-      .map((city) => {'id': city.id, 'name': city.name})
-      .toList();
+  List<Map<String, dynamic>> cityList =
+      cityController.cityList
+          .map((city) => {'id': city.id, 'name': city.name})
+          .toList();
 
   // Controller for search field
   final TextEditingController searchController = TextEditingController();
@@ -2391,20 +2399,20 @@ void showCityDialog(BuildContext context, {int? initialCity}) {
   Rx<Map<String, dynamic>> selectedCity = Rx<Map<String, dynamic>>(
     controller.selectedCity.value.isNotEmpty
         ? {
-      'id': cityList
-          .firstWhere(
-            (city) => city['name'] == controller.selectedCity.value,
-        orElse: () => {'id': -1, 'name': ''},
-      )['id'],
-      'name': controller.selectedCity.value,
-    }
+          'id':
+              cityList.firstWhere(
+                (city) => city['name'] == controller.selectedCity.value,
+                orElse: () => {'id': -1, 'name': ''},
+              )['id'],
+          'name': controller.selectedCity.value,
+        }
         : {'id': -1, 'name': ''},
   );
 
   // Pre-select city if initialCity is provided
   if (initialCity != null) {
     Map<String, dynamic> initialCityData = cityList.firstWhere(
-          (city) => city['id'] == initialCity,
+      (city) => city['id'] == initialCity,
       orElse: () => {'id': -1, 'name': ''},
     );
     if (initialCityData['name'].isNotEmpty) {
@@ -2417,10 +2425,13 @@ void showCityDialog(BuildContext context, {int? initialCity}) {
     if (query.isEmpty) {
       filteredCityList.value = cityList;
     } else {
-      filteredCityList.value = cityList
-          .where((city) =>
-          city['name'].toLowerCase().contains(query.toLowerCase()))
-          .toList();
+      filteredCityList.value =
+          cityList
+              .where(
+                (city) =>
+                    city['name'].toLowerCase().contains(query.toLowerCase()),
+              )
+              .toList();
     }
   }
 
@@ -2428,186 +2439,202 @@ void showCityDialog(BuildContext context, {int? initialCity}) {
     Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20.r)),
       child: Obx(
-            () => Container(
+        () => Container(
           width: 350.w,
           padding: EdgeInsets.all(16.w),
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(20.r),
           ),
-          child: cityController.isLoading.value
-              ? Center(child: CircularProgressIndicator())
-              : Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              /// **Header (Title + Close Button)**
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Row(
+          child:
+              cityController.isLoading.value
+                  ? Center(child: CircularProgressIndicator())
+                  : Column(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.location_on, color: Colors.black),
-                      SizedBox(width: 8.w),
-                      Text(
-                        "Select City".tr,
-                        style: TextStyle(
-                          fontSize: 18.sp,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.black,
+                      /// **Header (Title + Close Button)**
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(Icons.location_on, color: Colors.black),
+                              SizedBox(width: 8.w),
+                              Text(
+                                "Select City".tr,
+                                style: TextStyle(
+                                  fontSize: 18.sp,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.black,
+                                ),
+                              ),
+                            ],
+                          ),
+                          InkWell(
+                            onTap: () => Get.back(),
+                            child: Icon(Icons.close, color: Colors.grey),
+                          ),
+                        ],
+                      ),
+                      SizedBox(height: 16.h),
+
+                      /// **Search Field**
+                      TextField(
+                        controller: searchController,
+                        decoration: InputDecoration(
+                          hintText: 'search_city_placeholder'.tr,
+                          prefixIcon: Icon(Icons.search, color: Colors.grey),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10.r),
+                            borderSide: BorderSide(color: Colors.grey),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10.r),
+                            borderSide: BorderSide(
+                              color: ColorUtils.primaryColor,
+                            ),
+                          ),
+                          contentPadding: EdgeInsets.symmetric(
+                            vertical: 10.h,
+                            horizontal: 12.w,
+                          ),
+                        ),
+                        onChanged: (value) => filterCities(value),
+                      ),
+                      SizedBox(height: 16.h),
+
+                      /// **Scrollable Location List**
+                      Container(
+                        height: 230.h,
+                        child: SingleChildScrollView(
+                          child: Obx(
+                            () => Column(
+                              children: List.generate(filteredCityList.length, (
+                                index,
+                              ) {
+                                var city = filteredCityList[index];
+                                bool isSelected =
+                                    selectedCity.value['id'] == city['id'] &&
+                                    selectedCity.value['name'] == city['name'];
+
+                                return Column(
+                                  children: [
+                                    InkWell(
+                                      onTap: () {
+                                        selectedCity.value = city;
+                                      },
+                                      child: Padding(
+                                        padding: EdgeInsets.symmetric(
+                                          vertical: 12.h,
+                                        ),
+                                        child: Row(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.spaceBetween,
+                                          children: [
+                                            ConstrainedBox(
+                                              constraints: BoxConstraints(
+                                                maxWidth: 200.w,
+                                              ),
+                                              child: Text(
+                                                city['name'],
+                                                overflow: TextOverflow.ellipsis,
+                                                style: TextStyle(
+                                                  fontSize: 13.sp,
+                                                  fontWeight:
+                                                      isSelected
+                                                          ? FontWeight.bold
+                                                          : FontWeight.normal,
+                                                  color: Colors.black,
+                                                ),
+                                              ),
+                                            ),
+                                            Container(
+                                              width: 20.w,
+                                              height: 20.w,
+                                              decoration: BoxDecoration(
+                                                shape: BoxShape.circle,
+                                                border: Border.all(
+                                                  color:
+                                                      ColorUtils.primaryColor,
+                                                  width: 2,
+                                                ),
+                                                color:
+                                                    isSelected
+                                                        ? ColorUtils
+                                                            .primaryColor
+                                                        : Colors.white,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                    if (index < filteredCityList.length - 1)
+                                      Divider(
+                                        height: 1.h,
+                                        thickness: 1.r,
+                                        color: Colors.grey.shade300,
+                                      ),
+                                  ],
+                                );
+                              }),
+                            ),
+                          ),
+                        ),
+                      ),
+                      SizedBox(height: 20.h),
+
+                      /// **Submit Button**
+                      Obx(
+                        () => ElevatedButton(
+                          onPressed:
+                              selectedCity.value['name'].isNotEmpty
+                                  ? () {
+                                    try {
+                                      int selectedId = selectedCity.value['id'];
+                                      String selectedName =
+                                          selectedCity.value['name'];
+                                      print(
+                                        "Selected City: $selectedName (ID: $selectedId)",
+                                      );
+
+                                      homeUpdateController.currentCityId.value =
+                                          selectedId.toString();
+                                      homeController.currentCity.value =
+                                          selectedName;
+                                      homeUpdateController.currentCity.value =
+                                          selectedName;
+                                      controller.selectedCity.value =
+                                          selectedName;
+                                      Get.back(); // Close the city dialog
+                                    } catch (e) {
+                                      print('Error selecting city: $e');
+                                      Get.snackbar(
+                                        'Error',
+                                        'Failed to select city',
+                                      );
+                                    }
+                                  }
+                                  : null,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: ColorUtils.primaryColor,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10.r),
+                            ),
+                            minimumSize: Size(double.infinity, 44.h),
+                          ),
+                          child: Text(
+                            "Submit".tr,
+                            style: TextStyle(
+                              fontSize: 14.sp,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.white,
+                            ),
+                          ),
                         ),
                       ),
                     ],
                   ),
-                  InkWell(
-                    onTap: () => Get.back(),
-                    child: Icon(Icons.close, color: Colors.grey),
-                  ),
-                ],
-              ),
-              SizedBox(height: 16.h),
-
-              /// **Search Field**
-              TextField(
-                controller: searchController,
-                decoration: InputDecoration(
-                  hintText: 'search_city_placeholder'.tr,
-                  prefixIcon: Icon(Icons.search, color: Colors.grey),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10.r),
-                    borderSide: BorderSide(color: Colors.grey),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10.r),
-                    borderSide: BorderSide(
-                      color: ColorUtils.primaryColor,
-                    ),
-                  ),
-                  contentPadding: EdgeInsets.symmetric(
-                    vertical: 10.h,
-                    horizontal: 12.w,
-                  ),
-                ),
-                onChanged: (value) => filterCities(value),
-              ),
-              SizedBox(height: 16.h),
-
-              /// **Scrollable Location List**
-              Container(
-                height: 230.h,
-                child: SingleChildScrollView(
-                  child: Obx(
-                        () => Column(
-                      children: List.generate(filteredCityList.length, (index) {
-                        var city = filteredCityList[index];
-                        bool isSelected = selectedCity.value['id'] == city['id'] &&
-                            selectedCity.value['name'] == city['name'];
-
-                        return Column(
-                          children: [
-                            InkWell(
-                              onTap: () {
-                                selectedCity.value = city;
-                              },
-                              child: Padding(
-                                padding: EdgeInsets.symmetric(
-                                  vertical: 12.h,
-                                ),
-                                child: Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    ConstrainedBox(
-                                      constraints: BoxConstraints(
-                                        maxWidth: 200.w,
-                                      ),
-                                      child: Text(
-                                        city['name'],
-                                        overflow: TextOverflow.ellipsis,
-                                        style: TextStyle(
-                                          fontSize: 13.sp,
-                                          fontWeight: isSelected
-                                              ? FontWeight.bold
-                                              : FontWeight.normal,
-                                          color: Colors.black,
-                                        ),
-                                      ),
-                                    ),
-                                    Container(
-                                      width: 20.w,
-                                      height: 20.w,
-                                      decoration: BoxDecoration(
-                                        shape: BoxShape.circle,
-                                        border: Border.all(
-                                          color: ColorUtils.primaryColor,
-                                          width: 2,
-                                        ),
-                                        color: isSelected
-                                            ? ColorUtils.primaryColor
-                                            : Colors.white,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                            if (index < filteredCityList.length - 1)
-                              Divider(
-                                height: 1.h,
-                                thickness: 1.r,
-                                color: Colors.grey.shade300,
-                              ),
-                          ],
-                        );
-                      }),
-                    ),
-                  ),
-                ),
-              ),
-              SizedBox(height: 20.h),
-
-              /// **Submit Button**
-              Obx(
-                    () => ElevatedButton(
-                  onPressed: selectedCity.value['name'].isNotEmpty
-                      ? () {
-                    try {
-                      int selectedId = selectedCity.value['id'];
-                      String selectedName = selectedCity.value['name'];
-                      print("Selected City: $selectedName (ID: $selectedId)");
-
-                      homeUpdateController.currentCityId.value =
-                          selectedId.toString();
-                      homeController.currentCity.value = selectedName;
-                      homeUpdateController.currentCity.value = selectedName;
-                      controller.selectedCity.value = selectedName;
-                      Get.back(); // Close the city dialog
-                    } catch (e) {
-                      print('Error selecting city: $e');
-                      Get.snackbar(
-                        'Error',
-                        'Failed to select city',
-                      );
-                    }
-                  }
-                      : null,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: ColorUtils.primaryColor,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10.r),
-                    ),
-                    minimumSize: Size(double.infinity, 44.h),
-                  ),
-                  child: Text(
-                    "Submit".tr,
-                    style: TextStyle(
-                      fontSize: 14.sp,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.white,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
         ),
       ),
     ),

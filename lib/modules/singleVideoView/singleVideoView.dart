@@ -1499,15 +1499,14 @@ class VideoDescriptionWidget extends StatefulWidget {
   final String? title;
   final String? description;
   final String? tags;
-   Function? pauseVideo; // Add a callback to pause the video
+  Function? pauseVideo; // Add a callback to pause the video
 
-
-   VideoDescriptionWidget({
+  VideoDescriptionWidget({
     Key? key,
     this.title,
     this.description,
     this.tags,
-     this.pauseVideo,
+    this.pauseVideo,
   }) : super(key: key);
 
   @override
@@ -1671,7 +1670,7 @@ class _VideoDescriptionWidgetState extends State<VideoDescriptionWidget> {
                               return InkWell(
                                 onTap: () {
                                   // _pauseVideo();
-                                  Get.to(
+                                  Get.off(
                                     SearchView(tag: trimmedTag, isGeneral: 1),
                                   );
                                 },
