@@ -556,7 +556,10 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                                           : 0,
                                 ),
                               )?.then((_) {
-                                controller.restoreVideoState();
+                                controller.fetchVideos(
+                                  city: controller.currentCity.value,
+                                  country: controller.currentCountry.value,
+                                );
                               });
                             },
                             child: Container(
@@ -987,11 +990,13 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                                       ),
                                     ],
                                     color:
-                                        controller.selectedType.value == "General"
+                                        controller.selectedType.value ==
+                                                "General"
                                             ? Colors.white
                                             : Colors.white.withOpacity(0.5),
                                     fontWeight:
-                                        controller.selectedType.value == "General"
+                                        controller.selectedType.value ==
+                                                "General"
                                             ? FontWeight.w500
                                             : FontWeight.w300,
                                     fontSize: 18,
@@ -1132,7 +1137,11 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                                     : 0,
                           ),
                         )?.then((_) {
-                          controller.restoreVideoState();
+                          print(
+                            "PRINTING SELECTED TYPE: ${controller.selectedType}",
+                          );
+                          controller.selectedType = controller.selectedType;
+                          controller.fetchVideos();
                         });
                       },
                       child: ClipRRect(
