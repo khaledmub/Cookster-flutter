@@ -58,7 +58,7 @@ class VideoAddController extends GetxController {
     try {
       // Load Arabic bad words from remote URL
       final arabicResponse = await http.get(
-        Uri.parse('https://beta.cookster.org/public/badwords/ar.txt'),
+        Uri.parse('https://cookster.org/badwords/ar.txt'),
       );
 
       if (arabicResponse.statusCode == 200) {
@@ -75,7 +75,7 @@ class VideoAddController extends GetxController {
 
       // Load English bad words from remote URL
       final englishResponse = await http.get(
-        Uri.parse('https://beta.cookster.org/public/badwords/en.txt'),
+        Uri.parse('https://cookster.org/badwords/en.txt'),
       );
 
       if (englishResponse.statusCode == 200) {
@@ -1105,7 +1105,6 @@ class VideoAddController extends GetxController {
     await fetchEntity();
     super.onInit();
   }
-
 
   @override
   void dispose() {

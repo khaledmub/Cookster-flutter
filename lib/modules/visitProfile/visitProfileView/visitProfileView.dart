@@ -427,7 +427,7 @@ class _VisitProfileViewState extends State<VisitProfileView>
                       );
                     },
                     child: ProfileStat(
-                      number: "${user.followers}",
+                      number: "${localFollowersCount}",
                       label: "Followers".tr,
                     ),
                   ),
