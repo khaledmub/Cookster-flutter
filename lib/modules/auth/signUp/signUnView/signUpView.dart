@@ -360,12 +360,15 @@ class _SignVpViewState extends State<SignVpView> {
                                       SizedBox(height: 10),
 
                                       ///
-                                      Text(
-                                        "add your personal info".tr,
-                                        style: TextStyle(
-                                          color: ColorUtils.darkBrown,
-                                          fontWeight: FontWeight.w500,
-                                          fontSize: 16.sp,
+                                      Obx(
+                                        () => Text(
+                                          textAlign: TextAlign.center,
+                                          _getSelectedEntityText(),
+                                          style: TextStyle(
+                                            color: ColorUtils.darkBrown,
+                                            fontWeight: FontWeight.w500,
+                                            fontSize: 14.sp,
+                                          ),
                                         ),
                                       ),
                                       SizedBox(height: 10),
@@ -721,17 +724,19 @@ class _SignVpViewState extends State<SignVpView> {
                                                             vertical: 16,
                                                           ),
                                                       decoration: CustomDropdownDecoration(
+                                                        hintStyle: TextStyle(
+                                                          color: Colors.black,
+                                                        ),
 
-                                                        hintStyle: TextStyle(color: Colors.black, ),
-
-
-                                                        prefixIcon:
-                                                            Padding(
-                                                              padding: const EdgeInsets.only(right: 8.0),
-                                                              child: SvgPicture.asset(
-                                                                "assets/icons/business.svg",
+                                                        prefixIcon: Padding(
+                                                          padding:
+                                                              const EdgeInsets.only(
+                                                                right: 8.0,
                                                               ),
-                                                            ),
+                                                          child: SvgPicture.asset(
+                                                            "assets/icons/business.svg",
+                                                          ),
+                                                        ),
                                                         closedBorderRadius:
                                                             BorderRadius.circular(
                                                               8,
@@ -872,21 +877,25 @@ class _SignVpViewState extends State<SignVpView> {
                                               ),
                                               child: Row(
                                                 children: [
-                                                  SizedBox(width: 8,),
+                                                  SizedBox(width: 8),
                                                   Container(
-                                                    padding: const EdgeInsets.all(8.0),
+                                                    padding:
+                                                        const EdgeInsets.all(
+                                                          8.0,
+                                                        ),
                                                     width: 40,
                                                     height: 40,
                                                     child: SvgPicture.asset(
                                                       "assets/icons/earth.svg",
                                                       fit: BoxFit.contain,
-                                                      colorFilter: const ColorFilter.mode(
-                                                        Colors.black,
-                                                        BlendMode.srcIn,
-                                                      ),
+                                                      colorFilter:
+                                                          const ColorFilter.mode(
+                                                            Colors.black,
+                                                            BlendMode.srcIn,
+                                                          ),
                                                     ),
                                                   ),
-                                                  SizedBox(width: 8,),
+                                                  SizedBox(width: 8),
                                                   Obx(
                                                     () => Container(
                                                       constraints:
@@ -931,8 +940,7 @@ class _SignVpViewState extends State<SignVpView> {
                                                         .keyboard_arrow_down_rounded,
                                                     size: 18,
                                                   ),
-                                                  SizedBox(width: 8,),
-
+                                                  SizedBox(width: 8),
                                                 ],
                                               ),
                                             ),
@@ -1014,21 +1022,25 @@ class _SignVpViewState extends State<SignVpView> {
                                               ),
                                               child: Row(
                                                 children: [
-                                                  SizedBox(width: 8,),
+                                                  SizedBox(width: 8),
                                                   Container(
-                                                    padding: const EdgeInsets.all(8.0),
+                                                    padding:
+                                                        const EdgeInsets.all(
+                                                          8.0,
+                                                        ),
                                                     width: 40,
                                                     height: 40,
                                                     child: SvgPicture.asset(
                                                       "assets/icons/earth.svg",
                                                       fit: BoxFit.contain,
-                                                      colorFilter: const ColorFilter.mode(
-                                                        Colors.black,
-                                                        BlendMode.srcIn,
-                                                      ),
+                                                      colorFilter:
+                                                          const ColorFilter.mode(
+                                                            Colors.black,
+                                                            BlendMode.srcIn,
+                                                          ),
                                                     ),
                                                   ),
-                                                  SizedBox(width: 8,),
+                                                  SizedBox(width: 8),
 
                                                   Obx(
                                                     () => Container(
@@ -1074,7 +1086,7 @@ class _SignVpViewState extends State<SignVpView> {
                                                         .keyboard_arrow_down_rounded,
                                                     size: 18,
                                                   ),
-                                                  SizedBox(width: 8,),
+                                                  SizedBox(width: 8),
                                                 ],
                                               ),
                                             ),
@@ -1421,14 +1433,18 @@ class _SignVpViewState extends State<SignVpView> {
                                                               vertical: 16,
                                                             ),
                                                         decoration: CustomDropdownDecoration(
-                                                          hintStyle: TextStyle(color: Colors.black),
-                                                          prefixIcon:
-                                                              Padding(
-                                                                padding: const EdgeInsets.only(right: 8.0),
-                                                                child: SvgPicture.asset(
-                                                                  "assets/icons/business.svg",
+                                                          hintStyle: TextStyle(
+                                                            color: Colors.black,
+                                                          ),
+                                                          prefixIcon: Padding(
+                                                            padding:
+                                                                const EdgeInsets.only(
+                                                                  right: 8.0,
                                                                 ),
-                                                              ),
+                                                            child: SvgPicture.asset(
+                                                              "assets/icons/business.svg",
+                                                            ),
+                                                          ),
                                                           closedBorderRadius:
                                                               BorderRadius.circular(
                                                                 8,
@@ -1723,6 +1739,24 @@ class _SignVpViewState extends State<SignVpView> {
         ],
       ),
     );
+  }
+
+  String _getSelectedEntityText() {
+    final selectedEntity = signUpController.registrationSettings.value.entities!
+        .firstWhere(
+          (entity) => entity.id == signUpController.selectedProfileId.value,
+        );
+
+
+    print(selectedEntity.description);
+
+    print("THIS IS THE SELECTED ENTITY: ${selectedEntity.description}");
+
+    // print(object)
+
+    // Replace 'description' with the actual property name that contains the text
+    // Common property names might be: description, subtitle, text, details, etc.
+    return selectedEntity.description ?? "No description available".tr;
   }
 }
 

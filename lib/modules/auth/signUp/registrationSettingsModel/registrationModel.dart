@@ -5,13 +5,12 @@ class RegistrationSettings {
   BusinessTypes? businessTypes;
   BusinessTypes? typeOfAccounts;
 
-
   RegistrationSettings({
     this.status,
     this.entities,
     this.countries,
     this.businessTypes,
-    this.typeOfAccounts
+    this.typeOfAccounts,
   });
 
   RegistrationSettings.fromJson(Map<String, dynamic> json) {
@@ -33,9 +32,9 @@ class RegistrationSettings {
             ? new BusinessTypes.fromJson(json['business_types'])
             : null;
     typeOfAccounts =
-    json['type_of_account'] != null
-        ? new BusinessTypes.fromJson(json['type_of_account'])
-        : null;
+        json['type_of_account'] != null
+            ? new BusinessTypes.fromJson(json['type_of_account'])
+            : null;
   }
 
   Map<String, dynamic> toJson() {
@@ -60,6 +59,7 @@ class RegistrationSettings {
 class Entities {
   int? id;
   String? name;
+  dynamic description;
   dynamic isSubscriptionRequired;
   dynamic isSponsored;
 
@@ -68,7 +68,9 @@ class Entities {
   Entities.fromJson(Map<String, dynamic> json) {
     id = json['id'];
     name = json['name'];
+    description = json['description'];
     isSubscriptionRequired = json['subscription_required'];
+
     isSponsored = json['is_sponsored'];
   }
 
@@ -76,6 +78,7 @@ class Entities {
     final Map<String, dynamic> data = new Map<String, dynamic>();
     data['id'] = this.id;
     data['name'] = this.name;
+    data['description'] = this.description;
     data['subscription_required'] = this.isSubscriptionRequired;
     data['is_sponsored'] = this.isSponsored;
     return data;
@@ -233,4 +236,3 @@ class Values {
     return data;
   }
 }
-
