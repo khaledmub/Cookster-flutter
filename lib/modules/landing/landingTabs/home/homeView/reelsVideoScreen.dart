@@ -308,10 +308,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
           }
 
           if (controller.videoFeed.value.videos == null ||
-              controller.videoFeed.value.videos!.isEmpty ||
-              (controller.selectedType.value == "Near Me" &&
-                  (!controller.isLocationServiceEnabled.value ||
-                      !controller.isLocationPermissionGranted.value))) {
+              controller.videoFeed.value.videos!.isEmpty) {
             return Stack(
               children: [
                 SafeArea(
@@ -352,11 +349,12 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            if (promoteVideoController
-                                    .siteSettings
-                                    .value!
-                                    .settings!
-                                    .allowGeneralVideos ==
+                            if ((promoteVideoController
+                                        .siteSettings
+                                        .value
+                                        ?.settings
+                                        ?.allowGeneralVideos ??
+                                    0) ==
                                 1)
                               GestureDetector(
                                 onTap: () async {
@@ -444,11 +442,12 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                               ),
                             ),
                             SizedBox(width: 20),
-                            if (promoteVideoController
-                                    .siteSettings
-                                    .value!
-                                    .settings!
-                                    .allowFollowingVideos ==
+                            if ((promoteVideoController
+                                        .siteSettings
+                                        .value
+                                        ?.settings
+                                        ?.allowGeneralVideos ??
+                                    0) ==
                                 1)
                               GestureDetector(
                                 onTap: () async {
