@@ -1849,7 +1849,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
     _handleScreenExit();
     try {
       final String videoId = videoDetail.id!;
-      final String webUrl = "https://cookster.org/visitSingleVideo?id=$videoId";
+      final String webUrl = "https://cookster.org/web/visitSingleVideo?id=$videoId";
       final String shareMessage =
           'Check out this amazing video on Cookster!\n$webUrl';
       await Share.share(shareMessage, subject: 'Cookster Video');

@@ -553,7 +553,7 @@ class _SingleVideoVisitState extends State<SingleVisitVideo>
   void _handleShare(String videoId) async {
     _pauseVideo();
     try {
-      final String webUrl = "https://cookster.org/visitSingleVideo?id=$videoId";
+      final String webUrl = "https://cookster.org/web/visitSingleVideo?id=$videoId";
       final String shareMessage =
           'Check out this amazing video on Cookster!\n$webUrl';
       await Share.share(shareMessage, subject: 'Cookster Video');

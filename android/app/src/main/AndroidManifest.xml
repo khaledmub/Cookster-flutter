@@ -94,11 +94,11 @@
 
                 <data
                     android:host="cookster.org"
-                    android:path="/visitSingleVideo"
+                    android:path="/web/visitSingleVideo"
                     android:scheme="http" />
                 <data
                     android:host="cookster.org"
-                    android:path="/visitSingleVideo"
+                    android:path="/web/visitSingleVideo"
                     android:scheme="https" />
             </intent-filter>
 
