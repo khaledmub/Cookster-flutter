@@ -5,6 +5,7 @@ import 'package:get/get.dart';
 
 import '../../../appUtils/apiEndPoints.dart';
 import '../../../services/apiClient.dart';
+import '../../../services/appConfig/app_config_service.dart';
 import '../landingTabs/add/videoUploadSettingsModel/videoUploadSettingsModel.dart';
 
 class NavBarController extends GetxController {
@@ -40,6 +41,7 @@ class NavBarController extends GetxController {
   void onInit() {
     // TODO: implement onInit
     super.onInit();
+
     getVideoUploadSettings();
   }
 }
