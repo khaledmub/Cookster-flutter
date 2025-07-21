@@ -90,6 +90,7 @@ dependencies:
   rxdart: ^0.27.7
   flutter_app_badge: ^2.0.2
   device_info_plus: ^11.5.0
+  location: ^8.0.1
 
 
 dependency_overrides:

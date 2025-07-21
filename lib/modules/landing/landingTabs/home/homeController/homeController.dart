@@ -3,7 +3,6 @@ import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:geocoding/geocoding.dart';
-import 'package:geolocator/geolocator.dart';
 import 'package:get/get.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:video_player/video_player.dart';
@@ -12,6 +11,7 @@ import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import '../../../../../services/apiClient.dart';
 import '../homeModel/videoFeedModel.dart';
 import 'package:cookster/appUtils/apiEndPoints.dart';
+import 'package:location/location.dart' as LocationPackage;
 
 class HomeController extends GetxController with WidgetsBindingObserver {
   var isFollowing = false.obs;
@@ -175,7 +175,9 @@ class HomeController extends GetxController with WidgetsBindingObserver {
   var hasLocationBeenFetched = false.obs;
   var isLocationFetching = false.obs;
 
-  // Method to fetch location only once
+  // Make sure you have these imports:
+  // import 'package:geocoding/geocoding.dart';
+
   Future _fetchLocationOnce() async {
     if (hasLocationBeenFetched.value || isLocationFetching.value) {
       print("Location already fetched or currently fetching, skipping...");
@@ -185,39 +187,60 @@ class HomeController extends GetxController with WidgetsBindingObserver {
     isLocationFetching.value = true;
 
     try {
-      LocationPermission permission = await Geolocator.checkPermission();
-      if (permission == LocationPermission.denied) {
-        permission = await Geolocator.requestPermission();
-        if (permission == LocationPermission.denied) {
+      // Use the location package with alias to avoid conflicts
+      LocationPackage.Location location = LocationPackage.Location();
+
+      bool serviceEnabled;
+      LocationPackage.PermissionStatus permissionGranted;
+      LocationPackage.LocationData locationData;
+
+      // Check if location service is enabled
+      serviceEnabled = await location.serviceEnabled();
+      if (!serviceEnabled) {
+        serviceEnabled = await location.requestService();
+        if (!serviceEnabled) {
+          error.value = "Location service is disabled";
+          return;
+        }
+      }
+
+      // Check and request permission
+      permissionGranted = await location.hasPermission();
+      if (permissionGranted == LocationPackage.PermissionStatus.denied) {
+        permissionGranted = await location.requestPermission();
+        if (permissionGranted != LocationPackage.PermissionStatus.granted) {
           error.value = "Location permission denied";
           return;
         }
       }
 
-      if (permission == LocationPermission.deniedForever) {
-        error.value = "Location permission permanently denied";
+      // Get current location
+      locationData = await location.getLocation();
+
+      // Check if coordinates are available
+      if (locationData.latitude == null || locationData.longitude == null) {
+        error.value = "Unable to get location coordinates";
         return;
       }
 
-      Position position = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
-      );
+      print('Location: ${locationData.latitude}, ${locationData.longitude}');
 
       // Set locale to English before fetching placemarks
       await setLocaleIdentifier('en_US');
 
-      List placemarks = await placemarkFromCoordinates(
-        position.latitude,
-        position.longitude,
+      // Get placemarks from coordinates
+      List<Placemark> placemarks = await placemarkFromCoordinates(
+        locationData.latitude!,
+        locationData.longitude!,
       );
 
       currentCity.value =
           placemarks.isNotEmpty
-              ? (placemarks[0].locality ?? 'Unknown').trim()
+              ? (placemarks.first.locality ?? 'Unknown').trim()
               : 'Unknown';
       currentCountry.value =
           placemarks.isNotEmpty
-              ? (placemarks[0].country ?? 'Unknown').trim()
+              ? (placemarks.first.country ?? 'Unknown').trim()
               : 'Unknown';
 
       hasLocationBeenFetched.value = true;
@@ -546,136 +569,6 @@ class HomeController extends GetxController with WidgetsBindingObserver {
     } finally {
       isLoading.value = false;
       update();
-    }
-  }
-
-  // Enhanced location fetching method with iOS-specific handling
-  Future<void> _fetchLocationWithIOSSupport() async {
-    try {
-      // Check if location services are enabled
-      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
-      if (!serviceEnabled) {
-        error.value =
-            "Location services are disabled. Please enable location services.";
-        return;
-      }
-
-      // Check and request location permissions with iOS-specific handling
-      LocationPermission permission = await Geolocator.checkPermission();
-
-      if (permission == LocationPermission.denied) {
-        permission = await Geolocator.requestPermission();
-        if (permission == LocationPermission.denied) {
-          error.value =
-              "Location permissions are denied. Please allow location access in settings.";
-          return;
-        }
-      }
-
-      if (permission == LocationPermission.deniedForever) {
-        error.value =
-            "Location permissions are permanently denied. Please enable location access in device settings.";
-        return;
-      }
-
-      // Get current position with iOS-optimized settings
-      Position position = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
-        timeLimit: Duration(seconds: 15), // Timeout for iOS
-      ).timeout(
-        Duration(seconds: 20),
-        onTimeout: () {
-          throw TimeoutException(
-            'Location request timed out',
-            Duration(seconds: 20),
-          );
-        },
-      );
-
-      print('Location obtained: ${position.latitude}, ${position.longitude}');
-
-      // Get location details using reverse geocoding
-      List<Placemark> placemarks = await placemarkFromCoordinates(
-        position.latitude,
-        position.longitude,
-      ).timeout(
-        Duration(seconds: 10),
-        onTimeout: () {
-          throw TimeoutException(
-            'Geocoding request timed out',
-            Duration(seconds: 10),
-          );
-        },
-      );
-
-      if (placemarks.isNotEmpty) {
-        Placemark place = placemarks[0];
-
-        // Handle iOS-specific placemark data
-        currentCity.value =
-            place.locality ??
-            place.subAdministrativeArea ??
-            place.administrativeArea ??
-            'Unknown City';
-
-        currentCountry.value = place.country ?? 'Unknown Country';
-
-        hasLocationBeenFetched.value = true;
-
-        print('City: ${currentCity.value}');
-        print('Country: ${currentCountry.value}');
-
-        // Clear any previous errors
-        error.value = '';
-      } else {
-        error.value = "Unable to determine location details";
-      }
-    } on TimeoutException catch (e) {
-      error.value =
-          "Location request timed out. Please check your internet connection.";
-      print('Location timeout: $e');
-    } on LocationServiceDisabledException catch (e) {
-      error.value =
-          "Location services are disabled. Please enable location services.";
-      print('Location service disabled: $e');
-    } on PermissionDeniedException catch (e) {
-      error.value = "Location permission denied. Please allow location access.";
-      print('Permission denied: $e');
-    } catch (e) {
-      error.value = "Failed to get location: $e";
-      print('Location error: $e');
-
-      // Fallback: Try to use last known position for iOS
-      try {
-        Position? lastPosition = await Geolocator.getLastKnownPosition();
-        if (lastPosition != null) {
-          print(
-            'Using last known position: ${lastPosition.latitude}, ${lastPosition.longitude}',
-          );
-
-          List<Placemark> placemarks = await placemarkFromCoordinates(
-            lastPosition.latitude,
-            lastPosition.longitude,
-          );
-
-          if (placemarks.isNotEmpty) {
-            Placemark place = placemarks[0];
-            currentCity.value =
-                place.locality ??
-                place.subAdministrativeArea ??
-                place.administrativeArea ??
-                'Unknown City';
-            currentCountry.value = place.country ?? 'Unknown Country';
-            hasLocationBeenFetched.value = true;
-            error.value = ''; // Clear error if fallback succeeds
-            print(
-              'Fallback location - City: ${currentCity.value}, Country: ${currentCountry.value}',
-            );
-          }
-        }
-      } catch (fallbackError) {
-        print('Fallback location also failed: $fallbackError');
-      }
     }
   }
 
