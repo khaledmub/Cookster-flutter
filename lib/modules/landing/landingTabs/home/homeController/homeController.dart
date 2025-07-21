@@ -66,7 +66,9 @@ class HomeController extends GetxController with WidgetsBindingObserver {
         restoreVideoState();
       });
     } else {
-      fetchVideos();
+      _fetchLocationOnce().then((_) {
+        fetchVideos();
+      });
     }
   }
 
@@ -174,7 +176,7 @@ class HomeController extends GetxController with WidgetsBindingObserver {
   var isLocationFetching = false.obs;
 
   // Method to fetch location only once
-  Future<void> _fetchLocationOnce() async {
+  Future _fetchLocationOnce() async {
     if (hasLocationBeenFetched.value || isLocationFetching.value) {
       print("Location already fetched or currently fetching, skipping...");
       return;
@@ -201,7 +203,10 @@ class HomeController extends GetxController with WidgetsBindingObserver {
         desiredAccuracy: LocationAccuracy.high,
       );
 
-      List<Placemark> placemarks = await placemarkFromCoordinates(
+      // Set locale to English before fetching placemarks
+      await setLocaleIdentifier('en_US');
+
+      List placemarks = await placemarkFromCoordinates(
         position.latitude,
         position.longitude,
       );
@@ -491,7 +496,7 @@ class HomeController extends GetxController with WidgetsBindingObserver {
           );
         } else {
           // Enhanced location fetching with iOS-specific handling
-          await _fetchLocationWithIOSSupport();
+          // await _fetchLocationWithIOSSupport();
 
           if (error.value.isNotEmpty) {
             isLoading.value = false;

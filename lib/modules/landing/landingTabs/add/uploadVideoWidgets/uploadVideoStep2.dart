@@ -295,6 +295,17 @@ class _UploadVideoStep2State extends State<UploadVideoStep2> {
                                       ),
                                     ),
                                   ),
+                                Padding(
+                                  padding: EdgeInsets.only(top: 8.0),
+                                  child: Text(
+                                    "done_to_add_hashtag".tr,
+                                    style: TextStyle(
+                                      color: Colors.grey.shade500,
+                                      fontSize: 12,
+                                      // fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
                                 SizedBox(height: 16.h),
                               ],
                             );

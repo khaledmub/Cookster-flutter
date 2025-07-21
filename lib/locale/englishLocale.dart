@@ -511,4 +511,5 @@ const Map<String, String> en = {
   "days_ago": "days ago",
   "hours_ago": "hours ago",
   "unknown_time": "unknown time",
+  "done_to_add_hashtag" : "Press 'Done' button from keyboard then hashtaq will be created and you can add multiple hashtaqs"
 };

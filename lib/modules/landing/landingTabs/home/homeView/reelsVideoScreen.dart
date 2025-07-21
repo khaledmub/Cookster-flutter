@@ -298,7 +298,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
         backgroundColor: Colors.black,
 
         body: Obx(() {
-          if (controller.isLoading.value) {
+          if (controller.isLoading.value || controller.isLocationFetching.value) {
             return Center(
               child: PulseLogoLoader(
                 logoPath: "assets/images/appIcon.png",
