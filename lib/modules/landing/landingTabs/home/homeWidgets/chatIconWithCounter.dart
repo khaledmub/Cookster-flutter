@@ -171,78 +171,65 @@ class ChatIconWithCounter extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(
-          horizontal: 16.0,
-          vertical: 8,
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.end,
-          children: [
-            InkWell(
-              onTap: onTap,
-              child: Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  SvgPicture.asset(
-                    "assets/icons/chatIcon.svg",
-                    color: Colors.white,
-                  ),
-                  // Only show counter if user is authenticated
-                  if (isAuthenticated)
-                    StreamBuilder<int>(
-                      stream: _getUnreadChatCountAlternative(userId), // Using the alternative approach
-                      builder: (context, snapshot) {
-                        if (snapshot.hasData && snapshot.data! > 0) {
-                          final count = snapshot.data!;
-                          return Positioned(
-                            right: -6,
-                            top: -6,
-                            child: Container(
-                              padding: const EdgeInsets.all(4),
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: Colors.red,
-                                border: Border.all(
-                                  color: Colors.white,
-                                  width: 1,
-                                ),
-                              ),
-                              constraints: const BoxConstraints(
-                                minWidth: 16,
-                                minHeight: 16,
-                              ),
-                              child: count > 9
-                                  ? const Text(
-                                '9+',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 8,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                                textAlign: TextAlign.center,
-                              )
-                                  : Text(
-                                count.toString(),
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 9,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                                textAlign: TextAlign.center,
-                              ),
-                            ),
-                          );
-                        }
-                        return const SizedBox.shrink();
-                      },
+    return InkWell(
+      onTap: onTap,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          SvgPicture.asset(
+            "assets/icons/chatIcon.svg",
+            color: Colors.white,
+          ),
+          // Only show counter if user is authenticated
+          if (isAuthenticated)
+            StreamBuilder<int>(
+              stream: _getUnreadChatCountAlternative(userId), // Using the alternative approach
+              builder: (context, snapshot) {
+                if (snapshot.hasData && snapshot.data! > 0) {
+                  final count = snapshot.data!;
+                  return Positioned(
+                    right: -6,
+                    top: -6,
+                    child: Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Colors.red,
+                        border: Border.all(
+                          color: Colors.white,
+                          width: 1,
+                        ),
+                      ),
+                      constraints: const BoxConstraints(
+                        minWidth: 16,
+                        minHeight: 16,
+                      ),
+                      child: count > 9
+                          ? const Text(
+                        '9+',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 8,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        textAlign: TextAlign.center,
+                      )
+                          : Text(
+                        count.toString(),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 9,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
                     ),
-                ],
-              ),
+                  );
+                }
+                return const SizedBox.shrink();
+              },
             ),
-          ],
-        ),
+        ],
       ),
     );
   }

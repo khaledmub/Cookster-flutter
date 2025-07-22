@@ -279,6 +279,22 @@ class _VideoReelScreenState extends State<VideoReelScreen>
     }
   }
 
+  final PageController _pageController = PageController();
+
+  void _scrollToNext() {
+    _pageController.nextPage(
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeInOut,
+    );
+  }
+
+  void _scrollToPrevious() {
+    _pageController.previousPage(
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeInOut,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     super.build(context);
@@ -296,722 +312,513 @@ class _VideoReelScreenState extends State<VideoReelScreen>
       },
       child: Scaffold(
         backgroundColor: Colors.black,
+        appBar: AppBar(
+          toolbarHeight: 0,
+          elevation: 0,
+          backgroundColor: Colors.transparent,
+        ),
 
         body: Obx(() {
-          if (controller.isLoading.value || controller.isLocationFetching.value) {
-            return Center(
-              child: PulseLogoLoader(
-                logoPath: "assets/images/appIcon.png",
-                size: 80,
-              ),
-            );
-          }
-
-          if (controller.videoFeed.value.videos == null ||
-              controller.videoFeed.value.videos!.isEmpty) {
-            return Stack(
-              children: [
-                SafeArea(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16.0,
-                      vertical: 4,
-                    ),
-                    child: InkWell(
-                      onTap: () {
-                        isAuthenticated
-                            ? Get.to(JoinScreen())
-                            : Get.toNamed(AppRoutes.signIn);
-                      },
-                      child: SvgPicture.asset(
-                        "assets/icons/live.svg",
-                        color: Colors.white,
-                      ),
-                    ),
-                  ),
-                ),
-
-                ChatIconWithCounter(
-                  userId: userId ?? '',
-                  isAuthenticated: isAuthenticated,
-                  onTap: () {
-                    isAuthenticated
-                        ? Get.to(ChatListScreen(userId: userId!))
-                        : Get.toNamed(AppRoutes.signIn);
-                  },
-                ),
-                SafeArea(
-                  child: Align(
-                    alignment: Alignment.topCenter,
-                    child: Obx(
-                      () => Container(
-                        margin: EdgeInsets.only(top: 10),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            if ((promoteVideoController
-                                        .siteSettings
-                                        .value
-                                        ?.settings
-                                        ?.allowGeneralVideos ??
-                                    0) ==
-                                1)
-                              GestureDetector(
-                                onTap: () async {
-                                  controller.disposeControllers();
-                                  controller.setSelectedType("General");
-                                  controller.fetchVideos();
-                                },
-                                child: Text(
-                                  "General".tr,
-                                  style: TextStyle(
-                                    shadows: <Shadow>[
-                                      // Subtle depth shadow
-                                      Shadow(
-                                        offset: Offset(0.0, 2.0),
-                                        blurRadius: 4.0,
-                                        color: Color.fromARGB(60, 0, 0, 0),
-                                      ),
-                                      // Soft outline for readability
-                                      Shadow(
-                                        offset: Offset(0.0, 0.0),
-                                        blurRadius: 8.0,
-                                        color: Color.fromARGB(80, 0, 0, 0),
-                                      ),
-                                      // Crisp edge definition
-                                      Shadow(
-                                        offset: Offset(0.5, 0.5),
-                                        blurRadius: 1.0,
-                                        color: Color.fromARGB(100, 0, 0, 0),
-                                      ),
-                                    ],
-                                    color:
-                                        controller.selectedType.value ==
-                                                "General"
-                                            ? Colors.white
-                                            : Colors.white.withOpacity(0.5),
-                                    fontWeight:
-                                        controller.selectedType.value ==
-                                                "General"
-                                            ? FontWeight.w500
-                                            : FontWeight.w300,
-                                    fontSize: 18,
-                                  ),
-                                ),
-                              ),
-                            SizedBox(width: 20),
-                            GestureDetector(
-                              onTap: () {
-                                controller.disposeControllers();
-                                controller.setSelectedType("Near Me");
-                                controller.fetchVideos();
-                              },
-                              child: Text(
-                                "Near Me".tr,
-                                style: TextStyle(
-                                  shadows: <Shadow>[
-                                    // Subtle depth shadow
-                                    Shadow(
-                                      offset: Offset(0.0, 2.0),
-                                      blurRadius: 4.0,
-                                      color: Color.fromARGB(60, 0, 0, 0),
-                                    ),
-                                    // Soft outline for readability
-                                    Shadow(
-                                      offset: Offset(0.0, 0.0),
-                                      blurRadius: 8.0,
-                                      color: Color.fromARGB(80, 0, 0, 0),
-                                    ),
-                                    // Crisp edge definition
-                                    Shadow(
-                                      offset: Offset(0.5, 0.5),
-                                      blurRadius: 1.0,
-                                      color: Color.fromARGB(100, 0, 0, 0),
-                                    ),
-                                  ],
-                                  color:
-                                      controller.selectedType.value == "Near Me"
-                                          ? Colors.white
-                                          : Colors.white.withOpacity(0.5),
-                                  fontWeight:
-                                      controller.selectedType.value == "Near Me"
-                                          ? FontWeight.w500
-                                          : FontWeight.w300,
-                                  fontSize: 18,
-                                ),
-                              ),
-                            ),
-                            SizedBox(width: 20),
-                            if ((promoteVideoController
-                                        .siteSettings
-                                        .value
-                                        ?.settings
-                                        ?.allowGeneralVideos ??
-                                    0) ==
-                                1)
-                              GestureDetector(
-                                onTap: () async {
-                                  print(
-                                    "RINTING IS AUTHENTICAT ${isAuthenticated}",
-                                  );
-                                  if (isAuthenticated) {
-                                    controller.disposeControllers();
-                                    controller.setSelectedType("Following");
-                                    controller.fetchVideos();
-                                  } else {
-                                    Get.toNamed(AppRoutes.signIn);
-                                  }
-                                },
-                                child: Text(
-                                  "Following".tr,
-                                  style: TextStyle(
-                                    shadows: <Shadow>[
-                                      // Subtle depth shadow
-                                      Shadow(
-                                        offset: Offset(0.0, 2.0),
-                                        blurRadius: 4.0,
-                                        color: Color.fromARGB(60, 0, 0, 0),
-                                      ),
-                                      // Soft outline for readability
-                                      Shadow(
-                                        offset: Offset(0.0, 0.0),
-                                        blurRadius: 8.0,
-                                        color: Color.fromARGB(80, 0, 0, 0),
-                                      ),
-                                      // Crisp edge definition
-                                      Shadow(
-                                        offset: Offset(0.5, 0.5),
-                                        blurRadius: 1.0,
-                                        color: Color.fromARGB(100, 0, 0, 0),
-                                      ),
-                                    ],
-                                    color:
-                                        controller.selectedType.value ==
-                                                "Following"
-                                            ? Colors.white
-                                            : Colors.white.withOpacity(0.5),
-                                    fontWeight:
-                                        controller.selectedType.value ==
-                                                "Following"
-                                            ? FontWeight.w500
-                                            : FontWeight.w300,
-                                    fontSize: 18,
-                                  ),
-                                ),
-                              ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        textAlign: TextAlign.center,
-                        "${'no_video_for'.tr} ${controller.currentCity.value} ${'try_to_change'.tr}",
-                        style: TextStyle(color: Colors.white, fontSize: 14.sp),
-                      ),
-                      SizedBox(height: 16),
-
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          if (controller.selectedType.value == "Near Me")
-                            Expanded(
-                              child: AppButton(
-                                text: "Change Location",
-                                onTap: () {
-                                  _showBottomSheet(context);
-                                },
-                              ),
-                            ),
-                          // SizedBox(width: 8),
-                          //
-                          // Expanded(
-                          //   child: AppButton(
-                          //     text: "General",
-                          //     onTap: () {
-                          //       controller.setSelectedType("General");
-                          //       controller.fetchVideos();
-                          //     },
-                          //   ),
-                          // ),
-                          SizedBox(width: 8),
-                          InkWell(
-                            onTap: () {
-                              // controller.pauseCurrentVideo();
-                              // _handleScreenExit();
-                              Get.to(
-                                () => SearchView(
-                                  isGeneral:
-                                      controller.selectedType.value == "General"
-                                          ? 1
-                                          : 0,
-                                ),
-                              )?.then((_) {
-                                controller.fetchVideos(
-                                  city: controller.currentCity.value,
-                                  country: controller.currentCountry.value,
-                                );
-                              });
-                            },
-                            child: Container(
-                              decoration: BoxDecoration(
-                                color: Colors.transparent,
-                                // Transparent to show blur
-                                borderRadius: BorderRadius.circular(50),
-                              ),
-                              child: ClipRRect(
-                                borderRadius: BorderRadius.circular(50),
-                                child: BackdropFilter(
-                                  filter: ImageFilter.blur(
-                                    sigmaX: 10.0,
-                                    sigmaY: 10.0,
-                                  ), // Blur effect
-                                  child: Container(
-                                    padding: EdgeInsets.all(14),
-                                    decoration: BoxDecoration(
-                                      color: ColorUtils.primaryColor,
-                                      // Blue tint
-                                      borderRadius: BorderRadius.circular(50),
-                                    ),
-                                    child: Icon(
-                                      Icons.search,
-                                      color: Colors.black,
-                                      size: 24.sp,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                          SizedBox(width: 8),
-                          InkWell(
-                            onTap: () {
-                              controller.fetchVideos();
-                            },
-                            child: Container(
-                              decoration: BoxDecoration(
-                                color: Colors.transparent,
-                                // Transparent to show blur
-                                borderRadius: BorderRadius.circular(50),
-                              ),
-                              child: ClipRRect(
-                                borderRadius: BorderRadius.circular(50),
-                                child: BackdropFilter(
-                                  filter: ImageFilter.blur(
-                                    sigmaX: 10.0,
-                                    sigmaY: 10.0,
-                                  ), // Blur effect
-                                  child: Container(
-                                    padding: EdgeInsets.all(14),
-                                    decoration: BoxDecoration(
-                                      color: ColorUtils.primaryColor,
-                                      // Blue tint
-                                      borderRadius: BorderRadius.circular(50),
-                                    ),
-                                    child: Icon(
-                                      Icons.refresh,
-                                      color: Colors.black,
-                                      size: 24.sp,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            );
-          }
-
           return Stack(
             children: [
-              PageView(
-                // dragStartBehavior: DragStartBehavior.down,
-                // scrollBehavior: const ScrollBehavior(),
-                scrollDirection: Axis.vertical,
-                controller: pageController,
-                clipBehavior: Clip.none,
-                // reverse: true,
-                pageSnapping: true,
-                padEnds: true,
-                // physics: CarouselScrollPhysics(),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  controller.isLoading.value ||
+                          controller.isLocationFetching.value
+                      ? Center(
+                        child: PulseLogoLoader(
+                          logoPath: "assets/images/appIcon.png",
+                          size: 80,
+                        ),
+                      )
+                      : controller.videoFeed.value.videos == null ||
+                          controller.videoFeed.value.videos!.isEmpty
+                      ? Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              textAlign: TextAlign.center,
+                              "${'no_video_for'.tr} ${controller.currentCity.value} ${'try_to_change'.tr}",
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 14.sp,
+                              ),
+                            ),
+                            SizedBox(height: 16),
 
-                // allowImplicitScrolling: true,
-                onPageChanged: (index) async {
-                  controller.visiblePageIndex.value = index;
-                  int actualIndex =
-                      controller.videoFeed.value.videos != null
-                          ? index % controller.videoFeed.value.videos!.length
-                          : 0;
-                  controller.handlePageChange(actualIndex);
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                if (controller.selectedType.value == "Near Me")
+                                  Expanded(
+                                    child: AppButton(
+                                      text: "Change Location",
+                                      onTap: () {
+                                        _showBottomSheet(context);
+                                      },
+                                    ),
+                                  ),
 
-                  // Check if we're nearing the end of the list (3 videos left)
-                  if (controller.videoFeed.value.videos != null &&
-                      actualIndex >=
-                          controller.videoFeed.value.videos!.length - 3) {
-                    // Fetch more videos to append to the list
-                    await controller.fetchMoreVideos();
-                  }
-
-                  if (mounted) setState(() {});
-
-                  // Track view in Firestore
-                  String? videoId =
-                      controller.videoFeed.value.videos != null
-                          ? controller.videoFeed.value.videos![actualIndex].id
-                          : null;
-                  if (videoId != null) {
-                    await _trackVideoView(videoId, userId, isAuthenticated);
-                  } else {
-                    print('Error: Video ID is null for index $actualIndex');
-                  }
-                },
-                children:
-                    controller.videoFeed.value.videos != null
-                        ? controller.videoFeed.value.videos!.asMap().entries.map((
-                          entry,
-                        ) {
-                          int index = entry.key;
-                          var videoDetail = entry.value;
-                          var chewieController =
-                              controller.chewieControllers[index];
-
-                          bool isInitialized =
-                              chewieController != null &&
-                              chewieController
-                                  .videoPlayerController
-                                  .value
-                                  .isInitialized;
-
-                          return Stack(
-                            clipBehavior: Clip.none,
-                            alignment: Alignment.bottomLeft,
-                            children: [
-                              GestureDetector(
-                                onTap: _togglePlayPause,
-                                onDoubleTap: controller.toggleMute,
-                                child: Stack(
-                                  children: [
-                                    isInitialized
-                                        ? Chewie(controller: chewieController)
-                                        : Center(
-                                          child: CachedNetworkImage(
-                                            imageUrl:
-                                                "${Common.videoUrl}/${videoDetail.image}",
-                                          ),
-                                        ),
-                                    if (_showIcon &&
-                                        isInitialized &&
-                                        index == controller.currentIndex.value)
-                                      Center(
+                                SizedBox(width: 8),
+                                InkWell(
+                                  onTap: () {
+                                    Get.to(
+                                      () => SearchView(
+                                        isGeneral:
+                                            controller.selectedType.value ==
+                                                    "General"
+                                                ? 1
+                                                : 0,
+                                      ),
+                                    )?.then((_) {
+                                      controller.fetchVideos(
+                                        city: controller.currentCity.value,
+                                        country:
+                                            controller.currentCountry.value,
+                                      );
+                                    });
+                                  },
+                                  child: Container(
+                                    decoration: BoxDecoration(
+                                      color: Colors.transparent,
+                                      // Transparent to show blur
+                                      borderRadius: BorderRadius.circular(50),
+                                    ),
+                                    child: ClipRRect(
+                                      borderRadius: BorderRadius.circular(50),
+                                      child: BackdropFilter(
+                                        filter: ImageFilter.blur(
+                                          sigmaX: 10.0,
+                                          sigmaY: 10.0,
+                                        ), // Blur effect
                                         child: Container(
+                                          padding: EdgeInsets.all(14),
                                           decoration: BoxDecoration(
-                                            color: Colors.black.withOpacity(
-                                              0.3,
+                                            color: ColorUtils.primaryColor,
+                                            // Blue tint
+                                            borderRadius: BorderRadius.circular(
+                                              50,
                                             ),
-                                            shape: BoxShape.circle,
                                           ),
-                                          padding: const EdgeInsets.all(8),
                                           child: Icon(
-                                            chewieController.isPlaying
-                                                ? Icons.pause_circle_filled
-                                                : Icons.play_circle_filled,
-                                            size: 64.0,
-                                            color: Colors.white.withOpacity(
-                                              0.7,
+                                            Icons.search,
+                                            color: Colors.black,
+                                            size: 24.sp,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                SizedBox(width: 8),
+                                InkWell(
+                                  onTap: () {
+                                    controller.fetchVideos();
+                                  },
+                                  child: Container(
+                                    decoration: BoxDecoration(
+                                      color: Colors.transparent,
+                                      // Transparent to show blur
+                                      borderRadius: BorderRadius.circular(50),
+                                    ),
+                                    child: ClipRRect(
+                                      borderRadius: BorderRadius.circular(50),
+                                      child: BackdropFilter(
+                                        filter: ImageFilter.blur(
+                                          sigmaX: 10.0,
+                                          sigmaY: 10.0,
+                                        ), // Blur effect
+                                        child: Container(
+                                          padding: EdgeInsets.all(14),
+                                          decoration: BoxDecoration(
+                                            color: ColorUtils.primaryColor,
+                                            // Blue tint
+                                            borderRadius: BorderRadius.circular(
+                                              50,
                                             ),
                                           ),
-                                        ),
-                                      ),
-                                    if (videoDetail.isImage == 0 &&
-                                        isInitialized)
-                                      Positioned(
-                                        left: 0,
-                                        right: 0,
-                                        bottom: 3,
-                                        child: StreamBuilder<Duration>(
-                                          stream: Stream.periodic(
-                                            const Duration(milliseconds: 200),
-                                            // Increased to 200ms for better performance
-                                            (_) =>
-                                                chewieController
-                                                    .videoPlayerController
-                                                    .value
-                                                    .position,
+                                          child: Icon(
+                                            Icons.refresh,
+                                            color: Colors.black,
+                                            size: 24.sp,
                                           ),
-                                          builder: (context, snapshot) {
-                                            final position =
-                                                snapshot.data ?? Duration.zero;
-                                            final duration =
-                                                chewieController
-                                                    .videoPlayerController
-                                                    .value
-                                                    .duration ??
-                                                Duration.zero;
-                                            final isInitialized =
-                                                chewieController
-                                                    .videoPlayerController
-                                                    .value
-                                                    .isInitialized;
-
-                                            // Disable slider if video is not initialized
-                                            if (!isInitialized ||
-                                                duration == Duration.zero) {
-                                              return Slider(
-                                                value: 0,
-                                                max: 1,
-                                                onChanged: null,
-                                                // Disable interaction
-                                                thumbColor:
-                                                    ColorUtils.primaryColor,
-                                                activeColor:
-                                                    ColorUtils.primaryColor,
-                                                inactiveColor:
-                                                    ColorUtils.darkBrown,
-                                              );
-                                            }
-
-                                            return SliderTheme(
-                                              data: const SliderThemeData(
-                                                thumbShape:
-                                                    RoundSliderThumbShape(
-                                                      enabledThumbRadius: 2.0,
-                                                      disabledThumbRadius: 2.0,
-                                                      elevation: 0,
-                                                      pressedElevation: 0,
-                                                    ),
-                                                overlayShape:
-                                                    RoundSliderOverlayShape(
-                                                      overlayRadius: 0,
-                                                    ),
-                                                trackHeight: 2,
-                                              ),
-                                              child: Slider(
-                                                value:
-                                                    position.inSeconds
-                                                        .toDouble(),
-                                                max:
-                                                    duration.inSeconds
-                                                        .toDouble(),
-                                                onChanged: (value) {
-                                                  // Seek to the new position
-                                                  chewieController.seekTo(
-                                                    Duration(
-                                                      seconds: value.toInt(),
-                                                    ),
-                                                  );
-                                                },
-                                                onChangeStart: (_) {
-                                                  // Pause video when scrubbing starts
-                                                  if (chewieController
-                                                      .isPlaying) {
-                                                    chewieController.pause();
-                                                  }
-                                                },
-                                                onChangeEnd: (_) {
-                                                  // Resume playback after scrubbing ends
-                                                  if (!chewieController
-                                                      .isPlaying) {
-                                                    chewieController.play();
-                                                  }
-                                                },
-                                                thumbColor:
-                                                    ColorUtils.primaryColor,
-                                                activeColor:
-                                                    ColorUtils.primaryColor,
-                                                inactiveColor:
-                                                    ColorUtils.darkBrown,
-                                              ),
-                                            );
-                                          },
                                         ),
                                       ),
-                                  ],
+                                    ),
+                                  ),
                                 ),
-                              ),
-                              Obx(
-                                () =>
-                                    controller.isMuted.value
-                                        ? Positioned(
-                                          top: 100,
-                                          right: 20,
-                                          child: InkWell(
-                                            onTap: controller.toggleMute,
-                                            child: Container(
-                                              padding: const EdgeInsets.all(8),
-                                              decoration: BoxDecoration(
-                                                color: Colors.black.withOpacity(
-                                                  0.6,
+                              ],
+                            ),
+                          ],
+                        ),
+                      )
+                      : Expanded(
+                        child: Listener(
+                          child: GestureDetector(
+                            onVerticalDragEnd: (details) {
+                              if (details.primaryVelocity! > 300) {
+                                _scrollToPrevious();
+                              } else if (details.primaryVelocity! < -300) {
+                                _scrollToNext();
+                              }
+                            },
+                            onPanEnd: (details) {
+                              if (details.velocity.pixelsPerSecond.dy > 500) {
+                                _scrollToPrevious();
+                              } else if (details.velocity.pixelsPerSecond.dy <
+                                  -500) {
+                                _scrollToNext();
+                              }
+                            },
+                            child: PageView.custom(
+                              scrollDirection: Axis.vertical,
+                              controller: _pageController,
+                              clipBehavior: Clip.none,
+                              pageSnapping: true,
+                              physics: const NeverScrollableScrollPhysics(),
+                              padEnds: true,
+                              onPageChanged: (index) async {
+                                controller.visiblePageIndex.value = index;
+                                int actualIndex =
+                                    controller.videoFeed.value.videos != null
+                                        ? index %
+                                            controller
+                                                .videoFeed
+                                                .value
+                                                .videos!
+                                                .length
+                                        : 0;
+                                controller.handlePageChange(actualIndex);
+
+                                // Check if we're nearing the end of the list (3 videos left)
+                                if (controller.videoFeed.value.videos != null &&
+                                    actualIndex >=
+                                        controller
+                                                .videoFeed
+                                                .value
+                                                .videos!
+                                                .length -
+                                            3) {
+                                  // Fetch more videos to append to the list
+                                  await controller.fetchMoreVideos();
+                                }
+
+                                if (mounted) setState(() {});
+
+                                // Track view in Firestore
+                                String? videoId =
+                                    controller.videoFeed.value.videos != null
+                                        ? controller
+                                            .videoFeed
+                                            .value
+                                            .videos![actualIndex]
+                                            .id
+                                        : null;
+                                if (videoId != null) {
+                                  await _trackVideoView(
+                                    videoId,
+                                    userId,
+                                    isAuthenticated,
+                                  );
+                                } else {
+                                  print(
+                                    'Error: Video ID is null for index $actualIndex',
+                                  );
+                                }
+                              },
+                              childrenDelegate: SliverChildBuilderDelegate(
+                                (context, index) {
+                                  if (controller.videoFeed.value.videos ==
+                                          null ||
+                                      controller
+                                          .videoFeed
+                                          .value
+                                          .videos!
+                                          .isEmpty) {
+                                    return Container(
+                                      width: MediaQuery.of(context).size.width,
+                                      height:
+                                          MediaQuery.of(context).size.height,
+                                      color: Colors.black,
+                                      child: const Center(
+                                        child: Text(
+                                          'No videos available',
+                                          style: TextStyle(
+                                            fontSize: 18,
+                                            color: Colors.grey,
+                                          ),
+                                        ),
+                                      ),
+                                    );
+                                  }
+
+                                  int actualIndex =
+                                      index %
+                                      controller.videoFeed.value.videos!.length;
+                                  var videoDetail =
+                                      controller
+                                          .videoFeed
+                                          .value
+                                          .videos![actualIndex];
+                                  var chewieController =
+                                      controller.chewieControllers[actualIndex];
+
+                                  bool isInitialized =
+                                      chewieController != null &&
+                                      chewieController
+                                          .videoPlayerController
+                                          .value
+                                          .isInitialized;
+
+                                  return Stack(
+                                    clipBehavior: Clip.none,
+                                    alignment: Alignment.bottomLeft,
+                                    children: [
+                                      GestureDetector(
+                                        onTap: _togglePlayPause,
+                                        onDoubleTap: controller.toggleMute,
+                                        child: Stack(
+                                          children: [
+                                            isInitialized
+                                                ? Chewie(
+                                                  controller: chewieController,
+                                                )
+                                                : Center(
+                                                  child: CachedNetworkImage(
+                                                    imageUrl:
+                                                        "${Common.videoUrl}/${videoDetail.image}",
+                                                  ),
                                                 ),
-                                                borderRadius:
-                                                    BorderRadius.circular(20),
+                                            if (_showIcon &&
+                                                isInitialized &&
+                                                actualIndex ==
+                                                    controller
+                                                        .currentIndex
+                                                        .value)
+                                              Center(
+                                                child: Container(
+                                                  decoration: BoxDecoration(
+                                                    color: Colors.black
+                                                        .withOpacity(0.3),
+                                                    shape: BoxShape.circle,
+                                                  ),
+                                                  padding: const EdgeInsets.all(
+                                                    8,
+                                                  ),
+                                                  child: Icon(
+                                                    chewieController.isPlaying
+                                                        ? Icons
+                                                            .pause_circle_filled
+                                                        : Icons
+                                                            .play_circle_filled,
+                                                    size: 64.0,
+                                                    color: Colors.white
+                                                        .withOpacity(0.7),
+                                                  ),
+                                                ),
                                               ),
-                                              child: Icon(
-                                                Icons.volume_off,
-                                                color: Colors.white,
-                                                size: 24.sp,
+                                            if (videoDetail.isImage == 0 &&
+                                                isInitialized)
+                                              Positioned(
+                                                left: 0,
+                                                right: 0,
+                                                bottom: 3,
+                                                child: StreamBuilder<Duration>(
+                                                  stream: Stream.periodic(
+                                                    const Duration(
+                                                      milliseconds: 200,
+                                                    ),
+                                                    (_) =>
+                                                        chewieController
+                                                            .videoPlayerController
+                                                            .value
+                                                            .position,
+                                                  ),
+                                                  builder: (context, snapshot) {
+                                                    final position =
+                                                        snapshot.data ??
+                                                        Duration.zero;
+                                                    final duration =
+                                                        chewieController
+                                                            .videoPlayerController
+                                                            .value
+                                                            .duration ??
+                                                        Duration.zero;
+                                                    final isInitialized =
+                                                        chewieController
+                                                            .videoPlayerController
+                                                            .value
+                                                            .isInitialized;
+
+                                                    if (!isInitialized ||
+                                                        duration ==
+                                                            Duration.zero) {
+                                                      return Slider(
+                                                        value: 0,
+                                                        max: 1,
+                                                        onChanged: null,
+                                                        thumbColor:
+                                                            ColorUtils
+                                                                .primaryColor,
+                                                        activeColor:
+                                                            ColorUtils
+                                                                .primaryColor,
+                                                        inactiveColor:
+                                                            ColorUtils
+                                                                .darkBrown,
+                                                      );
+                                                    }
+
+                                                    return SliderTheme(
+                                                      data: const SliderThemeData(
+                                                        thumbShape:
+                                                            RoundSliderThumbShape(
+                                                              enabledThumbRadius:
+                                                                  2.0,
+                                                              disabledThumbRadius:
+                                                                  2.0,
+                                                              elevation: 0,
+                                                              pressedElevation:
+                                                                  0,
+                                                            ),
+                                                        overlayShape:
+                                                            RoundSliderOverlayShape(
+                                                              overlayRadius: 0,
+                                                            ),
+                                                        trackHeight: 2,
+                                                      ),
+                                                      child: Slider(
+                                                        value:
+                                                            position.inSeconds
+                                                                .toDouble(),
+                                                        max:
+                                                            duration.inSeconds
+                                                                .toDouble(),
+                                                        onChanged: (value) {
+                                                          chewieController.seekTo(
+                                                            Duration(
+                                                              seconds:
+                                                                  value.toInt(),
+                                                            ),
+                                                          );
+                                                        },
+                                                        onChangeStart: (_) {
+                                                          if (chewieController
+                                                              .isPlaying) {
+                                                            chewieController
+                                                                .pause();
+                                                          }
+                                                        },
+                                                        onChangeEnd: (_) {
+                                                          if (!chewieController
+                                                              .isPlaying) {
+                                                            chewieController
+                                                                .play();
+                                                          }
+                                                        },
+                                                        thumbColor:
+                                                            ColorUtils
+                                                                .primaryColor,
+                                                        activeColor:
+                                                            ColorUtils
+                                                                .primaryColor,
+                                                        inactiveColor:
+                                                            ColorUtils
+                                                                .darkBrown,
+                                                      ),
+                                                    );
+                                                  },
+                                                ),
                                               ),
-                                            ),
-                                          ),
-                                        )
-                                        : const SizedBox(),
-                              ),
-                              VideoDescriptionWidget(
-                                title: videoDetail.title,
-                                description: videoDetail.description,
-                                tags: videoDetail.tags,
-                                controller: controller,
-                              ),
-                              videoUserDetails(
-                                profileController: profileController,
-                                professionalProfileController:
-                                    professionalProfileController,
-                                videoDetail: videoDetail,
-                                controller: controller,
-                                userId: userId,
-                                isAuthenticated: isAuthenticated,
-                              ),
-                              videoActions(
-                                videoDetail,
-                                currentUserDetails,
-                                currentUser,
-                                context,
-                              ),
-                            ],
-                          );
-                        }).toList()
-                        : [
-                          Container(
-                            width: MediaQuery.of(context).size.width,
-                            height: MediaQuery.of(context).size.height,
-                            color: Colors.black,
-                            child: const Center(
-                              child: Text(
-                                'No videos available',
-                                style: TextStyle(
-                                  fontSize: 18,
-                                  color: Colors.grey,
-                                ),
+                                          ],
+                                        ),
+                                      ),
+                                      VideoDescriptionWidget(
+                                        title: videoDetail.title,
+                                        description: videoDetail.description,
+                                        tags: videoDetail.tags,
+                                        controller: controller,
+                                      ),
+                                      videoUserDetails(
+                                        profileController: profileController,
+                                        professionalProfileController:
+                                            professionalProfileController,
+                                        videoDetail: videoDetail,
+                                        controller: controller,
+                                        userId: userId,
+                                        isAuthenticated: isAuthenticated,
+                                      ),
+                                      videoActions(
+                                        videoDetail,
+                                        currentUserDetails,
+                                        currentUser,
+                                        context,
+                                      ),
+                                    ],
+                                  );
+                                },
+                                childCount:
+                                    controller.videoFeed.value.videos != null
+                                        ? controller
+                                            .videoFeed
+                                            .value
+                                            .videos!
+                                            .length
+                                        : 1,
                               ),
                             ),
                           ),
-                        ],
-              ),
-              SafeArea(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16.0,
-                    vertical: 4,
-                  ),
-                  child: InkWell(
-                    onTap: () {
-                      isAuthenticated
-                          ? Get.to(JoinScreen())
-                          : Get.toNamed(AppRoutes.signIn);
-                    },
-                    child: SvgPicture.asset(
-                      "assets/icons/live.svg",
-                      color: Colors.white,
-                    ),
-                  ),
-                ),
-              ),
-
-              ChatIconWithCounter(
-                userId: userId ?? '',
-                isAuthenticated: isAuthenticated,
-                onTap: () {
-                  isAuthenticated
-                      ? Get.to(ChatListScreen(userId: userId!))?.then((_) {
-                        controller.restoreVideoState();
-                      })
-                      : Get.toNamed(AppRoutes.signIn);
-                },
+                        ),
+                      ),
+                ],
               ),
 
               SafeArea(
-                child: Align(
-                  alignment: Alignment.topCenter,
-                  child: Obx(
-                    () => Container(
-                      margin: EdgeInsets.only(top: 10),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          if (promoteVideoController
-                                  .siteSettings
-                                  .value!
-                                  .settings!
-                                  .allowGeneralVideos ==
-                              1)
-                            GestureDetector(
-                              onTap: () async {
+                child: Obx(
+                  () => Container(
+                    margin: EdgeInsets.only(top: 10),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceAround,
+                      children: [
+                        SizedBox(width: 16),
+
+                        InkWell(
+                          onTap: () {
+                            isAuthenticated
+                                ? Get.to(JoinScreen())
+                                : Get.toNamed(AppRoutes.signIn);
+                          },
+                          child: SvgPicture.asset(
+                            "assets/icons/live.svg",
+                            color: Colors.white,
+                          ),
+                        ),
+                        SizedBox(width: 16),
+                        if ((promoteVideoController
+                                    .siteSettings
+                                    .value
+                                    ?.settings
+                                    ?.allowGeneralVideos ??
+                                0) ==
+                            1)
+                          GestureDetector(
+                            onTap: () async {
+                              if (controller.isLoading.value ||
+                                  controller.isLocationFetching.value) {
+                              } else {
                                 controller.disposeControllers();
                                 controller.setSelectedType("General");
                                 controller.fetchVideos();
-                              },
-                              child: Padding(
-                                padding: const EdgeInsets.only(left: 16.0),
-
-                                child: Text(
-                                  "General".tr,
-                                  style: TextStyle(
-                                    shadows: <Shadow>[
-                                      // Subtle depth shadow
-                                      Shadow(
-                                        offset: Offset(0.0, 2.0),
-                                        blurRadius: 4.0,
-                                        color: Color.fromARGB(60, 0, 0, 0),
-                                      ),
-                                      // Soft outline for readability
-                                      Shadow(
-                                        offset: Offset(0.0, 0.0),
-                                        blurRadius: 8.0,
-                                        color: Color.fromARGB(80, 0, 0, 0),
-                                      ),
-                                      // Crisp edge definition
-                                      Shadow(
-                                        offset: Offset(0.5, 0.5),
-                                        blurRadius: 1.0,
-                                        color: Color.fromARGB(100, 0, 0, 0),
-                                      ),
-                                    ],
-                                    color:
-                                        controller.selectedType.value ==
-                                                "General"
-                                            ? Colors.white
-                                            : Colors.white.withOpacity(0.5),
-                                    fontWeight:
-                                        controller.selectedType.value ==
-                                                "General"
-                                            ? FontWeight.w500
-                                            : FontWeight.w300,
-                                    fontSize: 18,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          SizedBox(width: 20),
-                          GestureDetector(
-                            onTap: () {
-                              controller.disposeControllers();
-                              controller.setSelectedType("Near Me");
-                              controller.fetchVideos();
+                              }
+                              ;
                             },
                             child: Text(
-                              "Near Me".tr,
+                              "General".tr,
                               style: TextStyle(
                                 shadows: <Shadow>[
                                   // Subtle depth shadow
@@ -1033,181 +840,146 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                                     color: Color.fromARGB(100, 0, 0, 0),
                                   ),
                                 ],
-
                                 color:
-                                    controller.selectedType.value == "Near Me"
+                                    controller.selectedType.value == "General"
                                         ? Colors.white
                                         : Colors.white.withOpacity(0.5),
                                 fontWeight:
-                                    controller.selectedType.value == "Near Me"
+                                    controller.selectedType.value == "General"
                                         ? FontWeight.w500
                                         : FontWeight.w300,
                                 fontSize: 18,
                               ),
                             ),
                           ),
-                          SizedBox(width: 20),
-
-                          if (promoteVideoController
-                                  .siteSettings
-                                  .value!
-                                  .settings!
-                                  .allowFollowingVideos ==
-                              1)
-                            Padding(
-                              padding: const EdgeInsets.only(right: 16.0),
-                              child: GestureDetector(
-                                onTap: () async {
-                                  print(
-                                    "RINTING IS AUTHENTICAT ${isAuthenticated}",
-                                  );
-                                  if (isAuthenticated) {
-                                    controller.disposeControllers();
-                                    controller.setSelectedType("Following");
-                                    controller.fetchVideos();
-                                  } else {
-                                    Get.toNamed(AppRoutes.signIn);
-                                  }
-                                },
-                                child: Text(
-                                  "Following".tr,
-                                  style: TextStyle(
-                                    shadows: <Shadow>[
-                                      // Subtle depth shadow
-                                      Shadow(
-                                        offset: Offset(0.0, 2.0),
-                                        blurRadius: 4.0,
-                                        color: Color.fromARGB(60, 0, 0, 0),
-                                      ),
-                                      // Soft outline for readability
-                                      Shadow(
-                                        offset: Offset(0.0, 0.0),
-                                        blurRadius: 8.0,
-                                        color: Color.fromARGB(80, 0, 0, 0),
-                                      ),
-                                      // Crisp edge definition
-                                      Shadow(
-                                        offset: Offset(0.5, 0.5),
-                                        blurRadius: 1.0,
-                                        color: Color.fromARGB(100, 0, 0, 0),
-                                      ),
-                                    ],
-                                    color:
-                                        controller.selectedType.value ==
-                                                "Following"
-                                            ? Colors.white
-                                            : Colors.white.withOpacity(0.5),
-                                    fontWeight:
-                                        controller.selectedType.value ==
-                                                "Following"
-                                            ? FontWeight.w500
-                                            : FontWeight.w300,
-                                    fontSize: 18,
-                                  ),
+                        SizedBox(width: 20),
+                        GestureDetector(
+                          onTap: () {
+                            if (controller.isLoading.value ||
+                                controller.isLocationFetching.value) {
+                            } else {
+                              controller.disposeControllers();
+                              controller.setSelectedType("Near Me");
+                              controller.fetchVideos();
+                            }
+                            ;
+                          },
+                          child: Text(
+                            "Near Me".tr,
+                            style: TextStyle(
+                              shadows: <Shadow>[
+                                // Subtle depth shadow
+                                Shadow(
+                                  offset: Offset(0.0, 2.0),
+                                  blurRadius: 4.0,
+                                  color: Color.fromARGB(60, 0, 0, 0),
                                 ),
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-
-              Positioned(
-                top: Get.height * 0.1,
-                right: isRtl ? null : 16,
-                left: isRtl ? 16 : null,
-                child: Row(
-                  children: [
-                    InkWell(
-                      onTap: () {
-                        controller.pauseCurrentVideo();
-                        // _handleScreenExit();
-                        Get.to(
-                          () => SearchView(
-                            isGeneral:
-                                controller.selectedType.value == "General"
-                                    ? 1
-                                    : 0,
-                            isFollowing:
-                                controller.selectedType.value == "Following"
-                                    ? 1
-                                    : 0,
-                          ),
-                        )?.then((_) {
-                          print(
-                            "PRINTING SELECTED TYPE: ${controller.selectedType}",
-                          );
-                          controller.selectedType = controller.selectedType;
-                          controller.fetchVideos();
-                        });
-                      },
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(50),
-                        child: BackdropFilter(
-                          filter: ImageFilter.blur(sigmaX: 10.0, sigmaY: 10.0),
-                          // Blur effect
-                          child: Container(
-                            height: 50,
-                            width: 50,
-
-                            decoration: BoxDecoration(
-                              color: Colors.black.withOpacity(0.3), // Blue tint
-                              borderRadius: BorderRadius.circular(50),
-                            ),
-                            child: Center(
-                              child: Icon(
-                                Icons.search,
-                                color: Colors.white,
-                                size: 24.sp,
-                              ),
+                                // Soft outline for readability
+                                Shadow(
+                                  offset: Offset(0.0, 0.0),
+                                  blurRadius: 8.0,
+                                  color: Color.fromARGB(80, 0, 0, 0),
+                                ),
+                                // Crisp edge definition
+                                Shadow(
+                                  offset: Offset(0.5, 0.5),
+                                  blurRadius: 1.0,
+                                  color: Color.fromARGB(100, 0, 0, 0),
+                                ),
+                              ],
+                              color:
+                                  controller.selectedType.value == "Near Me"
+                                      ? Colors.white
+                                      : Colors.white.withOpacity(0.5),
+                              fontWeight:
+                                  controller.selectedType.value == "Near Me"
+                                      ? FontWeight.w500
+                                      : FontWeight.w300,
+                              fontSize: 18,
                             ),
                           ),
                         ),
-                      ),
-                    ),
-                    if (controller.selectedType.value == "Near Me")
-                      Row(
-                        children: [
-                          SizedBox(width: 8),
-                          InkWell(
-                            onTap: () {
-                              controller.pauseCurrentVideo();
-                              _showBottomSheet(context);
-                              // _handleScreenExit();
+                        SizedBox(width: 20),
+                        if ((promoteVideoController
+                                    .siteSettings
+                                    .value
+                                    ?.settings
+                                    ?.allowGeneralVideos ??
+                                0) ==
+                            1)
+                          GestureDetector(
+                            onTap: () async {
+                              print(
+                                "RINTING IS AUTHENTICAT ${isAuthenticated}",
+                              );
+                              if (isAuthenticated) {
+                                if (controller.isLoading.value ||
+                                    controller.isLocationFetching.value) {
+                                } else {
+                                  controller.disposeControllers();
+                                  controller.setSelectedType("Following");
+                                  controller.fetchVideos();
+                                }
+                                ;
+                              } else {
+                                Get.toNamed(AppRoutes.signIn);
+                              }
                             },
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(50),
-                              child: BackdropFilter(
-                                filter: ImageFilter.blur(
-                                  sigmaX: 10.0,
-                                  sigmaY: 10.0,
-                                ), // Blur effect
-                                child: Container(
-                                  height: 50,
-                                  width: 50,
-                                  padding: EdgeInsets.symmetric(
-                                    horizontal: 16,
-                                    vertical: 8,
+                            child: Text(
+                              "Following".tr,
+                              style: TextStyle(
+                                shadows: <Shadow>[
+                                  // Subtle depth shadow
+                                  Shadow(
+                                    offset: Offset(0.0, 2.0),
+                                    blurRadius: 4.0,
+                                    color: Color.fromARGB(60, 0, 0, 0),
                                   ),
-                                  decoration: BoxDecoration(
-                                    color: Colors.black.withOpacity(0.3),
-                                    // Blue tint
-                                    borderRadius: BorderRadius.circular(50),
+                                  // Soft outline for readability
+                                  Shadow(
+                                    offset: Offset(0.0, 0.0),
+                                    blurRadius: 8.0,
+                                    color: Color.fromARGB(80, 0, 0, 0),
                                   ),
-                                  child: Icon(
-                                    Icons.tune,
-                                    color: Colors.white,
-                                    size: 20.sp,
+                                  // Crisp edge definition
+                                  Shadow(
+                                    offset: Offset(0.5, 0.5),
+                                    blurRadius: 1.0,
+                                    color: Color.fromARGB(100, 0, 0, 0),
                                   ),
-                                ),
+                                ],
+                                color:
+                                    controller.selectedType.value == "Following"
+                                        ? Colors.white
+                                        : Colors.white.withOpacity(0.5),
+                                fontWeight:
+                                    controller.selectedType.value == "Following"
+                                        ? FontWeight.w500
+                                        : FontWeight.w300,
+                                fontSize: 18,
                               ),
                             ),
                           ),
-                        ],
-                      ),
-                  ],
+
+                        SizedBox(width: 16),
+
+                        ChatIconWithCounter(
+                          userId: userId ?? '',
+                          isAuthenticated: isAuthenticated,
+                          onTap: () {
+                            isAuthenticated
+                                ? Get.to(ChatListScreen(userId: userId!))?.then(
+                                  (_) {
+                                    controller.restoreVideoState();
+                                  },
+                                )
+                                : Get.toNamed(AppRoutes.signIn);
+                          },
+                        ),
+                        SizedBox(width: 16),
+                      ],
+                    ),
+                  ),
                 ),
               ),
             ],
@@ -1849,7 +1621,8 @@ class _VideoReelScreenState extends State<VideoReelScreen>
     _handleScreenExit();
     try {
       final String videoId = videoDetail.id!;
-      final String webUrl = "https://cookster.org/web/visitSingleVideo?id=$videoId";
+      final String webUrl =
+          "https://cookster.org/web/visitSingleVideo?id=$videoId";
       final String shareMessage =
           'Check out this amazing video on Cookster!\n$webUrl';
       await Share.share(shareMessage, subject: 'Cookster Video');
@@ -1961,7 +1734,7 @@ class videoUserDetails extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Positioned(
-      top: Get.height * 0.1,
+      top: Get.height * 0.05,
       left: 10,
       right: 10,
       child: SizedBox(

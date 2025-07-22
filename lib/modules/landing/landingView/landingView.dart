@@ -378,48 +378,23 @@ class _LandingState extends State<Landing> {
             }
           }
         },
-        child:
-            profileController.isLoading.value ||
-                    professionalProfileController.isLoading.value
-                ? Scaffold(
-                  body: Center(
-                    child: PulseLogoLoader(
-                      logoPath: "assets/images/appIconC.png",
-                    ),
-                  ),
-                )
-                : Scaffold(
-                  resizeToAvoidBottomInset: false,
-                  bottomNavigationBar: SafeArea(
-                    child: _buildBottomNavBar(context),
-                  ),
-                  body: FutureBuilder<List<Widget>>(
-                    future: _screens(context),
-                    builder: (context, snapshot) {
-                      if (snapshot.connectionState == ConnectionState.waiting) {
-                        return Center(
-                          child: PulseLogoLoader(
-                            logoPath: "assets/images/appIcon.png",
-                            size: 80,
-                          ),
-                        );
-                      } else if (snapshot.hasError) {
-                        return Center(child: Text("Error loading screens"));
-                      } else {
-                        return Obx(() {
-                          return Stack(
-                            clipBehavior: Clip.none,
-                            children: [
-                              snapshot.data![navBarController
-                                  .selectedIndex
-                                  .value],
-                            ],
-                          );
-                        });
-                      }
-                    },
-                  ),
-                ),
+        child: Scaffold(
+          resizeToAvoidBottomInset: false,
+          bottomNavigationBar: SafeArea(child: _buildBottomNavBar(context)),
+          body: FutureBuilder<List<Widget>>(
+            future: _screens(context),
+            builder: (context, snapshot) {
+              return Obx(() {
+                return Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    snapshot.data![navBarController.selectedIndex.value],
+                  ],
+                );
+              });
+            },
+          ),
+        ),
       );
     });
   }

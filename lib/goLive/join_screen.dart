@@ -101,7 +101,7 @@ class _JoinScreenState extends State<JoinScreen> {
                 children: [
                   InkWell(
                     onTap: () {
-                      Get.offAllNamed(AppRoutes.landing);
+                     Get.back();
                     },
                     child: Icon(Icons.arrow_back),
                   ),

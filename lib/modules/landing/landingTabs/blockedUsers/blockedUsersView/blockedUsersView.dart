@@ -10,7 +10,7 @@ class BlockedUsersScreen extends StatefulWidget {
   final String userName;
 
   const BlockedUsersScreen({Key? key, required this.userName})
-    : super(key: key);
+      : super(key: key);
 
   @override
   _BlockedUsersScreenState createState() => _BlockedUsersScreenState();
@@ -80,61 +80,61 @@ class _BlockedUsersScreenState extends State<BlockedUsersScreen> {
         centerTitle: true,
       ),
       body: Obx(
-        () =>
-            _controller.isLoading.value
-                ? Center(
-                  child: PulseLogoLoader(
-                    logoPath: "assets/images/appIconC.png",
+            () =>
+        _controller.isLoading.value
+            ? Center(
+          child: PulseLogoLoader(
+            logoPath: "assets/images/appIconC.png",
+          ),
+        )
+            : _controller.errorMessage.isNotEmpty
+            ? Center(child: Text(_controller.errorMessage.value))
+            : Column(
+          children: [
+            // Search Bar
+            Container(
+              margin: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 8,
+              ),
+              decoration: BoxDecoration(
+                color: Colors.grey[100],
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(color: Colors.grey[300]!, width: 1),
+              ),
+              child: TextField(
+                controller: _searchController,
+                style: const TextStyle(color: Colors.black),
+                decoration: InputDecoration(
+                  hintText: 'search_blocked_users'.tr,
+                  hintStyle: TextStyle(color: Colors.grey[600]),
+                  prefixIcon: Icon(
+                    Icons.search,
+                    color: Colors.grey[600],
                   ),
-                )
-                : _controller.errorMessage.isNotEmpty
-                ? Center(child: Text(_controller.errorMessage.value))
-                : Column(
-                  children: [
-                    // Search Bar
-                    Container(
-                      margin: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 8,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.grey[100],
-                        borderRadius: BorderRadius.circular(24),
-                        border: Border.all(color: Colors.grey[300]!, width: 1),
-                      ),
-                      child: TextField(
-                        controller: _searchController,
-                        style: const TextStyle(color: Colors.black),
-                        decoration: InputDecoration(
-                          hintText: 'search_blocked_users'.tr,
-                          hintStyle: TextStyle(color: Colors.grey[600]),
-                          prefixIcon: Icon(
-                            Icons.search,
-                            color: Colors.grey[600],
-                          ),
-                          suffixIcon:
-                              _isSearching
-                                  ? IconButton(
-                                    icon: const Icon(
-                                      Icons.clear,
-                                      color: Color(0xFFFFD700),
-                                    ),
-                                    onPressed: _clearSearch,
-                                  )
-                                  : null,
-                          border: InputBorder.none,
-                          contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 12,
-                          ),
-                        ),
-                      ),
+                  suffixIcon:
+                  _isSearching
+                      ? IconButton(
+                    icon: const Icon(
+                      Icons.clear,
+                      color: Color(0xFFFFD700),
                     ),
-                    const SizedBox(height: 16),
-                    // Blocked Users List
-                    Expanded(child: _buildUserList()),
-                  ],
+                    onPressed: _clearSearch,
+                  )
+                      : null,
+                  border: InputBorder.none,
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
                 ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            // Blocked Users List
+            Expanded(child: _buildUserList()),
+          ],
+        ),
       ),
     );
   }
@@ -264,16 +264,7 @@ class _BlockedUsersScreenState extends State<BlockedUsersScreen> {
         await _controller.unblockUser(userId!, user.id!);
 
         // Show snackbar
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              '${'unblocked'.tr} ${user.name}',
-              style: const TextStyle(color: Colors.white),
-            ),
-            backgroundColor: const Color(0xFFFFD700),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
+
       },
       child: Container(
         height: 32,

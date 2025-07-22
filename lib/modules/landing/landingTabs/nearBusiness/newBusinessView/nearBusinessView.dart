@@ -21,7 +21,7 @@ class NearestBusinessScreen extends StatelessWidget {
       const SystemUiOverlayStyle(
         statusBarIconBrightness: Brightness.dark, // White icons ke liye
         statusBarColor:
-        Colors.transparent, // Optional: Status bar background color
+            Colors.transparent, // Optional: Status bar background color
       ),
     );
     final LocationController controller = Get.put(
@@ -106,22 +106,19 @@ class NearestBusinessScreen extends StatelessWidget {
       }),
       floatingActionButton: Obx(() {
         return controller.isLocationAllowed.value
-            ? Padding(
-              padding: const EdgeInsets.only(bottom: 100.0),
-              child: FloatingActionButton(
-                onPressed: controller.toggleRadiusCardVisibility,
-                backgroundColor: ColorUtils.primaryColor,
-                shape: const CircleBorder(),
-                child: Obx(
-                  () => AnimatedCrossFade(
-                    firstChild: const Icon(Icons.tune, color: Colors.white),
-                    secondChild: const Icon(Icons.close, color: Colors.white),
-                    crossFadeState:
-                        controller.isRadiusCardVisible.value
-                            ? CrossFadeState.showSecond
-                            : CrossFadeState.showFirst,
-                    duration: const Duration(milliseconds: 200),
-                  ),
+            ? FloatingActionButton(
+              onPressed: controller.toggleRadiusCardVisibility,
+              backgroundColor: ColorUtils.primaryColor,
+              shape: const CircleBorder(),
+              child: Obx(
+                () => AnimatedCrossFade(
+                  firstChild: const Icon(Icons.tune, color: Colors.white),
+                  secondChild: const Icon(Icons.close, color: Colors.white),
+                  crossFadeState:
+                      controller.isRadiusCardVisible.value
+                          ? CrossFadeState.showSecond
+                          : CrossFadeState.showFirst,
+                  duration: const Duration(milliseconds: 200),
                 ),
               ),
             )

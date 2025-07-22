@@ -80,11 +80,11 @@ void main() async {
           ? LocalizationService.arabic
           : LocalizationService.english;
 
-  List<ConnectivityResult> connectivityResult =
-      await Connectivity().checkConnectivity();
-  bool hasInternet = connectivityResult != ConnectivityResult.none;
+  // List<ConnectivityResult> connectivityResult =
+  //     await Connectivity().checkConnectivity();
+  // bool hasInternet = connectivityResult != ConnectivityResult.none;
 
-  runApp(MyApp(initialLocale: initialLocale, hasInternet: hasInternet));
+  runApp(MyApp(initialLocale: initialLocale, hasInternet: true));
 }
 
 Future<void> setupFirebaseMessaging() async {
@@ -139,7 +139,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       },
     );
 
-    _listenForConnectivity();
+    // _listenForConnectivity();
   }
 
   @override
@@ -219,25 +219,25 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   }
 
   /// Listen for Internet Connectivity Changes
-  void _listenForConnectivity() {
-    Connectivity().onConnectivityChanged.listen((
-      List<ConnectivityResult> results,
-    ) {
-      bool hasInternet = results.any(
-        (result) => result != ConnectivityResult.none,
-      );
-
-      if (!_handlingDeepLink) {
-        if (hasInternet) {
-          print("✅ Internet is connected");
-          _handleInternetRestored();
-        } else {
-          print("🚫 No internet connection");
-          _handleInternetLost();
-        }
-      }
-    });
-  }
+  // void _listenForConnectivity() {
+  //   Connectivity().onConnectivityChanged.listen((
+  //     List<ConnectivityResult> results,
+  //   ) {
+  //     bool hasInternet = results.any(
+  //       (result) => result != ConnectivityResult.none,
+  //     );
+  //
+  //     if (!_handlingDeepLink) {
+  //       if (hasInternet) {
+  //         print("✅ Internet is connected");
+  //         _handleInternetRestored();
+  //       } else {
+  //         print("🚫 No internet connection");
+  //         _handleInternetLost();
+  //       }
+  //     }
+  //   });
+  // }
 
   /// Handle Internet Connection Restored
   void _handleInternetRestored() {
@@ -270,20 +270,20 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   }
 
   /// Handle Internet Connection Lost
-  void _handleInternetLost() {
-    String? currentRoute = Get.currentRoute;
-    if (currentRoute != AppRoutes.noInternet &&
-        currentRoute != AppRoutes.splash) {
-      _lastRouteBeforeNoInternet = currentRoute;
-    }
-
-    _wasOnNoInternetScreen = true;
-
-    Get.offAllNamed(
-      AppRoutes.noInternet,
-      arguments: {'savedRoute': _lastRouteBeforeNoInternet},
-    );
-  }
+  // void _handleInternetLost() {
+  //   String? currentRoute = Get.currentRoute;
+  //   if (currentRoute != AppRoutes.noInternet &&
+  //       currentRoute != AppRoutes.splash) {
+  //     _lastRouteBeforeNoInternet = currentRoute;
+  //   }
+  //
+  //   _wasOnNoInternetScreen = true;
+  //
+  //   Get.offAllNamed(
+  //     AppRoutes.noInternet,
+  //     arguments: {'savedRoute': _lastRouteBeforeNoInternet},
+  //   );
+  // }
 
   @override
   Widget build(BuildContext context) {
