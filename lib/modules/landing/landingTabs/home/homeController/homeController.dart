@@ -61,15 +61,9 @@ class HomeController extends GetxController with WidgetsBindingObserver {
     super.onInit();
     checkLocationStatus();
     WidgetsBinding.instance.addObserver(this);
-    if (videoFeed.value.videos != null && videoFeed.value.videos!.isNotEmpty) {
-      prepareControllersIfNeeded().then((_) {
-        restoreVideoState();
-      });
-    } else {
-      _fetchLocationOnce().then((_) {
-        fetchVideos();
-      });
-    }
+    _fetchLocationOnce().then((_) {
+      fetchVideos();
+    });
   }
 
   Future<void> fetchMoreVideos() async {
@@ -179,10 +173,10 @@ class HomeController extends GetxController with WidgetsBindingObserver {
   // import 'package:geocoding/geocoding.dart';
 
   Future _fetchLocationOnce() async {
-    if (hasLocationBeenFetched.value || isLocationFetching.value) {
-      print("Location already fetched or currently fetching, skipping...");
-      return;
-    }
+    // if (hasLocationBeenFetched.value || isLocationFetching.value) {
+    //   print("Location already fetched or currently fetching, skipping...");
+    //   return;
+    // }
 
     isLocationFetching.value = true;
 

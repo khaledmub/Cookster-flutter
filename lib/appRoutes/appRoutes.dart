@@ -26,7 +26,7 @@ class AppRoutes {
   static List<GetPage> pages = [
     GetPage(name: packages, page: () => PackagesScreen()),
     GetPage(name: search, page: () => SearchView()),
-    GetPage(name: noInternet, page: () => NoInternetScreen()),
+    // GetPage(name: noInternet, page: () => NoInternetScreen()),
     GetPage(name: editProfile, page: () => EditProfileView()),
     GetPage(name: landing, page: () => Landing()),
     GetPage(name: selectLanguage, page: () => SelectLanguageView()),
