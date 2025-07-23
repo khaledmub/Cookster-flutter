@@ -1,11 +1,13 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:get/get.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:intl/intl.dart';
 import 'package:shimmer/shimmer.dart';
 import '../../appUtils/apiEndPoints.dart';
+import '../../appUtils/appCenterIcon.dart';
 import '../../appUtils/colorUtils.dart';
 import 'chatController/chatController.dart';
 
@@ -14,7 +16,7 @@ class ChatView extends StatefulWidget {
   final String receiverId;
 
   const ChatView({required this.senderId, required this.receiverId, Key? key})
-      : super(key: key);
+    : super(key: key);
 
   @override
   State<ChatView> createState() => _ChatViewState();
@@ -29,32 +31,78 @@ class _ChatViewState extends State<ChatView> {
     controller = Get.put(
       ChatController(senderId: widget.senderId, receiverId: widget.receiverId),
     );
-    controller.markMessagesAsRead();
   }
 
   @override
   Widget build(BuildContext context) {
+    // controller.markMessagesAsRead();
+
     return Scaffold(
       resizeToAvoidBottomInset: true,
       backgroundColor: Colors.grey[100],
-      body: Column(
-        children: [
-          Container(
-            height: 110,
-            width: double.infinity,
-            decoration: BoxDecoration(color: Colors.white),
-            child: Column(
-              children: [
-                Container(
-                  width: double.infinity,
-                  height: 45,
-                  color: Colors.black,
-                ),
-                SizedBox(height: 16),
-                Obx(() => _buildAppBarContent(controller)),
-              ],
+      appBar: PreferredSize(
+        preferredSize: Size.fromHeight(80), // Adjusted height to fit content
+        child: Container(
+          padding: EdgeInsets.only(top: 40.h),
+          decoration: BoxDecoration(
+            borderRadius: const BorderRadius.only(
+              bottomRight: Radius.circular(30),
+              bottomLeft: Radius.circular(30),
+            ),
+            gradient: const LinearGradient(
+              colors: [Color(0xFFFFD700), Color(0xFFFFFADC)],
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
             ),
           ),
+          child: Column(
+            children: [
+              Stack(
+                children: [
+                  // Back Button
+                  Positioned(
+                    left: 16,
+                    // right: isRtl ? 16 : null,
+                    // top: 10.h,
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: () {
+                        try {
+                          Get.back();
+                        } catch (e) {
+                          print("Error navigating back: $e");
+                        }
+                      },
+                      child: Container(
+                        height: 40,
+                        width: 40,
+                        decoration: const BoxDecoration(
+                          color: Color(0xFFE6BE00),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Center(
+                          child: Icon(
+                            Icons.arrow_back,
+                            color: ColorUtils.darkBrown,
+                            size: 24,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 70.0),
+                    child: Obx(() => _buildAppBarContent(controller)),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+
+      body: Column(
+        children: [
           Expanded(
             child: GestureDetector(
               onTap: () => FocusScope.of(context).unfocus(),
@@ -148,9 +196,8 @@ class _ChatViewState extends State<ChatView> {
 
                     messageWidgets.add(
                       Align(
-                        alignment: isMe
-                            ? Alignment.centerRight
-                            : Alignment.centerLeft,
+                        alignment:
+                            isMe ? Alignment.centerRight : Alignment.centerLeft,
                         child: Container(
                           margin: EdgeInsets.symmetric(
                             vertical: 4,
@@ -160,9 +207,10 @@ class _ChatViewState extends State<ChatView> {
                             maxWidth: MediaQuery.of(context).size.width * 0.75,
                           ),
                           child: Column(
-                            crossAxisAlignment: isMe
-                                ? CrossAxisAlignment.end
-                                : CrossAxisAlignment.start,
+                            crossAxisAlignment:
+                                isMe
+                                    ? CrossAxisAlignment.end
+                                    : CrossAxisAlignment.start,
                             children: [
                               Container(
                                 padding: EdgeInsets.symmetric(
@@ -170,9 +218,10 @@ class _ChatViewState extends State<ChatView> {
                                   vertical: 10,
                                 ),
                                 decoration: BoxDecoration(
-                                  color: isMe
-                                      ? ColorUtils.primaryColor
-                                      : Colors.white,
+                                  color:
+                                      isMe
+                                          ? ColorUtils.primaryColor
+                                          : Colors.white,
                                   borderRadius: BorderRadius.circular(16),
                                   boxShadow: [
                                     BoxShadow(
@@ -216,7 +265,7 @@ class _ChatViewState extends State<ChatView> {
                     padding: EdgeInsets.symmetric(vertical: 12),
                     children: messageWidgets,
                     keyboardDismissBehavior:
-                    ScrollViewKeyboardDismissBehavior.onDrag,
+                        ScrollViewKeyboardDismissBehavior.onDrag,
                   );
                 },
               ),
@@ -257,25 +306,19 @@ class _ChatViewState extends State<ChatView> {
 
         return Row(
           children: [
-            SizedBox(width: 16),
-            InkWell(
-              onTap: () {
-                Get.back();
-              },
-              child: Icon(Icons.arrow_back),
-            ),
-            SizedBox(width: 8),
             CircleAvatar(
-              radius: 20,
+              radius: 22,
               backgroundColor: Colors.grey[200],
-              backgroundImage: receiverImage.isNotEmpty
-                  ? CachedNetworkImageProvider(
-                '${Common.profileImage}/$receiverImage',
-              )
-                  : null,
-              child: receiverImage.isEmpty
-                  ? Icon(Icons.person, color: Colors.grey[600])
-                  : null,
+              backgroundImage:
+                  receiverImage.isNotEmpty
+                      ? CachedNetworkImageProvider(
+                        '${Common.profileImage}/$receiverImage',
+                      )
+                      : null,
+              child:
+                  receiverImage.isEmpty
+                      ? Icon(Icons.person, color: Colors.grey[600])
+                      : null,
             ),
             SizedBox(width: 12),
             Text(
@@ -397,21 +440,23 @@ class _ChatViewState extends State<ChatView> {
                     ],
                   ),
                   child: IconButton(
-                    icon: controller.isSendingMessage.value
-                        ? SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        valueColor: AlwaysStoppedAnimation<Color>(
-                          Colors.white,
-                        ),
-                      ),
-                    )
-                        : Icon(Icons.send, color: Colors.white, size: 24),
-                    onPressed: controller.isSendingMessage.value
-                        ? null
-                        : controller.sendMessage,
+                    icon:
+                        controller.isSendingMessage.value
+                            ? SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                  Colors.white,
+                                ),
+                              ),
+                            )
+                            : Icon(Icons.send, color: Colors.white, size: 24),
+                    onPressed:
+                        controller.isSendingMessage.value
+                            ? null
+                            : controller.sendMessage,
                   ),
                 ),
               ],

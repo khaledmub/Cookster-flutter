@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cookster/appUtils/colorUtils.dart';
+import 'package:cookster/loaders/pulseLoader.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -142,8 +143,43 @@ class _ChatListScreenState extends State<ChatListScreen> {
         });
   }
 
-  String _formatTimestamp(DateTime? timestamp) {
-    if (timestamp == null) return '';
+  String _formatTimestamp(DateTime timestamp) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final yesterday = today.subtract(Duration(days: 1));
+    final messageDate = DateTime(
+      timestamp.year,
+      timestamp.month,
+      timestamp.day,
+    );
+
+    // If it's today, show time
+    if (messageDate == today) {
+      return DateFormat('HH:mm').format(timestamp);
+    }
+
+    // If it's yesterday, show "Yesterday"
+    if (messageDate == yesterday) {
+      return 'Yesterday';
+    }
+
+    // If it's within the current week (last 7 days), show day name
+    final daysDifference = today.difference(messageDate).inDays;
+    if (daysDifference <= 7 && daysDifference > 1) {
+      return DateFormat('EEEE').format(timestamp); // Monday, Tuesday, etc.
+    }
+
+    // For dates in the current year, show "08 July"
+    if (timestamp.year == now.year) {
+      return DateFormat('dd MMMM').format(timestamp);
+    }
+
+    // For dates in past years, show "08 July, 24"
+    return DateFormat('dd MMMM, yy').format(timestamp);
+  }
+
+  // Alternative version with more concise logic
+  String _formatTimestampConcise(DateTime timestamp) {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
     final messageDate = DateTime(
@@ -151,14 +187,86 @@ class _ChatListScreenState extends State<ChatListScreen> {
       timestamp.month,
       timestamp.day,
     );
+    final daysDifference = today.difference(messageDate).inDays;
 
-    if (messageDate == today) {
+    // Today - show time
+    if (daysDifference == 0) {
       return DateFormat('HH:mm').format(timestamp);
-    } else if (messageDate == today.subtract(Duration(days: 1))) {
-      return 'yesterday'.tr;
-    } else {
-      return DateFormat('dd/MM/yy').format(timestamp);
     }
+
+    // Yesterday
+    if (daysDifference == 1) {
+      return 'Yesterday';
+    }
+
+    // This week (2-7 days ago)
+    if (daysDifference <= 7) {
+      return DateFormat('EEEE').format(timestamp);
+    }
+
+    // Current year - "08 July"
+    if (timestamp.year == now.year) {
+      return DateFormat('dd MMMM').format(timestamp);
+    }
+
+    // Past years - "08 July, 24"
+    return DateFormat('dd MMMM, yy').format(timestamp);
+  }
+
+  // If you want to customize the month names or use translations
+  String _formatTimestampWithCustomNames(DateTime timestamp) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final messageDate = DateTime(
+      timestamp.year,
+      timestamp.month,
+      timestamp.day,
+    );
+    final daysDifference = today.difference(messageDate).inDays;
+
+    // Custom month names (you can replace these with .tr for translations)
+    final monthNames = [
+      'January',
+      'February',
+      'March',
+      'April',
+      'May',
+      'June',
+      'July',
+      'August',
+      'September',
+      'October',
+      'November',
+      'December',
+    ];
+
+    // Today - show time
+    if (daysDifference == 0) {
+      return DateFormat('HH:mm').format(timestamp);
+    }
+
+    // Yesterday
+    if (daysDifference == 1) {
+      return 'yesterday'.tr; // Use translation if available
+    }
+
+    // This week
+    if (daysDifference <= 7) {
+      return DateFormat('EEEE').format(timestamp);
+    }
+
+    // Format day with leading zero if needed
+    final day = timestamp.day.toString().padLeft(2, '0');
+    final month = monthNames[timestamp.month - 1];
+
+    // Current year
+    if (timestamp.year == now.year) {
+      return '$day $month';
+    }
+
+    // Past years - show last 2 digits of year
+    final year = timestamp.year.toString().substring(2);
+    return '$day $month, $year';
   }
 
   @override
@@ -220,41 +328,6 @@ class _ChatListScreenState extends State<ChatListScreen> {
                   ),
                   // Center App Icon
                   AppCenterIcon(),
-
-                  Positioned(
-                    right: isRtl ? null : 16,
-                    left: isRtl ? 16 : null,
-                    top: 10.h,
-                    child: InkWell(
-                      onTap: () {
-                        ChatListScreen._userDataCache
-                            .clear(); // Clear cache on refresh
-                        Navigator.pushReplacement(
-                          context,
-                          MaterialPageRoute(
-                            builder:
-                                (context) =>
-                                    ChatListScreen(userId: currentUserId),
-                          ),
-                        );
-                      },
-                      child: Container(
-                        height: 40,
-                        width: 40,
-                        decoration: BoxDecoration(
-                          color: Color(0xFFE6BE00),
-                          shape: BoxShape.circle,
-                        ),
-                        child: Center(
-                          child: Icon(
-                            Icons.refresh,
-                            color: ColorUtils.darkBrown,
-                            size: 24,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
                 ],
               ),
             ],
@@ -311,9 +384,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
 
           if (snapshot.connectionState == ConnectionState.waiting) {
             return Center(
-              child: CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation<Color>(Colors.teal),
-              ),
+              child: PulseLogoLoader(logoPath: "assets/images/appIcon.png"),
             );
           }
 
@@ -333,18 +404,23 @@ class _ChatListScreenState extends State<ChatListScreen> {
 
           return Column(
             children: [
-              SizedBox(height: 8,),
+              SizedBox(height: 8),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16.0),
                 child: Row(
                   children: [
                     Text(
                       "chats".tr,
-                      style: TextStyle(fontWeight: FontWeight.w700, fontSize: 24),
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 24,
+                      ),
                     ),
                   ],
                 ),
               ),
+              SizedBox(height: 8),
+
               Expanded(
                 child: ListView.builder(
                   itemCount: chatData.length,
@@ -359,9 +435,8 @@ class _ChatListScreenState extends State<ChatListScreen> {
                     );
                     final isBlocked = blockedBy.contains(currentUserId);
 
-                    // Use a unique key to prevent unnecessary rebuilds
                     return FutureBuilder<Map<String, dynamic>>(
-                      key: ValueKey(chatId), // Unique key for each ListTile
+                      key: ValueKey(chatId),
                       future: Future.wait([
                         _fetchUserData(partnerId),
                         _getUnreadCount(chatId, currentUserId),
@@ -373,7 +448,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
                       ),
                       builder: (context, snapshot) {
                         if (snapshot.hasError || snapshot.data == null) {
-                          return const SizedBox.shrink(); // or an error widget
+                          return const SizedBox.shrink();
                         }
 
                         final data = snapshot.data as Map<String, dynamic>;
@@ -382,117 +457,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
                         final unreadCount = data['unreadCount'] as int;
 
                         return data.isNotEmpty
-                            ? ListTile(
-                              key: ValueKey(chatId),
-                              // Ensure stable identity
-                              contentPadding: EdgeInsets.symmetric(
-                                horizontal: 16,
-                                vertical: 8,
-                              ),
-                              leading: CircleAvatar(
-                                radius: 26,
-                                backgroundColor: Colors.grey[200],
-                                backgroundImage:
-                                    userData['image'].isNotEmpty
-                                        ? CachedNetworkImageProvider(
-                                          '${Common.profileImage}/${userData['image']}',
-                                        )
-                                        : null,
-                                child:
-                                    userData['image'].isEmpty
-                                        ? Icon(
-                                          Icons.person,
-                                          color: Colors.grey[600],
-                                          size: 30,
-                                        )
-                                        : null,
-                              ),
-                              title: Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Expanded(
-                                    child: Row(
-                                      children: [
-                                        Text(
-                                          isBlocked
-                                              ? "cookster_user".tr
-                                              : userData['name'],
-                                          style: TextStyle(
-                                            fontSize: 16,
-                                            fontWeight:
-                                                unreadCount > 0 && !isBlocked
-                                                    ? FontWeight.w600
-                                                    : FontWeight.w500,
-                                            color:
-                                                isBlocked
-                                                    ? Colors.grey[600]
-                                                    : Colors.black87,
-                                          ),
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  Column(
-                                    crossAxisAlignment: CrossAxisAlignment.end,
-                                    children: [
-                                      Text(
-                                        _formatTimestamp(timestamp),
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          color:
-                                              unreadCount > 0 && !isBlocked
-                                                  ? Colors.teal
-                                                  : Colors.grey[600],
-                                        ),
-                                      ),
-                                      if (unreadCount > 0)
-                                        Container(
-                                          margin: EdgeInsets.only(top: 4),
-                                          padding: EdgeInsets.symmetric(
-                                            horizontal: 6,
-                                            vertical: 2,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color: Colors.teal,
-                                            borderRadius: BorderRadius.circular(
-                                              12,
-                                            ),
-                                          ),
-                                          child: Text(
-                                            '$unreadCount',
-                                            style: TextStyle(
-                                              color: Colors.white,
-                                              fontSize: 12,
-                                              fontWeight: FontWeight.w600,
-                                            ),
-                                          ),
-                                        ),
-                                    ],
-                                  ),
-                                ],
-                              ),
-                              subtitle: Text(
-                                lastMessage != null
-                                    ? (lastMessage['message']?.substring(
-                                          0,
-                                          lastMessage['message'].length > 30
-                                              ? 30
-                                              : lastMessage['message'].length,
-                                        ) ??
-                                        '')
-                                    : 'no_messages'.tr,
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  color:
-                                      unreadCount > 0 && !isBlocked
-                                          ? Colors.black87
-                                          : Colors.grey[600],
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
+                            ? InkWell(
                               onTap: () {
                                 Get.to(
                                   ChatView(
@@ -501,6 +466,173 @@ class _ChatListScreenState extends State<ChatListScreen> {
                                   ),
                                 );
                               },
+                              child: Container(
+                                padding: EdgeInsets.only(
+                                  bottom: 20,
+                                  left: 16,
+                                  right: 16,
+                                ),
+                                child: Row(
+                                  children: [
+                                    // Avatar
+                                    CircleAvatar(
+                                      radius: 22,
+                                      backgroundColor: Colors.grey[200],
+                                      backgroundImage:
+                                          userData['image'].isNotEmpty
+                                              ? CachedNetworkImageProvider(
+                                                '${Common.profileImage}/${userData['image']}',
+                                              )
+                                              : null,
+                                      child:
+                                          userData['image'].isEmpty
+                                              ? Icon(
+                                                Icons.person,
+                                                color: Colors.grey[600],
+                                                size: 26,
+                                              )
+                                              : null,
+                                    ),
+                                    SizedBox(width: 12),
+
+                                    // Content area
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          // Name and timestamp row
+                                          Row(
+                                            mainAxisAlignment:
+                                                MainAxisAlignment.spaceBetween,
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Expanded(
+                                                child: Text(
+                                                  isBlocked
+                                                      ? "cookster_user".tr
+                                                      : userData['name'],
+                                                  style: TextStyle(
+                                                    fontSize: 16,
+                                                    fontWeight:
+                                                        unreadCount > 0 &&
+                                                                !isBlocked
+                                                            ? FontWeight.w600
+                                                            : FontWeight.w500,
+                                                    color:
+                                                        isBlocked
+                                                            ? Colors.grey[600]
+                                                            : Colors.black87,
+                                                  ),
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                ),
+                                              ),
+
+                                              // Timestamp and counter in a compact row
+                                              Row(
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  Text(
+                                                    _formatTimestamp(timestamp),
+                                                    style: TextStyle(
+                                                      fontSize: 12,
+                                                      color:
+                                                          unreadCount > 0 &&
+                                                                  !isBlocked
+                                                              ? ColorUtils
+                                                                  .primaryColor
+                                                              : Colors
+                                                                  .grey[600],
+                                                    ),
+                                                  ),
+                                                  if (unreadCount > 0) ...[
+                                                    SizedBox(width: 6),
+                                                    Container(
+                                                      constraints:
+                                                          BoxConstraints(
+                                                            minWidth: 18,
+                                                            minHeight: 18,
+                                                          ),
+                                                      padding:
+                                                          EdgeInsets.symmetric(
+                                                            horizontal:
+                                                                unreadCount > 9
+                                                                    ? 5
+                                                                    : 0,
+                                                            vertical: 1,
+                                                          ),
+                                                      decoration: BoxDecoration(
+                                                        color:
+                                                            ColorUtils
+                                                                .primaryColor,
+                                                        shape:
+                                                            unreadCount > 9
+                                                                ? BoxShape
+                                                                    .rectangle
+                                                                : BoxShape
+                                                                    .circle,
+                                                        borderRadius:
+                                                            unreadCount > 9
+                                                                ? BorderRadius.circular(
+                                                                  9,
+                                                                )
+                                                                : null,
+                                                      ),
+                                                      child: Text(
+                                                        unreadCount > 99
+                                                            ? '99+'
+                                                            : '$unreadCount',
+                                                        style: TextStyle(
+                                                          color: Colors.white,
+                                                          fontSize: 10,
+                                                          fontWeight:
+                                                              FontWeight.w600,
+                                                        ),
+                                                        textAlign:
+                                                            TextAlign.center,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ],
+                                              ),
+                                            ],
+                                          ),
+
+                                          SizedBox(height: 2),
+
+                                          // Last message
+                                          Text(
+                                            lastMessage != null
+                                                ? (lastMessage['message']
+                                                        ?.substring(
+                                                          0,
+                                                          lastMessage['message']
+                                                                      .length >
+                                                                  30
+                                                              ? 30
+                                                              : lastMessage['message']
+                                                                  .length,
+                                                        ) ??
+                                                    '')
+                                                : 'no_messages'.tr,
+                                            style: TextStyle(
+                                              fontSize: 13,
+                                              color:
+                                                  unreadCount > 0 && !isBlocked
+                                                      ? Colors.black87
+                                                      : Colors.grey[600],
+                                            ),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
                             )
                             : SizedBox.shrink();
                       },
