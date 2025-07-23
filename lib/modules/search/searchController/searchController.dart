@@ -311,7 +311,8 @@ class UserSearchController extends GetxController {
     try {
       String endpoint = 'b2b/b2b_accounts_list'; // Base endpoint
       if (categoryId != null) {
-        endpoint += '?category_id=${categoryId}country=${country}city=${city}';
+        endpoint +=
+            '?category_id=${categoryId}&country=${country}&city=${city}';
       }
 
       final response = await ApiClient.getRequest(endpoint);

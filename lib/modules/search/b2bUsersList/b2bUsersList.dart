@@ -44,6 +44,8 @@ class _B2bUsersListState extends State<B2bUsersList> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       userSearchController.fetchB2BUsersList(
         categoryId: int.parse(widget.categoryId),
+        country: widget.country,
+        city: widget.city,
       );
     });
   }
@@ -71,7 +73,7 @@ class _B2bUsersListState extends State<B2bUsersList> {
       appBar: PreferredSize(
         preferredSize: Size.fromHeight(155.h), // Adjusted height to fit content
         child: Container(
-          padding: EdgeInsets.only(top: 40.h),
+          padding: EdgeInsets.only(top: 30.h),
           decoration: BoxDecoration(
             borderRadius: const BorderRadius.only(
               bottomRight: Radius.circular(30),
