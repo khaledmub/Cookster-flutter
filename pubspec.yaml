@@ -4,7 +4,7 @@ description: "A new Flutter project."
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 
-version: 1.0.17+30
+version: 1.0.20+31
 
 environment:
   sdk: ^3.7.0
@@ -23,8 +23,8 @@ dependencies:
   video_player: ^2.9.3
   flutter_cache_manager: ^3.4.1
   flutter_rating_bar: ^4.0.1
-  flutter_launcher_icons: ^0.14.3
-  rename_app: ^1.6.2
+#  flutter_launcher_icons: ^0.14.3
+#  rename_app: ^1.6.2
   image_picker: ^1.1.2
   http: ^1.3.0
   dropdown_flutter: ^1.0.1
@@ -41,8 +41,8 @@ dependencies:
   google_places_flutter: ^2.1.0
   geolocator: ^13.0.2
   fraction: ^5.0.3
-  flutter_gpu_filters_interface: ^0.0.18
-  flutter_gpu_video_filters:
+#  flutter_gpu_filters_interface: ^0.0.18
+#  flutter_gpu_video_filters:
   videosdk: ^2.3.0
 #  video_editor_2:
 #  visibility_detector: ^0.4.0+2
@@ -51,7 +51,7 @@ dependencies:
   file_picker: ^9.1.0
   giphy_get: ^3.6.1
   permission_handler:
-  flutter_swiper_plus: ^2.0.4
+#  flutter_swiper_plus: ^2.0.4
   cloud_firestore: ^5.6.5
   firebase_core: ^3.12.1
   timeago: ^3.7.0
@@ -120,10 +120,6 @@ flutter:
     - assets/appconfig.json
     - assets/images/
     - assets/icons/
-    - packages/flutter_gpu_video_filters/shaders/
-    - assets/cube/
-    - assets/bad_words_arabic.txt
-    - assets/bad_words_english.txt
 
 
 

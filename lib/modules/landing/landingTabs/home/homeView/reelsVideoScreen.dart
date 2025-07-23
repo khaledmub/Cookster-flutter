@@ -28,7 +28,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_svg/svg.dart';
-import 'package:flutter_swiper_plus/flutter_swiper_plus.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:get/get.dart';
 import 'package:like_button/like_button.dart';
@@ -72,7 +71,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
   @override
   bool get wantKeepAlive => true;
 
-  late SwiperController _swiperController;
+  // late SwiperController _swiperController;
   bool _showIcon = false;
   bool isAuthenticated = false;
 
@@ -116,7 +115,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
     WakelockPlus.enable();
     pageController = PageController(initialPage: controller.currentIndex.value);
 
-    _swiperController = SwiperController();
+    // _swiperController = SwiperController();
     _restoreSwiperPosition();
   }
 
@@ -126,7 +125,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
       if (mounted &&
           controller.currentIndex.value >= 0 &&
           controller.currentIndex.value < controller.chewieControllers.length) {
-        _swiperController.move(controller.currentIndex.value, animation: false);
+        // _swiperController.move(controller.currentIndex.value, animation: false);
       }
     });
   }
@@ -148,7 +147,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    _swiperController.dispose();
+    // _swiperController.dispose();
 
     WakelockPlus.disable();
     // Do not dispose controllers here to preserve state
@@ -639,73 +638,122 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                                             ),
                                           ),
                                         ),
-                                      if (videoDetail.isImage == 0 && isInitialized)
+                                      if (videoDetail.isImage == 0 &&
+                                          isInitialized)
                                         Positioned(
                                           left: 0,
                                           right: 0,
                                           bottom: 3,
                                           child: StatefulBuilder(
                                             builder: (context, setState) {
-                                              bool isThumbTapped = false; // Track thumb interaction state
+                                              bool isThumbTapped =
+                                                  false; // Track thumb interaction state
 
                                               return StreamBuilder<Duration>(
                                                 stream: Stream.periodic(
-                                                  const Duration(milliseconds: 200),
-                                                      (_) => chewieController.videoPlayerController.value.position,
+                                                  const Duration(
+                                                    milliseconds: 200,
+                                                  ),
+                                                  (_) =>
+                                                      chewieController
+                                                          .videoPlayerController
+                                                          .value
+                                                          .position,
                                                 ),
                                                 builder: (context, snapshot) {
-                                                  final position = snapshot.data ?? Duration.zero;
-                                                  final duration = chewieController.videoPlayerController.value.duration ?? Duration.zero;
-                                                  final isInitialized = chewieController.videoPlayerController.value.isInitialized;
+                                                  final position =
+                                                      snapshot.data ??
+                                                      Duration.zero;
+                                                  final duration =
+                                                      chewieController
+                                                          .videoPlayerController
+                                                          .value
+                                                          .duration ??
+                                                      Duration.zero;
+                                                  final isInitialized =
+                                                      chewieController
+                                                          .videoPlayerController
+                                                          .value
+                                                          .isInitialized;
 
-                                                  if (!isInitialized || duration == Duration.zero) {
+                                                  if (!isInitialized ||
+                                                      duration ==
+                                                          Duration.zero) {
                                                     return Slider(
                                                       value: 0,
                                                       max: 1,
                                                       onChanged: null,
-                                                      thumbColor: ColorUtils.primaryColor,
-                                                      activeColor: ColorUtils.primaryColor,
-                                                      inactiveColor: ColorUtils.darkBrown,
+                                                      thumbColor:
+                                                          ColorUtils
+                                                              .primaryColor,
+                                                      activeColor:
+                                                          ColorUtils
+                                                              .primaryColor,
+                                                      inactiveColor:
+                                                          ColorUtils.darkBrown,
                                                     );
                                                   }
 
                                                   return SliderTheme(
                                                     data: SliderThemeData(
-                                                      thumbShape: RoundSliderThumbShape(
-                                                        enabledThumbRadius: isThumbTapped ? 0.0 : 6.0, // Change radius based on tap
-                                                      ),
-                                                      overlayShape: const RoundSliderOverlayShape(
-                                                        overlayRadius: 0,
-                                                      ),
+                                                      thumbShape:
+                                                          RoundSliderThumbShape(
+                                                            enabledThumbRadius:
+                                                                isThumbTapped
+                                                                    ? 0.0
+                                                                    : 6.0, // Change radius based on tap
+                                                          ),
+                                                      overlayShape:
+                                                          const RoundSliderOverlayShape(
+                                                            overlayRadius: 0,
+                                                          ),
                                                       trackHeight: 2,
                                                     ),
                                                     child: Slider(
-                                                      value: position.inSeconds.toDouble(),
-                                                      max: duration.inSeconds.toDouble(),
+                                                      value:
+                                                          position.inSeconds
+                                                              .toDouble(),
+                                                      max:
+                                                          duration.inSeconds
+                                                              .toDouble(),
                                                       onChanged: (value) {
                                                         chewieController.seekTo(
-                                                          Duration(seconds: value.toInt()),
+                                                          Duration(
+                                                            seconds:
+                                                                value.toInt(),
+                                                          ),
                                                         );
                                                       },
                                                       onChangeStart: (_) {
                                                         setState(() {
-                                                          isThumbTapped = true; // Set to true when interaction starts
+                                                          isThumbTapped =
+                                                              true; // Set to true when interaction starts
                                                         });
-                                                        if (chewieController.isPlaying) {
-                                                          chewieController.pause();
+                                                        if (chewieController
+                                                            .isPlaying) {
+                                                          chewieController
+                                                              .pause();
                                                         }
                                                       },
                                                       onChangeEnd: (_) {
                                                         setState(() {
-                                                          isThumbTapped = false; // Revert to false when interaction ends
+                                                          isThumbTapped =
+                                                              false; // Revert to false when interaction ends
                                                         });
-                                                        if (!chewieController.isPlaying) {
-                                                          chewieController.play();
+                                                        if (!chewieController
+                                                            .isPlaying) {
+                                                          chewieController
+                                                              .play();
                                                         }
                                                       },
-                                                      thumbColor: ColorUtils.primaryColor,
-                                                      activeColor: ColorUtils.primaryColor,
-                                                      inactiveColor: ColorUtils.darkBrown,
+                                                      thumbColor:
+                                                          ColorUtils
+                                                              .primaryColor,
+                                                      activeColor:
+                                                          ColorUtils
+                                                              .primaryColor,
+                                                      inactiveColor:
+                                                          ColorUtils.darkBrown,
                                                     ),
                                                   );
                                                 },
