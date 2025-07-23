@@ -310,7 +310,7 @@ class _VisitProfileViewState extends State<VisitProfileView>
             await visitProfileController.fetchUserProfile(widget.userId);
           },
           child: SingleChildScrollView(
-            physics: const BouncingScrollPhysics(),
+            physics: const AlwaysScrollableScrollPhysics(),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
@@ -837,7 +837,7 @@ class _VisitProfileViewState extends State<VisitProfileView>
                     ],
                   ),
 
-                SizedBox(height: 24.h),
+                SizedBox(height: 40.h),
               ],
             ),
           ),
