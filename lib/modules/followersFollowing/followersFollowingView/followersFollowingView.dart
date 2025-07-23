@@ -49,10 +49,10 @@ class _SocialListsScreenState extends State<SocialListsScreen>
     _controller = Get.put(SocialListsController(), tag: widget.userId);
 
     // Clear existing data in the controller
-    _controller.followers.clear();
-    _controller.following.clear();
-    _filteredFollowers.clear();
-    _filteredFollowing.clear();
+    // _controller.followers.clear();
+    // _controller.following.clear();
+    // _filteredFollowers.clear();
+    // _filteredFollowing.clear();
 
     // Fetch data
     WidgetsBinding.instance.addPostFrameCallback((_) {
