@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:get/get.dart';
-import 'package:flutter/services.dart'; // Added for SystemChrome
+import 'package:flutter/services.dart';
 
 import '../../../../../appUtils/colorUtils.dart';
 import '../../../../../loaders/pulseLoader.dart';
-import '../notificationController/notificationController.dart'; // Adjust path
+import '../notificationController/notificationController.dart';
 
 class Notifications extends StatefulWidget {
   const Notifications({Key? key}) : super(key: key);
@@ -22,8 +22,6 @@ class _NotificationsState extends State<Notifications> {
   @override
   void initState() {
     super.initState();
-
-    // Fetch notifications when the screen loads
     notificationController.fetchNotifications(context);
   }
 
@@ -31,65 +29,51 @@ class _NotificationsState extends State<Notifications> {
   Widget build(BuildContext context) {
     SystemChrome.setSystemUIOverlayStyle(
       const SystemUiOverlayStyle(
-        statusBarIconBrightness: Brightness.dark, // White icons ke liye
-        statusBarColor:
-            Colors.transparent, // Optional: Status bar background color
+        statusBarIconBrightness: Brightness.dark,
+        statusBarColor: Colors.transparent,
       ),
     );
-    return SafeArea(
-      child: Scaffold(
-        backgroundColor: Colors.white,
-
-        body: Column(
-          children: [
-            // Static Header (Replaces AppBar)
-            Container(
-              padding: EdgeInsets.only(top: 20.h, bottom: 20.h),
-              decoration: const BoxDecoration(
-                borderRadius: BorderRadius.vertical(
-                  bottom: Radius.circular(30),
-                ),
-                gradient: LinearGradient(
-                  colors: [Color(0XFFFFD700), Color(0XFFFFFADC)],
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                ),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Spacer(),
-                  Text(
-                    "Notifications".tr,
-                    style: TextStyle(
-                      color: Colors.black,
-                      fontSize: 20.sp,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                  const Spacer(),
-                  // Uncomment if you want to add a settings icon
-                  // GestureDetector(
-                  //   onTap: () {
-                  //     // Add navigation or action here
-                  //   },
-                  //   child: Padding(
-                  //     padding: EdgeInsets.only(right: 8),
-                  //     child: SvgPicture.asset(
-                  //       "assets/icons/settings.svg",
-                  //       height: 24,
-                  //       width: 24,
-                  //     ),
-                  //   ),
-                  // ),
-                ],
+    return Scaffold(
+      backgroundColor: Colors.white,
+      body: Column(
+        children: [
+          Container(
+            padding: EdgeInsets.only(top: 40.h, bottom: 20.h),
+            decoration: const BoxDecoration(
+              borderRadius: BorderRadius.vertical(bottom: Radius.circular(30)),
+              gradient: LinearGradient(
+                colors: [Color(0XFFFFD700), Color(0XFFFFFADC)],
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
               ),
             ),
-            // Scrollable Notification List
-            Expanded(child: UpdatesList()),
-            SizedBox(height: 50),
-          ],
-        ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Spacer(),
+                Text(
+                  "Notifications".tr,
+                  style: TextStyle(
+                    color: Colors.black,
+                    fontSize: 20.sp,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const Spacer(),
+              ],
+            ),
+          ),
+          Expanded(
+            child: RefreshIndicator(
+              onRefresh: () async {
+                // Ensure the fetchNotifications method completes and updates the UI
+                await notificationController.fetchNotifications(context);
+              },
+              child: UpdatesList(),
+            ),
+          ),
+          SizedBox(height: 50),
+        ],
       ),
     );
   }
@@ -104,34 +88,41 @@ class UpdatesList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Obx(() {
-      // Show loading indicator while fetching
       if (notificationController.isLoading.value) {
         return Center(
           child: PulseLogoLoader(logoPath: "assets/images/appIconC.png"),
         );
       }
 
-      // Show message if no notifications
+      // Wrap the empty state in a scrollable container to allow refresh
       if (notificationController
               .notificationData
               .value
               .notifications
               ?.isEmpty ??
           true) {
-        return Center(
-          child: Text(
-            "No notifications available".tr,
-            style: TextStyle(
-              color: ColorUtils.primaryColor,
-              fontWeight: FontWeight.w500,
-              fontSize: 14,
+        return SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          child: SizedBox(
+            height:
+                MediaQuery.of(context).size.height -
+                200.h, // Adjust height to fill screen
+            child: Center(
+              child: Text(
+                "No notifications available".tr,
+                style: TextStyle(
+                  color: ColorUtils.primaryColor,
+                  fontWeight: FontWeight.w500,
+                  fontSize: 14,
+                ),
+              ),
             ),
           ),
         );
       }
 
-      // Build scrollable list of notifications
       return ListView.separated(
+        physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.only(top: 16, bottom: 70),
         itemCount:
             notificationController
@@ -156,11 +147,6 @@ class UpdatesList extends StatelessWidget {
               style: const TextStyle(fontWeight: FontWeight.bold),
             ),
             subtitle: Text(notification.details?.text ?? "No Description"),
-            // trailing: const Icon(
-            //   Icons.arrow_forward_ios,
-            //   size: 16,
-            //   color: Colors.grey,
-            // ),
             onTap: () {
               // Handle tap event, e.g., navigate to notification.details?.href
             },
@@ -173,7 +159,6 @@ class UpdatesList extends StatelessWidget {
   }
 }
 
-// Custom Clipper for Rounded Bottom AppBar (Optional, not used here)
 class AppBarClipper extends CustomClipper<Path> {
   @override
   Path getClip(Size size) {
