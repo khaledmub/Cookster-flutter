@@ -265,52 +265,51 @@ class _VisitProfileViewState extends State<VisitProfileView>
         ),
       ),
 
-      body: RefreshIndicator(
-        onRefresh: () async {
-          await visitProfileController.fetchUserProfile(widget.userId);
-        },
-        child: Obx(() {
-          final user = visitProfileController.visitProfile.value;
-          final userDetails = visitProfileController.visitProfile.value?.user;
-          final professionalAdditionalData =
-              visitProfileController.visitProfile.value
-                  ?.getFirstAdditionalData();
-          final videoTypes =
-              visitProfileController.visitProfile.value?.videoTypes;
+      body: Obx(() {
+        final user = visitProfileController.visitProfile.value;
+        final userDetails = visitProfileController.visitProfile.value?.user;
+        final professionalAdditionalData =
+            visitProfileController.visitProfile.value?.getFirstAdditionalData();
+        final videoTypes =
+            visitProfileController.visitProfile.value?.videoTypes;
 
-          if (userDetails == null) {
-            return Center(
-              child: PulseLogoLoader(logoPath: "assets/images/appIconC.png"),
-            );
-          }
+        if (userDetails == null) {
+          return Center(
+            child: PulseLogoLoader(logoPath: "assets/images/appIconC.png"),
+          );
+        }
 
-          // Initialize the local followers count when data is first loaded
-          if (!isLocalCountInitialized && user != null) {
-            localFollowersCount.value = user.followers!;
-            localFollowingCount.value = user.following!;
+        // Initialize the local followers count when data is first loaded
+        if (!isLocalCountInitialized && user != null) {
+          localFollowersCount.value = user.followers!;
+          localFollowingCount.value = user.following!;
 
-            isLocalCountInitialized = true;
-          }
+          isLocalCountInitialized = true;
+        }
 
-          // Initialize TabController when data is loaded
-          if (_tabController == null &&
-              videoTypes != null &&
-              videoTypes.isNotEmpty) {
-            _tabController = TabController(
-              length: videoTypes.length,
-              vsync: this,
-            );
+        // Initialize TabController when data is loaded
+        if (_tabController == null &&
+            videoTypes != null &&
+            videoTypes.isNotEmpty) {
+          _tabController = TabController(
+            length: videoTypes.length,
+            vsync: this,
+          );
 
-            _tabController!.addListener(() {
-              if (_tabController!.indexIsChanging) {
-                setState(() {
-                  _currentTabIndex = _tabController!.index;
-                });
-              }
-            });
-          }
+          _tabController!.addListener(() {
+            if (_tabController!.indexIsChanging) {
+              setState(() {
+                _currentTabIndex = _tabController!.index;
+              });
+            }
+          });
+        }
 
-          return SingleChildScrollView(
+        return RefreshIndicator(
+          onRefresh: () async {
+            await visitProfileController.fetchUserProfile(widget.userId);
+          },
+          child: SingleChildScrollView(
             physics: const BouncingScrollPhysics(),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.center,
@@ -841,9 +840,9 @@ class _VisitProfileViewState extends State<VisitProfileView>
                 SizedBox(height: 24.h),
               ],
             ),
-          );
-        }),
-      ),
+          ),
+        );
+      }),
     );
   }
 
