@@ -582,8 +582,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                                       GestureDetector(
                                         onTap: _togglePlayPause,
                                         onDoubleTap: controller.toggleMute,
-                                        child: Stack(
-                                          children: [
+                                        child:
                                             isInitialized
                                                 ? Chewie(
                                                   controller: chewieController,
@@ -594,149 +593,6 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                                                         "${Common.videoUrl}/${videoDetail.image}",
                                                   ),
                                                 ),
-                                            if (_showIcon &&
-                                                isInitialized &&
-                                                actualIndex ==
-                                                    controller
-                                                        .currentIndex
-                                                        .value)
-                                              Center(
-                                                child: Container(
-                                                  decoration: BoxDecoration(
-                                                    color: Colors.black
-                                                        .withOpacity(0.3),
-                                                    shape: BoxShape.circle,
-                                                  ),
-                                                  padding: const EdgeInsets.all(
-                                                    8,
-                                                  ),
-                                                  child: Icon(
-                                                    chewieController.isPlaying
-                                                        ? Icons
-                                                            .pause_circle_filled
-                                                        : Icons
-                                                            .play_circle_filled,
-                                                    size: 64.0,
-                                                    color: Colors.white
-                                                        .withOpacity(0.7),
-                                                  ),
-                                                ),
-                                              ),
-                                            if (videoDetail.isImage == 0 &&
-                                                isInitialized)
-                                              Positioned(
-                                                left: 0,
-                                                right: 0,
-                                                bottom: 3,
-                                                child: StreamBuilder<Duration>(
-                                                  stream: Stream.periodic(
-                                                    const Duration(
-                                                      milliseconds: 200,
-                                                    ),
-                                                    (_) =>
-                                                        chewieController
-                                                            .videoPlayerController
-                                                            .value
-                                                            .position,
-                                                  ),
-                                                  builder: (context, snapshot) {
-                                                    final position =
-                                                        snapshot.data ??
-                                                        Duration.zero;
-                                                    final duration =
-                                                        chewieController
-                                                            .videoPlayerController
-                                                            .value
-                                                            .duration ??
-                                                        Duration.zero;
-                                                    final isInitialized =
-                                                        chewieController
-                                                            .videoPlayerController
-                                                            .value
-                                                            .isInitialized;
-
-                                                    if (!isInitialized ||
-                                                        duration ==
-                                                            Duration.zero) {
-                                                      return Slider(
-                                                        value: 0,
-                                                        max: 1,
-                                                        onChanged: null,
-                                                        thumbColor:
-                                                            ColorUtils
-                                                                .primaryColor,
-                                                        activeColor:
-                                                            ColorUtils
-                                                                .primaryColor,
-                                                        inactiveColor:
-                                                            ColorUtils
-                                                                .darkBrown,
-                                                      );
-                                                    }
-
-                                                    return SliderTheme(
-                                                      data: const SliderThemeData(
-                                                        thumbShape:
-                                                            RoundSliderThumbShape(
-                                                              enabledThumbRadius:
-                                                                  2.0,
-                                                              disabledThumbRadius:
-                                                                  2.0,
-                                                              elevation: 0,
-                                                              pressedElevation:
-                                                                  0,
-                                                            ),
-                                                        overlayShape:
-                                                            RoundSliderOverlayShape(
-                                                              overlayRadius: 0,
-                                                            ),
-                                                        trackHeight: 2,
-                                                      ),
-                                                      child: Slider(
-                                                        value:
-                                                            position.inSeconds
-                                                                .toDouble(),
-                                                        max:
-                                                            duration.inSeconds
-                                                                .toDouble(),
-                                                        onChanged: (value) {
-                                                          chewieController.seekTo(
-                                                            Duration(
-                                                              seconds:
-                                                                  value.toInt(),
-                                                            ),
-                                                          );
-                                                        },
-                                                        onChangeStart: (_) {
-                                                          if (chewieController
-                                                              .isPlaying) {
-                                                            chewieController
-                                                                .pause();
-                                                          }
-                                                        },
-                                                        onChangeEnd: (_) {
-                                                          if (!chewieController
-                                                              .isPlaying) {
-                                                            chewieController
-                                                                .play();
-                                                          }
-                                                        },
-                                                        thumbColor:
-                                                            ColorUtils
-                                                                .primaryColor,
-                                                        activeColor:
-                                                            ColorUtils
-                                                                .primaryColor,
-                                                        inactiveColor:
-                                                            ColorUtils
-                                                                .darkBrown,
-                                                      ),
-                                                    );
-                                                  },
-                                                ),
-                                              ),
-                                          ],
-                                        ),
                                       ),
                                       VideoDescriptionWidget(
                                         title: videoDetail.title,
@@ -759,6 +615,104 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                                         currentUser,
                                         context,
                                       ),
+                                      if (_showIcon &&
+                                          isInitialized &&
+                                          actualIndex ==
+                                              controller.currentIndex.value)
+                                        Center(
+                                          child: Container(
+                                            decoration: BoxDecoration(
+                                              color: Colors.black.withOpacity(
+                                                0.3,
+                                              ),
+                                              shape: BoxShape.circle,
+                                            ),
+                                            padding: const EdgeInsets.all(8),
+                                            child: Icon(
+                                              chewieController.isPlaying
+                                                  ? Icons.pause_circle_filled
+                                                  : Icons.play_circle_filled,
+                                              size: 64.0,
+                                              color: Colors.white.withOpacity(
+                                                0.7,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      if (videoDetail.isImage == 0 && isInitialized)
+                                        Positioned(
+                                          left: 0,
+                                          right: 0,
+                                          bottom: 3,
+                                          child: StatefulBuilder(
+                                            builder: (context, setState) {
+                                              bool isThumbTapped = false; // Track thumb interaction state
+
+                                              return StreamBuilder<Duration>(
+                                                stream: Stream.periodic(
+                                                  const Duration(milliseconds: 200),
+                                                      (_) => chewieController.videoPlayerController.value.position,
+                                                ),
+                                                builder: (context, snapshot) {
+                                                  final position = snapshot.data ?? Duration.zero;
+                                                  final duration = chewieController.videoPlayerController.value.duration ?? Duration.zero;
+                                                  final isInitialized = chewieController.videoPlayerController.value.isInitialized;
+
+                                                  if (!isInitialized || duration == Duration.zero) {
+                                                    return Slider(
+                                                      value: 0,
+                                                      max: 1,
+                                                      onChanged: null,
+                                                      thumbColor: ColorUtils.primaryColor,
+                                                      activeColor: ColorUtils.primaryColor,
+                                                      inactiveColor: ColorUtils.darkBrown,
+                                                    );
+                                                  }
+
+                                                  return SliderTheme(
+                                                    data: SliderThemeData(
+                                                      thumbShape: RoundSliderThumbShape(
+                                                        enabledThumbRadius: isThumbTapped ? 0.0 : 6.0, // Change radius based on tap
+                                                      ),
+                                                      overlayShape: const RoundSliderOverlayShape(
+                                                        overlayRadius: 0,
+                                                      ),
+                                                      trackHeight: 2,
+                                                    ),
+                                                    child: Slider(
+                                                      value: position.inSeconds.toDouble(),
+                                                      max: duration.inSeconds.toDouble(),
+                                                      onChanged: (value) {
+                                                        chewieController.seekTo(
+                                                          Duration(seconds: value.toInt()),
+                                                        );
+                                                      },
+                                                      onChangeStart: (_) {
+                                                        setState(() {
+                                                          isThumbTapped = true; // Set to true when interaction starts
+                                                        });
+                                                        if (chewieController.isPlaying) {
+                                                          chewieController.pause();
+                                                        }
+                                                      },
+                                                      onChangeEnd: (_) {
+                                                        setState(() {
+                                                          isThumbTapped = false; // Revert to false when interaction ends
+                                                        });
+                                                        if (!chewieController.isPlaying) {
+                                                          chewieController.play();
+                                                        }
+                                                      },
+                                                      thumbColor: ColorUtils.primaryColor,
+                                                      activeColor: ColorUtils.primaryColor,
+                                                      inactiveColor: ColorUtils.darkBrown,
+                                                    ),
+                                                  );
+                                                },
+                                              );
+                                            },
+                                          ),
+                                        ),
                                     ],
                                   );
                                 },

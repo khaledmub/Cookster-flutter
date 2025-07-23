@@ -329,8 +329,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
               }
             }),
           ],
-          initialRoute:
-              widget.hasInternet ? AppRoutes.splash : AppRoutes.noInternet,
+          initialRoute: AppRoutes.splash,
           getPages: AppRoutes.pages,
 
           builder: (context, child) {
