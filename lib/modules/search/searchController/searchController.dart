@@ -182,10 +182,14 @@ class UserSearchController extends GetxController {
       return;
     }
 
-    final filteredValues = source.businessTypes!.values!
-        .where((item) =>
-    item.name?.toLowerCase().contains(query.toLowerCase()) ?? false)
-        .toList();
+    final filteredValues =
+        source.businessTypes!.values!
+            .where(
+              (item) =>
+                  item.name?.toLowerCase().contains(query.toLowerCase()) ??
+                  false,
+            )
+            .toList();
 
     filteredB2bCategories.value = B2BCategoryModel(
       status: source.status,
@@ -197,7 +201,6 @@ class UserSearchController extends GetxController {
 
     _saveSearchQuery(query);
   }
-
 
   // Search B2B users by name (new method for B2BUsersList)
   void searchB2BUsers(String query) {
@@ -298,13 +301,17 @@ class UserSearchController extends GetxController {
   }
 
   // New method to fetch B2B users list with optional category ID
-  Future<void> fetchB2BUsersList({int? categoryId}) async {
+  Future<void> fetchB2BUsersList({
+    int? categoryId,
+    String? city,
+    String? country,
+  }) async {
     isLoading.value = true;
 
     try {
       String endpoint = 'b2b/b2b_accounts_list'; // Base endpoint
       if (categoryId != null) {
-        endpoint += '?category_id=$categoryId';
+        endpoint += '?category_id=${categoryId}country=${country}city=${city}';
       }
 
       final response = await ApiClient.getRequest(endpoint);

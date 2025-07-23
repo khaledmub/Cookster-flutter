@@ -13,11 +13,15 @@ import '../../../appUtils/appCenterIcon.dart'; // For AppCenterIcon
 class B2bUsersList extends StatefulWidget {
   final String categoryId;
   final String categoryName;
+  final String country;
+  final String city;
 
   const B2bUsersList({
     super.key,
     required this.categoryId,
     required this.categoryName,
+    required this.country,
+    required this.city,
   });
 
   @override

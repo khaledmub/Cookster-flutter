@@ -49,7 +49,6 @@ class _SearchViewState extends State<SearchView>
     return authToken != null && authToken.isNotEmpty;
   }
 
-
   // Debounce timer for search
   Timer? _debounce;
 
@@ -404,6 +403,9 @@ class _SearchViewState extends State<SearchView>
                                   B2bUsersList(
                                     categoryId: value.id.toString(),
                                     categoryName: value.name.toString(),
+                                    country:
+                                        searchController.currentCountry.value,
+                                    city: searchController.currentCity.value,
                                   ),
                                 );
                               } else {
