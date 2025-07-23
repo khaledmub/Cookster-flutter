@@ -146,11 +146,10 @@ class VisitProfileController extends GetxController {
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       print('PRINTING THE USER ID: $userId');
       try {
+        // Set loading state and clear previous data
         isLoading.value = true;
-        visitProfile.value = null;
-
-        // Reset like state when fetching new profile
-        resetLikeState();
+        visitProfile.value = null; // Clear previous profile data
+        resetLikeState(); // Clear like-related states
 
         final response = await ApiClient.getRequest(
           "${EndPoints.userProfile}?id=$userId",
@@ -170,10 +169,17 @@ class VisitProfileController extends GetxController {
             currentUserId.value,
           ); // Ensure currentUserId is available
         } else {
-          Get.snackbar("Error", "Failed to load profile");
+          ScaffoldMessenger.of(Get.context!).showSnackBar(
+            SnackBar(
+              content: Text('Error" ${response.body.toString()}'),
+              backgroundColor: Colors.red, // Optional: for error styling
+              duration: Duration(seconds: 3), // Optional: set duration
+            ),
+          );
         }
       } catch (e) {
         print("Error: $e");
+        Get.snackbar("Error", "An error occurred while fetching the profile");
       } finally {
         isLoading.value = false;
       }

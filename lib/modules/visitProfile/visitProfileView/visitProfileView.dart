@@ -46,6 +46,7 @@ class _VisitProfileViewState extends State<VisitProfileView>
 
   // Add an RxInt to track followers count locally
   RxInt localFollowersCount = 0.obs;
+  RxInt localFollowingCount = 0.obs;
   bool isLocalCountInitialized = false;
 
   String? userId;
@@ -67,6 +68,7 @@ class _VisitProfileViewState extends State<VisitProfileView>
   @override
   void initState() {
     super.initState();
+
     _initializeProfile();
     _loadLanguage();
     fetchUserId();
@@ -85,7 +87,6 @@ class _VisitProfileViewState extends State<VisitProfileView>
   }
 
   Future<void> _initializeProfile() async {
-    // Fetch user profile first
     await visitProfileController.fetchUserProfile(widget.userId);
 
     // Then initialize like status
@@ -281,6 +282,8 @@ class _VisitProfileViewState extends State<VisitProfileView>
         // Initialize the local followers count when data is first loaded
         if (!isLocalCountInitialized && user != null) {
           localFollowersCount.value = user.followers!;
+          localFollowingCount.value = user.following!;
+
           isLocalCountInitialized = true;
         }
 
@@ -403,26 +406,26 @@ class _VisitProfileViewState extends State<VisitProfileView>
                 children: [
                   InkWell(
                     onTap: () {
-                      Get.to(
+                      Get.off(
                         SocialListsScreen(
                           initialTab: SocialTab.following,
-                          userName: user.user!.name,
-                          userId: user.user!.id,
+                          userName: user?.user!.name,
+                          userId: user?.user!.id,
                         ),
                       );
                     },
                     child: ProfileStat(
-                      number: "${user!.following}",
+                      number: "${localFollowingCount}",
                       label: "Following".tr,
                     ),
                   ),
                   InkWell(
                     onTap: () {
-                      Get.to(
+                      Get.off(
                         SocialListsScreen(
                           initialTab: SocialTab.followers,
-                          userName: user.user!.name,
-                          userId: user.user!.id,
+                          userName: user?.user!.name,
+                          userId: user?.user!.id,
                         ),
                       );
                     },

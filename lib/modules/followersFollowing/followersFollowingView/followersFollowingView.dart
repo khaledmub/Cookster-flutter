@@ -131,128 +131,132 @@ class _SocialListsScreenState extends State<SocialListsScreen>
         centerTitle: true,
       ),
       body: Obx(
-            () => _controller.isLoading.value
-            ? Center(
-          child: PulseLogoLoader(
-            logoPath: "assets/images/appIconC.png",
-          ),
-        )
-            : _controller.errorMessage.isNotEmpty
-            ? Center(child: Text(_controller.errorMessage.value))
-            : Column(
-          children: [
-            // Search Bar
-            Container(
-              margin: const EdgeInsets.symmetric(
-                horizontal: 16,
-                vertical: 8,
-              ),
-              decoration: BoxDecoration(
-                color: Colors.grey[100],
-                borderRadius: BorderRadius.circular(24),
-                border: Border.all(color: Colors.grey[300]!, width: 1),
-              ),
-              child: TextField(
-                controller: _searchController,
-                style: const TextStyle(color: Colors.black),
-                decoration: InputDecoration(
-                  hintText: 'search_followers_following'.tr,
-                  hintStyle: TextStyle(color: Colors.grey[600]),
-                  prefixIcon: Icon(
-                    Icons.search,
-                    color: Colors.grey[600],
+        () =>
+            _controller.isLoading.value
+                ? Center(
+                  child: PulseLogoLoader(
+                    logoPath: "assets/images/appIconC.png",
                   ),
-                  suffixIcon: _isSearching.value
-                      ? IconButton(
-                    icon: const Icon(
-                      Icons.clear,
-                      color: Color(0xFFFFD700),
-                    ),
-                    onPressed: _clearSearch,
-                  )
-                      : null,
-                  border: InputBorder.none,
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 12,
-                  ),
-                ),
-              ),
-            ),
-
-            // Tab Bar
-            Container(
-              margin: const EdgeInsets.symmetric(horizontal: 16),
-              decoration: BoxDecoration(
-                color: Colors.grey[100],
-                borderRadius: BorderRadius.circular(25),
-                border: Border.all(color: Colors.grey[300]!, width: 1),
-              ),
-              child: TabBar(
-                controller: _tabController,
-                indicator: BoxDecoration(
-                  color: const Color(0xFFFFD700),
-                  borderRadius: BorderRadius.circular(25),
-                ),
-                indicatorSize: TabBarIndicatorSize.tab,
-                dividerColor: Colors.transparent,
-                labelColor: Colors.white,
-                unselectedLabelColor: Colors.grey[700],
-                labelStyle: const TextStyle(
-                  fontWeight: FontWeight.w600,
-                  fontSize: 14,
-                ),
-                tabs: [
-                  Tab(
-                    child: Obx(
-                          () => Container(
-                        padding:
-                        const EdgeInsets.symmetric(vertical: 8),
-                        child: Text(
-                          '${_filteredFollowers.length} ${"Followers".tr}',
+                )
+                : _controller.errorMessage.isNotEmpty
+                ? Center(child: Text(_controller.errorMessage.value))
+                : Column(
+                  children: [
+                    // Search Bar
+                    Container(
+                      margin: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.grey[100],
+                        borderRadius: BorderRadius.circular(24),
+                        border: Border.all(color: Colors.grey[300]!, width: 1),
+                      ),
+                      child: TextField(
+                        controller: _searchController,
+                        style: const TextStyle(color: Colors.black),
+                        decoration: InputDecoration(
+                          hintText: 'search_followers_following'.tr,
+                          hintStyle: TextStyle(color: Colors.grey[600]),
+                          prefixIcon: Icon(
+                            Icons.search,
+                            color: Colors.grey[600],
+                          ),
+                          suffixIcon:
+                              _isSearching.value
+                                  ? IconButton(
+                                    icon: const Icon(
+                                      Icons.clear,
+                                      color: Color(0xFFFFD700),
+                                    ),
+                                    onPressed: _clearSearch,
+                                  )
+                                  : null,
+                          border: InputBorder.none,
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 12,
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                  Tab(
-                    child: Obx(
-                          () => Container(
-                        padding:
-                        const EdgeInsets.symmetric(vertical: 8),
-                        child: Text(
-                          '${_filteredFollowing.length} ${"Following".tr}',
+
+                    // Tab Bar
+                    Container(
+                      margin: const EdgeInsets.symmetric(horizontal: 16),
+                      decoration: BoxDecoration(
+                        color: Colors.grey[100],
+                        borderRadius: BorderRadius.circular(25),
+                        border: Border.all(color: Colors.grey[300]!, width: 1),
+                      ),
+                      child: TabBar(
+                        controller: _tabController,
+                        indicator: BoxDecoration(
+                          color: const Color(0xFFFFD700),
+                          borderRadius: BorderRadius.circular(25),
                         ),
+                        indicatorSize: TabBarIndicatorSize.tab,
+                        dividerColor: Colors.transparent,
+                        labelColor: Colors.white,
+                        unselectedLabelColor: Colors.grey[700],
+                        labelStyle: const TextStyle(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 14,
+                        ),
+                        tabs: [
+                          Tab(
+                            child: Obx(
+                              () => Container(
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 8,
+                                ),
+                                child: Text(
+                                  '${_filteredFollowers.length} ${"Followers".tr}',
+                                ),
+                              ),
+                            ),
+                          ),
+                          Tab(
+                            child: Obx(
+                              () => Container(
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 8,
+                                ),
+                                child: Text(
+                                  '${_filteredFollowing.length} ${"Following".tr}',
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                  ),
-                ],
-              ),
-            ),
 
-            const SizedBox(height: 16),
+                    const SizedBox(height: 16),
 
-            // Tab dachContent
-            Expanded(
-              child: TabBarView(
-                controller: _tabController,
-                children: [
-                  Obx(
-                        () => _buildUserList(
-                      _filteredFollowers,
-                      isFollowers: true,
+                    // Tab dachContent
+                    Expanded(
+                      child: TabBarView(
+                        controller: _tabController,
+                        children: [
+                          Obx(
+                            () => _buildUserList(
+                              _filteredFollowers,
+                              isFollowers: true,
+                            ),
+                          ),
+                          Obx(
+                            () => _buildUserList(
+                              _filteredFollowing,
+                              isFollowers: false,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                  Obx(
-                        () => _buildUserList(
-                      _filteredFollowing,
-                      isFollowers: false,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
+                  ],
+                ),
       ),
     );
   }
@@ -288,8 +292,9 @@ class _SocialListsScreenState extends State<SocialListsScreen>
     }
 
     return FutureBuilder<String?>(
-      future: SharedPreferences.getInstance()
-          .then((prefs) => prefs.getString('user_id')),
+      future: SharedPreferences.getInstance().then(
+        (prefs) => prefs.getString('user_id'),
+      ),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
@@ -306,7 +311,7 @@ class _SocialListsScreenState extends State<SocialListsScreen>
 
             return InkWell(
               onTap: () {
-                Get.to(() => VisitProfileView(userId: user.id));
+                Get.off(() => VisitProfileView(userId: user.id));
               },
               child: Container(
                 margin: const EdgeInsets.only(bottom: 12),
@@ -330,29 +335,30 @@ class _SocialListsScreenState extends State<SocialListsScreen>
                         ),
                       ),
                       child: ClipOval(
-                        child: user.image != null
-                            ? Image.network(
-                          '${Common.profileImage}/${user.image!}',
-                          fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) {
-                            return Container(
-                              color: Colors.grey[200],
-                              child: Icon(
-                                Icons.person,
-                                color: Colors.grey[600],
-                                size: 24,
-                              ),
-                            );
-                          },
-                        )
-                            : Container(
-                          color: Colors.grey[200],
-                          child: Icon(
-                            Icons.person,
-                            color: Colors.grey[600],
-                            size: 24,
-                          ),
-                        ),
+                        child:
+                            user.image != null
+                                ? Image.network(
+                                  '${Common.profileImage}/${user.image!}',
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (context, error, stackTrace) {
+                                    return Container(
+                                      color: Colors.grey[200],
+                                      child: Icon(
+                                        Icons.person,
+                                        color: Colors.grey[600],
+                                        size: 24,
+                                      ),
+                                    );
+                                  },
+                                )
+                                : Container(
+                                  color: Colors.grey[200],
+                                  child: Icon(
+                                    Icons.person,
+                                    color: Colors.grey[600],
+                                    size: 24,
+                                  ),
+                                ),
                       ),
                     ),
 
@@ -412,8 +418,9 @@ class _SocialListsScreenState extends State<SocialListsScreen>
         // Update the local lists to remove the user
         if (isFollowers) {
           _filteredFollowers.removeWhere((follower) => follower.id == user.id);
-          _controller.followers
-              .removeWhere((follower) => follower.id == user.id);
+          _controller.followers.removeWhere(
+            (follower) => follower.id == user.id,
+          );
         } else {
           _filteredFollowing.removeWhere((follow) => follow.id == user.id);
           _controller.following.removeWhere((follow) => follow.id == user.id);
