@@ -798,7 +798,7 @@ class _ProfileViewState extends State<ProfileView>
                     // Close the bottom sheet first
                     Navigator.pop(bottomSheetContext);
                     // Call deleteVideo with the original context
-                    final bool isDeleted = await deleteVideo(
+                    final bool isDeleted = await profileController.deleteVideo(
                       context,
                       videoId,
                       userId,

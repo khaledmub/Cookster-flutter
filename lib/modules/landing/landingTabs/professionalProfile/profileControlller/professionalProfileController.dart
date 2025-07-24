@@ -329,6 +329,127 @@ class ProfessionalProfileController extends GetxController {
     selectedIndex.value = index;
   }
 
+  Future<bool> deleteVideo(
+      BuildContext context,
+      String videoId,
+      String frondUserId,
+      ) async {
+    final String endpoint = '${EndPoints.deleteVideo}?id=$videoId';
+    bool isDeleted = false;
+
+    // Check user authorization
+    final prefs = await SharedPreferences.getInstance();
+    final String? userId = prefs.getString('user_id');
+    if (userId == null || userId != frondUserId) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('You are not authorized to delete this video'),
+          behavior: SnackBarBehavior.floating,
+          margin: EdgeInsets.only(top: 16.0, left: 16.0, right: 16.0),
+          duration: Duration(seconds: 3),
+        ),
+      );
+      return false;
+    }
+
+    // Show confirmation dialog
+    await AwesomeDialog(
+      context: context,
+      dialogType: DialogType.warning,
+      animType: AnimType.scale,
+      title: 'delete_video'.tr,
+      desc: 'sure_to_delete'.tr,
+      btnCancelOnPress: () {
+        // Return false if the user cancels
+        isDeleted = false;
+      },
+      btnOkOnPress: () async {
+        try {
+          print(
+            'Step 1: Initiating API call to delete video with ID: $videoId',
+          );
+          // Step 1: Make API call to delete video
+          final response = await ApiClient.deleteRequest(endpoint);
+
+          print(
+            'Step 2: API call completed. Status code: ${response.statusCode}',
+          );
+          print('API response body: ${response.body}');
+
+          // Parse the API response
+          final responseData = jsonDecode(response.body);
+          print('Step 3: API response parsed successfully');
+
+          // Assume the API returns a 'message' field in the JSON response
+          final String apiMessage =
+              responseData['message'] ?? 'No message provided by API';
+          print('Step 4: Extracted API message: $apiMessage');
+
+          if (response.statusCode == 201) {
+            print(
+              'Step 5: API call successful. Proceeding to delete Firestore document',
+            );
+            // Step 2: Delete video document from Firestore
+            await FirebaseFirestore.instance
+                .collection('videos')
+                .doc(videoId)
+                .delete();
+            print('Step 6: Firestore document deleted successfully');
+
+            // Show success message from API at the top
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(apiMessage),
+                behavior: SnackBarBehavior.floating,
+                margin: EdgeInsets.only(top: 16.0, left: 16.0, right: 16.0),
+                duration: Duration(seconds: 3),
+              ),
+            );
+            print('Step 7: Success SnackBar displayed');
+
+            getUserDetails();
+
+            // Get.offAll(Landing());
+
+            // Mark deletion as successful
+            isDeleted = true;
+            print('Step 8: Deletion marked as successful');
+          } else {
+            print(
+              'Step 5: API call failed with status code: ${response.statusCode}',
+            );
+            // API call failed, show the API's error message at the top
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(apiMessage),
+                behavior: SnackBarBehavior.floating,
+                margin: EdgeInsets.only(top: 16.0, left: 16.0, right: 16.0),
+                duration: Duration(seconds: 3),
+              ),
+            );
+            print('Step 6: Error SnackBar displayed for API failure');
+          }
+        } catch (e) {
+          print('Error occurred during deletion: $e');
+          // Show error message for any exception at the top
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error deleting video: $e'),
+              behavior: SnackBarBehavior.floating,
+              margin: EdgeInsets.only(top: 16.0, left: 16.0, right: 16.0),
+              duration: Duration(seconds: 3),
+            ),
+          );
+          print('Error SnackBar displayed');
+        }
+      },
+      btnOkText: 'yes_delete'.tr,
+      btnCancelText: 'cancel'.tr,
+    ).show();
+
+    return isDeleted;
+  }
+
   Future<void> getUserDetails() async {
     try {
       print("Step 1: Starting getUserDetails method.");
