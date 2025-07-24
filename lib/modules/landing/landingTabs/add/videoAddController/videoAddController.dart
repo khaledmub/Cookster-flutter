@@ -370,6 +370,60 @@ class VideoAddController extends GetxController {
     print("Selected Location: ${selectedCountry.value} (ID: $cityId)");
   }
 
+  void validateSelectedCountry() {
+    final ProfileController profileController = Get.find();
+    final CityController cityController = Get.find<CityController>();
+
+    // Validate selected country
+    final Map<String, int> countryMap = {};
+    final List<String> countryName =
+        profileController.videoUploadSettings.value!.countries!.map((country) {
+          countryMap[country.name!] = country.id!;
+          return country.name!;
+        }).toList();
+
+    if (selectedCountry.value.isNotEmpty &&
+        countryName.contains(selectedCountry.value)) {
+      // If country exists in the list, set the corresponding ID
+      int? countryId = countryMap[selectedCountry.value];
+      if (countryId != null) {
+        selectedCountryId.value = countryId; // Set the country ID
+      }
+    } else {
+      // If country does not exist, clear it and related fields
+      selectedCountry.value = '';
+      selectedCountryId.value = 0; // Clear country ID
+      selectedCity.value = ''; // Clear city
+      selectedCityId = 0; // Clear city ID
+    }
+
+    // Validate selected city
+    if (selectedCountry.value.isNotEmpty && selectedCity.value.isNotEmpty) {
+      final Map<String, int> cityMap = {};
+      final List<String> cityName =
+          cityController.cityList.map((city) {
+            cityMap[city.name!] = city.id!;
+            return city.name!;
+          }).toList();
+
+      if (cityName.contains(selectedCity.value)) {
+        // If city exists in the list, set the corresponding ID
+        int? cityId = cityMap[selectedCity.value];
+        if (cityId != null) {
+          selectedCityId = cityId; // Set the city ID
+        }
+      } else {
+        // If city does not exist, clear it
+        selectedCity.value = '';
+        selectedCityId = 0; // Clear city ID
+      }
+    } else {
+      // If no country is selected, clear city and city ID
+      selectedCity.value = '';
+      selectedCityId = 0;
+    }
+  }
+
   void setVisibility(VisibilityOption option) {
     selectedVisibility.value = option;
     publishType.value = selectedVisibility.value.value.toString();

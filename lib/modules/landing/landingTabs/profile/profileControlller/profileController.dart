@@ -326,17 +326,7 @@ class ProfileController extends GetxController {
       print("Step 2: isLoading set to true.");
 
       print("Step 3: Sending GET request to fetch user details.");
-      var response = await ApiClient.getRequest(
-        EndPoints.getUserProfile,
-      ).timeout(
-        const Duration(seconds: 10),
-        onTimeout: () {
-          print("Step 4: Request timed out. Navigating to noInternet screen.");
-          Get.offAllNamed('/noInternet');
-          throw TimeoutException("The connection has timed out!");
-        },
-      );
-
+      var response = await ApiClient.getRequest(EndPoints.getUserProfile);
       print(
         "Step 5: Response received with status code: ${response.statusCode}",
       );

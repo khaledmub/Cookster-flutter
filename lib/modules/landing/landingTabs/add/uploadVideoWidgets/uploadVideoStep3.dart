@@ -11,6 +11,9 @@ class uploadVideoStep3 extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      controller.validateSelectedCountry();
+    });
     return Column(
       children: [
         Container(
@@ -208,7 +211,7 @@ class uploadVideoStep3 extends StatelessWidget {
                     return Text(""); // Return empty text if both are empty
                   } else if (city.isEmpty) {
                     return Text(country); // Show only country if city is empty
-                  } else if (country.isEmpty) {
+                  } else if (country.isEmpty ) {
                     return Text(city); // Show only city if country is empty
                   } else {
                     return Text(
