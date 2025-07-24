@@ -25,14 +25,14 @@ const Map<String, String> en = {
   "add your personal info": "Add your personal info",
   "select_your_account_type": "Select your account type",
   "password_limit":
-      "Your Password should contain at least 8 characters, including numbers or digits and 1 upper case letter",
+  "Your Password should contain at least 8 characters, including numbers or digits and 1 upper case letter",
   "or sign up with": "or sign up with",
   "signUpSubtitle":
-      "Create a profile easily, create your own contents, follow other accounts and more",
+  "Create a profile easily, create your own contents, follow other accounts and more",
   "sign up": "Sign Up",
   "sign in now": "Sign In Now",
   "signInSubtitle":
-      "Explore delicious recipes, food vlogs, and cooking tips from food lovers worldwide.",
+  "Explore delicious recipes, food vlogs, and cooking tips from food lovers worldwide.",
   "password": "Password",
   "sign in": "Sign In",
   "forget_password": "Forgot Password",
@@ -53,7 +53,7 @@ const Map<String, String> en = {
   "Top Rated": "Top Rated",
   "Search": "Search",
   "type_at_least_search":
-      "Type to search bar above to find what you're looking for",
+  "Type to search bar above to find what you're looking for",
   "search_video": "Search for Videos, Businesses and top Rated videos",
   "Find Business": "Find Business",
   "Search Radius": "Search Radius",
@@ -79,7 +79,7 @@ const Map<String, String> en = {
   "processing_video": "Processing Video",
   "Discard changes": "Discard changes",
   "If you go back now, you'll lose your edits":
-      "If you go back now, you'll lose your edits",
+  "If you go back now, you'll lose your edits",
   "Discard": "Discard",
   "Saved Reels": "Saved Posts",
   "Followers": "Followers",
@@ -109,13 +109,13 @@ const Map<String, String> en = {
   "Please select a city before closing": "Please select a city before closing",
   "Change Language": "Change Language",
   "Password must be at least 8 characters":
-      "Password must be at least 8 characters",
+  "Password must be at least 8 characters",
   "Password must contain at least one capital letter":
-      "Password must contain at least one capital letter",
+  "Password must contain at least one capital letter",
   "Password must contain at least one special character":
-      "Password must contain at least one special character",
+  "Password must contain at least one special character",
   "go_back_warning":
-      "If you go back now, you'll lose your edits. es ki trranslation do",
+  "If you go back now, you'll lose your edits. es ki trranslation do",
   "cancel": "Cancel",
   "discard_changes": "Discard Changes",
   "type_text": "Type your text",
@@ -174,7 +174,7 @@ const Map<String, String> en = {
   ////
   "discard_changes_title": "Discard Changes?",
   "discard_changes_message":
-      "You have unsaved changes that will be lost if you leave this screen.",
+  "You have unsaved changes that will be lost if you leave this screen.",
   "stay_button": "Stay",
   "discard_button": "Discard",
   "select_country_city_error": "Please select both Country and City",
@@ -198,7 +198,7 @@ const Map<String, String> en = {
   "update_failed_message": "Failed to update video. Status: ",
   "fetch_site_settings_error": "Failed to fetch site settings",
   "fetch_site_settings_error_message":
-      "An error occurred while fetching site settings",
+  "An error occurred while fetching site settings",
   "select_city_dialog_label": "Select City",
   "success_title": "Success",
   "success_message": "Video uploaded successfully!",
@@ -216,11 +216,11 @@ const Map<String, String> en = {
   "select-business-type": "Select business type",
   "current_plan": "Current Plan",
   "domain_repeat_error":
-      "Domain should not contain repeated segments (e.g., com.com)",
+  "Domain should not contain repeated segments (e.g., com.com)",
   ////
   "location_empty_error": "Location cannot be empty",
   "website_invalid_error":
-      "Enter a valid website URL (e.g., https://example.com)",
+  "Enter a valid website URL (e.g., https://example.com)",
   "dob_empty_error": "Please enter your date of birth",
   "dob_format_error": "Enter a valid date in YYYY-MM-DD format",
   "dob_future_error": "Date of birth cannot be in the future",
@@ -233,17 +233,17 @@ const Map<String, String> en = {
   "password_required_error": "Password cannot be empty",
   "password_length_error": "Password must be at least 8 characters long",
   "password_uppercase_error":
-      "Password must contain at least one capital letter",
+  "Password must contain at least one capital letter",
   "password_special_char_error":
-      "Password must contain at least one special character",
+  "Password must contain at least one special character",
   "name_required_error":
-      "Enter your name to personalize your profile and connect with others.",
+  "Enter your name to personalize your profile and connect with others.",
   "name_length_error": "Name must be at least 3 characters long.",
   "name_format_error": "Name can only contain letters, numbers, and spaces.",
   "phone_required_error": "Please enter your phone number",
   "contact_phone_required_error": "Please enter your contact phone number",
   "phone_invalid_error":
-      "Enter a valid phone number (7-14 digits, no alphabets)",
+  "Enter a valid phone number (7-14 digits, no alphabets)",
   "business_type_missing_error": "Please select a valid Business Type",
   "form_general_error": "Validation failed",
   "form_unknown_error": "Something went wrong",
@@ -268,9 +268,9 @@ const Map<String, String> en = {
   "why-not-see-video": "Why don't you want to see this video?",
   "additional-comments": "Additional Comments",
   "provide-report-details":
-      "Please provide additional details about your report...",
+  "Please provide additional details about your report...",
   "report-community-standards":
-      "Your report helps us maintain community standards. Thank you.",
+  "Your report helps us maintain community standards. Thank you.",
   "submit-report": "Submit Report",
   "continue": "Continue",
   "error": "Error",
@@ -288,7 +288,7 @@ const Map<String, String> en = {
   "package_amount_prefix": "SAR",
   "package_duration_suffix": "Month/s",
   "sure_to_delete":
-      "Are you sure you want to delete this video? All content related to this video will be deleted and cannot be recovered.",
+  "Are you sure you want to delete this video? All content related to this video will be deleted and cannot be recovered.",
   "yes_delete": "Yes, Delete",
   "delete_video": "Delete Video",
   "saved_videos": "Saved Videos",
@@ -296,7 +296,7 @@ const Map<String, String> en = {
   "removed": "Removed",
   "no_results_found": "No results found",
   "no_followers": "No followers yet",
-  "no_following": "No following anyone yet",
+  "no_following": "No following yet",
   "try_different": "Try a different search term",
   "search_followers_following": "Search followers and following",
   "enter_email": "Enter your email to receive an OTP for password reset.",
@@ -315,7 +315,7 @@ const Map<String, String> en = {
   "close": "Close",
   "whatsapp_not_installed": "WhatsApp not installed or URL scheme unsupported",
   "google_maps_not_installed":
-      "Google Maps not installed or URL scheme unsupported",
+  "Google Maps not installed or URL scheme unsupported",
   "browser_not_installed": "Browser not installed or URL scheme unsupported",
   "error_launching_whatsapp": "Error launching WhatsApp",
   "error_launching_google_maps": "Error launching Google Maps",
@@ -347,11 +347,11 @@ const Map<String, String> en = {
   "view": "View",
   "package_expired": "Subscription Expired",
   "your_package_has_been_expired":
-      "Your subscription has expired. As a result, your videos are no longer visible to other users, and you are unable to upload new content.",
+  "Your subscription has expired. As a result, your videos are no longer visible to other users, and you are unable to upload new content.",
   "renew": "Renew",
   "exit_app": "Exit App",
   "are_you_sure_you_want_to_exit_the_app":
-      "Are you sure you want to exit the app?",
+  "Are you sure you want to exit the app?",
   "processing": "Processing",
   "recent_searches": "Recent Searches",
   "unfollowed": "Unfollowed",
@@ -360,14 +360,14 @@ const Map<String, String> en = {
   "personal": "Personal",
   "no_internet": "Server Not Responding",
   "no_internet_description":
-      "We’re unable to connect to the server. Please try again later.",
+  "We’re unable to connect to the server. Please try again later.",
   "retry_button": "Retry",
   "retrying_button": "Checking...",
   "snackbar_title": "Server Unavailable",
   "snackbar_message": "Unable to reach the server. Please try again later.",
   "post": "Post",
   "enter_inform_to_signup":
-      "Please enter your information to complete the signup.",
+  "Please enter your information to complete the signup.",
   "select_account_type": "Select Company Type",
   "pick_a_location": "Pick a Location",
   "search_location": "Search location",
@@ -376,7 +376,7 @@ const Map<String, String> en = {
   "permission_denied": "Permission Denied",
   "location_access_required": "Location access is required.",
   "permissions_permanently_denied":
-      "Location permissions are permanently denied. Please enable them from settings.",
+  "Location permissions are permanently denied. Please enable them from settings.",
   "failed_to_get_location": "Failed to get location. Try again.",
   "user_location_not_found": "User location not found!",
   "confirm_location": "Confirm Location",
@@ -390,7 +390,7 @@ const Map<String, String> en = {
   "please_select_business_type": "Please select a business type.",
   "please_select_account_type": "Please select a company type.",
   "search_not_found_result":
-      "We couldn't find any matches for your search. Please try different keywords.We couldn't find any matches for your search. Please try different keywords.",
+  "We couldn't find any matches for your search. Please try different keywords.We couldn't find any matches for your search. Please try different keywords.",
   "no_music": "No Music",
   "select_music": "Select Music",
   "Premium": "Premium",
@@ -399,12 +399,12 @@ const Map<String, String> en = {
   "days": "Days",
   "sure_to_delete_account": "Are you sure you want to delete your account?",
   "sure_to_delete_description":
-      "This action is permanent and will remove all your data, including your profile, posts, and any saved content. Once deleted, your account cannot be restored.",
+  "This action is permanent and will remove all your data, including your profile, posts, and any saved content. Once deleted, your account cannot be restored.",
   "payment_error": "Payment Error",
   "block_user": "Block User",
   "block": "Block",
   "block_user_description":
-      "They won't be notified that you blocked them. Blocked users can't interact with your content.",
+  "They won't be notified that you blocked them. Blocked users can't interact with your content.",
   "bad_word_error": "Entered text contains inappropriate words",
   "Delete Account": "Delete Account",
   "contact_email_required": "Contact Email is required",
@@ -419,14 +419,14 @@ const Map<String, String> en = {
   "unblock": "Unblock",
   "chat_support": "Chat Support",
   "basic_description":
-      "Basic Sponsored videos are promoted to users in selected cities, even if they do not follow the video uploader. Sponsored videos appear after every few normal videos to boost visibility and reach a wider audience.",
+  "Basic Sponsored videos are promoted to users in selected cities, even if they do not follow the video uploader. Sponsored videos appear after every few normal videos to boost visibility and reach a wider audience.",
   "premium_description":
-      "Premium Sponsored Videos receive the highest visibility. They are promoted more aggressively and appear alongside or after multiple sponsored videos. Ideal for brands or creators who want maximum exposure in selected cities.",
+  "Premium Sponsored Videos receive the highest visibility. They are promoted more aggressively and appear alongside or after multiple sponsored videos. Ideal for brands or creators who want maximum exposure in selected cities.",
   "country": "Country",
   "video_title_length_error": "Title must not exceed 70 characters",
   // 'location_access_required': 'Location Access Required',
   'location_description':
-      'We need your location to find nearby businesses. Please enable location services or grant permission.',
+  'We need your location to find nearby businesses. Please enable location services or grant permission.',
   'allow_location': 'Allow Location',
   'open_settings': 'Open Settings',
   "go_live": "Go Live",
@@ -440,12 +440,12 @@ const Map<String, String> en = {
   "be_the_first_to_go_live": "Be the first to go live!",
   "creating_livestream": "Creating Livestream...",
   "please_wait_while_we_set_up_your_stream":
-      "Please wait while we set up your stream",
+  "Please wait while we set up your stream",
   "end": "End",
   "leave": "Leave",
   "live_comments": "Live Comments",
   "are_you_sure_end_livestream":
-      "Are you sure you want to end the livestream for everyone?",
+  "Are you sure you want to end the livestream for everyone?",
   "end_livestream": "End Livestream",
   "join": "Join",
   "message_label": "Message",
@@ -467,9 +467,9 @@ const Map<String, String> en = {
   "end_live_stream_title": "End Live Stream?",
   "leave_live_stream_title": "Leave Live Stream?",
   "end_live_stream_message":
-      "Are you sure you want to end this live stream? All participants will be disconnected.",
+  "Are you sure you want to end this live stream? All participants will be disconnected.",
   "leave_live_stream_message":
-      "Are you sure you want to leave this live stream?",
+  "Are you sure you want to leave this live stream?",
   "cancel_button": "Cancel",
   "end_stream_button": "End Stream",
   "leave_button": "Leave",
@@ -512,5 +512,5 @@ const Map<String, String> en = {
   "hours_ago": "hours ago",
   "unknown_time": "unknown time",
   "done_to_add_hashtag":
-      "Write the word, press ' Done' button from keyboard then hashtaq will be created and you can add multiple hashtaqs",
+  "Write the word, press ' Done' button from keyboard then hashtaq will be created and you can add multiple hashtaqs",
 };

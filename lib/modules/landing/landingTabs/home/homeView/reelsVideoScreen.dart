@@ -96,12 +96,14 @@ class _VideoReelScreenState extends State<VideoReelScreen>
   }
 
   String _language = 'en'; // Default to English
+  String userIdFromStorage = ''; // Default to English
   // Load language from SharedPreferences
   Future<void> _loadLanguage() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
       _language =
           prefs.getString('language') ?? 'en'; // Default to 'en' if not set
+      userIdFromStorage = prefs.getString('user_id') ?? '';
     });
   }
 
@@ -970,11 +972,11 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                           isAuthenticated: isAuthenticated,
                           onTap: () {
                             isAuthenticated
-                                ? Get.to(ChatListScreen(userId: userId!))?.then(
-                                  (_) {
-                                    controller.restoreVideoState();
-                                  },
-                                )
+                                ? Get.to(
+                                  ChatListScreen(userId: userIdFromStorage),
+                                )?.then((_) {
+                                  controller.restoreVideoState();
+                                })
                                 : Get.toNamed(AppRoutes.signIn);
                           },
                         ),
