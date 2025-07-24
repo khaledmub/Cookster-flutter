@@ -341,14 +341,19 @@ class _VideoPreviewScreenState extends State<VideoPreviewScreen> {
                                         .validate()) {
                                       videoAddController.nextStep();
                                     } else {
-                                      Get.snackbar(
-                                        "error_title".tr,
-                                        "step1_invalid_form_error".tr,
-                                        snackPosition: SnackPosition.BOTTOM,
-                                        backgroundColor: Colors.red.withOpacity(
-                                          0.8,
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        SnackBar(
+                                          content: Text("step1_invalid_form_error".tr),
+                                          backgroundColor: Colors.red.withOpacity(0.8),
+                                          behavior: SnackBarBehavior.floating,
+                                          action: SnackBarAction(
+                                            label: "error_title".tr,
+                                            textColor: Colors.white,
+                                            onPressed: () {
+                                              // Optional: Add action functionality here
+                                            },
+                                          ),
                                         ),
-                                        colorText: Colors.white,
                                       );
                                     }
                                   } else if (videoAddController
@@ -361,14 +366,19 @@ class _VideoPreviewScreenState extends State<VideoPreviewScreen> {
                                         .validate()) {
                                       videoAddController.nextStep();
                                     } else {
-                                      Get.snackbar(
-                                        "error_title".tr,
-                                        "step2_invalid_form_error".tr,
-                                        snackPosition: SnackPosition.BOTTOM,
-                                        backgroundColor: Colors.red.withOpacity(
-                                          0.8,
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        SnackBar(
+                                          content: Text("step2_invalid_form_error".tr),
+                                          backgroundColor: Colors.red.withOpacity(0.8),
+                                          behavior: SnackBarBehavior.floating, // Optional: makes it appear at the bottom
+                                          action: SnackBarAction(
+                                            label: "error_title".tr, // Using the translated title as the action label
+                                            textColor: Colors.white,
+                                            onPressed: () {
+                                              // Optional: Add action functionality here
+                                            },
+                                          ),
                                         ),
-                                        colorText: Colors.white,
                                       );
                                     }
                                   } else if (videoAddController

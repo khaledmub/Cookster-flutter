@@ -688,29 +688,26 @@ class VideoAddController extends GetxController {
 
         dialog.dismiss();
 
-        if (response.statusCode == 201) {
+        if (response.statusCode == 201 || response.statusCode == 200) {
           print("✅ Video uploaded successfully!");
           print("Response: ${response.body}");
           isVideoUploading.value = false;
           isUploadSuccessful.value = true;
 
-          AwesomeDialog(
-            context: context,
-            dialogType: DialogType.success,
-            title: 'upload_complete_title'.tr,
-            desc: 'upload_success_message'.tr,
-            dismissOnTouchOutside: false,
-            autoDismiss: true,
-            onDismissCallback: (_) {
-              resetController();
-              Get.offAll(() => Landing());
-            },
-          )..show();
+          resetController();
+          Get.offAll(() => Landing(initialIndex: 3));
 
-          Future.delayed(Duration(seconds: 2), () {
-            resetController();
-            Get.offAll(() => Landing(initialIndex: 3));
-          });
+          // AwesomeDialog(
+          //   context: context,
+          //   dialogType: DialogType.success,
+          //   title: 'upload_complete_title'.tr,
+          //   desc: 'upload_success_message'.tr,
+          //   dismissOnTouchOutside: false,
+          //   autoDismiss: true,
+          //   onDismissCallback: (_) {
+          //
+          //   },
+          // )..show();
         } else {
           print("❌ Failed to upload video. Status: ${response.statusCode}");
           print("Response: ${response.body}");
@@ -870,23 +867,30 @@ class VideoAddController extends GetxController {
           isVideoUploading.value = false;
           isUploadSuccessful.value = true;
 
-          AwesomeDialog(
-            context: context,
-            dialogType: DialogType.success,
-            title: 'upload_complete_title'.tr,
-            desc: 'upload_success_message'.tr,
-            dismissOnTouchOutside: false,
-            autoDismiss: true,
-            onDismissCallback: (_) {
-              resetController();
-              Get.offAll(() => Landing());
-            },
-          )..show();
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text("upload_success_message".tr),
+              backgroundColor: Colors.green,
+              behavior: SnackBarBehavior.floating,
+              // Optional: makes it appear at the bottom
+              action: SnackBarAction(
+                label: "ok".tr,
+                // Using the translated title as the action label
+                textColor: Colors.white,
+                onPressed: () {
+                  // Optional: Add action functionality here
+                },
+              ),
+            ),
+          );
 
-          Future.delayed(Duration(seconds: 2), () {
-            resetController();
-            Get.offAll(() => Landing(initialIndex: 3));
-          });
+          resetController();
+          Get.offAll(() => Landing(initialIndex: 3));
+
+          // Future.delayed(Duration(seconds: 2), () {
+          //   resetController();
+          //   Get.offAll(() => Landing(initialIndex: 3));
+          // });
         } else {
           print("❌ Failed to upload video. Status: ${response.statusCode}");
           print("Response: ${response.body}");
