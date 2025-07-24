@@ -164,6 +164,12 @@ class VideoAddController extends GetxController {
     print('Fetched entity_details: ${entityDetails.value}');
   }
 
+  Future<void> loadLocationData() async {
+    final prefs = await SharedPreferences.getInstance();
+    selectedCountry.value = prefs.getString('currentCountry') ?? 'Unknown';
+    selectedCity.value = prefs.getString('currentCity') ?? 'Unknown';
+  }
+
   final step1key = GlobalKey<FormState>();
   final step2key = GlobalKey<FormState>();
   final step3key = GlobalKey<FormState>();
@@ -1103,6 +1109,7 @@ class VideoAddController extends GetxController {
     await fetchSiteSettings();
     print("Fetching entities");
     await fetchEntity();
+    // await loadLocationData();
     super.onInit();
   }
 

@@ -105,6 +105,12 @@ class UserSearchController extends GetxController {
     await _saveRecentSearches();
   }
 
+  Future<void> saveLocationData() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('currentCountry', currentCountry.value);
+    await prefs.setString('currentCity', currentCity.value);
+  }
+
   // Fetch search results
   Future<void> fetchSearchResults(
     String keywords, {

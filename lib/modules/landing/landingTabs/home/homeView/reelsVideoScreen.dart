@@ -763,6 +763,71 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                                             },
                                           ),
                                         ),
+
+                                      Positioned(
+                                        top: Get.height * 0.05,
+                                        right: 0,
+                                        child: GestureDetector(
+                                          onTap: () {
+                                            Get.to(
+                                              () => SearchView(
+                                                isGeneral:
+                                                    controller
+                                                                .selectedType
+                                                                .value ==
+                                                            "General"
+                                                        ? 1
+                                                        : 0,
+                                              ),
+                                            )!.then((_) {
+                                              controller.disposeControllers();
+                                              controller.fetchVideos(
+                                                city:
+                                                    controller
+                                                        .currentCity
+                                                        .value,
+                                                country:
+                                                    controller
+                                                        .currentCountry
+                                                        .value,
+                                              );
+                                            });
+                                          },
+                                          child: Container(
+                                            margin: EdgeInsets.symmetric(
+                                              horizontal: 16,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color: Colors.transparent,
+                                              shape: BoxShape.circle,
+                                            ),
+                                            child: ClipRRect(
+                                              borderRadius:
+                                                  BorderRadius.circular(100),
+
+                                              child: BackdropFilter(
+                                                filter: ImageFilter.blur(
+                                                  sigmaX: 10.0,
+                                                  sigmaY: 10.0,
+                                                ),
+                                                child: Container(
+                                                  padding: EdgeInsets.all(6),
+                                                  decoration: BoxDecoration(
+                                                    color: Colors.black
+                                                        .withOpacity(0.3),
+                                                    shape: BoxShape.circle,
+                                                  ),
+                                                  child: Icon(
+                                                    Icons.search,
+                                                    color: Colors.white,
+                                                    size: 40,
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
                                     ],
                                   );
                                 },
@@ -996,13 +1061,6 @@ class _VideoReelScreenState extends State<VideoReelScreen>
   String? selectedCountry;
   String? selectedCity;
 
-  String _formatDuration(Duration duration) {
-    String twoDigits(int n) => n.toString().padLeft(2, '0');
-    final minutes = twoDigits(duration.inMinutes.remainder(60));
-    final seconds = twoDigits(duration.inSeconds.remainder(60));
-    return '$minutes:$seconds';
-  }
-
   void _showBottomSheet(BuildContext context) {
     showModalBottomSheet(
       context: context,
@@ -1098,10 +1156,14 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                         Navigator.pop(context);
                         controller.currentCity.value == ""
                             ? null
-                            : controller.fetchVideos(
-                              city: controller.currentCity.value,
-                              country: controller.currentCountry.value,
-                            );
+                            : controller
+                                .fetchVideos(
+                                  city: controller.currentCity.value,
+                                  country: controller.currentCountry.value,
+                                )
+                                .then((value) {
+                                  controller.saveLocationData();
+                                });
                       },
                     ),
                   ],

@@ -46,7 +46,9 @@ class _VideoPreviewScreenState extends State<VideoPreviewScreen> {
         (widget.isImage == null || widget.isImage == "")
             ? "0"
             : widget.isImage!;
-    videoAddController.tagsList.value = []; // Set tagsList to an empty list
+    // videoAddController.tagsList.value = []; // Set tagsList to an empty list
+
+    videoAddController.loadLocationData();
   }
 
   // @override

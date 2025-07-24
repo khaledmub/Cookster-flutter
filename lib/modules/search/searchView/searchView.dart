@@ -1098,6 +1098,7 @@ class _SearchViewState extends State<SearchView>
                     AppButton(
                       text: "Submit",
                       onTap: () {
+                        searchController.saveLocationData();
                         Navigator.pop(context);
                       },
                     ),

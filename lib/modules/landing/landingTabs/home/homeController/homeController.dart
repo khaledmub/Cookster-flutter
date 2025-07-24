@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:get/get.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:video_player/video_player.dart';
 import 'package:chewie/chewie.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
@@ -236,6 +237,19 @@ class HomeController extends GetxController with WidgetsBindingObserver {
           placemarks.isNotEmpty
               ? (placemarks.first.country ?? 'Unknown').trim()
               : 'Unknown';
+      currentCity.value =
+          placemarks.isNotEmpty
+              ? (placemarks.first.locality ?? 'Unknown').trim()
+              : 'Unknown';
+      currentCountry.value =
+          placemarks.isNotEmpty
+              ? (placemarks.first.country ?? 'Unknown').trim()
+              : 'Unknown';
+
+      // Save to SharedPreferences
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('currentCity', currentCity.value);
+      await prefs.setString('currentCountry', currentCountry.value);
 
       hasLocationBeenFetched.value = true;
       print(
@@ -430,6 +444,12 @@ class HomeController extends GetxController with WidgetsBindingObserver {
         });
       });
     }
+  }
+
+  Future<void> saveLocationData() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('currentCountry', currentCountry.value);
+    await prefs.setString('currentCity', currentCity.value);
   }
 
   Future<void> fetchVideos({String? country, String? city}) async {
