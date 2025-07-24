@@ -4,6 +4,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:get/get.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:intl/intl.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:shimmer/shimmer.dart';
 import '../../appUtils/apiEndPoints.dart';
 import '../../appUtils/colorUtils.dart';
@@ -22,18 +23,29 @@ class ChatView extends StatefulWidget {
 
 class _ChatViewState extends State<ChatView> {
   late final ChatController controller;
+  String _language = 'en'; // Default to English
 
   @override
   void initState() {
     super.initState();
+    _loadLanguage();
     controller = Get.put(
       ChatController(senderId: widget.senderId, receiverId: widget.receiverId),
     );
   }
 
+  Future<void> _loadLanguage() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _language =
+          prefs.getString('language') ?? 'en'; // Default to 'en' if not set
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     // controller.markMessagesAsRead();
+    bool isRtl = _language == 'ar';
 
     return Scaffold(
       resizeToAvoidBottomInset: true,
@@ -59,8 +71,8 @@ class _ChatViewState extends State<ChatView> {
                 children: [
                   // Back Button
                   Positioned(
-                    left: 16,
-                    // right: isRtl ? 16 : null,
+                    left: isRtl ? null : 16,
+                    right: isRtl ? 16 : null,
                     // top: 10.h,
                     child: GestureDetector(
                       behavior: HitTestBehavior.opaque,
@@ -255,12 +267,12 @@ class _ChatViewState extends State<ChatView> {
                   }
 
                   WidgetsBinding.instance.addPostFrameCallback((_) {
-                    controller.scrollToBottom(animated: false);
+                    controller.scrollToBottom(animated: true);
                   });
 
                   return ListView(
                     controller: controller.scrollController,
-                    padding: EdgeInsets.symmetric(vertical: 12),
+                    padding: EdgeInsets.symmetric(vertical: 16),
                     children: messageWidgets,
                     keyboardDismissBehavior:
                         ScrollViewKeyboardDismissBehavior.onDrag,

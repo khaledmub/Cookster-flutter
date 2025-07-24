@@ -126,8 +126,11 @@ class _SelectLanguageViewState extends State<SelectLanguageView> {
                         AppButton(
                           text: "Save".tr,
                           onTap: () async {
-                            await languageController.applyLanguageChange();
-                            Get.offAll(Landing());
+                            await languageController.applyLanguageChange().then(
+                              (_) {
+                                Get.offAll(Landing());
+                              },
+                            );
                           },
                         ),
                         SizedBox(height: 20.h),
