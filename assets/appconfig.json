@@ -1,7 +1,6 @@
 {
-  "merchantKey": "4169092e6c76debdf5023dce1d323179711fb4165e1de0403e0763c8e878487c",
+  "merchantKey": "80e5fae964ef47bbf5c4a1902f157d2c2cbb1f28335d82540153c82545585fe1",
   "terminalId": "cookster",
-  "terminalPass": "urway@123",
-  "requestUrl": "https://payments-dev.urway-tech.com/URWAYPGService/transaction/jsonProcess/JSONrequest"
+  "terminalPass": "cook_429631",
+  "requestUrl": "https://payments.urway-tech.com/URWAYPGService/transaction/jsonProcess/JSONrequest"
 }
-
