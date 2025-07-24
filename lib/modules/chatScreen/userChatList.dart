@@ -277,9 +277,9 @@ class _ChatListScreenState extends State<ChatListScreen> {
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: PreferredSize(
-        preferredSize: Size.fromHeight(115), // Adjusted height to fit content
+        preferredSize: Size.fromHeight(90), // Adjusted height to fit content
         child: Container(
-          padding: EdgeInsets.only(top: 40.h),
+          padding: EdgeInsets.only(top: 30),
           decoration: BoxDecoration(
             borderRadius: const BorderRadius.only(
               bottomRight: Radius.circular(30),
