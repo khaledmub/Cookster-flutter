@@ -181,21 +181,21 @@ class UserSearchController extends GetxController {
 
   // Search B2B categories by name
   void searchB2BCategories(String query) {
+    final trimmedQuery = query.trim();
     final source = b2bCategories.value;
 
-    if (query.trim().isEmpty || source.businessTypes?.values == null) {
+    if (trimmedQuery.isEmpty || source.businessTypes?.values == null) {
       filteredB2bCategories.value = source;
       return;
     }
 
-    final filteredValues =
-        source.businessTypes!.values!
-            .where(
-              (item) =>
-                  item.name?.toLowerCase().contains(query.toLowerCase()) ??
-                  false,
-            )
-            .toList();
+    final filteredValues = source.businessTypes!.values!
+        .where(
+          (item) =>
+      item.name?.toLowerCase().contains(trimmedQuery.toLowerCase()) ??
+          false,
+    )
+        .toList();
 
     filteredB2bCategories.value = B2BCategoryModel(
       status: source.status,
@@ -205,7 +205,7 @@ class UserSearchController extends GetxController {
       ),
     );
 
-    _saveSearchQuery(query);
+    _saveSearchQuery(trimmedQuery);
   }
 
   // Search B2B users by name (new method for B2BUsersList)

@@ -270,10 +270,10 @@ class _SearchViewState extends State<SearchView>
                       onTapOutside: (event) {
                         FocusScope.of(context).unfocus();
                       },
-                      onChanged:
-                          searchController.type.value == 5
-                              ? _onB2bChanged
-                              : _onSearchChanged,
+                      // onChanged:
+                      //     searchController.type.value == 5
+                      //         ? _onB2bChanged
+                      //         : _onSearchChanged,
                       onSubmitted: (value) {
                         if (value.isNotEmpty &&
                             searchController.type.value != 5) {
@@ -282,8 +282,7 @@ class _SearchViewState extends State<SearchView>
                             isFollowing: widget.isFollowing,
                             value,
                           );
-                        } else if (value.isNotEmpty &&
-                            searchController.type.value == 5) {
+                        } else if (searchController.type.value == 5) {
                           searchController.searchB2BCategories(value);
                         }
                       },
