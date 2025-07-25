@@ -105,7 +105,7 @@ class AudioSelectorController extends GetxController {
   // Fetch audio list from API
   Future<void> fetchAudioList({bool loadMore = false}) async {
     if (_isLoading.value || (loadMore && _nextPageUrl.value.isEmpty)) return;
-    _isLoading.value = true;
+    // _isLoading.value = true;
     try {
       String endpoint =
           loadMore && _nextPageUrl.value.isNotEmpty

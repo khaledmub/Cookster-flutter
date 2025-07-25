@@ -166,8 +166,51 @@ class VideoAddController extends GetxController {
 
   Future<void> loadLocationData() async {
     final prefs = await SharedPreferences.getInstance();
-    selectedCountry.value = prefs.getString('currentCountry') ?? 'Unknown';
-    selectedCity.value = prefs.getString('currentCity') ?? 'Unknown';
+    final ProfileController profileController = Get.find<ProfileController>();
+    final CityController cityController = Get.find<CityController>();
+
+    // Load stored country and city from SharedPreferences
+    String storedCountry = prefs.getString('currentCountry') ?? 'Unknown';
+    String storedCity = prefs.getString('currentCity') ?? 'Unknown';
+
+    // Update the controller with the stored values
+    selectedCountry.value = storedCountry;
+    selectedCity.value = storedCity;
+
+    // If a valid country is stored (not 'Unknown'), fetch its ID and cities
+    if (storedCountry != 'Unknown') {
+      // Assuming profileController.videoUploadSettings.value.countries contains the country list
+      final countries = profileController.videoUploadSettings.value?.countries;
+      if (countries != null) {
+        // Find the country ID for the stored country
+        int? countryId;
+        for (var country in countries) {
+          if (country.name == storedCountry) {
+            countryId = country.id;
+            break;
+          }
+        }
+
+        // If country ID is found, fetch cities for that country
+        if (countryId != null) {
+          await cityController.fetchCities(countryId);
+          // Optionally, verify if the stored city is valid for the country
+          final cities = cityController.cityList;
+          bool isValidCity = cities.any((city) => city.name == storedCity);
+          if (!isValidCity) {
+            // If the stored city is not valid, reset it
+            selectedCity.value = 'Unknown';
+            await prefs.setString('currentCity', 'Unknown');
+          }
+        } else {
+          // If country ID is not found, reset country and city
+          selectedCountry.value = 'Unknown';
+          selectedCity.value = 'Unknown';
+          await prefs.setString('currentCountry', 'Unknown');
+          await prefs.setString('currentCity', 'Unknown');
+        }
+      }
+    }
   }
 
   final step1key = GlobalKey<FormState>();
