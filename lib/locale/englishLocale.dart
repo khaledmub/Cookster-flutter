@@ -513,4 +513,7 @@ const Map<String, String> en = {
   "unknown_time": "unknown time",
   "done_to_add_hashtag":
   "Write the word, press ' Done' button from keyboard then hashtaq will be created and you can add multiple hashtaqs",
+  "update_title" : "Update Available",
+  "update_description" : "A new version of Cookster is available. Update now to get the latest features and improvements!",
+  "update_now" : "Update Now"
 };

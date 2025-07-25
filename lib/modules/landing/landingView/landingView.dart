@@ -287,6 +287,7 @@ class _LandingState extends State<Landing> {
     super.initState();
     navBarController.selectedIndex.value = widget.initialIndex;
     fetchUserDetails();
+    navBarController.checkForUpdate();
   }
 
   @override

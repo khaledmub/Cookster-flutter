@@ -2306,6 +2306,38 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.1.0"
+  update_available:
+    dependency: "direct main"
+    description:
+      name: update_available
+      sha256: "69533cb6d6d23558bc5d1da0010682b2a214487873dac75cc48352e4c6bfb41e"
+      url: "https://pub.dev"
+    source: hosted
+    version: "3.2.0+1"
+  update_available_android:
+    dependency: transitive
+    description:
+      name: update_available_android
+      sha256: a49c366d48b46e057b67ac51688313fb8c4210c866d437599e8dd5edcdfeaf34
+      url: "https://pub.dev"
+    source: hosted
+    version: "3.2.0+1"
+  update_available_ios:
+    dependency: transitive
+    description:
+      name: update_available_ios
+      sha256: "4b0f2f1377638fe4a30beb1eaee293696a62f8d41099ef36f64c7499fa62b5f1"
+      url: "https://pub.dev"
+    source: hosted
+    version: "3.1.0+1"
+  update_available_platform_interface:
+    dependency: transitive
+    description:
+      name: update_available_platform_interface
+      sha256: "0d5f5ef543e140d10034529c2f725224dc4bd28fe7f1b784561ae240aa03ac3d"
+      url: "https://pub.dev"
+    source: hosted
+    version: "4.1.0+1"
   url_launcher:
     dependency: "direct main"
     description:
