@@ -1,6 +1,7 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cookster/appUtils/apiEndPoints.dart';
 import 'package:cookster/appUtils/appUtils.dart';
+import 'package:cookster/loaders/pulseLoader.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:get/get.dart';
@@ -121,7 +122,7 @@ class _ViewReviewsState extends State<ViewReviews> {
           },
           child:
               reviewController.isLoading.value
-                  ? const Center(child: CircularProgressIndicator())
+                  ? const Center(child: PulseLogoLoader(logoPath: "assets/images/appLogo.png"),)
                   : Padding(
                     padding: EdgeInsets.all(16.w),
                     child: Column(
@@ -270,7 +271,7 @@ class _ViewReviewsState extends State<ViewReviews> {
                             () =>
                                 reviewController.isLoading.value
                                     ? const Center(
-                                      child: CircularProgressIndicator(),
+                                      child: PulseLogoLoader(logoPath: "assets/images/appLogo.png"),
                                     )
                                     : reviewController.reviews.isEmpty
                                     ? Center(

@@ -1,9 +1,6 @@
 import 'dart:async';
 import 'dart:ui';
-
-import 'package:awesome_dialog/awesome_dialog.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:chewie/chewie.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cookster/appRoutes/appRoutes.dart';
 import 'package:cookster/appUtils/apiEndPoints.dart';
@@ -14,7 +11,6 @@ import 'package:cookster/modules/landing/landingTabs/home/homeController/saveCon
 import 'package:cookster/modules/landing/landingTabs/home/homeModel/userSaveUnsave.dart';
 import 'package:cookster/modules/landing/landingTabs/home/homeModel/videoFeedModel.dart';
 import 'package:cookster/modules/landing/landingTabs/home/homeView/commentScreen.dart';
-import 'package:cookster/modules/landing/landingTabs/home/homeView/hashTagReels.dart';
 import 'package:cookster/modules/landing/landingTabs/professionalProfile/profileControlller/professionalProfileController.dart';
 import 'package:cookster/modules/landing/landingTabs/profile/profileControlller/profileController.dart';
 import 'package:cookster/modules/landing/landingTabs/profile/profileModel/profileModel.dart';
@@ -28,10 +24,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_svg/svg.dart';
-import 'package:geolocator/geolocator.dart';
 import 'package:get/get.dart';
-import 'package:like_button/like_button.dart';
-import 'package:permission_handler/permission_handler.dart';
 import 'package:pro_image_editor/core/platform/io/io_helper.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -49,6 +42,7 @@ import '../homeController/homeController.dart';
 import '../homeWidgets/chatIconWithCounter.dart';
 import '../homeWidgets/contactNowDialog.dart';
 import '../homeWidgets/reviewSheet.dart';
+import '../homeWidgets/videoPlayerWidget.dart';
 
 class VideoReelScreen extends StatefulWidget {
   @override
@@ -71,7 +65,6 @@ class _VideoReelScreenState extends State<VideoReelScreen>
   @override
   bool get wantKeepAlive => true;
 
-  // late SwiperController _swiperController;
   bool _showIcon = false;
   bool isAuthenticated = false;
 
@@ -179,55 +172,6 @@ class _VideoReelScreenState extends State<VideoReelScreen>
     super.deactivate();
   }
 
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    print('didChangeDependencies called');
-
-    SystemChrome.setSystemUIOverlayStyle(
-      const SystemUiOverlayStyle(
-        statusBarIconBrightness: Brightness.light, // White icons
-        statusBarColor: Colors.transparent, // Transparent status bar
-      ),
-    );
-
-    // Step 1: Check if currentIndex is within valid range
-    int index = controller.currentIndex.value;
-    print('Current index: $index');
-    if (index >= 0 && index < controller.chewieControllers.length) {
-      print('Valid currentIndex. Proceeding to get ChewieController...');
-
-      // Step 2: Get current ChewieController
-      final currentChewieController = controller.chewieControllers[index];
-      print('Got currentChewieController: $currentChewieController');
-
-      // Step 3: Check if controller is not null and video is initialized
-      if (currentChewieController != null) {
-        bool isInitialized =
-            currentChewieController.videoPlayerController.value.isInitialized;
-        print('Video is initialized: $isInitialized');
-        print('Last saved video position: ${controller.lastVideoPosition}');
-
-        if (isInitialized) {
-          print('Controller is valid and has a saved video position');
-
-          if (!controller.isAppInBackground.value) {
-            print('App is in foreground. Resuming video playback...');
-            currentChewieController.videoPlayerController.play();
-          } else {
-            print('App is in background. Not playing video.');
-          }
-        } else {
-          print('Video not initialized.');
-        }
-      } else {
-        print('ChewieController is null.');
-      }
-    } else {
-      print('Invalid currentIndex. Skipping video restoration.');
-    }
-  }
-
   Future<String> _getDeviceId() async {
     final prefs = await SharedPreferences.getInstance();
     String? deviceId = prefs.getString('device_id');
@@ -322,131 +266,282 @@ class _VideoReelScreenState extends State<VideoReelScreen>
         body: Obx(() {
           return Stack(
             children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  controller.isLoading.value ||
-                          controller.isLocationFetching.value
-                      ? Center(
-                        child: PulseLogoLoader(
-                          logoPath: "assets/images/appIcon.png",
-                          size: 80,
+              controller.isLoading.value || controller.isLocationFetching.value
+                  ? Center(
+                    child: PulseLogoLoader(
+                      logoPath: "assets/images/appIcon.png",
+                      size: 80,
+                    ),
+                  )
+                  : controller.videoFeed.value.videos == null ||
+                      controller.videoFeed.value.videos!.isEmpty
+                  ? Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          textAlign: TextAlign.center,
+                          "${'no_video_for'.tr} ${controller.currentCity.value} ${'try_to_change'.tr}",
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 14.sp,
+                          ),
                         ),
-                      )
-                      : controller.videoFeed.value.videos == null ||
-                          controller.videoFeed.value.videos!.isEmpty
-                      ? Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.center,
+                        SizedBox(height: 16),
+
+                        Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Text(
-                              textAlign: TextAlign.center,
-                              "${'no_video_for'.tr} ${controller.currentCity.value} ${'try_to_change'.tr}",
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 14.sp,
-                              ),
-                            ),
-                            SizedBox(height: 16),
-
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                if (controller.selectedType.value == "Near Me")
-                                  Expanded(
-                                    child: AppButton(
-                                      text: "Change Location",
-                                      onTap: () {
-                                        _showBottomSheet(context);
-                                      },
-                                    ),
-                                  ),
-
-                                SizedBox(width: 8),
-                                InkWell(
+                            if (controller.selectedType.value == "Near Me")
+                              Expanded(
+                                child: AppButton(
+                                  text: "Change Location",
                                   onTap: () {
-                                    Get.to(
-                                      () => SearchView(
-                                        isGeneral:
-                                            controller.selectedType.value ==
-                                                    "General"
-                                                ? 1
-                                                : 0,
-                                      ),
-                                    )?.then((_) {
-                                      controller.fetchVideos(
-                                        city: controller.currentCity.value,
-                                        country:
-                                            controller.currentCountry.value,
-                                      );
-                                    });
+                                    _showBottomSheet(context);
                                   },
-                                  child: Container(
-                                    decoration: BoxDecoration(
-                                      color: Colors.transparent,
-                                      // Transparent to show blur
-                                      borderRadius: BorderRadius.circular(50),
-                                    ),
-                                    child: ClipRRect(
-                                      borderRadius: BorderRadius.circular(50),
-                                      child: BackdropFilter(
-                                        filter: ImageFilter.blur(
-                                          sigmaX: 10.0,
-                                          sigmaY: 10.0,
-                                        ), // Blur effect
-                                        child: Container(
-                                          padding: EdgeInsets.all(14),
-                                          decoration: BoxDecoration(
-                                            color: ColorUtils.primaryColor,
-                                            // Blue tint
-                                            borderRadius: BorderRadius.circular(
-                                              50,
-                                            ),
-                                          ),
-                                          child: Icon(
-                                            Icons.search,
-                                            color: Colors.black,
-                                            size: 24.sp,
-                                          ),
-                                        ),
+                                ),
+                              ),
+
+                            SizedBox(width: 8),
+                            InkWell(
+                              onTap: () {
+                                Get.to(
+                                  () => SearchView(
+                                    isGeneral:
+                                        controller.selectedType.value ==
+                                                "General"
+                                            ? 1
+                                            : 0,
+                                  ),
+                                )?.then((_) {
+                                  controller.fetchVideos(
+                                    city: controller.currentCity.value,
+                                    country: controller.currentCountry.value,
+                                  );
+                                });
+                              },
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  color: Colors.transparent,
+                                  // Transparent to show blur
+                                  borderRadius: BorderRadius.circular(50),
+                                ),
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(50),
+                                  child: BackdropFilter(
+                                    filter: ImageFilter.blur(
+                                      sigmaX: 10.0,
+                                      sigmaY: 10.0,
+                                    ), // Blur effect
+                                    child: Container(
+                                      padding: EdgeInsets.all(14),
+                                      decoration: BoxDecoration(
+                                        color: ColorUtils.primaryColor,
+                                        // Blue tint
+                                        borderRadius: BorderRadius.circular(50),
+                                      ),
+                                      child: Icon(
+                                        Icons.search,
+                                        color: Colors.black,
+                                        size: 24.sp,
                                       ),
                                     ),
                                   ),
                                 ),
-                                SizedBox(width: 8),
-                                InkWell(
-                                  onTap: () {
-                                    controller.fetchVideos();
-                                  },
-                                  child: Container(
-                                    decoration: BoxDecoration(
-                                      color: Colors.transparent,
-                                      // Transparent to show blur
-                                      borderRadius: BorderRadius.circular(50),
+                              ),
+                            ),
+                            SizedBox(width: 8),
+                            InkWell(
+                              onTap: () {
+                                controller.fetchVideos();
+                              },
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  color: Colors.transparent,
+                                  // Transparent to show blur
+                                  borderRadius: BorderRadius.circular(50),
+                                ),
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(50),
+                                  child: BackdropFilter(
+                                    filter: ImageFilter.blur(
+                                      sigmaX: 10.0,
+                                      sigmaY: 10.0,
+                                    ), // Blur effect
+                                    child: Container(
+                                      padding: EdgeInsets.all(14),
+                                      decoration: BoxDecoration(
+                                        color: ColorUtils.primaryColor,
+                                        // Blue tint
+                                        borderRadius: BorderRadius.circular(50),
+                                      ),
+                                      child: Icon(
+                                        Icons.refresh,
+                                        color: Colors.black,
+                                        size: 24.sp,
+                                      ),
                                     ),
-                                    child: ClipRRect(
-                                      borderRadius: BorderRadius.circular(50),
-                                      child: BackdropFilter(
-                                        filter: ImageFilter.blur(
-                                          sigmaX: 10.0,
-                                          sigmaY: 10.0,
-                                        ), // Blur effect
-                                        child: Container(
-                                          padding: EdgeInsets.all(14),
-                                          decoration: BoxDecoration(
-                                            color: ColorUtils.primaryColor,
-                                            // Blue tint
-                                            borderRadius: BorderRadius.circular(
-                                              50,
-                                            ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  )
+                  : Listener(
+                    child: GestureDetector(
+                      onVerticalDragEnd: (details) {
+                        if (details.primaryVelocity! > 300) {
+                          _scrollToPrevious();
+                        } else if (details.primaryVelocity! < -300) {
+                          _scrollToNext();
+                        }
+                      },
+                      onPanEnd: (details) {
+                        if (details.velocity.pixelsPerSecond.dy > 100) {
+                          _scrollToPrevious();
+                        } else if (details.velocity.pixelsPerSecond.dy < -100) {
+                          _scrollToNext();
+                        }
+                      },
+                      child: PageView.custom(
+                        scrollDirection: Axis.vertical,
+                        controller: _pageController,
+                        clipBehavior: Clip.none,
+                        pageSnapping: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        padEnds: true,
+                        onPageChanged: (value) {
+                          _trackVideoView(
+                            controller
+                                .videoFeed
+                                .value
+                                .videos![controller.currentIndex.value]
+                                .id!,
+                            userId,
+                            isAuthenticated,
+                          );
+                        },
+
+                        childrenDelegate: SliverChildBuilderDelegate(
+                          (context, index) {
+                            if (controller.videoFeed.value.videos == null ||
+                                controller.videoFeed.value.videos!.isEmpty) {
+                              return Container(
+                                width: MediaQuery.of(context).size.width,
+                                height: MediaQuery.of(context).size.height,
+                                color: Colors.black,
+                                child: const Center(
+                                  child: Text(
+                                    'No videos available',
+                                    style: TextStyle(
+                                      fontSize: 18,
+                                      color: Colors.grey,
+                                    ),
+                                  ),
+                                ),
+                              );
+                            }
+
+                            int actualIndex =
+                                index %
+                                controller.videoFeed.value.videos!.length;
+                            var videoDetail =
+                                controller.videoFeed.value.videos![actualIndex];
+
+                            return Stack(
+                              clipBehavior: Clip.none,
+                              alignment: Alignment.bottomLeft,
+                              children: [
+                                VideoPlayerWidget(
+                                  isImage: videoDetail.isImage,
+                                  thumbnailUrl:
+                                      '${Common.videoUrl}/${videoDetail.image}',
+                                  videoUrl:
+                                      '${Common.videoUrl}/${videoDetail.video}',
+                                  autoPlay:
+                                      true, // Optional: Set to false if you don't want autoplay
+                                ),
+                                VideoDescriptionWidget(
+                                  title: videoDetail.title,
+                                  description: videoDetail.description,
+                                  tags: videoDetail.tags,
+                                  controller: controller,
+                                ),
+                                videoUserDetails(
+                                  profileController: profileController,
+                                  professionalProfileController:
+                                      professionalProfileController,
+                                  videoDetail: videoDetail,
+                                  controller: controller,
+                                  userId: userId,
+                                  isAuthenticated: isAuthenticated,
+                                ),
+                                videoActions(
+                                  videoDetail,
+                                  currentUserDetails,
+                                  currentUser,
+                                  context,
+                                ),
+
+                                Positioned(
+                                  top: Get.height * 0.05,
+                                  left: isRtl ? 0 : null,
+                                  right: isRtl ? null : 0,
+                                  child: GestureDetector(
+                                    onTap: () {
+                                      Get.to(
+                                        () => SearchView(
+                                          isGeneral:
+                                              controller.selectedType.value ==
+                                                      "General"
+                                                  ? 1
+                                                  : 0,
+                                        ),
+                                      )!.then((_) {
+                                        controller.disposeControllers();
+                                        controller.fetchVideos(
+                                          city: controller.currentCity.value,
+                                          country:
+                                              controller.currentCountry.value,
+                                        );
+                                      });
+                                    },
+                                    child: Container(
+                                      margin: EdgeInsets.symmetric(
+                                        horizontal: 16,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: Colors.transparent,
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: ClipRRect(
+                                        borderRadius: BorderRadius.circular(
+                                          100,
+                                        ),
+
+                                        child: BackdropFilter(
+                                          filter: ImageFilter.blur(
+                                            sigmaX: 10.0,
+                                            sigmaY: 10.0,
                                           ),
-                                          child: Icon(
-                                            Icons.refresh,
-                                            color: Colors.black,
-                                            size: 24.sp,
+                                          child: Container(
+                                            padding: EdgeInsets.all(6),
+                                            decoration: BoxDecoration(
+                                              color: Colors.black.withOpacity(
+                                                0.3,
+                                              ),
+                                              shape: BoxShape.circle,
+                                            ),
+                                            child: Icon(
+                                              Icons.search,
+                                              color: Colors.white,
+                                              size: 40,
+                                            ),
                                           ),
                                         ),
                                       ),
@@ -454,398 +549,16 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                                   ),
                                 ),
                               ],
-                            ),
-                          ],
-                        ),
-                      )
-                      : Expanded(
-                        child: Listener(
-                          child: GestureDetector(
-                            onVerticalDragEnd: (details) {
-                              if (details.primaryVelocity! > 300) {
-                                _scrollToPrevious();
-                              } else if (details.primaryVelocity! < -300) {
-                                _scrollToNext();
-                              }
-                            },
-                            onPanEnd: (details) {
-                              if (details.velocity.pixelsPerSecond.dy > 500) {
-                                _scrollToPrevious();
-                              } else if (details.velocity.pixelsPerSecond.dy <
-                                  -500) {
-                                _scrollToNext();
-                              }
-                            },
-                            child: PageView.custom(
-                              scrollDirection: Axis.vertical,
-                              controller: _pageController,
-                              clipBehavior: Clip.none,
-                              pageSnapping: true,
-                              physics: const NeverScrollableScrollPhysics(),
-                              padEnds: true,
-                              onPageChanged: (index) async {
-                                controller.visiblePageIndex.value = index;
-                                int actualIndex =
-                                    controller.videoFeed.value.videos != null
-                                        ? index %
-                                            controller
-                                                .videoFeed
-                                                .value
-                                                .videos!
-                                                .length
-                                        : 0;
-                                controller.handlePageChange(actualIndex);
-
-                                // Check if we're nearing the end of the list (3 videos left)
-                                if (controller.videoFeed.value.videos != null &&
-                                    actualIndex >=
-                                        controller
-                                                .videoFeed
-                                                .value
-                                                .videos!
-                                                .length -
-                                            3) {
-                                  // Fetch more videos to append to the list
-                                  await controller.fetchMoreVideos();
-                                }
-
-                                if (mounted) setState(() {});
-
-                                // Track view in Firestore
-                                String? videoId =
-                                    controller.videoFeed.value.videos != null
-                                        ? controller
-                                            .videoFeed
-                                            .value
-                                            .videos![actualIndex]
-                                            .id
-                                        : null;
-                                if (videoId != null) {
-                                  await _trackVideoView(
-                                    videoId,
-                                    userId,
-                                    isAuthenticated,
-                                  );
-                                } else {
-                                  print(
-                                    'Error: Video ID is null for index $actualIndex',
-                                  );
-                                }
-                              },
-                              childrenDelegate: SliverChildBuilderDelegate(
-                                (context, index) {
-                                  if (controller.videoFeed.value.videos ==
-                                          null ||
-                                      controller
-                                          .videoFeed
-                                          .value
-                                          .videos!
-                                          .isEmpty) {
-                                    return Container(
-                                      width: MediaQuery.of(context).size.width,
-                                      height:
-                                          MediaQuery.of(context).size.height,
-                                      color: Colors.black,
-                                      child: const Center(
-                                        child: Text(
-                                          'No videos available',
-                                          style: TextStyle(
-                                            fontSize: 18,
-                                            color: Colors.grey,
-                                          ),
-                                        ),
-                                      ),
-                                    );
-                                  }
-
-                                  int actualIndex =
-                                      index %
-                                      controller.videoFeed.value.videos!.length;
-                                  var videoDetail =
-                                      controller
-                                          .videoFeed
-                                          .value
-                                          .videos![actualIndex];
-                                  var chewieController =
-                                      controller.chewieControllers[actualIndex];
-
-                                  bool isInitialized =
-                                      chewieController != null &&
-                                      chewieController
-                                          .videoPlayerController
-                                          .value
-                                          .isInitialized;
-
-                                  return Stack(
-                                    clipBehavior: Clip.none,
-                                    alignment: Alignment.bottomLeft,
-                                    children: [
-                                      GestureDetector(
-                                        onTap: _togglePlayPause,
-                                        onDoubleTap: controller.toggleMute,
-                                        child:
-                                            isInitialized
-                                                ? Chewie(
-                                                  controller: chewieController,
-                                                )
-                                                : Center(
-                                                  child: CachedNetworkImage(
-                                                    imageUrl:
-                                                        "${Common.videoUrl}/${videoDetail.image}",
-                                                  ),
-                                                ),
-                                      ),
-                                      VideoDescriptionWidget(
-                                        title: videoDetail.title,
-                                        description: videoDetail.description,
-                                        tags: videoDetail.tags,
-                                        controller: controller,
-                                      ),
-                                      videoUserDetails(
-                                        profileController: profileController,
-                                        professionalProfileController:
-                                            professionalProfileController,
-                                        videoDetail: videoDetail,
-                                        controller: controller,
-                                        userId: userId,
-                                        isAuthenticated: isAuthenticated,
-                                      ),
-                                      videoActions(
-                                        videoDetail,
-                                        currentUserDetails,
-                                        currentUser,
-                                        context,
-                                      ),
-                                      if (_showIcon &&
-                                          isInitialized &&
-                                          actualIndex ==
-                                              controller.currentIndex.value)
-                                        Center(
-                                          child: Container(
-                                            decoration: BoxDecoration(
-                                              color: Colors.black.withOpacity(
-                                                0.3,
-                                              ),
-                                              shape: BoxShape.circle,
-                                            ),
-                                            padding: const EdgeInsets.all(8),
-                                            child: Icon(
-                                              chewieController.isPlaying
-                                                  ? Icons.pause_circle_filled
-                                                  : Icons.play_circle_filled,
-                                              size: 64.0,
-                                              color: Colors.white.withOpacity(
-                                                0.7,
-                                              ),
-                                            ),
-                                          ),
-                                        ),
-                                      if (videoDetail.isImage == 0 &&
-                                          isInitialized)
-                                        Positioned(
-                                          left: 0,
-                                          right: 0,
-                                          bottom: 3,
-                                          child: StatefulBuilder(
-                                            builder: (context, setState) {
-                                              bool isThumbTapped =
-                                                  false; // Track thumb interaction state
-
-                                              return StreamBuilder<Duration>(
-                                                stream: Stream.periodic(
-                                                  const Duration(
-                                                    milliseconds: 200,
-                                                  ),
-                                                  (_) =>
-                                                      chewieController
-                                                          .videoPlayerController
-                                                          .value
-                                                          .position,
-                                                ),
-                                                builder: (context, snapshot) {
-                                                  final position =
-                                                      snapshot.data ??
-                                                      Duration.zero;
-                                                  final duration =
-                                                      chewieController
-                                                          .videoPlayerController
-                                                          .value
-                                                          .duration ??
-                                                      Duration.zero;
-                                                  final isInitialized =
-                                                      chewieController
-                                                          .videoPlayerController
-                                                          .value
-                                                          .isInitialized;
-
-                                                  if (!isInitialized ||
-                                                      duration ==
-                                                          Duration.zero) {
-                                                    return Slider(
-                                                      value: 0,
-                                                      max: 1,
-                                                      onChanged: null,
-                                                      thumbColor:
-                                                          ColorUtils
-                                                              .primaryColor,
-                                                      activeColor:
-                                                          ColorUtils
-                                                              .primaryColor,
-                                                      inactiveColor:
-                                                          ColorUtils.darkBrown,
-                                                    );
-                                                  }
-
-                                                  return SliderTheme(
-                                                    data: SliderThemeData(
-                                                      thumbShape:
-                                                          RoundSliderThumbShape(
-                                                            enabledThumbRadius:
-                                                                isThumbTapped
-                                                                    ? 0.0
-                                                                    : 6.0, // Change radius based on tap
-                                                          ),
-                                                      overlayShape:
-                                                          const RoundSliderOverlayShape(
-                                                            overlayRadius: 0,
-                                                          ),
-                                                      trackHeight: 2,
-                                                    ),
-                                                    child: Slider(
-                                                      value:
-                                                          position.inSeconds
-                                                              .toDouble(),
-                                                      max:
-                                                          duration.inSeconds
-                                                              .toDouble(),
-                                                      onChanged: (value) {
-                                                        chewieController.seekTo(
-                                                          Duration(
-                                                            seconds:
-                                                                value.toInt(),
-                                                          ),
-                                                        );
-                                                      },
-                                                      onChangeStart: (_) {
-                                                        setState(() {
-                                                          isThumbTapped =
-                                                              true; // Set to true when interaction starts
-                                                        });
-                                                        if (chewieController
-                                                            .isPlaying) {
-                                                          chewieController
-                                                              .pause();
-                                                        }
-                                                      },
-                                                      onChangeEnd: (_) {
-                                                        setState(() {
-                                                          isThumbTapped =
-                                                              false; // Revert to false when interaction ends
-                                                        });
-                                                        if (!chewieController
-                                                            .isPlaying) {
-                                                          chewieController
-                                                              .play();
-                                                        }
-                                                      },
-                                                      thumbColor:
-                                                          ColorUtils
-                                                              .primaryColor,
-                                                      activeColor:
-                                                          ColorUtils
-                                                              .primaryColor,
-                                                      inactiveColor:
-                                                          ColorUtils.darkBrown,
-                                                    ),
-                                                  );
-                                                },
-                                              );
-                                            },
-                                          ),
-                                        ),
-
-                                      Positioned(
-                                        top: Get.height * 0.05,
-                                        right: 0,
-                                        child: GestureDetector(
-                                          onTap: () {
-                                            Get.to(
-                                              () => SearchView(
-                                                isGeneral:
-                                                    controller
-                                                                .selectedType
-                                                                .value ==
-                                                            "General"
-                                                        ? 1
-                                                        : 0,
-                                              ),
-                                            )!.then((_) {
-                                              controller.disposeControllers();
-                                              controller.fetchVideos(
-                                                city:
-                                                    controller
-                                                        .currentCity
-                                                        .value,
-                                                country:
-                                                    controller
-                                                        .currentCountry
-                                                        .value,
-                                              );
-                                            });
-                                          },
-                                          child: Container(
-                                            margin: EdgeInsets.symmetric(
-                                              horizontal: 16,
-                                            ),
-                                            decoration: BoxDecoration(
-                                              color: Colors.transparent,
-                                              shape: BoxShape.circle,
-                                            ),
-                                            child: ClipRRect(
-                                              borderRadius:
-                                                  BorderRadius.circular(100),
-
-                                              child: BackdropFilter(
-                                                filter: ImageFilter.blur(
-                                                  sigmaX: 10.0,
-                                                  sigmaY: 10.0,
-                                                ),
-                                                child: Container(
-                                                  padding: EdgeInsets.all(6),
-                                                  decoration: BoxDecoration(
-                                                    color: Colors.black
-                                                        .withOpacity(0.3),
-                                                    shape: BoxShape.circle,
-                                                  ),
-                                                  child: Icon(
-                                                    Icons.search,
-                                                    color: Colors.white,
-                                                    size: 40,
-                                                  ),
-                                                ),
-                                              ),
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  );
-                                },
-                                childCount:
-                                    controller.videoFeed.value.videos != null
-                                        ? controller
-                                            .videoFeed
-                                            .value
-                                            .videos!
-                                            .length
-                                        : 1,
-                              ),
-                            ),
-                          ),
+                            );
+                          },
+                          childCount:
+                              controller.videoFeed.value.videos != null
+                                  ? controller.videoFeed.value.videos!.length
+                                  : 1,
                         ),
                       ),
-                ],
-              ),
+                    ),
+                  ),
 
               SafeArea(
                 child: Obx(
