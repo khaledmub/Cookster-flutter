@@ -26,12 +26,13 @@ class _SavedVideosViewState extends State<SavedVideosView> {
   void initState() {
     // TODO: implement initState
     super.initState();
-    saveController.getSavedVideos();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      saveController.getSavedVideos();
+    });
   }
 
   @override
   Widget build(BuildContext context) {
-
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
@@ -69,8 +70,7 @@ class _SavedVideosViewState extends State<SavedVideosView> {
                       onTap: () {
                         Get.to(
                           SingleVideoScreen(
-                            followers:
-                                '${profileController.followersList.length}',
+                            followers: video.followersCount.toString(),
                             frondUserId: video.frontUserId,
                             userImage: video.userImage,
                             videoId: video.id,
