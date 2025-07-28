@@ -57,6 +57,10 @@ class HomeController extends GetxController with WidgetsBindingObserver {
   var isLocationServiceEnabled = true.obs; // Default to true until checked
   var isLocationPermissionGranted = false.obs; // Default to false until checked
 
+
+
+
+
   @override
   void onInit() {
     super.onInit();
@@ -116,11 +120,11 @@ class HomeController extends GetxController with WidgetsBindingObserver {
 
     // Preload controllers for the newly appended videos
     int startIndex = _videoControllers.length - additionalVideoCount;
-    for (int i = startIndex; i < _videoControllers.length; i++) {
-      if (!_viewedIndices.contains(i)) {
-        await initializeControllerAtIndex(i);
-      }
-    }
+    // for (int i = startIndex; i < _videoControllers.length; i++) {
+    //   if (!_viewedIndices.contains(i)) {
+    //     await initializeControllerAtIndex(i);
+    //   }
+    // }
 
     // Refresh the chewie controllers observable
     _chewieControllers.refresh();
@@ -146,15 +150,15 @@ class HomeController extends GetxController with WidgetsBindingObserver {
     super.onClose();
   }
 
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    isAppInBackground.value = state == AppLifecycleState.paused;
-    if (isAppInBackground.value) {
-      pauseCurrentVideo();
-    } else if (state == AppLifecycleState.resumed) {
-      restoreVideoState();
-    }
-  }
+  // @override
+  // void didChangeAppLifecycleState(AppLifecycleState state) {
+  //   isAppInBackground.value = state == AppLifecycleState.paused;
+  //   if (isAppInBackground.value) {
+  //     pauseCurrentVideo();
+  //   } else if (state == AppLifecycleState.resumed) {
+  //     restoreVideoState();
+  //   }
+  // }
 
   @override
   void didHaveMemoryPressure() {
@@ -362,7 +366,7 @@ class HomeController extends GetxController with WidgetsBindingObserver {
     _updateControllersAfterRemoval(updatedVideos.length);
 
     // Adjust current index if needed
-    _adjustCurrentIndexAfterRemoval(currentVideoId, updatedVideos);
+    // _adjustCurrentIndexAfterRemoval(currentVideoId, updatedVideos);
 
     // Refresh the observable
     videoFeed.refresh();
@@ -405,46 +409,46 @@ class HomeController extends GetxController with WidgetsBindingObserver {
   }
 
   // Helper method to adjust current index after video removal
-  void _adjustCurrentIndexAfterRemoval(
-    String? currentVideoId,
-    List<WallVideos> updatedVideos,
-  ) {
-    if (currentVideoId == null || updatedVideos.isEmpty) {
-      currentIndex.value = 0;
-      return;
-    }
-
-    // Try to find the current video in the updated list
-    int newIndex = updatedVideos.indexWhere(
-      (video) => video.id == currentVideoId,
-    );
-
-    if (newIndex != -1) {
-      // Current video still exists, update index
-      currentIndex.value = newIndex;
-    } else {
-      // Current video was removed, go to previous video or first video
-      int newCurrentIndex = currentIndex.value;
-      if (newCurrentIndex >= updatedVideos.length) {
-        newCurrentIndex = updatedVideos.length - 1;
-      }
-      if (newCurrentIndex < 0) {
-        newCurrentIndex = 0;
-      }
-      currentIndex.value = newCurrentIndex;
-    }
-
-    // Initialize the new current video if it exists
-    if (updatedVideos.isNotEmpty && currentIndex.value < updatedVideos.length) {
-      Future.delayed(Duration(milliseconds: 100), () {
-        initializeControllerAtIndex(currentIndex.value).then((_) {
-          if (!isAppInBackground.value && !isNavigating.value) {
-            playVideoAtIndex(currentIndex.value);
-          }
-        });
-      });
-    }
-  }
+  // void _adjustCurrentIndexAfterRemoval(
+  //   String? currentVideoId,
+  //   List<WallVideos> updatedVideos,
+  // ) {
+  //   if (currentVideoId == null || updatedVideos.isEmpty) {
+  //     currentIndex.value = 0;
+  //     return;
+  //   }
+  //
+  //   // Try to find the current video in the updated list
+  //   int newIndex = updatedVideos.indexWhere(
+  //     (video) => video.id == currentVideoId,
+  //   );
+  //
+  //   if (newIndex != -1) {
+  //     // Current video still exists, update index
+  //     currentIndex.value = newIndex;
+  //   } else {
+  //     // Current video was removed, go to previous video or first video
+  //     int newCurrentIndex = currentIndex.value;
+  //     if (newCurrentIndex >= updatedVideos.length) {
+  //       newCurrentIndex = updatedVideos.length - 1;
+  //     }
+  //     if (newCurrentIndex < 0) {
+  //       newCurrentIndex = 0;
+  //     }
+  //     currentIndex.value = newCurrentIndex;
+  //   }
+  //
+  //   // Initialize the new current video if it exists
+  //   // if (updatedVideos.isNotEmpty && currentIndex.value < updatedVideos.length) {
+  //   //   Future.delayed(Duration(milliseconds: 100), () {
+  //   //     initializeControllerAtIndex(currentIndex.value).then((_) {
+  //   //       if (!isAppInBackground.value && !isNavigating.value) {
+  //   //         playVideoAtIndex(currentIndex.value);
+  //   //       }
+  //   //     });
+  //   //   });
+  //   // }
+  // }
 
   Future<void> saveLocationData() async {
     final prefs = await SharedPreferences.getInstance();
@@ -471,17 +475,17 @@ class HomeController extends GetxController with WidgetsBindingObserver {
           print(
             "This is the length of videos: ${videoFeed.value.videos!.length}",
           );
-          await prepareControllers();
-          if (_chewieControllers.isNotEmpty) {
-            await initializeControllerAtIndex(0);
-            if (!isMuted.value &&
-                !isAppInBackground.value &&
-                !isNavigating.value) {
-              playVideoAtIndex(0);
-            }
-            _viewedIndices.add(0);
-            preloadNextVideos(0);
-          }
+          // await prepareControllers();
+          // if (_chewieControllers.isNotEmpty) {
+          //   await initializeControllerAtIndex(0);
+          //   if (!isMuted.value &&
+          //       !isAppInBackground.value &&
+          //       !isNavigating.value) {
+          //     playVideoAtIndex(0);
+          //   }
+          //   _viewedIndices.add(0);
+          //   preloadNextVideos(0);
+          // }
         } else {
           error.value = "Failed to load videos: ${response.statusCode}";
         }
@@ -496,17 +500,17 @@ class HomeController extends GetxController with WidgetsBindingObserver {
         if (response.statusCode == 200) {
           var jsonData = jsonDecode(response.body);
           videoFeed.value = VideoFeed.fromJson(jsonData);
-          await prepareControllers();
-          if (_chewieControllers.isNotEmpty) {
-            await initializeControllerAtIndex(0);
-            if (!isMuted.value &&
-                !isAppInBackground.value &&
-                !isNavigating.value) {
-              playVideoAtIndex(0);
-            }
-            _viewedIndices.add(0);
-            preloadNextVideos(0);
-          }
+          // await prepareControllers();
+          // if (_chewieControllers.isNotEmpty) {
+          //   await initializeControllerAtIndex(0);
+          //   if (!isMuted.value &&
+          //       !isAppInBackground.value &&
+          //       !isNavigating.value) {
+          //     playVideoAtIndex(0);
+          //   }
+          //   _viewedIndices.add(0);
+          //   preloadNextVideos(0);
+          // }
         } else {
           error.value = "Failed to load videos: ${response.statusCode}";
         }
@@ -562,17 +566,17 @@ class HomeController extends GetxController with WidgetsBindingObserver {
         if (response.statusCode == 200) {
           var jsonData = jsonDecode(response.body);
           videoFeed.value = VideoFeed.fromJson(jsonData);
-          await prepareControllers();
-          if (_chewieControllers.isNotEmpty) {
-            await initializeControllerAtIndex(0);
-            if (!isMuted.value &&
-                !isAppInBackground.value &&
-                !isNavigating.value) {
-              playVideoAtIndex(0);
-            }
-            _viewedIndices.add(0);
-            preloadNextVideos(0);
-          }
+          // await prepareControllers();
+          // if (_chewieControllers.isNotEmpty) {
+          //   await initializeControllerAtIndex(0);
+          //   if (!isMuted.value &&
+          //       !isAppInBackground.value &&
+          //       !isNavigating.value) {
+          //     playVideoAtIndex(0);
+          //   }
+          //   _viewedIndices.add(0);
+          //   preloadNextVideos(0);
+          // }
         } else {
           error.value = "Failed to load videos: ${response.statusCode}";
         }
@@ -621,102 +625,102 @@ class HomeController extends GetxController with WidgetsBindingObserver {
     );
   }
 
-  Future<void> initializeControllerAtIndex(
-    int index, {
-    int retryCount = 3,
-  }) async {
-    // Guard against invalid index
-    if (index < 0 || index >= videoFeed.value.videos!.length) {
-      print("Invalid index: $index");
-      return;
-    }
-
-    // Check if controller is already initialized and valid
-    if (_videoControllers[index] != null &&
-        _videoControllers[index]!.value.isInitialized) {
-      print("Controller at index $index is already initialized");
-      return;
-    }
-
-    // Clean up any existing controller at this index
-    await _disposeControllerAtIndex(index);
-
-    int attempts = 0;
-
-    while (attempts < retryCount) {
-      try {
-        final videoUrl =
-            '${Common.videoUrl}/${videoFeed.value.videos![index].video}';
-        print(
-          "Attempt $attempts: Initializing video at index $index with URL: $videoUrl",
-        );
-
-        // Check for cached video
-        final fileInfo = await _videoCacheManager.getFileFromCache(videoUrl);
-        if (fileInfo != null && fileInfo.file != null) {
-          _videoControllers[index] = VideoPlayerController.file(
-            fileInfo.file,
-            videoPlayerOptions: VideoPlayerOptions(
-              mixWithOthers: false,
-              allowBackgroundPlayback: false,
-            ),
-          );
-        } else {
-          _videoControllers[index] = VideoPlayerController.network(
-            videoUrl,
-            videoPlayerOptions: VideoPlayerOptions(
-              mixWithOthers: false,
-              allowBackgroundPlayback: false,
-            ),
-          );
-          await _videoCacheManager.downloadFile(videoUrl);
-        }
-
-        // Initialize the controller
-        await _videoControllers[index]!.initialize();
-        print("Initialization successful for index $index");
-
-        // Log video details
-        print("Video details for index $index:");
-        print(
-          "  Resolution: ${_videoControllers[index]!.value.size.width}x${_videoControllers[index]!.value.size.height}",
-        );
-        print("  Duration: ${_videoControllers[index]!.value.duration}");
-        print("  Position: ${_videoControllers[index]!.value.position}");
-
-        // Initialize ChewieController
-        _chewieControllers[index] = ChewieController(
-          videoPlayerController: _videoControllers[index]!,
-          autoInitialize: false,
-          looping: true,
-          autoPlay: false,
-          showControls: false,
-          showControlsOnInitialize: false,
-          allowMuting: true,
-        );
-
-        _chewieControllers[index]!.setVolume(isMuted.value ? 0 : 1);
-        _chewieControllers.refresh();
-        print("Video initialized at index $index on attempt $attempts");
-        return; // Success, exit the function
-      } catch (e) {
-        attempts++;
-        print(
-          "Error initializing video at index $index on attempt $attempts: $e",
-        );
-        if (attempts >= retryCount) {
-          print(
-            "Max retries reached for index $index. Falling back to recreate.",
-          );
-          await _disposeControllerAtIndex(index);
-          await recreateControllerAtIndex(index);
-          return;
-        }
-        // Wait before retrying
-        await Future.delayed(Duration(milliseconds: 500));
-      }
-    }
-  }
+  // Future<void> initializeControllerAtIndex(
+  //   int index, {
+  //   int retryCount = 3,
+  // }) async {
+  //   // Guard against invalid index
+  //   if (index < 0 || index >= videoFeed.value.videos!.length) {
+  //     print("Invalid index: $index");
+  //     return;
+  //   }
+  //
+  //   // Check if controller is already initialized and valid
+  //   if (_videoControllers[index] != null &&
+  //       _videoControllers[index]!.value.isInitialized) {
+  //     print("Controller at index $index is already initialized");
+  //     return;
+  //   }
+  //
+  //   // Clean up any existing controller at this index
+  //   await _disposeControllerAtIndex(index);
+  //
+  //   int attempts = 0;
+  //
+  //   while (attempts < retryCount) {
+  //     try {
+  //       final videoUrl =
+  //           '${Common.videoUrl}/${videoFeed.value.videos![index].video}';
+  //       print(
+  //         "Attempt $attempts: Initializing video at index $index with URL: $videoUrl",
+  //       );
+  //
+  //       // Check for cached video
+  //       final fileInfo = await _videoCacheManager.getFileFromCache(videoUrl);
+  //       if (fileInfo != null && fileInfo.file != null) {
+  //         _videoControllers[index] = VideoPlayerController.file(
+  //           fileInfo.file,
+  //           videoPlayerOptions: VideoPlayerOptions(
+  //             mixWithOthers: false,
+  //             allowBackgroundPlayback: false,
+  //           ),
+  //         );
+  //       } else {
+  //         _videoControllers[index] = VideoPlayerController.network(
+  //           videoUrl,
+  //           videoPlayerOptions: VideoPlayerOptions(
+  //             mixWithOthers: false,
+  //             allowBackgroundPlayback: false,
+  //           ),
+  //         );
+  //         await _videoCacheManager.downloadFile(videoUrl);
+  //       }
+  //
+  //       // Initialize the controller
+  //       await _videoControllers[index]!.initialize();
+  //       print("Initialization successful for index $index");
+  //
+  //       // Log video details
+  //       print("Video details for index $index:");
+  //       print(
+  //         "  Resolution: ${_videoControllers[index]!.value.size.width}x${_videoControllers[index]!.value.size.height}",
+  //       );
+  //       print("  Duration: ${_videoControllers[index]!.value.duration}");
+  //       print("  Position: ${_videoControllers[index]!.value.position}");
+  //
+  //       // Initialize ChewieController
+  //       _chewieControllers[index] = ChewieController(
+  //         videoPlayerController: _videoControllers[index]!,
+  //         autoInitialize: false,
+  //         looping: true,
+  //         autoPlay: false,
+  //         showControls: false,
+  //         showControlsOnInitialize: false,
+  //         allowMuting: true,
+  //       );
+  //
+  //       _chewieControllers[index]!.setVolume(isMuted.value ? 0 : 1);
+  //       _chewieControllers.refresh();
+  //       print("Video initialized at index $index on attempt $attempts");
+  //       return; // Success, exit the function
+  //     } catch (e) {
+  //       attempts++;
+  //       print(
+  //         "Error initializing video at index $index on attempt $attempts: $e",
+  //       );
+  //       if (attempts >= retryCount) {
+  //         print(
+  //           "Max retries reached for index $index. Falling back to recreate.",
+  //         );
+  //         await _disposeControllerAtIndex(index);
+  //         // await recreateControllerAtIndex(index);
+  //         return;
+  //       }
+  //       // Wait before retrying
+  //       await Future.delayed(Duration(milliseconds: 500));
+  //     }
+  //   }
+  // }
 
   // Helper method to dispose of a controller at a specific index
   Future<void> _disposeControllerAtIndex(int index) async {
@@ -776,141 +780,141 @@ class HomeController extends GetxController with WidgetsBindingObserver {
     return count;
   }
 
-  Future<void> recreateControllerAtIndex(
-    int index, {
-    int retryCount = 3,
-  }) async {
-    if (index < 0 || index >= videoFeed.value.videos!.length) return;
+  // Future<void> recreateControllerAtIndex(
+  //   int index, {
+  //   int retryCount = 3,
+  // }) async {
+  //   if (index < 0 || index >= videoFeed.value.videos!.length) return;
+  //
+  //   disposeControllerAtIndex(index);
+  //
+  //   int attempts = 0;
+  //
+  //   while (attempts < retryCount) {
+  //     try {
+  //       final videoUrl =
+  //           '${Common.videoUrl}/${videoFeed.value.videos![index].video}';
+  //       print(
+  //         "Attempt $attempts: Recreating video at index $index with URL: $videoUrl",
+  //       );
+  //
+  //       final fileInfo = await _videoCacheManager.getFileFromCache(videoUrl);
+  //       if (fileInfo != null && fileInfo.file != null) {
+  //         _videoControllers[index] = VideoPlayerController.file(
+  //           fileInfo.file,
+  //           videoPlayerOptions: VideoPlayerOptions(
+  //             mixWithOthers: false,
+  //             allowBackgroundPlayback: false,
+  //           ),
+  //         );
+  //       } else {
+  //         _videoControllers[index] = VideoPlayerController.network(
+  //           videoUrl,
+  //           videoPlayerOptions: VideoPlayerOptions(
+  //             mixWithOthers: false,
+  //             allowBackgroundPlayback: false,
+  //           ),
+  //         );
+  //         await _videoCacheManager.downloadFile(videoUrl);
+  //       }
+  //
+  //       await _videoControllers[index]!.initialize();
+  //
+  //       _chewieControllers[index] = ChewieController(
+  //         videoPlayerController: _videoControllers[index]!,
+  //         autoInitialize: false,
+  //         looping: true,
+  //         autoPlay: false,
+  //         allowMuting: true,
+  //         showControls: false,
+  //         materialProgressColors: ChewieProgressColors(
+  //           playedColor: Colors.red,
+  //           handleColor: Colors.redAccent,
+  //           backgroundColor: Colors.grey,
+  //           bufferedColor: Colors.white30,
+  //         ),
+  //       );
+  //
+  //       _chewieControllers[index]!.setVolume(isMuted.value ? 0 : 1);
+  //       _chewieControllers.refresh();
+  //       print(
+  //         "Recreated and initialized video at index $index on attempt $attempts",
+  //       );
+  //       return;
+  //     } catch (e) {
+  //       attempts++;
+  //       print(
+  //         "Error recreating video at index $index on attempt $attempts: $e",
+  //       );
+  //       if (attempts >= retryCount) {
+  //         print("Max retries reached for index $index. Giving up.");
+  //         error.value =
+  //             "Failed to load video at index $index after $retryCount attempts: $e";
+  //         return;
+  //       }
+  //       await Future.delayed(Duration(milliseconds: 500));
+  //     }
+  //   }
+  // }
 
-    disposeControllerAtIndex(index);
+  // void handlePageChange(int index) {
+  //   if (index == currentIndex.value) return;
+  //
+  //   _debounceTimer?.cancel();
+  //
+  //   _debounceTimer = Timer(const Duration(milliseconds: 300), () async {
+  //     print("handlePageChange: Processing index $index");
+  //     pauseAllVideos();
+  //     currentIndex.value = index;
+  //
+  //     // if (index >= 0 && index < videoFeed.value.videos!.length) {
+  //     //   if (_chewieControllers[index] == null ||
+  //     //       !_videoControllers[index]!.value.isInitialized) {
+  //     //     await initializeControllerAtIndex(index);
+  //     //     if (!isAppInBackground.value && !isNavigating.value) {
+  //     //       playVideoAtIndex(index);
+  //     //     }
+  //     //     _viewedIndices.add(index);
+  //     //     preloadNextVideos(index);
+  //     //   } else {
+  //     //     if (!isAppInBackground.value && !isNavigating.value) {
+  //     //       playVideoAtIndex(index);
+  //     //     }
+  //     //     _viewedIndices.add(index);
+  //     //     preloadNextVideos(index);
+  //     //   }
+  //     //   _cleanupUnusedControllers(index);
+  //     // }
+  //   });
+  // }
 
-    int attempts = 0;
-
-    while (attempts < retryCount) {
-      try {
-        final videoUrl =
-            '${Common.videoUrl}/${videoFeed.value.videos![index].video}';
-        print(
-          "Attempt $attempts: Recreating video at index $index with URL: $videoUrl",
-        );
-
-        final fileInfo = await _videoCacheManager.getFileFromCache(videoUrl);
-        if (fileInfo != null && fileInfo.file != null) {
-          _videoControllers[index] = VideoPlayerController.file(
-            fileInfo.file,
-            videoPlayerOptions: VideoPlayerOptions(
-              mixWithOthers: false,
-              allowBackgroundPlayback: false,
-            ),
-          );
-        } else {
-          _videoControllers[index] = VideoPlayerController.network(
-            videoUrl,
-            videoPlayerOptions: VideoPlayerOptions(
-              mixWithOthers: false,
-              allowBackgroundPlayback: false,
-            ),
-          );
-          await _videoCacheManager.downloadFile(videoUrl);
-        }
-
-        await _videoControllers[index]!.initialize();
-
-        _chewieControllers[index] = ChewieController(
-          videoPlayerController: _videoControllers[index]!,
-          autoInitialize: false,
-          looping: true,
-          autoPlay: false,
-          allowMuting: true,
-          showControls: false,
-          materialProgressColors: ChewieProgressColors(
-            playedColor: Colors.red,
-            handleColor: Colors.redAccent,
-            backgroundColor: Colors.grey,
-            bufferedColor: Colors.white30,
-          ),
-        );
-
-        _chewieControllers[index]!.setVolume(isMuted.value ? 0 : 1);
-        _chewieControllers.refresh();
-        print(
-          "Recreated and initialized video at index $index on attempt $attempts",
-        );
-        return;
-      } catch (e) {
-        attempts++;
-        print(
-          "Error recreating video at index $index on attempt $attempts: $e",
-        );
-        if (attempts >= retryCount) {
-          print("Max retries reached for index $index. Giving up.");
-          error.value =
-              "Failed to load video at index $index after $retryCount attempts: $e";
-          return;
-        }
-        await Future.delayed(Duration(milliseconds: 500));
-      }
-    }
-  }
-
-  void handlePageChange(int index) {
-    if (index == currentIndex.value) return;
-
-    _debounceTimer?.cancel();
-
-    _debounceTimer = Timer(const Duration(milliseconds: 300), () async {
-      print("handlePageChange: Processing index $index");
-      pauseAllVideos();
-      currentIndex.value = index;
-
-      if (index >= 0 && index < videoFeed.value.videos!.length) {
-        if (_chewieControllers[index] == null ||
-            !_videoControllers[index]!.value.isInitialized) {
-          await initializeControllerAtIndex(index);
-          if (!isAppInBackground.value && !isNavigating.value) {
-            playVideoAtIndex(index);
-          }
-          _viewedIndices.add(index);
-          preloadNextVideos(index);
-        } else {
-          if (!isAppInBackground.value && !isNavigating.value) {
-            playVideoAtIndex(index);
-          }
-          _viewedIndices.add(index);
-          preloadNextVideos(index);
-        }
-        _cleanupUnusedControllers(index);
-      }
-    });
-  }
-
-  void preloadNextVideos(int currentIndex) async {
-    print("Preloading started for nearby videos");
-
-    const int preloadLimit = 1; // Preload ±1 indices
-    int startIndex = (currentIndex - preloadLimit).clamp(
-      0,
-      videoFeed.value.videos!.length - 1,
-    );
-    int endIndex = (currentIndex + preloadLimit).clamp(
-      0,
-      videoFeed.value.videos!.length - 1,
-    );
-
-    for (int nextIndex = startIndex; nextIndex <= endIndex; nextIndex++) {
-      if (!_viewedIndices.contains(nextIndex) &&
-          (_chewieControllers[nextIndex] == null ||
-              _videoControllers[nextIndex]?.value.isInitialized != true)) {
-        print("Preloading video at index $nextIndex");
-        await initializeControllerAtIndex(nextIndex);
-        await Future.delayed(
-          Duration(milliseconds: 100),
-        ); // Small delay to ease load
-      }
-    }
-
-    print("Preloading completed");
-  }
+  // void preloadNextVideos(int currentIndex) async {
+  //   print("Preloading started for nearby videos");
+  //
+  //   const int preloadLimit = 1; // Preload ±1 indices
+  //   int startIndex = (currentIndex - preloadLimit).clamp(
+  //     0,
+  //     videoFeed.value.videos!.length - 1,
+  //   );
+  //   int endIndex = (currentIndex + preloadLimit).clamp(
+  //     0,
+  //     videoFeed.value.videos!.length - 1,
+  //   );
+  //
+  //   for (int nextIndex = startIndex; nextIndex <= endIndex; nextIndex++) {
+  //     if (!_viewedIndices.contains(nextIndex) &&
+  //         (_chewieControllers[nextIndex] == null ||
+  //             _videoControllers[nextIndex]?.value.isInitialized != true)) {
+  //       print("Preloading video at index $nextIndex");
+  //       await initializeControllerAtIndex(nextIndex);
+  //       await Future.delayed(
+  //         Duration(milliseconds: 100),
+  //       ); // Small delay to ease load
+  //     }
+  //   }
+  //
+  //   print("Preloading completed");
+  // }
 
   void pauseAllVideos() {
     print("Pausing all videos");
@@ -921,34 +925,34 @@ class HomeController extends GetxController with WidgetsBindingObserver {
     isVideoPlaying.value = false;
   }
 
-  Future<void> playVideoAtIndex(int index) async {
-    if (index < 0 ||
-        index >= videoFeed.value.videos!.length ||
-        _chewieControllers[index] == null)
-      return;
+  // Future<void> playVideoAtIndex(int index) async {
+  //   if (index < 0 ||
+  //       index >= videoFeed.value.videos!.length ||
+  //       _chewieControllers[index] == null)
+  //     return;
+  //
+  //   print("Playing video at index $index");
+  //   await initializeControllerAtIndex(index);
+  //   _chewieControllers.refresh();
+  //   await Future.delayed(const Duration(milliseconds: 100));
+  //   await _chewieControllers[index]!.play();
+  //   _chewieControllers[index]!.setVolume(isMuted.value ? 0 : 1);
+  //   isVideoPlaying.value = true;
+  //   _viewedIndices.add(index);
+  // }
 
-    print("Playing video at index $index");
-    await initializeControllerAtIndex(index);
-    _chewieControllers.refresh();
-    await Future.delayed(const Duration(milliseconds: 100));
-    await _chewieControllers[index]!.play();
-    _chewieControllers[index]!.setVolume(isMuted.value ? 0 : 1);
-    isVideoPlaying.value = true;
-    _viewedIndices.add(index);
-  }
-
-  void pauseCurrentVideo() {
-    if (currentIndex.value >= 0 &&
-        currentIndex.value < _chewieControllers.length &&
-        _chewieControllers[currentIndex.value] != null) {
-      print("Pausing current video at index ${currentIndex.value}");
-      final controller = _chewieControllers[currentIndex.value]!;
-      lastVideoPosition.value = controller.videoPlayerController.value.position;
-      wasPlaying.value = controller.isPlaying;
-      controller.pause();
-      isVideoPlaying.value = false;
-    }
-  }
+  // void pauseCurrentVideo() {
+  //   if (currentIndex.value >= 0 &&
+  //       currentIndex.value < _chewieControllers.length &&
+  //       _chewieControllers[currentIndex.value] != null) {
+  //     print("Pausing current video at index ${currentIndex.value}");
+  //     final controller = _chewieControllers[currentIndex.value]!;
+  //     lastVideoPosition.value = controller.videoPlayerController.value.position;
+  //     wasPlaying.value = controller.isPlaying;
+  //     controller.pause();
+  //     isVideoPlaying.value = false;
+  //   }
+  // }
 
   void resumeCurrentVideo() {
     if (!isAppInBackground.value &&
@@ -962,16 +966,16 @@ class HomeController extends GetxController with WidgetsBindingObserver {
     }
   }
 
-  void togglePlayPause() {
-    if (currentIndex.value < 0 ||
-        currentIndex.value >= _chewieControllers.length)
-      return;
-
-    final controller = _chewieControllers[currentIndex.value];
-    if (controller != null) {
-      controller.isPlaying ? pauseCurrentVideo() : resumeCurrentVideo();
-    }
-  }
+  // void togglePlayPause() {
+  //   if (currentIndex.value < 0 ||
+  //       currentIndex.value >= _chewieControllers.length)
+  //     return;
+  //
+  //   final controller = _chewieControllers[currentIndex.value];
+  //   if (controller != null) {
+  //     controller.isPlaying ? pauseCurrentVideo() : resumeCurrentVideo();
+  //   }
+  // }
 
   void toggleMute() {
     isMuted.value = !isMuted.value;
@@ -982,45 +986,45 @@ class HomeController extends GetxController with WidgetsBindingObserver {
     }
   }
 
-  void handleNavigation() {
-    isNavigating.value = true;
-    pauseCurrentVideo();
-  }
+  // void handleNavigation() {
+  //   isNavigating.value = true;
+  //   pauseCurrentVideo();
+  // }
 
-  Future<void> restoreVideoState() async {
-    final index = currentIndex.value;
-    if (index < 0 ||
-        index >= _chewieControllers.length ||
-        _chewieControllers[index] == null) {
-      isNavigating.value = false;
-      return;
-    }
-
-    final controller = _chewieControllers[index]!;
-    try {
-      if (!controller.videoPlayerController.value.isInitialized) {
-        await initializeControllerAtIndex(index);
-      }
-
-      if (lastVideoPosition.value.inMilliseconds > 0) {
-        await controller.videoPlayerController.seekTo(lastVideoPosition.value);
-      }
-
-      final targetVolume = isMuted.value ? 0.0 : 1.0;
-      if (controller.videoPlayerController.value.volume != targetVolume) {
-        controller.setVolume(targetVolume);
-      }
-
-      if (wasPlaying.value && !isAppInBackground.value && !isNavigating.value) {
-        await controller.play();
-        isVideoPlaying.value = true;
-      }
-    } catch (e) {
-      print('Error restoring video state: $e');
-    } finally {
-      isNavigating.value = false;
-    }
-  }
+  // Future<void> restoreVideoState() async {
+  //   final index = currentIndex.value;
+  //   if (index < 0 ||
+  //       index >= _chewieControllers.length ||
+  //       _chewieControllers[index] == null) {
+  //     isNavigating.value = false;
+  //     return;
+  //   }
+  //
+  //   final controller = _chewieControllers[index]!;
+  //   try {
+  //     if (!controller.videoPlayerController.value.isInitialized) {
+  //       await initializeControllerAtIndex(index);
+  //     }
+  //
+  //     if (lastVideoPosition.value.inMilliseconds > 0) {
+  //       await controller.videoPlayerController.seekTo(lastVideoPosition.value);
+  //     }
+  //
+  //     final targetVolume = isMuted.value ? 0.0 : 1.0;
+  //     if (controller.videoPlayerController.value.volume != targetVolume) {
+  //       controller.setVolume(targetVolume);
+  //     }
+  //
+  //     if (wasPlaying.value && !isAppInBackground.value && !isNavigating.value) {
+  //       await controller.play();
+  //       isVideoPlaying.value = true;
+  //     }
+  //   } catch (e) {
+  //     print('Error restoring video state: $e');
+  //   } finally {
+  //     isNavigating.value = false;
+  //   }
+  // }
 
   void disposeControllerAtIndex(int index) {
     if (index >= 0 && index < _chewieControllers.length) {

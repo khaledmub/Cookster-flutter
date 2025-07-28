@@ -86,7 +86,7 @@ class _LandingState extends State<Landing> {
   }
 
   Future<void> _pickImage(BuildContext context, ImageSource source) async {
-    controller.pauseCurrentVideo();
+    // controller.pauseCurrentVideo();
     final cameras = await availableCameras();
     if (cameras.isEmpty) {
       Get.snackbar(
@@ -97,7 +97,7 @@ class _LandingState extends State<Landing> {
       return;
     }
     Get.to(CameraCaptureScreen(cameras: cameras))?.then((_) {
-      controller.restoreVideoState();
+      // controller.restoreVideoState();
     });
   }
 
@@ -178,7 +178,7 @@ class _LandingState extends State<Landing> {
                 ),
                 onTap: () async {
                   Navigator.pop(context);
-                  controller.pauseCurrentVideo();
+                  // controller.pauseCurrentVideo();
                   try {
                     final XFile? pickedFile = await ImagePicker().pickMedia(
                       imageQuality: 80,
@@ -220,7 +220,7 @@ class _LandingState extends State<Landing> {
                       colorText: Colors.white,
                     );
                   } finally {
-                    controller.restoreVideoState();
+                    // controller.restoreVideoState();
                   }
                 },
               ),
@@ -232,10 +232,10 @@ class _LandingState extends State<Landing> {
                 ),
                 onTap: () async {
                   Navigator.pop(context);
-                  controller.pauseCurrentVideo();
+                  // controller.pauseCurrentVideo();
                   final cameras = await availableCameras();
                   Get.to(CameraScreen(cameras: cameras))?.then((_) {
-                    controller.restoreVideoState();
+                    // controller.restoreVideoState();
                   });
                 },
               ),
@@ -248,7 +248,7 @@ class _LandingState extends State<Landing> {
                 onTap: () async {
                   Navigator.pop(context);
                   _pickImage(context, ImageSource.camera).then((_) {
-                    controller.restoreVideoState();
+                    // controller.restoreVideoState();
                   });
                 },
               ),
@@ -369,7 +369,7 @@ class _LandingState extends State<Landing> {
           if (didPop) return;
           if (navBarController.selectedIndex.value != 0) {
             navBarController.changeTab(0);
-            controller.restoreVideoState();
+            // controller.restoreVideoState();
           } else {
             final shouldPop = await _showExitConfirmationDialog(context);
             if (shouldPop) {
@@ -509,12 +509,6 @@ class _LandingState extends State<Landing> {
   }
 
   void _performTabNavigation(int index) {
-    if (navBarController.selectedIndex.value == 0 && index != 0) {
-      controller.handleNavigation();
-    } else if (index == 0) {
-      controller.restoreVideoState();
-    }
-    controller.pauseCurrentVideo();
     navBarController.changeTab(index);
   }
 

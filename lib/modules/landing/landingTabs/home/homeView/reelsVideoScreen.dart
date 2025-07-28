@@ -24,6 +24,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_svg/svg.dart';
+import 'package:focus_detector_v2/focus_detector_v2.dart';
 import 'package:get/get.dart';
 import 'package:pro_image_editor/core/platform/io/io_helper.dart';
 import 'package:share_plus/share_plus.dart';
@@ -109,34 +110,6 @@ class _VideoReelScreenState extends State<VideoReelScreen>
     _checkAuthentication();
     WakelockPlus.enable();
     pageController = PageController(initialPage: controller.currentIndex.value);
-
-    // _swiperController = SwiperController();
-    _restoreSwiperPosition();
-  }
-
-  void _restoreSwiperPosition() {
-    // Set Swiper to the last viewed index
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted &&
-          controller.currentIndex.value >= 0 &&
-          controller.currentIndex.value < controller.chewieControllers.length) {
-        // _swiperController.move(controller.currentIndex.value, animation: false);
-      }
-    });
-  }
-
-  void _togglePlayPause() {
-    controller.togglePlayPause();
-    setState(() {
-      _showIcon = true;
-    });
-    Future.delayed(Duration(seconds: 1), () {
-      if (mounted) {
-        setState(() {
-          _showIcon = false;
-        });
-      }
-    });
   }
 
   @override
@@ -147,29 +120,6 @@ class _VideoReelScreenState extends State<VideoReelScreen>
     WakelockPlus.disable();
     // Do not dispose controllers here to preserve state
     super.dispose();
-  }
-
-  void _handleScreenExit() {
-    controller.handleNavigation(); // Save state and pause
-  }
-
-  @override
-  void deactivate() {
-    // Save the current video's position and pause it
-    if (controller.currentIndex.value >= 0 &&
-        controller.currentIndex.value < controller.chewieControllers.length) {
-      final currentChewieController =
-          controller.chewieControllers[controller.currentIndex.value];
-      if (currentChewieController != null &&
-          currentChewieController.videoPlayerController.value.isInitialized) {
-        // Save the current position
-        controller.lastVideoPosition.value =
-            currentChewieController.videoPlayerController.value.position;
-        // Pause the video
-        currentChewieController.videoPlayerController.pause();
-      }
-    }
-    super.deactivate();
   }
 
   Future<String> _getDeviceId() async {
@@ -240,6 +190,9 @@ class _VideoReelScreenState extends State<VideoReelScreen>
     );
   }
 
+  // Add a variable to store the last viewed index
+  int? _lastViewedIndex;
+
   @override
   Widget build(BuildContext context) {
     super.build(context);
@@ -250,163 +203,175 @@ class _VideoReelScreenState extends State<VideoReelScreen>
     String? userId = currentUser?.id ?? currentUserDetails?.id;
     bool isRtl = _language == 'ar';
 
-    return WillPopScope(
-      onWillPop: () async {
-        _handleScreenExit();
-        return true;
-      },
-      child: Scaffold(
-        backgroundColor: Colors.black,
-        appBar: AppBar(
-          toolbarHeight: 0,
-          elevation: 0,
-          backgroundColor: Colors.transparent,
-        ),
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        toolbarHeight: 0,
+        elevation: 0,
+        backgroundColor: Colors.transparent,
+      ),
 
-        body: Obx(() {
-          return Stack(
-            children: [
-              controller.isLoading.value || controller.isLocationFetching.value
-                  ? Center(
-                    child: PulseLogoLoader(
-                      logoPath: "assets/images/appIcon.png",
-                      size: 80,
-                    ),
-                  )
-                  : controller.videoFeed.value.videos == null ||
-                      controller.videoFeed.value.videos!.isEmpty
-                  ? Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(
-                          textAlign: TextAlign.center,
-                          "${'no_video_for'.tr} ${controller.currentCity.value} ${'try_to_change'.tr}",
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 14.sp,
+      body: Obx(() {
+        return Stack(
+          children: [
+            controller.isLoading.value || controller.isLocationFetching.value
+                ? Center(
+                  child: PulseLogoLoader(
+                    logoPath: "assets/images/appIcon.png",
+                    size: 80,
+                  ),
+                )
+                : controller.videoFeed.value.videos == null ||
+                    controller.videoFeed.value.videos!.isEmpty
+                ? Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        textAlign: TextAlign.center,
+                        "${'no_video_for'.tr} ${controller.currentCity.value} ${'try_to_change'.tr}",
+                        style: TextStyle(color: Colors.white, fontSize: 14.sp),
+                      ),
+                      SizedBox(height: 16),
+
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          if (controller.selectedType.value == "Near Me")
+                            Expanded(
+                              child: AppButton(
+                                text: "Change Location",
+                                onTap: () {
+                                  _showBottomSheet(context);
+                                },
+                              ),
+                            ),
+
+                          SizedBox(width: 8),
+                          InkWell(
+                            onTap: () {
+                              Get.to(
+                                () => SearchView(
+                                  isGeneral:
+                                      controller.selectedType.value == "General"
+                                          ? 1
+                                          : 0,
+                                ),
+                              )?.then((_) {
+                                controller.fetchVideos(
+                                  city: controller.currentCity.value,
+                                  country: controller.currentCountry.value,
+                                );
+                              });
+                            },
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color: Colors.transparent,
+                                // Transparent to show blur
+                                borderRadius: BorderRadius.circular(50),
+                              ),
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(50),
+                                child: BackdropFilter(
+                                  filter: ImageFilter.blur(
+                                    sigmaX: 10.0,
+                                    sigmaY: 10.0,
+                                  ), // Blur effect
+                                  child: Container(
+                                    padding: EdgeInsets.all(14),
+                                    decoration: BoxDecoration(
+                                      color: ColorUtils.primaryColor,
+                                      // Blue tint
+                                      borderRadius: BorderRadius.circular(50),
+                                    ),
+                                    child: Icon(
+                                      Icons.search,
+                                      color: Colors.black,
+                                      size: 24.sp,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
                           ),
-                        ),
-                        SizedBox(height: 16),
-
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            if (controller.selectedType.value == "Near Me")
-                              Expanded(
-                                child: AppButton(
-                                  text: "Change Location",
-                                  onTap: () {
-                                    _showBottomSheet(context);
-                                  },
-                                ),
+                          SizedBox(width: 8),
+                          InkWell(
+                            onTap: () {
+                              controller.fetchVideos();
+                            },
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color: Colors.transparent,
+                                // Transparent to show blur
+                                borderRadius: BorderRadius.circular(50),
                               ),
-
-                            SizedBox(width: 8),
-                            InkWell(
-                              onTap: () {
-                                Get.to(
-                                  () => SearchView(
-                                    isGeneral:
-                                        controller.selectedType.value ==
-                                                "General"
-                                            ? 1
-                                            : 0,
-                                  ),
-                                )?.then((_) {
-                                  controller.fetchVideos(
-                                    city: controller.currentCity.value,
-                                    country: controller.currentCountry.value,
-                                  );
-                                });
-                              },
-                              child: Container(
-                                decoration: BoxDecoration(
-                                  color: Colors.transparent,
-                                  // Transparent to show blur
-                                  borderRadius: BorderRadius.circular(50),
-                                ),
-                                child: ClipRRect(
-                                  borderRadius: BorderRadius.circular(50),
-                                  child: BackdropFilter(
-                                    filter: ImageFilter.blur(
-                                      sigmaX: 10.0,
-                                      sigmaY: 10.0,
-                                    ), // Blur effect
-                                    child: Container(
-                                      padding: EdgeInsets.all(14),
-                                      decoration: BoxDecoration(
-                                        color: ColorUtils.primaryColor,
-                                        // Blue tint
-                                        borderRadius: BorderRadius.circular(50),
-                                      ),
-                                      child: Icon(
-                                        Icons.search,
-                                        color: Colors.black,
-                                        size: 24.sp,
-                                      ),
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(50),
+                                child: BackdropFilter(
+                                  filter: ImageFilter.blur(
+                                    sigmaX: 10.0,
+                                    sigmaY: 10.0,
+                                  ), // Blur effect
+                                  child: Container(
+                                    padding: EdgeInsets.all(14),
+                                    decoration: BoxDecoration(
+                                      color: ColorUtils.primaryColor,
+                                      // Blue tint
+                                      borderRadius: BorderRadius.circular(50),
+                                    ),
+                                    child: Icon(
+                                      Icons.refresh,
+                                      color: Colors.black,
+                                      size: 24.sp,
                                     ),
                                   ),
                                 ),
                               ),
                             ),
-                            SizedBox(width: 8),
-                            InkWell(
-                              onTap: () {
-                                controller.fetchVideos();
-                              },
-                              child: Container(
-                                decoration: BoxDecoration(
-                                  color: Colors.transparent,
-                                  // Transparent to show blur
-                                  borderRadius: BorderRadius.circular(50),
-                                ),
-                                child: ClipRRect(
-                                  borderRadius: BorderRadius.circular(50),
-                                  child: BackdropFilter(
-                                    filter: ImageFilter.blur(
-                                      sigmaX: 10.0,
-                                      sigmaY: 10.0,
-                                    ), // Blur effect
-                                    child: Container(
-                                      padding: EdgeInsets.all(14),
-                                      decoration: BoxDecoration(
-                                        color: ColorUtils.primaryColor,
-                                        // Blue tint
-                                        borderRadius: BorderRadius.circular(50),
-                                      ),
-                                      child: Icon(
-                                        Icons.refresh,
-                                        color: Colors.black,
-                                        size: 24.sp,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  )
-                  : Listener(
-                    child: GestureDetector(
-                      onVerticalDragEnd: (details) {
-                        if (details.primaryVelocity! > 300) {
-                          _scrollToPrevious();
-                        } else if (details.primaryVelocity! < -300) {
-                          _scrollToNext();
-                        }
-                      },
-                      onPanEnd: (details) {
-                        if (details.velocity.pixelsPerSecond.dy > 100) {
-                          _scrollToPrevious();
-                        } else if (details.velocity.pixelsPerSecond.dy < -100) {
-                          _scrollToNext();
-                        }
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                )
+                : Listener(
+                  child: GestureDetector(
+                    onVerticalDragEnd: (details) {
+                      if (details.primaryVelocity! > 300) {
+                        _scrollToPrevious();
+                      } else if (details.primaryVelocity! < -300) {
+                        _scrollToNext();
+                      }
+                    },
+                    onPanEnd: (details) {
+                      if (details.velocity.pixelsPerSecond.dy > 100) {
+                        _scrollToPrevious();
+                      } else if (details.velocity.pixelsPerSecond.dy < -100) {
+                        _scrollToNext();
+                      }
+                    },
+                    child: FocusDetector(
+                      onFocusGained: () {
+                        print("PageController: $_pageController");
+                        print(
+                          "Last Viewed Index: ${controller.visiblePageIndex.value}",
+                        );
+                        print(
+                          "Video List Length: ${controller.videoFeed.value.videos?.length ?? 0}",
+                        );
+
+                        _pageController.jumpToPage(
+                          controller.visiblePageIndex.value,
+                        );
+                        print(
+                          'Focus Gained.'
+                          '\nTriggered when either [onVisibilityGained] or '
+                          '[onForegroundGained] '
+                          'is called.'
+                          '\nEquivalent to onResume() on Android or viewDidAppear() on iOS.',
+                        );
                       },
                       child: PageView.custom(
                         scrollDirection: Axis.vertical,
@@ -422,7 +387,13 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                                   ? index %
                                       controller.videoFeed.value.videos!.length
                                   : 0;
-                          controller.handlePageChange(actualIndex);
+
+                          // Store the current index
+                          setState(() {
+                            _lastViewedIndex = index;
+                          });
+
+                          print("PRINTING INDEX: $index $_lastViewedIndex");
 
                           // Check if we're nearing the end of the list (3 videos left)
                           if (controller.videoFeed.value.videos != null &&
@@ -493,8 +464,9 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                                       '${Common.videoUrl}/${videoDetail.image}',
                                   videoUrl:
                                       '${Common.videoUrl}/${videoDetail.video}',
-                                  autoPlay:
-                                      true, // Optional: Set to false if you don't want autoplay
+                                  autoPlay: true,
+                                  // Optional: Set to false if you don't want autoplay
+                                  // uniqueId: videoDetail.id!,
                                 ),
                                 VideoDescriptionWidget(
                                   title: videoDetail.title,
@@ -589,95 +561,49 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                       ),
                     ),
                   ),
+                ),
 
-              SafeArea(
-                child: Obx(
-                  () => Container(
-                    margin: EdgeInsets.only(top: 10),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceAround,
-                      children: [
-                        SizedBox(width: 16),
+            SafeArea(
+              child: Obx(
+                () => Container(
+                  margin: EdgeInsets.only(top: 10),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceAround,
+                    children: [
+                      SizedBox(width: 16),
 
-                        InkWell(
-                          onTap: () {
-                            isAuthenticated
-                                ? Get.to(JoinScreen())
-                                : Get.toNamed(AppRoutes.signIn);
-                          },
-                          child: SvgPicture.asset(
-                            "assets/icons/live.svg",
-                            color: Colors.white,
-                          ),
+                      InkWell(
+                        onTap: () {
+                          isAuthenticated
+                              ? Get.to(JoinScreen())
+                              : Get.toNamed(AppRoutes.signIn);
+                        },
+                        child: SvgPicture.asset(
+                          "assets/icons/live.svg",
+                          color: Colors.white,
                         ),
-                        SizedBox(width: 16),
-                        if ((promoteVideoController
-                                    .siteSettings
-                                    .value
-                                    ?.settings
-                                    ?.allowGeneralVideos ??
-                                0) ==
-                            1)
-                          GestureDetector(
-                            onTap: () async {
-                              if (controller.isLoading.value ||
-                                  controller.isLocationFetching.value) {
-                              } else {
-                                controller.disposeControllers();
-                                controller.setSelectedType("General");
-                                controller.fetchVideos();
-                              }
-                              ;
-                            },
-                            child: Text(
-                              "General".tr,
-                              style: TextStyle(
-                                shadows: <Shadow>[
-                                  // Subtle depth shadow
-                                  Shadow(
-                                    offset: Offset(0.0, 2.0),
-                                    blurRadius: 4.0,
-                                    color: Color.fromARGB(60, 0, 0, 0),
-                                  ),
-                                  // Soft outline for readability
-                                  Shadow(
-                                    offset: Offset(0.0, 0.0),
-                                    blurRadius: 8.0,
-                                    color: Color.fromARGB(80, 0, 0, 0),
-                                  ),
-                                  // Crisp edge definition
-                                  Shadow(
-                                    offset: Offset(0.5, 0.5),
-                                    blurRadius: 1.0,
-                                    color: Color.fromARGB(100, 0, 0, 0),
-                                  ),
-                                ],
-                                color:
-                                    controller.selectedType.value == "General"
-                                        ? Colors.white
-                                        : Colors.white.withOpacity(0.5),
-                                fontWeight:
-                                    controller.selectedType.value == "General"
-                                        ? FontWeight.w500
-                                        : FontWeight.w300,
-                                fontSize: 18,
-                              ),
-                            ),
-                          ),
-                        SizedBox(width: 20),
+                      ),
+                      SizedBox(width: 16),
+                      if ((promoteVideoController
+                                  .siteSettings
+                                  .value
+                                  ?.settings
+                                  ?.allowGeneralVideos ??
+                              0) ==
+                          1)
                         GestureDetector(
-                          onTap: () {
+                          onTap: () async {
                             if (controller.isLoading.value ||
                                 controller.isLocationFetching.value) {
                             } else {
                               controller.disposeControllers();
-                              controller.setSelectedType("Near Me");
+                              controller.setSelectedType("General");
                               controller.fetchVideos();
                             }
                             ;
                           },
                           child: Text(
-                            "Near Me".tr,
+                            "General".tr,
                             style: TextStyle(
                               shadows: <Shadow>[
                                 // Subtle depth shadow
@@ -700,104 +626,148 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                                 ),
                               ],
                               color:
-                                  controller.selectedType.value == "Near Me"
+                                  controller.selectedType.value == "General"
                                       ? Colors.white
                                       : Colors.white.withOpacity(0.5),
                               fontWeight:
-                                  controller.selectedType.value == "Near Me"
+                                  controller.selectedType.value == "General"
                                       ? FontWeight.w500
                                       : FontWeight.w300,
                               fontSize: 18,
                             ),
                           ),
                         ),
-                        SizedBox(width: 20),
-                        if ((promoteVideoController
-                                    .siteSettings
-                                    .value
-                                    ?.settings
-                                    ?.allowGeneralVideos ??
-                                0) ==
-                            1)
-                          GestureDetector(
-                            onTap: () async {
-                              print(
-                                "RINTING IS AUTHENTICAT ${isAuthenticated}",
-                              );
-                              if (isAuthenticated) {
-                                if (controller.isLoading.value ||
-                                    controller.isLocationFetching.value) {
-                                } else {
-                                  controller.disposeControllers();
-                                  controller.setSelectedType("Following");
-                                  controller.fetchVideos();
-                                }
-                                ;
-                              } else {
-                                Get.toNamed(AppRoutes.signIn);
-                              }
-                            },
-                            child: Text(
-                              "Following".tr,
-                              style: TextStyle(
-                                shadows: <Shadow>[
-                                  // Subtle depth shadow
-                                  Shadow(
-                                    offset: Offset(0.0, 2.0),
-                                    blurRadius: 4.0,
-                                    color: Color.fromARGB(60, 0, 0, 0),
-                                  ),
-                                  // Soft outline for readability
-                                  Shadow(
-                                    offset: Offset(0.0, 0.0),
-                                    blurRadius: 8.0,
-                                    color: Color.fromARGB(80, 0, 0, 0),
-                                  ),
-                                  // Crisp edge definition
-                                  Shadow(
-                                    offset: Offset(0.5, 0.5),
-                                    blurRadius: 1.0,
-                                    color: Color.fromARGB(100, 0, 0, 0),
-                                  ),
-                                ],
-                                color:
-                                    controller.selectedType.value == "Following"
-                                        ? Colors.white
-                                        : Colors.white.withOpacity(0.5),
-                                fontWeight:
-                                    controller.selectedType.value == "Following"
-                                        ? FontWeight.w500
-                                        : FontWeight.w300,
-                                fontSize: 18,
+                      SizedBox(width: 20),
+                      GestureDetector(
+                        onTap: () {
+                          if (controller.isLoading.value ||
+                              controller.isLocationFetching.value) {
+                          } else {
+                            controller.disposeControllers();
+                            controller.setSelectedType("Near Me");
+                            controller.fetchVideos();
+                          }
+                          ;
+                        },
+                        child: Text(
+                          "Near Me".tr,
+                          style: TextStyle(
+                            shadows: <Shadow>[
+                              // Subtle depth shadow
+                              Shadow(
+                                offset: Offset(0.0, 2.0),
+                                blurRadius: 4.0,
+                                color: Color.fromARGB(60, 0, 0, 0),
                               ),
+                              // Soft outline for readability
+                              Shadow(
+                                offset: Offset(0.0, 0.0),
+                                blurRadius: 8.0,
+                                color: Color.fromARGB(80, 0, 0, 0),
+                              ),
+                              // Crisp edge definition
+                              Shadow(
+                                offset: Offset(0.5, 0.5),
+                                blurRadius: 1.0,
+                                color: Color.fromARGB(100, 0, 0, 0),
+                              ),
+                            ],
+                            color:
+                                controller.selectedType.value == "Near Me"
+                                    ? Colors.white
+                                    : Colors.white.withOpacity(0.5),
+                            fontWeight:
+                                controller.selectedType.value == "Near Me"
+                                    ? FontWeight.w500
+                                    : FontWeight.w300,
+                            fontSize: 18,
+                          ),
+                        ),
+                      ),
+                      SizedBox(width: 20),
+                      if ((promoteVideoController
+                                  .siteSettings
+                                  .value
+                                  ?.settings
+                                  ?.allowGeneralVideos ??
+                              0) ==
+                          1)
+                        GestureDetector(
+                          onTap: () async {
+                            print("RINTING IS AUTHENTICAT ${isAuthenticated}");
+                            if (isAuthenticated) {
+                              if (controller.isLoading.value ||
+                                  controller.isLocationFetching.value) {
+                              } else {
+                                controller.disposeControllers();
+                                controller.setSelectedType("Following");
+                                controller.fetchVideos();
+                              }
+                              ;
+                            } else {
+                              Get.toNamed(AppRoutes.signIn);
+                            }
+                          },
+                          child: Text(
+                            "Following".tr,
+                            style: TextStyle(
+                              shadows: <Shadow>[
+                                // Subtle depth shadow
+                                Shadow(
+                                  offset: Offset(0.0, 2.0),
+                                  blurRadius: 4.0,
+                                  color: Color.fromARGB(60, 0, 0, 0),
+                                ),
+                                // Soft outline for readability
+                                Shadow(
+                                  offset: Offset(0.0, 0.0),
+                                  blurRadius: 8.0,
+                                  color: Color.fromARGB(80, 0, 0, 0),
+                                ),
+                                // Crisp edge definition
+                                Shadow(
+                                  offset: Offset(0.5, 0.5),
+                                  blurRadius: 1.0,
+                                  color: Color.fromARGB(100, 0, 0, 0),
+                                ),
+                              ],
+                              color:
+                                  controller.selectedType.value == "Following"
+                                      ? Colors.white
+                                      : Colors.white.withOpacity(0.5),
+                              fontWeight:
+                                  controller.selectedType.value == "Following"
+                                      ? FontWeight.w500
+                                      : FontWeight.w300,
+                              fontSize: 18,
                             ),
                           ),
-
-                        SizedBox(width: 16),
-
-                        ChatIconWithCounter(
-                          userId: userId ?? '',
-                          isAuthenticated: isAuthenticated,
-                          onTap: () {
-                            isAuthenticated
-                                ? Get.to(
-                                  ChatListScreen(userId: userIdFromStorage),
-                                )?.then((_) {
-                                  controller.restoreVideoState();
-                                })
-                                : Get.toNamed(AppRoutes.signIn);
-                          },
                         ),
-                        SizedBox(width: 16),
-                      ],
-                    ),
+
+                      SizedBox(width: 16),
+
+                      ChatIconWithCounter(
+                        userId: userId ?? '',
+                        isAuthenticated: isAuthenticated,
+                        onTap: () {
+                          isAuthenticated
+                              ? Get.to(
+                                ChatListScreen(userId: userIdFromStorage),
+                              )?.then((_) {
+                                // controller.restoreVideoState();
+                              })
+                              : Get.toNamed(AppRoutes.signIn);
+                        },
+                      ),
+                      SizedBox(width: 16),
+                    ],
                   ),
                 ),
               ),
-            ],
-          );
-        }),
-      ),
+            ),
+          ],
+        );
+      }),
     );
   }
 
@@ -1060,7 +1030,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                                       Get.toNamed(AppRoutes.signIn);
                                       return;
                                     }
-                                    controller.pauseCurrentVideo();
+                                    // controller.pauseCurrentVideo();
                                     String? userId =
                                         currentUserDetails?.id ??
                                         currentUser!.id;
@@ -1076,7 +1046,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                                     );
 
                                     if (mounted) {
-                                      controller.restoreVideoState();
+                                      // controller.restoreVideoState();
                                     }
                                   },
                                   child: SizedBox(
@@ -1171,7 +1141,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                                           }
                                         });
 
-                                        controller.pauseCurrentVideo();
+                                        // controller.pauseCurrentVideo();
                                         showContactNowDialog(
                                           context,
                                           website: videoDetail.website ?? "",
@@ -1235,7 +1205,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                             Get.toNamed(AppRoutes.signIn);
                             return;
                           }
-                          controller.pauseCurrentVideo();
+                          // controller.pauseCurrentVideo();
                           String? userId =
                               currentUserDetails?.id ?? currentUser!.id;
                           String? userImage =
@@ -1250,7 +1220,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                           );
 
                           if (mounted) {
-                            controller.restoreVideoState();
+                            // controller.restoreVideoState();
                           }
                         },
                         child: Column(
@@ -1389,7 +1359,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
             children: [
               InkWell(
                 onTap: () {
-                  controller.pauseCurrentVideo();
+                  // controller.pauseCurrentVideo();
                   if (isAuthenticated) {
                     _showMoreOptions(
                       context,
@@ -1399,7 +1369,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                     );
 
                     if (mounted) {
-                      controller.restoreVideoState();
+                      // controller.restoreVideoState();
                     }
                   } else {
                     Get.toNamed(AppRoutes.signIn);
@@ -1427,7 +1397,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
   }
 
   void _handleShare(WallVideos videoDetail) async {
-    _handleScreenExit();
+    // _handleScreenExit();
     try {
       final String videoId = videoDetail.id!;
       final String webUrl =
@@ -1445,7 +1415,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
         colorText: Colors.white,
       );
     } finally {
-      controller.restoreVideoState();
+      // controller.restoreVideoState();
     }
   }
 
@@ -1491,7 +1461,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                   ),
                   onTap: () {
                     Navigator.pop(context);
-                    controller.pauseCurrentVideo();
+                    // controller.pauseCurrentVideo();
                     controller.blockUser(userId, frontUserId);
                   },
                 ),
@@ -1508,9 +1478,9 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                   onTap: () {
                     print("THis is the report video id:$videoId");
                     Navigator.pop(context);
-                    controller.pauseCurrentVideo();
+                    // controller.pauseCurrentVideo();
                     Get.to(ReportContentView(videoId: videoId))?.then((_) {
-                      controller.restoreVideoState();
+                      // controller.restoreVideoState();
                     });
                   },
                 ),
@@ -1592,13 +1562,13 @@ class videoUserDetails extends StatelessWidget {
                         children: [
                           InkWell(
                             onTap: () {
-                              controller.pauseCurrentVideo();
+                              // controller.pauseCurrentVideo();
                               Get.to(
                                 VisitProfileView(
                                   userId: videoDetail.frontUserId!,
                                 ),
                               )?.then((_) {
-                                controller.restoreVideoState();
+                                // controller.restoreVideoState();
                               });
                             },
                             child: Row(
@@ -2432,8 +2402,8 @@ class _VideoDescriptionWidgetState extends State<VideoDescriptionWidget>
                                   recognizer:
                                       TapGestureRecognizer()
                                         ..onTap = () {
-                                          widget.controller
-                                              ?.pauseCurrentVideo();
+                                          // widget.controller
+                                          //     ?.pauseCurrentVideo();
 
                                           Get.to(
                                             () => SearchView(
