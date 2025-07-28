@@ -335,40 +335,6 @@ class _ChatListScreenState extends State<ChatListScreen> {
         ),
       ),
 
-      // appBar: AppBar(
-      //   leading: InkWell(
-      //     onTap: () {
-      //       Get.back();
-      //     },
-      //     child: Icon(Icons.arrow_back),
-      //   ),
-      //   titleSpacing: 0,
-      //   title: Text(
-      //     'chats'.tr,
-      //     style: TextStyle(
-      //       color: Colors.black87,
-      //       fontSize: 22,
-      //       fontWeight: FontWeight.w600,
-      //     ),
-      //   ),
-      //   backgroundColor: Colors.white,
-      //   elevation: 0,
-      //   shadowColor: Colors.grey[200],
-      //   actions: [
-      //     IconButton(
-      //       icon: Icon(Icons.refresh, color: Colors.black54),
-      //       onPressed: () {
-      //         ChatListScreen._userDataCache.clear(); // Clear cache on refresh
-      //         Navigator.pushReplacement(
-      //           context,
-      //           MaterialPageRoute(
-      //             builder: (context) => ChatListScreen(userId: currentUserId),
-      //           ),
-      //         );
-      //       },
-      //     ),
-      //   ],
-      // ),
       body: StreamBuilder<List<Map<String, dynamic>>>(
         stream: _fetchChatUsers(currentUserId),
         builder: (context, snapshot) {
@@ -555,14 +521,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
                                                             minWidth: 18,
                                                             minHeight: 18,
                                                           ),
-                                                      padding:
-                                                          EdgeInsets.symmetric(
-                                                            horizontal:
-                                                                unreadCount > 9
-                                                                    ? 5
-                                                                    : 0,
-                                                            vertical: 1,
-                                                          ),
+
                                                       decoration: BoxDecoration(
                                                         color:
                                                             ColorUtils
@@ -580,18 +539,20 @@ class _ChatListScreenState extends State<ChatListScreen> {
                                                                 )
                                                                 : null,
                                                       ),
-                                                      child: Text(
-                                                        unreadCount > 99
-                                                            ? '99+'
-                                                            : '$unreadCount',
-                                                        style: TextStyle(
-                                                          color: Colors.white,
-                                                          fontSize: 10,
-                                                          fontWeight:
-                                                              FontWeight.w600,
+                                                      child: Center(
+                                                        child: Text(
+                                                          unreadCount > 99
+                                                              ? '99+'
+                                                              : '$unreadCount',
+                                                          style: TextStyle(
+                                                            color: Colors.white,
+                                                            fontSize: 12,
+                                                            fontWeight:
+                                                                FontWeight.w700,
+                                                          ),
+                                                          textAlign:
+                                                              TextAlign.center,
                                                         ),
-                                                        textAlign:
-                                                            TextAlign.center,
                                                       ),
                                                     ),
                                                   ],

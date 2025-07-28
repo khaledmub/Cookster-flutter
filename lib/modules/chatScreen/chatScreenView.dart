@@ -171,6 +171,10 @@ class _ChatViewState extends State<ChatView> {
                     final messageDate = timestamp.toDate();
                     final isMe = message['senderId'] == widget.senderId;
 
+                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                      controller.scrollToBottom(animated: false);
+                    });
+
                     if (_shouldShowDateHeader(messageDate, previousDate)) {
                       messageWidgets.add(
                         Center(
@@ -265,10 +269,6 @@ class _ChatViewState extends State<ChatView> {
 
                     previousDate = messageDate;
                   }
-
-                  WidgetsBinding.instance.addPostFrameCallback((_) {
-                    controller.scrollToBottom(animated: true);
-                  });
 
                   return ListView(
                     controller: controller.scrollController,
