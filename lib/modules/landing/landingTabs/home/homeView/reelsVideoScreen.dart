@@ -415,16 +415,46 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                         pageSnapping: true,
                         physics: const NeverScrollableScrollPhysics(),
                         padEnds: true,
-                        onPageChanged: (value) {
-                          _trackVideoView(
-                            controller
-                                .videoFeed
-                                .value
-                                .videos![controller.currentIndex.value]
-                                .id!,
-                            userId,
-                            isAuthenticated,
-                          );
+                        onPageChanged: (index) async {
+                          controller.visiblePageIndex.value = index;
+                          int actualIndex =
+                              controller.videoFeed.value.videos != null
+                                  ? index %
+                                      controller.videoFeed.value.videos!.length
+                                  : 0;
+                          controller.handlePageChange(actualIndex);
+
+                          // Check if we're nearing the end of the list (3 videos left)
+                          if (controller.videoFeed.value.videos != null &&
+                              actualIndex >=
+                                  controller.videoFeed.value.videos!.length -
+                                      3) {
+                            // Fetch more videos to append to the list
+                            await controller.fetchMoreVideos();
+                          }
+
+                          if (mounted) setState(() {});
+
+                          // Track view in Firestore
+                          String? videoId =
+                              controller.videoFeed.value.videos != null
+                                  ? controller
+                                      .videoFeed
+                                      .value
+                                      .videos![actualIndex]
+                                      .id
+                                  : null;
+                          if (videoId != null) {
+                            await _trackVideoView(
+                              videoId,
+                              userId,
+                              isAuthenticated,
+                            );
+                          } else {
+                            print(
+                              'Error: Video ID is null for index $actualIndex',
+                            );
+                          }
                         },
 
                         childrenDelegate: SliverChildBuilderDelegate(
@@ -1476,6 +1506,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                     style: TextStyle(color: Colors.black, fontSize: 14.sp),
                   ),
                   onTap: () {
+                    print("THis is the report video id:$videoId");
                     Navigator.pop(context);
                     controller.pauseCurrentVideo();
                     Get.to(ReportContentView(videoId: videoId))?.then((_) {
