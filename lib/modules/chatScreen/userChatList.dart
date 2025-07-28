@@ -27,9 +27,10 @@ class ChatListScreen extends StatefulWidget {
 
 class _ChatListScreenState extends State<ChatListScreen> {
   String _language = 'en'; // Default to English
+  Map<String, Future<Map<String, dynamic>>> _chatFutures = {};
 
+  @override
   void initState() {
-    // TODO: implement initState
     super.initState();
     _loadLanguage();
   }
@@ -37,8 +38,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
   Future<void> _loadLanguage() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
-      _language =
-          prefs.getString('language') ?? 'en'; // Default to 'en' if not set
+      _language = prefs.getString('language') ?? 'en';
     });
   }
 
@@ -135,6 +135,17 @@ class _ChatListScreenState extends State<ChatListScreen> {
                     lastMessage?['timestamp']?.toDate() ?? DateTime(1970),
                 'blockedBy': blockedBy,
               });
+
+              // Update futures for this chat
+              _chatFutures[doc.id] = Future.wait([
+                _fetchUserData(otherUserId),
+                _getUnreadCount(doc.id, currentUserId),
+              ]).then(
+                (results) => {
+                  'userData': results[0],
+                  'unreadCount': results[1],
+                },
+              );
             }
           }
 
@@ -153,120 +164,33 @@ class _ChatListScreenState extends State<ChatListScreen> {
       timestamp.day,
     );
 
-    // If it's today, show time
     if (messageDate == today) {
       return DateFormat('HH:mm').format(timestamp);
     }
-
-    // If it's yesterday, show "Yesterday"
     if (messageDate == yesterday) {
       return 'Yesterday';
     }
-
-    // If it's within the current week (last 7 days), show day name
     final daysDifference = today.difference(messageDate).inDays;
     if (daysDifference <= 7 && daysDifference > 1) {
-      return DateFormat('EEEE').format(timestamp); // Monday, Tuesday, etc.
+      return DateFormat('EEEE').format(timestamp);
     }
-
-    // For dates in the current year, show "08 July"
     if (timestamp.year == now.year) {
       return DateFormat('dd MMMM').format(timestamp);
     }
-
-    // For dates in past years, show "08 July, 24"
     return DateFormat('dd MMMM, yy').format(timestamp);
   }
 
-  // Alternative version with more concise logic
-  String _formatTimestampConcise(DateTime timestamp) {
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final messageDate = DateTime(
-      timestamp.year,
-      timestamp.month,
-      timestamp.day,
-    );
-    final daysDifference = today.difference(messageDate).inDays;
-
-    // Today - show time
-    if (daysDifference == 0) {
-      return DateFormat('HH:mm').format(timestamp);
-    }
-
-    // Yesterday
-    if (daysDifference == 1) {
-      return 'Yesterday';
-    }
-
-    // This week (2-7 days ago)
-    if (daysDifference <= 7) {
-      return DateFormat('EEEE').format(timestamp);
-    }
-
-    // Current year - "08 July"
-    if (timestamp.year == now.year) {
-      return DateFormat('dd MMMM').format(timestamp);
-    }
-
-    // Past years - "08 July, 24"
-    return DateFormat('dd MMMM, yy').format(timestamp);
-  }
-
-  // If you want to customize the month names or use translations
-  String _formatTimestampWithCustomNames(DateTime timestamp) {
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final messageDate = DateTime(
-      timestamp.year,
-      timestamp.month,
-      timestamp.day,
-    );
-    final daysDifference = today.difference(messageDate).inDays;
-
-    // Custom month names (you can replace these with .tr for translations)
-    final monthNames = [
-      'January',
-      'February',
-      'March',
-      'April',
-      'May',
-      'June',
-      'July',
-      'August',
-      'September',
-      'October',
-      'November',
-      'December',
-    ];
-
-    // Today - show time
-    if (daysDifference == 0) {
-      return DateFormat('HH:mm').format(timestamp);
-    }
-
-    // Yesterday
-    if (daysDifference == 1) {
-      return 'yesterday'.tr; // Use translation if available
-    }
-
-    // This week
-    if (daysDifference <= 7) {
-      return DateFormat('EEEE').format(timestamp);
-    }
-
-    // Format day with leading zero if needed
-    final day = timestamp.day.toString().padLeft(2, '0');
-    final month = monthNames[timestamp.month - 1];
-
-    // Current year
-    if (timestamp.year == now.year) {
-      return '$day $month';
-    }
-
-    // Past years - show last 2 digits of year
-    final year = timestamp.year.toString().substring(2);
-    return '$day $month, $year';
+  void _refreshChatFutures(
+    String chatId,
+    String partnerId,
+    String currentUserId,
+  ) {
+    setState(() {
+      _chatFutures[chatId] = Future.wait([
+        _fetchUserData(partnerId),
+        _getUnreadCount(chatId, currentUserId),
+      ]).then((results) => {'userData': results[0], 'unreadCount': results[1]});
+    });
   }
 
   @override
@@ -277,7 +201,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: PreferredSize(
-        preferredSize: Size.fromHeight(90), // Adjusted height to fit content
+        preferredSize: Size.fromHeight(90),
         child: Container(
           padding: EdgeInsets.only(top: 30),
           decoration: BoxDecoration(
@@ -295,7 +219,6 @@ class _ChatListScreenState extends State<ChatListScreen> {
             children: [
               Stack(
                 children: [
-                  // Back Button
                   Positioned(
                     left: isRtl ? null : 16,
                     right: isRtl ? 16 : null,
@@ -326,7 +249,6 @@ class _ChatListScreenState extends State<ChatListScreen> {
                       ),
                     ),
                   ),
-                  // Center App Icon
                   AppCenterIcon(),
                 ],
               ),
@@ -334,7 +256,6 @@ class _ChatListScreenState extends State<ChatListScreen> {
           ),
         ),
       ),
-
       body: StreamBuilder<List<Map<String, dynamic>>>(
         stream: _fetchChatUsers(currentUserId),
         builder: (context, snapshot) {
@@ -386,7 +307,6 @@ class _ChatListScreenState extends State<ChatListScreen> {
                 ),
               ),
               SizedBox(height: 8),
-
               Expanded(
                 child: ListView.builder(
                   itemCount: chatData.length,
@@ -403,15 +323,17 @@ class _ChatListScreenState extends State<ChatListScreen> {
 
                     return FutureBuilder<Map<String, dynamic>>(
                       key: ValueKey(chatId),
-                      future: Future.wait([
-                        _fetchUserData(partnerId),
-                        _getUnreadCount(chatId, currentUserId),
-                      ]).then(
-                        (results) => {
-                          'userData': results[0],
-                          'unreadCount': results[1],
-                        },
-                      ),
+                      future:
+                          _chatFutures[chatId] ??
+                          Future.wait([
+                            _fetchUserData(partnerId),
+                            _getUnreadCount(chatId, currentUserId),
+                          ]).then(
+                            (results) => {
+                              'userData': results[0],
+                              'unreadCount': results[1],
+                            },
+                          ),
                       builder: (context, snapshot) {
                         if (snapshot.hasError || snapshot.data == null) {
                           return const SizedBox.shrink();
@@ -420,7 +342,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
                         final data = snapshot.data as Map<String, dynamic>;
                         final userData =
                             data['userData'] as Map<String, dynamic>;
-                        final unreadCount = data['unreadCount'] as int;
+                        var unreadCount = data['unreadCount'] as int;
 
                         return data.isNotEmpty
                             ? InkWell(
@@ -430,7 +352,14 @@ class _ChatListScreenState extends State<ChatListScreen> {
                                     senderId: currentUserId,
                                     receiverId: partnerId,
                                   ),
-                                );
+                                )!.then((_) {
+                                  // Refresh the future for this specific chat
+                                  _refreshChatFutures(
+                                    chatId,
+                                    partnerId,
+                                    currentUserId,
+                                  );
+                                });
                               },
                               child: Container(
                                 padding: EdgeInsets.only(
@@ -440,7 +369,6 @@ class _ChatListScreenState extends State<ChatListScreen> {
                                 ),
                                 child: Row(
                                   children: [
-                                    // Avatar
                                     CircleAvatar(
                                       radius: 22,
                                       backgroundColor: Colors.grey[200],
@@ -460,14 +388,11 @@ class _ChatListScreenState extends State<ChatListScreen> {
                                               : null,
                                     ),
                                     SizedBox(width: 12),
-
-                                    // Content area
                                     Expanded(
                                       child: Column(
                                         crossAxisAlignment:
                                             CrossAxisAlignment.start,
                                         children: [
-                                          // Name and timestamp row
                                           Row(
                                             mainAxisAlignment:
                                                 MainAxisAlignment.spaceBetween,
@@ -495,8 +420,6 @@ class _ChatListScreenState extends State<ChatListScreen> {
                                                       TextOverflow.ellipsis,
                                                 ),
                                               ),
-
-                                              // Timestamp and counter in a compact row
                                               Row(
                                                 mainAxisSize: MainAxisSize.min,
                                                 children: [
@@ -521,7 +444,6 @@ class _ChatListScreenState extends State<ChatListScreen> {
                                                             minWidth: 18,
                                                             minHeight: 18,
                                                           ),
-
                                                       decoration: BoxDecoration(
                                                         color:
                                                             ColorUtils
@@ -560,10 +482,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
                                               ),
                                             ],
                                           ),
-
                                           SizedBox(height: 2),
-
-                                          // Last message
                                           Text(
                                             lastMessage != null
                                                 ? (lastMessage['message']
