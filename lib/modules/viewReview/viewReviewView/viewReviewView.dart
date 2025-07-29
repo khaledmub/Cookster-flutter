@@ -117,12 +117,15 @@ class _ViewReviewsState extends State<ViewReviews> {
       body: Obx(
         () => RefreshIndicator(
           onRefresh: () async {
-            // Trigger the refresh logic to reload reviews
             await reviewController.fetchReviews(widget.professionalId);
           },
           child:
               reviewController.isLoading.value
-                  ? const Center(child: PulseLogoLoader(logoPath: "assets/images/appLogo.png"),)
+                  ? const Center(
+                    child: PulseLogoLoader(
+                      logoPath: "assets/images/appLogo.png",
+                    ),
+                  )
                   : Padding(
                     padding: EdgeInsets.all(16.w),
                     child: Column(
@@ -164,7 +167,6 @@ class _ViewReviewsState extends State<ViewReviews> {
                                 Row(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    // Rating Score
                                     Column(
                                       crossAxisAlignment:
                                           CrossAxisAlignment.start,
@@ -205,7 +207,6 @@ class _ViewReviewsState extends State<ViewReviews> {
                                       ],
                                     ),
                                     SizedBox(width: 24.w),
-                                    // Rating Breakdown
                                     Expanded(
                                       child: Column(
                                         children: [
@@ -271,7 +272,9 @@ class _ViewReviewsState extends State<ViewReviews> {
                             () =>
                                 reviewController.isLoading.value
                                     ? const Center(
-                                      child: PulseLogoLoader(logoPath: "assets/images/appLogo.png"),
+                                      child: PulseLogoLoader(
+                                        logoPath: "assets/images/appLogo.png",
+                                      ),
                                     )
                                     : reviewController.reviews.isEmpty
                                     ? Center(
@@ -285,7 +288,6 @@ class _ViewReviewsState extends State<ViewReviews> {
                                       ),
                                     )
                                     : () {
-                                      // Filter reviews for non-professionals
                                       final reviews =
                                           isProfessional
                                               ? reviewController.reviews
@@ -321,7 +323,6 @@ class _ViewReviewsState extends State<ViewReviews> {
                                                   'assets/images/default_user.png';
                                               final isApproved =
                                                   review.status == 1;
-                                              final status = review.status ?? 0;
 
                                               return Padding(
                                                 padding: EdgeInsets.only(
@@ -331,7 +332,8 @@ class _ViewReviewsState extends State<ViewReviews> {
                                                   reviewerName,
                                                   reviewerImage,
                                                   rating,
-                                                  _formatTimeAgo(createdAt),
+                                                  createdAt,
+                                                  // Pass raw createdAt
                                                   reviewText,
                                                   reviewController
                                                           .toggleStates[reviewerName] ??
@@ -437,28 +439,51 @@ class _ViewReviewsState extends State<ViewReviews> {
 
   String _formatTimeAgo(String createdAt) {
     try {
-      // Define the input format for "July 9, 2025 at 8:41:44 PM UTC+3"
-      final dateFormat = DateFormat("MMMM d, yyyy 'at' h:mm:ss a 'UTC'Z");
+      // Handle the specific format: "July 29, 2025 at 11:58:07 AM UTC+3"
+      String normalizedDateString = createdAt;
 
-      // Parse the input string
-      final date = dateFormat.parse(createdAt, true); // true for UTC parsing
+      // Replace "UTC+X" or "UTC-X" with proper timezone format
+      final utcRegex = RegExp(r'UTC([+-]\d+)');
+      final match = utcRegex.firstMatch(createdAt);
 
-      // Convert to local time for comparison
+      if (match != null) {
+        final timezoneOffset = match.group(1)!;
+        // Convert UTC+3 to +0300 format
+        final offsetHours = int.parse(timezoneOffset);
+        final formattedOffset =
+            offsetHours >= 0
+                ? '+${offsetHours.abs().toString().padLeft(2, '0')}00'
+                : '-${offsetHours.abs().toString().padLeft(2, '0')}00';
+
+        normalizedDateString = createdAt.replaceAll(utcRegex, formattedOffset);
+      }
+
+      // Use the correct date format pattern
+      final dateFormat = DateFormat("MMMM d, yyyy 'at' h:mm:ss a Z");
+      final date = dateFormat.parse(normalizedDateString);
+
+      // Convert to local time
       final localDate = date.toLocal();
       final now = DateTime.now();
       final difference = now.difference(localDate);
 
-      if (difference.inDays > 30) {
-        return "${(difference.inDays / 30).floor()} ${"months_ago".tr}";
+      if (difference.inDays > 365) {
+        final years = (difference.inDays / 365).floor();
+        return "$years ${years == 1 ? 'year' : 'years'} ${"ago".tr}";
+      } else if (difference.inDays > 30) {
+        final months = (difference.inDays / 30).floor();
+        return "$months ${months == 1 ? 'month' : 'months'} ${"ago".tr}";
       } else if (difference.inDays > 0) {
-        return "${difference.inDays} ${"days_ago".tr}";
+        return "${difference.inDays} ${difference.inDays == 1 ? 'day' : 'days'} ${"ago".tr}";
       } else if (difference.inHours > 0) {
-        return "${difference.inHours} ${"hours_ago".tr}";
+        return "${difference.inHours} ${difference.inHours == 1 ? 'hour' : 'hours'} ${"ago".tr}";
+      } else if (difference.inMinutes > 0) {
+        return "${difference.inMinutes} ${difference.inMinutes == 1 ? 'minute' : 'minutes'} ${"ago".tr}";
       } else {
         return "just_now".tr;
       }
     } catch (e) {
-      print('Error parsing date: $e');
+      print('Error parsing date: $e for input: $createdAt');
       return "unknown_time".tr;
     }
   }
@@ -467,27 +492,15 @@ class _ViewReviewsState extends State<ViewReviews> {
     String name,
     String avatarPath,
     int rating,
-    String timeAgo,
+    String createdAt, // Changed to pass raw createdAt
     String review,
     bool isToggled,
     VoidCallback onToggle,
     VoidCallback onApprove,
     VoidCallback onReject,
     bool isProfessional,
-    bool isApproved, // This is derived from review.status == 1
+    bool isApproved,
   ) {
-    // Determine the review status (assuming status is passed or derived)
-    // Note: Since isApproved is derived as review.status == 1, we need the actual status
-    // Assuming the review object has a status field
-    int status =
-        isApproved
-            ? 1
-            : 0; // Default to 0 if not approved, adjust based on your model
-
-    // You may need to pass the actual status from the review object
-    // For example, if review.status is available, use it directly:
-    // int status = review.status ?? 0;
-
     return Container(
       padding: EdgeInsets.all(16.w),
       decoration: BoxDecoration(
@@ -512,12 +525,10 @@ class _ViewReviewsState extends State<ViewReviews> {
                 height: 40.r,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color:
-                      Colors
-                          .grey[200], // Optional: background color for the container
+                  color: Colors.grey[200],
                 ),
                 child: CachedNetworkImage(
-                  imageUrl: '${Common.profileImage}/${avatarPath}',
+                  imageUrl: '${Common.profileImage}/$avatarPath',
                   imageBuilder:
                       (context, imageProvider) => Container(
                         decoration: BoxDecoration(
@@ -584,12 +595,17 @@ class _ViewReviewsState extends State<ViewReviews> {
                           }),
                         ),
                         SizedBox(width: 8.w),
-                        Text(
-                          timeAgo,
-                          style: TextStyle(
-                            fontSize: 12.sp,
-                            color: Colors.grey[600],
-                          ),
+                        StreamBuilder(
+                          stream: Stream.periodic(const Duration(seconds: 60)),
+                          builder: (context, snapshot) {
+                            return Text(
+                              _formatTimeAgo(createdAt),
+                              style: TextStyle(
+                                fontSize: 12.sp,
+                                color: Colors.grey[600],
+                              ),
+                            );
+                          },
                         ),
                       ],
                     ),
@@ -612,8 +628,7 @@ class _ViewReviewsState extends State<ViewReviews> {
             Row(
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
-                if (status == 0) ...[
-                  // Show both Approve and Reject buttons when status is 0 (pending)
+                if (!isApproved) ...[
                   TextButton(
                     onPressed: onApprove,
                     style: TextButton.styleFrom(
