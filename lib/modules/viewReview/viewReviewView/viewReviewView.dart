@@ -439,48 +439,86 @@ class _ViewReviewsState extends State<ViewReviews> {
 
   String _formatTimeAgo(String createdAt) {
     try {
-      // Handle the specific format: "July 29, 2025 at 11:58:07 AM UTC+3"
-      String normalizedDateString = createdAt;
+      // Input format: "July 29, 2025 at 11:58:07 AM UTC+3"
+      print('Original input: $createdAt');
 
-      // Replace "UTC+X" or "UTC-X" with proper timezone format
-      final utcRegex = RegExp(r'UTC([+-]\d+)');
+      // Extract timezone offset
+      final utcRegex = RegExp(r'UTC([+-]\d{1,2})(?::\d{2})?(?!\d)');
       final match = utcRegex.firstMatch(createdAt);
 
       if (match != null) {
-        final timezoneOffset = match.group(1)!;
-        // Convert UTC+3 to +0300 format
-        final offsetHours = int.parse(timezoneOffset);
-        final formattedOffset =
-            offsetHours >= 0
-                ? '+${offsetHours.abs().toString().padLeft(2, '0')}00'
-                : '-${offsetHours.abs().toString().padLeft(2, '0')}00';
+        final offsetString = match.group(1)!; // e.g., "+3" or "-3"
+        final offsetHours = int.parse(offsetString);
 
-        normalizedDateString = createdAt.replaceAll(utcRegex, formattedOffset);
-      }
+        // Remove the UTC part and parse the base date in UTC
+        final baseDateString = createdAt.replaceAll(utcRegex, '');
+        print('Base date string: $baseDateString');
 
-      // Use the correct date format pattern
-      final dateFormat = DateFormat("MMMM d, yyyy 'at' h:mm:ss a Z");
-      final date = dateFormat.parse(normalizedDateString);
+        // Parse the date without timezone (as if it's UTC)
+        final dateFormat = DateFormat("MMMM d, yyyy 'at' h:mm:ss a");
+        final parsedDateUtc = dateFormat.parse(
+          baseDateString,
+          true,
+        ); // Parse as UTC
+        print('Parsed as UTC: $parsedDateUtc');
 
-      // Convert to local time
-      final localDate = date.toLocal();
-      final now = DateTime.now();
-      final difference = now.difference(localDate);
+        // Convert from the original timezone to UTC
+        // If the original time is UTC+3, we need to subtract 3 hours to get UTC
+        final actualUtcTime = parsedDateUtc.subtract(
+          Duration(hours: offsetHours),
+        );
+        print('Actual UTC time: $actualUtcTime');
 
-      if (difference.inDays > 365) {
-        final years = (difference.inDays / 365).floor();
-        return "$years ${years == 1 ? 'year' : 'years'} ${"ago".tr}";
-      } else if (difference.inDays > 30) {
-        final months = (difference.inDays / 30).floor();
-        return "$months ${months == 1 ? 'month' : 'months'} ${"ago".tr}";
-      } else if (difference.inDays > 0) {
-        return "${difference.inDays} ${difference.inDays == 1 ? 'day' : 'days'} ${"ago".tr}";
-      } else if (difference.inHours > 0) {
-        return "${difference.inHours} ${difference.inHours == 1 ? 'hour' : 'hours'} ${"ago".tr}";
-      } else if (difference.inMinutes > 0) {
-        return "${difference.inMinutes} ${difference.inMinutes == 1 ? 'minute' : 'minutes'} ${"ago".tr}";
+        // Convert UTC to local time (Pakistan UTC+5)
+        final localTime = actualUtcTime.toLocal();
+        print('Local time (Pakistan): $localTime');
+
+        // Get current local time
+        final now = DateTime.now();
+        print('Current local time: $now');
+
+        // Calculate the difference
+        final difference = now.difference(localTime);
+        print('Time difference: ${difference.inMinutes} minutes');
+
+        // Handle negative differences (future dates)
+        if (difference.isNegative) {
+          final futureDiff = localTime.difference(now);
+          if (futureDiff.inMinutes < 2) {
+            return "just_now".tr;
+          }
+          return "in_future".tr;
+        }
+
+        // Format the time ago string
+        if (difference.inDays > 365) {
+          final years = (difference.inDays / 365).floor();
+          return "$years ${years == 1 ? 'year' : 'years'} ${"ago".tr}";
+        } else if (difference.inDays > 30) {
+          final months = (difference.inDays / 30).floor();
+          return "$months ${months == 1 ? 'month' : 'months'} ${"ago".tr}";
+        } else if (difference.inDays > 0) {
+          return "${difference.inDays} ${difference.inDays == 1 ? 'day' : 'days'} ${"ago".tr}";
+        } else if (difference.inHours > 0) {
+          return "${difference.inHours} ${difference.inHours == 1 ? 'hour' : 'hours'} ${"ago".tr}";
+        } else if (difference.inMinutes > 0) {
+          return "${difference.inMinutes} ${difference.inMinutes == 1 ? 'minute' : 'minutes'} ${"ago".tr}";
+        } else {
+          return "just_now".tr;
+        }
       } else {
-        return "just_now".tr;
+        // Fallback if no timezone info found
+        print('No timezone info found, using fallback parsing');
+        final dateFormat = DateFormat("MMMM d, yyyy 'at' h:mm:ss a");
+        final parsedDate = dateFormat.parse(createdAt);
+        final now = DateTime.now();
+        final difference = now.difference(parsedDate);
+
+        if (difference.inMinutes > 0) {
+          return "${difference.inMinutes} ${difference.inMinutes == 1 ? 'minute' : 'minutes'} ${"ago".tr}";
+        } else {
+          return "just_now".tr;
+        }
       }
     } catch (e) {
       print('Error parsing date: $e for input: $createdAt');
