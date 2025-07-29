@@ -57,16 +57,12 @@ class HomeController extends GetxController with WidgetsBindingObserver {
   var isLocationServiceEnabled = true.obs; // Default to true until checked
   var isLocationPermissionGranted = false.obs; // Default to false until checked
 
-
-
-
-
   @override
   void onInit() {
     super.onInit();
     checkLocationStatus();
     WidgetsBinding.instance.addObserver(this);
-    _fetchLocationOnce().then((_) {
+    fetchLocationOnce().then((_) {
       fetchVideos();
     });
   }
@@ -177,12 +173,7 @@ class HomeController extends GetxController with WidgetsBindingObserver {
   // Make sure you have these imports:
   // import 'package:geocoding/geocoding.dart';
 
-  Future _fetchLocationOnce() async {
-    // if (hasLocationBeenFetched.value || isLocationFetching.value) {
-    //   print("Location already fetched or currently fetching, skipping...");
-    //   return;
-    // }
-
+  Future<void> fetchLocationOnce() async {
     isLocationFetching.value = true;
 
     try {
@@ -222,6 +213,7 @@ class HomeController extends GetxController with WidgetsBindingObserver {
         return;
       }
 
+      // Print latitude and longitude
       print('Location: ${locationData.latitude}, ${locationData.longitude}');
 
       // Set locale to English before fetching placemarks
@@ -233,32 +225,49 @@ class HomeController extends GetxController with WidgetsBindingObserver {
         locationData.longitude!,
       );
 
-      currentCity.value =
-          placemarks.isNotEmpty
-              ? (placemarks.first.locality ?? 'Unknown').trim()
-              : 'Unknown';
-      currentCountry.value =
-          placemarks.isNotEmpty
-              ? (placemarks.first.country ?? 'Unknown').trim()
-              : 'Unknown';
-      currentCity.value =
-          placemarks.isNotEmpty
-              ? (placemarks.first.locality ?? 'Unknown').trim()
-              : 'Unknown';
-      currentCountry.value =
-          placemarks.isNotEmpty
-              ? (placemarks.first.country ?? 'Unknown').trim()
-              : 'Unknown';
+      // Extract and print all available placemark details
+      if (placemarks.isNotEmpty) {
+        Placemark placemark = placemarks.first;
+        currentCity.value = (placemark.locality ?? 'Unknown').trim();
+        currentCountry.value = (placemark.country ?? 'Unknown').trim();
+        String currentState = (placemark.administrativeArea ?? 'Unknown').trim();
 
-      // Save to SharedPreferences
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('currentCity', currentCity.value);
-      await prefs.setString('currentCountry', currentCountry.value);
+        // Print all placemark fields with state highlighted
+        print('=== Location Details ===');
+        print('Latitude: ${locationData.latitude}');
+        print('Longitude: ${locationData.longitude}');
+        print('City (Locality): ${placemark.locality ?? 'Unknown'}');
+        print('Country: ${placemark.country ?? 'Unknown'}');
+        print('State/Province: ${placemark.administrativeArea ?? 'Unknown'}'); // Highlighted state
+        print('Postal Code: ${placemark.postalCode ?? 'Unknown'}');
+        print('Sub-Administrative Area: ${placemark.subAdministrativeArea ?? 'Unknown'}');
+        print('Sub-Locality: ${placemark.subLocality ?? 'Unknown'}');
+        print('Street: ${placemark.street ?? 'Unknown'}');
+        print('Name: ${placemark.name ?? 'Unknown'}');
+        print('ISO Country Code: ${placemark.isoCountryCode ?? 'Unknown'}');
+        print('Thoroughfare: ${placemark.thoroughfare ?? 'Unknown'}');
+        print('Sub-Thoroughfare: ${placemark.subThoroughfare ?? 'Unknown'}');
+        print('=== End Location Details ===');
 
-      hasLocationBeenFetched.value = true;
-      print(
-        'Location fetched - City: ${currentCity.value}, Country: ${currentCountry.value}',
-      );
+        // Save to SharedPreferences
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('currentCity', currentCity.value);
+        await prefs.setString('currentCountry', currentCountry.value);
+        await prefs.setString('currentState', currentState); // Save state
+        await prefs.setString('postalCode', placemark.postalCode ?? 'Unknown');
+        await prefs.setDouble('latitude', locationData.latitude!);
+        await prefs.setDouble('longitude', locationData.longitude!);
+
+        hasLocationBeenFetched.value = true;
+        print(
+          'Location fetched - City: ${currentCity.value}, Country: ${currentCountry.value}, '
+              'State: ${currentState}, Latitude: ${locationData.latitude}, Longitude: ${locationData.longitude}',
+        );
+      } else {
+        currentCity.value = 'Unknown';
+        currentCountry.value = 'Unknown';
+        print('No placemarks found');
+      }
     } catch (e) {
       print('Error fetching location: $e');
       error.value = "Error fetching location: $e";
@@ -595,7 +604,7 @@ class HomeController extends GetxController with WidgetsBindingObserver {
     hasLocationBeenFetched.value = false;
     currentCity.value = "";
     currentCountry.value = "";
-    await _fetchLocationOnce();
+    await fetchLocationOnce();
   }
 
   // Method to reset location data

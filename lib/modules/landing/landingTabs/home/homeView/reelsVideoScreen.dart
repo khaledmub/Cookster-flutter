@@ -1648,30 +1648,49 @@ class videoUserDetails extends StatelessWidget {
                               videoDetail.sponsorType == null)
                             InkWell(
                               onTap: () async {
-                                // Store the current following status before the action
+                                // Prevent multiple taps
+                                if (_isProcessingFollow) return;
+
                                 if (isAuthenticated) {
+                                  _isProcessingFollow =
+                                      true; // Set processing flag
+
                                   bool wasFollowing = isFollowing;
+                                  String targetUserId =
+                                      videoDetail.frontUserId!;
 
-                                  if (isProfileNull) {
-                                    await profileController.toggleFollowStatus(
-                                      videoDetail.frontUserId!,
+                                  try {
+                                    if (isProfileNull) {
+                                      await profileController
+                                          .toggleFollowStatus(targetUserId);
+                                    } else {
+                                      await professionalProfileController
+                                          .toggleFollowStatus(targetUserId);
+                                    }
+
+                                    // Update follower count for all videos of this user
+                                    updateFollowerCountForUser(
+                                      targetUserId,
+                                      !wasFollowing,
+                                      controller,
                                     );
-                                  } else {
-                                    await professionalProfileController
-                                        .toggleFollowStatus(
-                                          videoDetail.frontUserId!,
-                                        );
-                                  }
 
-                                  // Update the follower count based on the action
-                                  if (wasFollowing) {
-                                    // User unfollowed, decrease count
-                                    videoDetail.followersCount =
-                                        (videoDetail.followersCount ?? 1) - 1;
-                                  } else {
-                                    // User followed, increase count
-                                    videoDetail.followersCount =
-                                        (videoDetail.followersCount ?? 0) + 1;
+                                    // Trigger UI update based on your state management
+                                    // For GetX: controller.update();
+                                  } catch (e) {
+                                    // Handle error - maybe revert the changes if API call fails
+                                    print('Error toggling follow status: $e');
+                                    // You might want to show a snackbar or toast here
+
+                                    // Revert the follower count changes on error
+                                    updateFollowerCountForUser(
+                                      targetUserId,
+                                      wasFollowing, // Revert to original state
+                                      controller,
+                                    );
+                                  } finally {
+                                    _isProcessingFollow =
+                                        false; // Reset processing flag
                                   }
                                 } else {
                                   Get.toNamed(AppRoutes.signIn);
@@ -1690,16 +1709,33 @@ class videoUserDetails extends StatelessWidget {
                                       isFollowing ? Colors.white : Colors.black,
                                 ),
                                 child: Center(
-                                  child: Text(
-                                    isFollowing ? "Following".tr : "follow".tr,
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.w500,
-                                      color:
-                                          isFollowing
-                                              ? Colors.black
-                                              : Colors.white,
-                                    ),
-                                  ),
+                                  child:
+                                      _isProcessingFollow
+                                          ? SizedBox(
+                                            width: 12,
+                                            height: 12,
+                                            child: CircularProgressIndicator(
+                                              strokeWidth: 2,
+                                              valueColor:
+                                                  AlwaysStoppedAnimation<Color>(
+                                                    isFollowing
+                                                        ? Colors.black
+                                                        : Colors.white,
+                                                  ),
+                                            ),
+                                          )
+                                          : Text(
+                                            isFollowing
+                                                ? "Following".tr
+                                                : "follow".tr,
+                                            style: TextStyle(
+                                              fontWeight: FontWeight.w500,
+                                              color:
+                                                  isFollowing
+                                                      ? Colors.black
+                                                      : Colors.white,
+                                            ),
+                                          ),
                                 ),
                               ),
                             ),
@@ -1714,6 +1750,30 @@ class videoUserDetails extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+bool _isProcessingFollow = false;
+
+// Helper method to update follower count across all videos
+void updateFollowerCountForUser(
+  String frontUserId,
+  bool isFollowing,
+  dynamic controller,
+) {
+  int countChange = isFollowing ? 1 : -1;
+
+  for (int i = 0; i < controller.videoFeed.value.videos!.length; i++) {
+    if (controller.videoFeed.value.videos![i].frontUserId == frontUserId) {
+      controller.videoFeed.value.videos![i].followersCount =
+          (controller.videoFeed.value.videos![i].followersCount ?? 0) +
+          countChange;
+
+      // Ensure follower count doesn't go below 0
+      if (controller.videoFeed.value.videos![i].followersCount! < 0) {
+        controller.videoFeed.value.videos![i].followersCount = 0;
+      }
+    }
   }
 }
 
