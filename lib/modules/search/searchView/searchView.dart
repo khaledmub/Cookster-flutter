@@ -1579,6 +1579,8 @@ class _SearchViewState extends State<SearchView>
                                           "Selected City: $selectedName (ID: $selectedId)",
                                         );
 
+                                        homeController.currentCityId.value = selectedId.toString();
+
                                         homeUpdateController
                                             .currentCityId
                                             .value = selectedId.toString();

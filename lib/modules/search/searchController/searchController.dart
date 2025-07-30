@@ -161,10 +161,8 @@ class UserSearchController extends GetxController {
 
           // Add city and country only if currentCityId is not null or empty
           if (currentCityId.value != null && currentCityId.value.isNotEmpty) {
-            requestBody['city'] =
-                finalCity.isNotEmpty ? currentCityId.value : "Unknown";
-            requestBody['country'] =
-                finalCountry.isNotEmpty ? finalCountry : "Unknown";
+            requestBody['city'] = currentCityId.value;
+            requestBody['country'] = finalCountry;
           }
 
           // Print the request body
