@@ -217,7 +217,7 @@ class PromoteVideoController extends GetxController {
         context: context,
         country: selectedCountry.value,
         action: "1",
-        currency: "USD",
+        currency: "SAR",
         amt: calculateTotalPrice(videoId).toString(),
         customerEmail: "",
         trackid: orderId,
