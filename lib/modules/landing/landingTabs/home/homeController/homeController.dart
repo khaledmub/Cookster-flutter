@@ -163,6 +163,8 @@ class HomeController extends GetxController with WidgetsBindingObserver {
   }
 
   var currentCity = "".obs;
+  var latitude = "".obs;
+  var longitude = "".obs;
   var currentCityId = "".obs;
   var currentCountry = "".obs;
 
@@ -230,7 +232,11 @@ class HomeController extends GetxController with WidgetsBindingObserver {
         Placemark placemark = placemarks.first;
         currentCity.value = (placemark.locality ?? 'Unknown').trim();
         currentCountry.value = (placemark.country ?? 'Unknown').trim();
-        String currentState = (placemark.administrativeArea ?? 'Unknown').trim();
+        String currentState =
+            (placemark.administrativeArea ?? 'Unknown').trim();
+
+        latitude.value = locationData.latitude.toString();
+        longitude.value = locationData.longitude.toString();
 
         // Print all placemark fields with state highlighted
         print('=== Location Details ===');
@@ -238,9 +244,13 @@ class HomeController extends GetxController with WidgetsBindingObserver {
         print('Longitude: ${locationData.longitude}');
         print('City (Locality): ${placemark.locality ?? 'Unknown'}');
         print('Country: ${placemark.country ?? 'Unknown'}');
-        print('State/Province: ${placemark.administrativeArea ?? 'Unknown'}'); // Highlighted state
+        print(
+          'State/Province: ${placemark.administrativeArea ?? 'Unknown'}',
+        ); // Highlighted state
         print('Postal Code: ${placemark.postalCode ?? 'Unknown'}');
-        print('Sub-Administrative Area: ${placemark.subAdministrativeArea ?? 'Unknown'}');
+        print(
+          'Sub-Administrative Area: ${placemark.subAdministrativeArea ?? 'Unknown'}',
+        );
         print('Sub-Locality: ${placemark.subLocality ?? 'Unknown'}');
         print('Street: ${placemark.street ?? 'Unknown'}');
         print('Name: ${placemark.name ?? 'Unknown'}');
@@ -261,7 +271,7 @@ class HomeController extends GetxController with WidgetsBindingObserver {
         hasLocationBeenFetched.value = true;
         print(
           'Location fetched - City: ${currentCity.value}, Country: ${currentCountry.value}, '
-              'State: ${currentState}, Latitude: ${locationData.latitude}, Longitude: ${locationData.longitude}',
+          'State: ${currentState}, Latitude: ${locationData.latitude}, Longitude: ${locationData.longitude}',
         );
       } else {
         currentCity.value = 'Unknown';
@@ -523,7 +533,7 @@ class HomeController extends GetxController with WidgetsBindingObserver {
         } else {
           error.value = "Failed to load videos: ${response.statusCode}";
         }
-      } else if (selectedType.value == "Near Me") {
+      }else if (selectedType.value == "Near Me") {
         print("Check there if you are");
         String selectedCity;
         String selectedCountry;
@@ -532,67 +542,56 @@ class HomeController extends GetxController with WidgetsBindingObserver {
         if (city != null && country != null) {
           selectedCity = city;
           selectedCountry = country;
-          print(
-            'Using provided city: $selectedCity, country: $selectedCountry',
-          );
         } else if (hasLocationBeenFetched.value &&
             currentCity.value.isNotEmpty &&
             currentCountry.value.isNotEmpty) {
           // Use already fetched location
           selectedCity = currentCity.value;
           selectedCountry = currentCountry.value;
-          print(
-            'Using cached location - City: $selectedCity, Country: $selectedCountry',
-          );
         } else {
-          // Enhanced location fetching with iOS-specific handling
-          // await _fetchLocationWithIOSSupport();
-
           if (error.value.isNotEmpty) {
             isLoading.value = false;
             update();
             return;
           }
 
-          selectedCity = currentCity.value;
+          selectedCity = currentCityId.value;
           selectedCountry = currentCountry.value;
-          print(
-            'Using newly fetched location - City: $selectedCity, Country: $selectedCountry',
-          );
         }
 
-        print('Fetching videos for city: $selectedCity');
-        print('Fetching videos for country: $selectedCountry');
+        // Build the request payload based on currentCityId
+        final Map<String, dynamic> requestPayload = {};
 
-        final response = await ApiClient.postRequest(EndPoints.getVideos, {
-          'city': selectedCity,
-          'country': selectedCountry,
-        });
+        // Always add latitude and longitude
+        requestPayload['latitude'] = latitude.value; // Use .value to get the raw value
+        requestPayload['longitude'] = longitude.value; // Use .value to get the raw value
 
-        print("Hello Sachal");
+        // Add city and country only if currentCityId is not null or empty
+        if (currentCityId.value != null && currentCityId.value.isNotEmpty) {
+          requestPayload['city'] = currentCityId.value; // Use .value for RxString
+          requestPayload['country'] = selectedCountry;
+        }
+
+        // Print the request payload
+        print('Request payload: $requestPayload');
+
+        // Make the API request
+        final response = await ApiClient.postRequest(
+          EndPoints.getVideos,
+          requestPayload,
+        );
+
         print(response.body);
 
         if (response.statusCode == 200) {
           var jsonData = jsonDecode(response.body);
           videoFeed.value = VideoFeed.fromJson(jsonData);
-          // await prepareControllers();
-          // if (_chewieControllers.isNotEmpty) {
-          //   await initializeControllerAtIndex(0);
-          //   if (!isMuted.value &&
-          //       !isAppInBackground.value &&
-          //       !isNavigating.value) {
-          //     playVideoAtIndex(0);
-          //   }
-          //   _viewedIndices.add(0);
-          //   preloadNextVideos(0);
-          // }
         } else {
           error.value = "Failed to load videos: ${response.statusCode}";
         }
       }
     } catch (e) {
       error.value = "Error: $e";
-      print("Exception in fetchVideos: $e");
     } finally {
       isLoading.value = false;
       update();

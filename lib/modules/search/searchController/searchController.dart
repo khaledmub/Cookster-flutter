@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:cookster/appUtils/apiEndPoints.dart';
+import 'package:cookster/modules/landing/landingTabs/home/homeController/homeController.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:get/get.dart';
@@ -18,6 +19,7 @@ class UserSearchController extends GetxController {
   var type = 1.obs;
   var hasSearched = false.obs;
   var currentCity = "".obs;
+  var currentCityId = "".obs;
   var currentCountry = "".obs;
   var b2bList = B2BList().obs;
   var filteredB2bList = B2BList().obs;
@@ -27,6 +29,8 @@ class UserSearchController extends GetxController {
   var filteredB2bUsersList =
       B2BUsersList().obs; // Add observable for filtered B2BUsersList
   RxList<String> recentSearches = <String>[].obs;
+
+  final HomeController homeController = Get.find();
 
   @override
   void onInit() async {
@@ -149,9 +153,22 @@ class UserSearchController extends GetxController {
         requestBody["keywords"] = keywords;
 
         if (isGeneral != 1 || city != null || country != null) {
-          requestBody["city"] = finalCity.isNotEmpty ? finalCity : "Unknown";
-          requestBody["country"] =
-              finalCountry.isNotEmpty ? finalCountry : "Unknown";
+          // Always add latitude and longitude
+          requestBody['latitude'] =
+              homeController.latitude.value; // Use .value to get the raw value
+          requestBody['longitude'] =
+              homeController.longitude.value; // Use .value to get the raw value
+
+          // Add city and country only if currentCityId is not null or empty
+          if (currentCityId.value != null && currentCityId.value.isNotEmpty) {
+            requestBody['city'] =
+                finalCity.isNotEmpty ? currentCityId.value : "Unknown";
+            requestBody['country'] =
+                finalCountry.isNotEmpty ? finalCountry : "Unknown";
+          }
+
+          // Print the request body
+          print('Request body: $requestBody');
         }
       }
 
@@ -189,13 +206,16 @@ class UserSearchController extends GetxController {
       return;
     }
 
-    final filteredValues = source.businessTypes!.values!
-        .where(
-          (item) =>
-      item.name?.toLowerCase().contains(trimmedQuery.toLowerCase()) ??
-          false,
-    )
-        .toList();
+    final filteredValues =
+        source.businessTypes!.values!
+            .where(
+              (item) =>
+                  item.name?.toLowerCase().contains(
+                    trimmedQuery.toLowerCase(),
+                  ) ??
+                  false,
+            )
+            .toList();
 
     filteredB2bCategories.value = B2BCategoryModel(
       status: source.status,

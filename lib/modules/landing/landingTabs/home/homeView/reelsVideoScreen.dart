@@ -640,10 +640,8 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                       SizedBox(width: 20),
                       GestureDetector(
                         onTap: () {
-                          if (controller.isLoading.value ||
-                              controller.isLocationFetching.value) {
+                          if (controller.isLoading.value) {
                           } else {
-                            controller.disposeControllers();
                             controller.setSelectedType("Near Me");
                             controller.fetchVideos();
                           }
@@ -1568,7 +1566,11 @@ class videoUserDetails extends StatelessWidget {
                                   userId: videoDetail.frontUserId!,
                                 ),
                               )?.then((_) {
-                                // controller.restoreVideoState();
+                                controller.setSelectedType(
+                                  controller.selectedType.value,
+                                );
+
+                                controller.fetchVideos();
                               });
                             },
                             child: Row(
@@ -2223,6 +2225,8 @@ void showCityDialog(BuildContext context, {int? initialCity}) {
                                           selectedId.toString();
                                       homeController.currentCity.value =
                                           selectedName;
+                                      homeController.currentCityId.value =
+                                          selectedId.toString();
                                       homeUpdateController.currentCity.value =
                                           selectedName;
                                       controller.selectedCity.value =
