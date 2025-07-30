@@ -191,7 +191,7 @@ class AdditionalData {
     this.status,
     this.createdAt,
     this.updatedAt,
-    this.isB2B
+    this.isB2B,
   });
 
   AdditionalData.fromJson(Map<dynamic, dynamic> json) {
@@ -306,6 +306,8 @@ class Videos {
   dynamic updatedAt;
   dynamic userName;
   dynamic userImage;
+  dynamic followersCount;
+  dynamic followingCount;
 
   Videos({
     this.id,
@@ -332,6 +334,8 @@ class Videos {
     this.updatedAt,
     this.userName,
     this.userImage,
+    this.followersCount,
+    this.followingCount,
   });
 
   Videos.fromJson(Map<dynamic, dynamic> json) {
@@ -359,6 +363,8 @@ class Videos {
     updatedAt = json['updated_at'] as dynamic;
     userName = json['user_name'] as dynamic;
     userImage = json['user_image'] as dynamic;
+    followersCount = json['followers'] as dynamic;
+    followingCount = json['following'] as dynamic;
   }
 
   Map<dynamic, dynamic> toJson() {
@@ -387,6 +393,8 @@ class Videos {
     data['updated_at'] = updatedAt;
     data['user_name'] = userName;
     data['user_image'] = userImage;
+    data['followers'] = followersCount;
+    data['following'] = followingCount;
     return data;
   }
 }

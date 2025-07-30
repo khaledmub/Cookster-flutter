@@ -684,8 +684,7 @@ class _VisitProfileViewState extends State<VisitProfileView>
                                       if (isAuthenticated) {
                                         Get.to(
                                           SingleVideoScreen(
-                                            followers:
-                                                '${profileController.followersList.length}',
+                                            followers: video.followersCount,
                                             frondUserId: video.frontUserId,
                                             userImage: video.userImage,
                                             videoId: video.id,
