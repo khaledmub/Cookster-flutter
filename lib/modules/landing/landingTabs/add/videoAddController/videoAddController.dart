@@ -1081,7 +1081,7 @@ class VideoAddController extends GetxController {
         context: context,
         country: selectedCountry.value,
         action: "1",
-        currency: "USD",
+        currency: "SAR",
         amt: calculateTotalPrice().toString(),
         customerEmail: "",
         trackid: orderId,
