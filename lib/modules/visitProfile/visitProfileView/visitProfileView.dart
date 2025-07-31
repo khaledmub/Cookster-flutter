@@ -266,7 +266,7 @@ class _VisitProfileViewState extends State<VisitProfileView>
       ),
 
       body: Obx(() {
-        final user = visitProfileController.visitProfile.value;
+        var user = visitProfileController.visitProfile.value;
         final userDetails = visitProfileController.visitProfile.value?.user;
         final professionalAdditionalData =
             visitProfileController.visitProfile.value?.getFirstAdditionalData();
@@ -423,19 +423,21 @@ class _VisitProfileViewState extends State<VisitProfileView>
                         label: "Following".tr,
                       ),
                     ),
-                    InkWell(
-                      onTap: () {
-                        Get.off(
-                          SocialListsScreen(
-                            initialTab: SocialTab.followers,
-                            userName: user?.user!.name,
-                            userId: user?.user!.id,
-                          ),
-                        );
-                      },
-                      child: ProfileStat(
-                        number: "${localFollowersCount}",
-                        label: "Followers".tr,
+                    Obx(
+                      () => InkWell(
+                        onTap: () {
+                          Get.off(
+                            SocialListsScreen(
+                              initialTab: SocialTab.followers,
+                              userName: user?.user!.name,
+                              userId: user?.user!.id,
+                            ),
+                          );
+                        },
+                        child: ProfileStat(
+                          number: "${localFollowersCount}",
+                          label: "Followers".tr,
+                        ),
                       ),
                     ),
                     ProfileStat(
@@ -568,10 +570,18 @@ class _VisitProfileViewState extends State<VisitProfileView>
                             const SizedBox(width: 8),
 
                             InkWell(
-                              onTap: () {
-                                Get.to(
-                                  ViewReviews(professionalId: widget.userId),
-                                );
+                              onTap: () async {
+                                bool isAuthenticated =
+                                    await _isUserAuthenticated();
+                                if (isAuthenticated) {
+                                  Get.to(
+                                    ViewReviews(professionalId: widget.userId),
+                                  );
+                                } else {
+                                  Get.toNamed(AppRoutes.signIn);
+                                  return;
+                                }
+                                ;
                               },
                               child: Container(
                                 padding: const EdgeInsets.all(8),
@@ -681,38 +691,40 @@ class _VisitProfileViewState extends State<VisitProfileView>
                                       bool isAuthenticated =
                                           await _isUserAuthenticated();
 
-                                      if (isAuthenticated) {
-                                        Get.to(
-                                          SingleVideoScreen(
-                                            followers:
-                                                localFollowersCount.toString(),
-                                            frondUserId: video.frontUserId,
-                                            userImage: video.userImage,
-                                            videoId: video.id,
-                                            videoUrl: video.video,
-                                            title: video.title,
-                                            image: video.image,
-                                            allowComments: video.allowComments,
-                                            description: video.description,
-                                            tags: video.tags,
-                                            userName: video.userName,
-                                            createdAt: video.createdAt,
-                                            isImage: video.isImage.toString(),
-                                          ),
-                                        )!.then((_) {
-                                          _initializeProfile();
-                                          localFollowersCount.value = 0;
-                                          localFollowingCount.value = 0;
-                                          localFollowersCount.value =
-                                              user!.followers!;
-                                          localFollowingCount.value =
-                                              user.following!;
+                                      // if (isAuthenticated) {
+                                      //
+                                      // } else {
+                                      //   Get.toNamed(AppRoutes.signIn);
+                                      // }
+                                      Get.to(
+                                        SingleVideoScreen(
+                                          followers:
+                                          localFollowersCount.toString(),
+                                          frondUserId: video.frontUserId,
+                                          userImage: video.userImage,
+                                          videoId: video.id,
+                                          videoUrl: video.video,
+                                          title: video.title,
+                                          image: video.image,
+                                          allowComments: video.allowComments,
+                                          description: video.description,
+                                          tags: video.tags,
+                                          userName: video.userName,
+                                          createdAt: video.createdAt,
+                                          isImage: video.isImage.toString(),
+                                        ),
+                                      )!.then((_) {
+                                        user = null;
+                                        _initializeProfile();
+                                        localFollowersCount.value = 0;
+                                        localFollowingCount.value = 0;
 
-                                          isLocalCountInitialized = true;
-                                        });
-                                      } else {
-                                        Get.toNamed(AppRoutes.signIn);
-                                      }
+                                        isLocalCountInitialized = true;
+                                        localFollowersCount.value =
+                                        user!.followers!;
+                                        localFollowingCount.value =
+                                        user!.following!;
+                                      });
                                     },
                                     child: Stack(
                                       children: [

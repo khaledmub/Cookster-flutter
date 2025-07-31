@@ -449,6 +449,7 @@ class _SingleVideoVisitState extends State<SingleVisitVideo>
                             videoId: widget.videoId ?? '',
                             userId: _frontUserId ?? '',
                             videoCommentsController: videoCommentsController,
+                            isAuthenticated: false,
                           ),
                           SizedBox(height: 8),
 
@@ -457,6 +458,7 @@ class _SingleVideoVisitState extends State<SingleVisitVideo>
                               videoId: widget.videoId ?? '',
                               userId: _frontUserId ?? '',
                               userImage: _frontUserImage ?? '',
+                              isAuthenticated: true,
                             ),
 
                           InkWell(
@@ -553,7 +555,8 @@ class _SingleVideoVisitState extends State<SingleVisitVideo>
   void _handleShare(String videoId) async {
     _pauseVideo();
     try {
-      final String webUrl = "https://cookster.org/web/visitSingleVideo?id=$videoId";
+      final String webUrl =
+          "https://cookster.org/web/visitSingleVideo?id=$videoId";
       final String shareMessage =
           'Check out this amazing video on Cookster!\n$webUrl';
       await Share.share(shareMessage, subject: 'Cookster Video');

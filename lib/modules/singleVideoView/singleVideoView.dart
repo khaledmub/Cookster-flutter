@@ -25,6 +25,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:video_player/video_player.dart';
 
+import '../../appRoutes/appRoutes.dart';
 import '../../loaders/pulseLoader.dart';
 import '../../services/apiClient.dart';
 import '../landing/landingTabs/home/homeController/addCommentControllr.dart';
@@ -111,6 +112,7 @@ class _SingleVideoScreenState extends State<SingleVideoScreen>
     });
   }
 
+  bool isAuthenticated = false; // Initialize the variable
   @override
   void initState() {
     super.initState();
@@ -123,7 +125,22 @@ class _SingleVideoScreenState extends State<SingleVideoScreen>
     WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _initializePlayer();
+      _checkAuthentication(); // Call the async check
     });
+  }
+
+  Future<void> _checkAuthentication() async {
+    final bool authStatus = await _isUserAuthenticated(); // Await the Future
+    setState(() {
+      isAuthenticated = authStatus; // Update the state
+    });
+  }
+
+  Future<bool> _isUserAuthenticated() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+
+    String? authToken = prefs.getString('auth_token');
+    return authToken != null && authToken.isNotEmpty;
   }
 
   Future<String> _getDeviceId() async {
@@ -532,33 +549,41 @@ class _SingleVideoScreenState extends State<SingleVideoScreen>
                                 padding: EdgeInsets.only(left: 8),
                                 child: InkWell(
                                   onTap: () async {
-                                    if (_isProcessing ||
-                                        widget.frondUserId == null)
+                                    bool isAuthenticated =
+                                        await _isUserAuthenticated();
+
+                                    if (isAuthenticated) {
+                                      if (_isProcessing ||
+                                          widget.frondUserId == null)
+                                        return;
+
+                                      _isProcessing = true;
+                                      try {
+                                        if (isFollowing) {
+                                          localFollowersCount.value--;
+                                        } else {
+                                          localFollowersCount.value++;
+                                        }
+
+                                        if (isProfileNull) {
+                                          await profileController
+                                              .toggleFollowStatus(
+                                                widget.frondUserId!,
+                                              );
+                                          print("User");
+                                        } else {
+                                          await professionalProfileController
+                                              .toggleFollowStatus(
+                                                widget.frondUserId!,
+                                              );
+                                          print("Professional");
+                                        }
+                                      } finally {
+                                        _isProcessing = false;
+                                      }
+                                    } else {
+                                      Get.toNamed(AppRoutes.signIn);
                                       return;
-
-                                    _isProcessing = true;
-                                    try {
-                                      if (isFollowing) {
-                                        localFollowersCount.value--;
-                                      } else {
-                                        localFollowersCount.value++;
-                                      }
-
-                                      if (isProfileNull) {
-                                        await profileController
-                                            .toggleFollowStatus(
-                                              widget.frondUserId!,
-                                            );
-                                        print("User");
-                                      } else {
-                                        await professionalProfileController
-                                            .toggleFollowStatus(
-                                              widget.frondUserId!,
-                                            );
-                                        print("Professional");
-                                      }
-                                    } finally {
-                                      _isProcessing = false;
                                     }
                                   },
                                   child: Container(
@@ -633,6 +658,7 @@ class _SingleVideoScreenState extends State<SingleVideoScreen>
                               videoId: widget.videoId ?? '',
                               userId: userId ?? '',
                               videoCommentsController: videoCommentsController,
+                              isAuthenticated: isAuthenticated,
                             ),
                             SizedBox(height: 8),
 
@@ -645,6 +671,7 @@ class _SingleVideoScreenState extends State<SingleVideoScreen>
                                     currentUserDetails?.image ??
                                     currentUser?.image ??
                                     '',
+                                isAuthenticated: isAuthenticated,
                               ),
                             if (widget.allowComments == 1) SizedBox(height: 8),
                             InkWell(
@@ -687,32 +714,40 @@ class _SingleVideoScreenState extends State<SingleVideoScreen>
                                 children: [
                                   InkWell(
                                     onTap: () async {
-                                      if (isSaved) {
-                                        // 1. Immediately remove from local list
-                                        saveController.savedVideos.removeWhere(
-                                          (video) =>
-                                              video.id.toString() ==
-                                              widget.videoId.toString(),
-                                        );
+                                      bool isAuthenticated =
+                                          await _isUserAuthenticated();
+                                      if (isAuthenticated) {
+                                        if (isSaved) {
+                                          // 1. Immediately remove from local list
+                                          saveController.savedVideos
+                                              .removeWhere(
+                                                (video) =>
+                                                    video.id.toString() ==
+                                                    widget.videoId.toString(),
+                                              );
 
-                                        // 2. Then hit API
-                                        await saveController.saveVideo(
-                                          widget.videoId!,
-                                        );
+                                          // 2. Then hit API
+                                          await saveController.saveVideo(
+                                            widget.videoId!,
+                                          );
+                                        } else {
+                                          // 1. Immediately add to local list
+                                          saveController.savedVideos.add(
+                                            SavedVideos(
+                                              id: widget.videoId,
+
+                                              // Add other fields if needed, or just id is fine for now
+                                            ),
+                                          );
+
+                                          // 2. Then hit API
+                                          await saveController.saveVideo(
+                                            widget.videoId!,
+                                          );
+                                        }
                                       } else {
-                                        // 1. Immediately add to local list
-                                        saveController.savedVideos.add(
-                                          SavedVideos(
-                                            id: widget.videoId,
-
-                                            // Add other fields if needed, or just id is fine for now
-                                          ),
-                                        );
-
-                                        // 2. Then hit API
-                                        await saveController.saveVideo(
-                                          widget.videoId!,
-                                        );
+                                        Get.toNamed(AppRoutes.signIn);
+                                        return;
                                       }
                                     },
                                     child: SizedBox(
@@ -743,13 +778,20 @@ class _SingleVideoScreenState extends State<SingleVideoScreen>
                               Column(
                                 children: [
                                   InkWell(
-                                    onTap: () {
-                                      if (widget.videoId != null) {
-                                        showMoreOptions(
-                                          context,
-                                          widget.videoId!,
-                                          userId.toString(),
-                                        );
+                                    onTap: () async {
+                                      bool isAuthenticated =
+                                          await _isUserAuthenticated();
+                                      if (isAuthenticated) {
+                                        if (widget.videoId != null) {
+                                          showMoreOptions(
+                                            context,
+                                            widget.videoId!,
+                                            userId.toString(),
+                                          );
+                                        }
+                                      } else {
+                                        Get.toNamed(AppRoutes.signIn);
+                                        return;
                                       }
                                     },
                                     child: SizedBox(
@@ -791,60 +833,69 @@ class _SingleVideoScreenState extends State<SingleVideoScreen>
                                       ),
                                     ),
                                     InkWell(
-                                      onTap: () {
-                                        final businessId =
-                                            widget.frondUserId.toString();
-                                        final firestore =
-                                            FirebaseFirestore.instance;
-                                        final docRef = firestore
-                                            .collection('countContactClick')
-                                            .doc(businessId);
+                                      onTap: () async {
+                                        bool isAuthenticated =
+                                            await _isUserAuthenticated();
 
-                                        // Run transaction to ensure atomic update
-                                        firestore.runTransaction((
-                                          transaction,
-                                        ) async {
-                                          final docSnapshot = await transaction
-                                              .get(docRef);
+                                        if (isAuthenticated) {
+                                          final businessId =
+                                              widget.frondUserId.toString();
+                                          final firestore =
+                                              FirebaseFirestore.instance;
+                                          final docRef = firestore
+                                              .collection('countContactClick')
+                                              .doc(businessId);
 
-                                          if (!docSnapshot.exists) {
-                                            // If document doesn't exist, create it with initial data
-                                            transaction.set(docRef, {
-                                              'businessId': widget.frondUserId,
-                                              'videoId': widget.videoId,
-                                              'totalClicks': 1,
-                                              'userIds': [userId],
-                                            });
-                                          } else {
-                                            final data = docSnapshot.data()!;
-                                            final userIds = List<String>.from(
-                                              data['userIds'] ?? [],
-                                            );
+                                          // Run transaction to ensure atomic update
+                                          firestore.runTransaction((
+                                            transaction,
+                                          ) async {
+                                            final docSnapshot =
+                                                await transaction.get(docRef);
 
-                                            if (!userIds.contains(userId)) {
-                                              // User hasn't clicked before, increment count and add userId
-                                              transaction.update(docRef, {
-                                                'totalClicks':
-                                                    FieldValue.increment(1),
-                                                'userIds':
-                                                    FieldValue.arrayUnion([
-                                                      userId,
-                                                    ]),
+                                            if (!docSnapshot.exists) {
+                                              // If document doesn't exist, create it with initial data
+                                              transaction.set(docRef, {
+                                                'businessId':
+                                                    widget.frondUserId,
+                                                'videoId': widget.videoId,
+                                                'totalClicks': 1,
+                                                'userIds': [userId],
                                               });
-                                            }
-                                          }
-                                        });
+                                            } else {
+                                              final data = docSnapshot.data()!;
+                                              final userIds = List<String>.from(
+                                                data['userIds'] ?? [],
+                                              );
 
-                                        showContactNowDialog(
-                                          context,
-                                          website: widget.website ?? "",
-                                          phoneNumber:
-                                              widget.contactPhone ?? "",
-                                          latitude: widget.latitude ?? "",
-                                          longitude: widget.longitude ?? "",
-                                          email: widget.contactEmail ?? "",
-                                          videoId: widget.videoId.toString(),
-                                        );
+                                              if (!userIds.contains(userId)) {
+                                                // User hasn't clicked before, increment count and add userId
+                                                transaction.update(docRef, {
+                                                  'totalClicks':
+                                                      FieldValue.increment(1),
+                                                  'userIds':
+                                                      FieldValue.arrayUnion([
+                                                        userId,
+                                                      ]),
+                                                });
+                                              }
+                                            }
+                                          });
+
+                                          showContactNowDialog(
+                                            context,
+                                            website: widget.website ?? "",
+                                            phoneNumber:
+                                                widget.contactPhone ?? "",
+                                            latitude: widget.latitude ?? "",
+                                            longitude: widget.longitude ?? "",
+                                            email: widget.contactEmail ?? "",
+                                            videoId: widget.videoId.toString(),
+                                          );
+                                        } else {
+                                          Get.toNamed(AppRoutes.signIn);
+                                          return;
+                                        }
                                       },
                                       child: Container(
                                         padding: EdgeInsets.all(8),
@@ -889,20 +940,28 @@ class _SingleVideoScreenState extends State<SingleVideoScreen>
                               borderRadius: BorderRadius.circular(50),
                             ),
                             child: InkWell(
-                              onTap: () {
-                                _pauseVideo();
-                                String? userId =
-                                    currentUserDetails?.id ?? currentUser!.id;
-                                String? userImage =
-                                    currentUserDetails?.image ??
-                                    currentUser?.image ??
-                                    "";
-                                showReviewsBottomSheet(
-                                  context,
-                                  widget.videoId!,
-                                  userId!,
-                                  userImage!,
-                                );
+                              onTap: () async {
+                                bool isAuthenticated =
+                                    await _isUserAuthenticated();
+
+                                if (isAuthenticated) {
+                                  _pauseVideo();
+                                  String? userId =
+                                      currentUserDetails?.id ?? currentUser!.id;
+                                  String? userImage =
+                                      currentUserDetails?.image ??
+                                      currentUser?.image ??
+                                      "";
+                                  showReviewsBottomSheet(
+                                    context,
+                                    widget.videoId!,
+                                    userId!,
+                                    userImage!,
+                                  );
+                                } else {
+                                  Get.toNamed(AppRoutes.signIn);
+                                  return;
+                                }
                               },
                               child: Column(
                                 children: [
@@ -1315,11 +1374,13 @@ class _EnhancedSeekBarState extends State<EnhancedSeekBar>
 class VideoLikesWidget extends StatefulWidget {
   final String videoId;
   final String userId;
+  final dynamic isAuthenticated;
   final VideoCommentsController videoCommentsController;
 
   const VideoLikesWidget({
     required this.videoId,
     required this.userId,
+    required this.isAuthenticated,
     required this.videoCommentsController,
     super.key,
   });
@@ -1411,23 +1472,27 @@ class _VideoLikesWidgetState extends State<VideoLikesWidget> {
                     ),
                   ),
               onTap: (currentIsLiked) async {
-                final String videoId = widget.videoId;
-                String userId = widget.userId;
-                HapticFeedback.lightImpact();
+                if (widget.isAuthenticated) {
+                  final String videoId = widget.videoId;
+                  String userId = widget.userId;
+                  HapticFeedback.lightImpact();
 
-                // Optimistic UI update
-                final optimisticLikes = List<dynamic>.from(likes);
-                if (currentIsLiked) {
-                  optimisticLikes.remove(userId);
+                  // Optimistic UI update
+                  final optimisticLikes = List<dynamic>.from(likes);
+                  if (currentIsLiked) {
+                    optimisticLikes.remove(userId);
+                  } else {
+                    optimisticLikes.add(userId);
+                  }
+                  await widget.videoCommentsController.toggleVideoLike(
+                    videoId.toString(),
+                    userId.toString(),
+                  );
+
+                  return !currentIsLiked;
                 } else {
-                  optimisticLikes.add(userId);
+                  Get.toNamed(AppRoutes.signIn);
                 }
-                await widget.videoCommentsController.toggleVideoLike(
-                  videoId.toString(),
-                  userId.toString(),
-                );
-
-                return !currentIsLiked;
               },
             ),
             SizedBox(height: 2),
@@ -1448,10 +1513,13 @@ class VideoCommentsWidget extends StatelessWidget {
   final String userId;
   final String userImage;
 
+  final dynamic isAuthenticated;
+
   const VideoCommentsWidget({
     required this.videoId,
     required this.userId,
     required this.userImage,
+    required this.isAuthenticated,
   });
 
   @override
@@ -1488,13 +1556,17 @@ class VideoCommentsWidget extends StatelessWidget {
           children: [
             InkWell(
               onTap: () {
-                if (userId.isNotEmpty && videoId.isNotEmpty) {
-                  showCommentsBottomSheetNew(
-                    context,
-                    videoId,
-                    userId,
-                    userImage,
-                  );
+                if (isAuthenticated) {
+                  if (userId.isNotEmpty && videoId.isNotEmpty) {
+                    showCommentsBottomSheetNew(
+                      context,
+                      videoId,
+                      userId,
+                      userImage,
+                    );
+                  }
+                } else {
+                  Get.toNamed(AppRoutes.signIn);
                 }
               },
               child: SizedBox(

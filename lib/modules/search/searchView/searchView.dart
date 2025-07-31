@@ -567,37 +567,30 @@ class _SearchViewState extends State<SearchView>
                               onTap: () async {
                                 bool isAuthenticated =
                                     await _isUserAuthenticated();
-                                if (isAuthenticated) {
-                                  Get.to(
-                                    SingleVideoScreen(
-                                      followers:
-                                          video.followersCount.toString(),
-                                      frondUserId: video.frontUserId,
-                                      userImage: video.userImage,
-                                      videoId: video.id,
-                                      videoUrl: video.video,
-                                      title: video.title,
-                                      image: video.image,
-                                      allowComments: video.allowComments,
-                                      description: video.description,
-                                      tags: video.tags,
-                                      userName: video.userName,
-                                      createdAt: video.createdAt,
-                                      contactEmail: video.contactEmail,
-                                      contactPhone: video.contactPhone,
-                                      latitude: video.latitude,
-                                      longitude: video.longitude,
-                                      takeOrder: video.takeOrder.toString(),
-                                      website: video.website,
-                                      isImage: video.isImage.toString(),
-                                    ),
-                                  );
-                                } else {
-                                  // Navigate to sign in page
-                                  Get.toNamed(
-                                    AppRoutes.signIn,
-                                  ); // Make sure you have this route defined
-                                }
+                                Get.to(
+                                  SingleVideoScreen(
+                                    followers:
+                                    video.followersCount.toString(),
+                                    frondUserId: video.frontUserId,
+                                    userImage: video.userImage,
+                                    videoId: video.id,
+                                    videoUrl: video.video,
+                                    title: video.title,
+                                    image: video.image,
+                                    allowComments: video.allowComments,
+                                    description: video.description,
+                                    tags: video.tags,
+                                    userName: video.userName,
+                                    createdAt: video.createdAt,
+                                    contactEmail: video.contactEmail,
+                                    contactPhone: video.contactPhone,
+                                    latitude: video.latitude,
+                                    longitude: video.longitude,
+                                    takeOrder: video.takeOrder.toString(),
+                                    website: video.website,
+                                    isImage: video.isImage.toString(),
+                                  ),
+                                );
                               },
 
                               child: ClipRRect(
