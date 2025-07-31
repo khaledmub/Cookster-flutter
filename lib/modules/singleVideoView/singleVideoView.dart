@@ -96,7 +96,6 @@ class _SingleVideoScreenState extends State<SingleVideoScreen>
   bool _showPlayPauseIcon = false;
   RxInt localFollowersCount = 0.obs;
 
-
   // static final CustomCacheManager _cacheManager = CustomCacheManager._();
 
   @override
@@ -302,6 +301,8 @@ class _SingleVideoScreenState extends State<SingleVideoScreen>
     });
   }
 
+  bool _isProcessing = false;
+
   void _toggleMute() {
     setState(() {
       _isMuted = !_isMuted;
@@ -493,14 +494,16 @@ class _SingleVideoScreenState extends State<SingleVideoScreen>
                                         overflow: TextOverflow.ellipsis,
                                       ),
                                     ),
-                                   Obx(()=> Text(
-                                     "${localFollowersCount} ${"Followers".tr}",
-                                     style: TextStyle(
-                                       color: Colors.white,
-                                       fontSize: 10.sp,
-                                       fontWeight: FontWeight.w400,
-                                     ),
-                                   ),)
+                                    Obx(
+                                      () => Text(
+                                        "${localFollowersCount} ${"Followers".tr}",
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 10.sp,
+                                          fontWeight: FontWeight.w400,
+                                        ),
+                                      ),
+                                    ),
                                   ],
                                 ),
                                 SizedBox(width: 8),
@@ -528,26 +531,34 @@ class _SingleVideoScreenState extends State<SingleVideoScreen>
                               return Padding(
                                 padding: EdgeInsets.only(left: 8),
                                 child: InkWell(
-                                  onTap: () {
-                                    if (widget.frondUserId == null) return;
-                                    if (isFollowing) {
-                                      localFollowersCount.value--;
-                                    } else {
-                                      localFollowersCount.value++;
-                                    }
-                                    if (isProfileNull) {
-                                      profileController.toggleFollowStatus(
-                                        widget.frondUserId!,
-                                      );
+                                  onTap: () async {
+                                    if (_isProcessing ||
+                                        widget.frondUserId == null)
+                                      return;
 
-                                      print("User");
-                                    } else {
-                                      professionalProfileController
-                                          .toggleFollowStatus(
-                                            widget.frondUserId!,
-                                          );
-                                      print("Professional");
+                                    _isProcessing = true;
+                                    try {
+                                      if (isFollowing) {
+                                        localFollowersCount.value--;
+                                      } else {
+                                        localFollowersCount.value++;
+                                      }
 
+                                      if (isProfileNull) {
+                                        await profileController
+                                            .toggleFollowStatus(
+                                              widget.frondUserId!,
+                                            );
+                                        print("User");
+                                      } else {
+                                        await professionalProfileController
+                                            .toggleFollowStatus(
+                                              widget.frondUserId!,
+                                            );
+                                        print("Professional");
+                                      }
+                                    } finally {
+                                      _isProcessing = false;
                                     }
                                   },
                                   child: Container(
@@ -955,7 +966,8 @@ class _SingleVideoScreenState extends State<SingleVideoScreen>
   void _handleShare(String videoId) async {
     _pauseVideo();
     try {
-      final String webUrl = "https://cookster.org/web/visitSingleVideo?id=$videoId";
+      final String webUrl =
+          "https://cookster.org/web/visitSingleVideo?id=$videoId";
       final String shareMessage =
           'Check out this amazing video on Cookster!\n$webUrl';
       await Share.share(shareMessage, subject: 'Cookster Video');
