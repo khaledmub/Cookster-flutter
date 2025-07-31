@@ -684,7 +684,8 @@ class _VisitProfileViewState extends State<VisitProfileView>
                                       if (isAuthenticated) {
                                         Get.to(
                                           SingleVideoScreen(
-                                            followers: video.followersCount,
+                                            followers:
+                                                localFollowersCount.toString(),
                                             frondUserId: video.frontUserId,
                                             userImage: video.userImage,
                                             videoId: video.id,
@@ -698,7 +699,17 @@ class _VisitProfileViewState extends State<VisitProfileView>
                                             createdAt: video.createdAt,
                                             isImage: video.isImage.toString(),
                                           ),
-                                        );
+                                        )!.then((_) {
+                                          _initializeProfile();
+                                          localFollowersCount.value = 0;
+                                          localFollowingCount.value = 0;
+                                          localFollowersCount.value =
+                                              user!.followers!;
+                                          localFollowingCount.value =
+                                              user.following!;
+
+                                          isLocalCountInitialized = true;
+                                        });
                                       } else {
                                         Get.toNamed(AppRoutes.signIn);
                                       }
