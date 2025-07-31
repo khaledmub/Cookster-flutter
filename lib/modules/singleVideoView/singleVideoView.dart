@@ -94,6 +94,8 @@ class _SingleVideoScreenState extends State<SingleVideoScreen>
   bool _isInitializing = true;
   bool _isMuted = false;
   bool _showPlayPauseIcon = false;
+  RxInt localFollowersCount = 0.obs;
+
 
   // static final CustomCacheManager _cacheManager = CustomCacheManager._();
 
@@ -338,6 +340,7 @@ class _SingleVideoScreenState extends State<SingleVideoScreen>
       VideoCommentsController(),
     );
     bool isRtl = _language == 'ar';
+    localFollowersCount.value = int.parse(widget.followers!);
 
     print("PRINTING VIDEO ID: ${widget.isImage}");
 
@@ -490,14 +493,14 @@ class _SingleVideoScreenState extends State<SingleVideoScreen>
                                         overflow: TextOverflow.ellipsis,
                                       ),
                                     ),
-                                    Text(
-                                      "${widget.followers ?? ''} ${"Followers".tr}",
-                                      style: TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 10.sp,
-                                        fontWeight: FontWeight.w400,
-                                      ),
-                                    ),
+                                   Obx(()=> Text(
+                                     "${localFollowersCount} ${"Followers".tr}",
+                                     style: TextStyle(
+                                       color: Colors.white,
+                                       fontSize: 10.sp,
+                                       fontWeight: FontWeight.w400,
+                                     ),
+                                   ),)
                                   ],
                                 ),
                                 SizedBox(width: 8),
@@ -527,15 +530,24 @@ class _SingleVideoScreenState extends State<SingleVideoScreen>
                                 child: InkWell(
                                   onTap: () {
                                     if (widget.frondUserId == null) return;
+                                    if (isFollowing) {
+                                      localFollowersCount.value--;
+                                    } else {
+                                      localFollowersCount.value++;
+                                    }
                                     if (isProfileNull) {
                                       profileController.toggleFollowStatus(
                                         widget.frondUserId!,
                                       );
+
+                                      print("User");
                                     } else {
                                       professionalProfileController
                                           .toggleFollowStatus(
                                             widget.frondUserId!,
                                           );
+                                      print("Professional");
+
                                     }
                                   },
                                   child: Container(
