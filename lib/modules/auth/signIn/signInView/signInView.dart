@@ -105,7 +105,14 @@ class _SignInViewState extends State<SignInView> {
                                 onTap: () {
                                   try {
                                     print("Tapped");
-                                    Get.back();
+
+                                    // Check if there's a stack to go back to
+                                    if (Get.key.currentState!.canPop()) {
+                                      Get.back();
+                                    } else {
+                                      // Navigate to landing page if no stack behind
+                                      Get.offAllNamed(AppRoutes.landing); // or Get.offAll(LandingPage())
+                                    }
                                   } catch (e) {
                                     print(e);
                                   }
