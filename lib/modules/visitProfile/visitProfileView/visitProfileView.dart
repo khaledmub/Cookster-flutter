@@ -307,7 +307,7 @@ class _VisitProfileViewState extends State<VisitProfileView>
               children: [
                 SizedBox(height: 16),
 
-                if (professionalAdditionalData != null)
+                if (user!.user!.entity == 2)
                   SizedBox(
                     height: 200,
                     child: Stack(
@@ -357,7 +357,7 @@ class _VisitProfileViewState extends State<VisitProfileView>
                     ),
                   ),
 
-                if (professionalAdditionalData == null)
+                if (user.user!.entity != 2)
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
@@ -442,13 +442,13 @@ class _VisitProfileViewState extends State<VisitProfileView>
 
                 SizedBox(height: 16.h),
 
-                if (professionalAdditionalData != null)
+                if (user!.user!.entity == 2)
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 45.0),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        if (professionalAdditionalData.contactPhone != null &&
+                        if (professionalAdditionalData!.contactPhone != null &&
                             professionalAdditionalData.contactPhone!.isNotEmpty)
                           IconButtonWidget(
                             icon: "assets/icons/phone.svg",
@@ -562,7 +562,7 @@ class _VisitProfileViewState extends State<VisitProfileView>
                             ),
                           ),
 
-                          if (professionalAdditionalData != null) ...[
+                          if (user!.user!.entity == 2) ...[
                             const SizedBox(width: 8),
 
                             InkWell(
