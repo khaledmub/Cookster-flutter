@@ -11,6 +11,8 @@ import 'package:urwaypayment/urwaypayment.dart';
 import '../../../../appUtils/colorUtils.dart';
 import 'package:flutter/material.dart' as dir;
 
+import '../../../../services/urway_response_config.dart';
+
 class PackagesScreen extends StatefulWidget {
   @override
   _PackagesScreenState createState() => _PackagesScreenState();
@@ -266,6 +268,7 @@ class _PackagesScreenState extends State<PackagesScreen> {
         print(jsonResponse);
 
         String? result = jsonResponse["Result"]?.toString().toLowerCase();
+        String? responseCode = jsonResponse["ResponseCode"]?.toString();
         final paymentParams = {
           "PaymentId": jsonResponse["PaymentId"]?.toString() ?? "",
           "TranId": jsonResponse["TranId"]?.toString() ?? "",
@@ -284,10 +287,13 @@ class _PackagesScreenState extends State<PackagesScreen> {
           signUpController.isPaymentLoading.value = false; // Reset loading state
           return {'success': true, 'paymentParams': paymentParams};
         } else {
+          // Use ResponseConfig to get the error message
+          ResponseConfig responseConfig = ResponseConfig();
+          String errorMessage = responseConfig.respCode[responseCode] ??
+              "form_unknown_error".tr;
+          ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(backgroundColor: Colors.redAccent, content: Text(errorMessage)));
           signUpController.isPaymentLoading.value = false; // Reset loading state
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text("form_unknown_error".tr)));
           return {'success': false};
         }
       } else {
@@ -296,9 +302,8 @@ class _PackagesScreenState extends State<PackagesScreen> {
     } catch (e) {
       print("PRINTING ERROR: $e");
       signUpController.isPaymentLoading.value = false; // Reset loading state
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text("payment_cancelled".tr)));
+      ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("payment_cancelled".tr)));
       return {'success': false};
     }
   }

@@ -12,6 +12,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:urwaypayment/urwaypayment.dart';
 import 'package:flutter/material.dart' as dir;
 import '../../../../../../appUtils/colorUtils.dart';
+import '../../../../../../services/urway_response_config.dart';
 
 class ChangePlanView extends StatefulWidget {
   @override
@@ -283,6 +284,7 @@ class _ChangePlanViewState extends State<ChangePlanView> {
         print(jsonResponse);
 
         String? result = jsonResponse["Result"]?.toString().toLowerCase();
+        String? responseCode = jsonResponse["ResponseCode"]?.toString();
         final paymentParams = {
           "PaymentId": jsonResponse["PaymentId"]?.toString() ?? "",
           "TranId": jsonResponse["TranId"]?.toString() ?? "",
@@ -302,11 +304,16 @@ class _ChangePlanViewState extends State<ChangePlanView> {
               false; // Reset loading state
           return {'success': true, 'paymentParams': paymentParams};
         } else {
+          // Use ResponseConfig to get the error message
+          ResponseConfig responseConfig = ResponseConfig();
+          String errorMessage =
+              responseConfig.respCode[responseCode] ?? "form_unknown_error".tr;
+          ScaffoldMessenger.of(
+
+            context,
+          ).showSnackBar(SnackBar(backgroundColor: Colors.redAccent, content: Text(errorMessage)));
           changePlanController.isPaymentLoading.value =
               false; // Reset loading state
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text("form_unknown_error".tr)));
           return {'success': false};
         }
       } else {

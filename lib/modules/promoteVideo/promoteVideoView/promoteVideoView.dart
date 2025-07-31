@@ -37,20 +37,24 @@ class _PromoteVideoViewState extends State<PromoteVideoView> {
 
   @override
   void initState() {
-    // TODO: implement initState
     super.initState();
     _loadLanguage();
-    controller.resetController();
+    // Defer the reset to avoid setState during build
+    Future.microtask(() {
+      controller.resetController();
+    });
   }
 
   @override
   void dispose() {
     super.dispose();
+    controller.resetController();
   }
 
   @override
   Widget build(BuildContext context) {
     bool isRtl = _language == 'ar';
+
     return Scaffold(
       appBar: AppBar(
         toolbarHeight: 0,
@@ -76,6 +80,8 @@ class _PromoteVideoViewState extends State<PromoteVideoView> {
                       child: GestureDetector(
                         behavior: HitTestBehavior.opaque,
                         onTap: () {
+                          controller.resetController();
+
                           try {
                             print("Tapped");
                             Get.back();
@@ -1118,14 +1124,16 @@ class _PromoteVideoViewState extends State<PromoteVideoView> {
       ),
     );
   }
+
   void showCityDialog(BuildContext context) {
     final PromoteVideoController controller = Get.find();
     final CityController cityController = Get.put(CityController());
 
     // Create a list of city objects to preserve name and ID
-    List<Map<String, dynamic>> cityList = cityController.cityList.map((city) {
-      return {'name': city.name!, 'id': city.id!};
-    }).toList();
+    List<Map<String, dynamic>> cityList =
+        cityController.cityList.map((city) {
+          return {'name': city.name!, 'id': city.id!};
+        }).toList();
 
     final TextEditingController searchController = TextEditingController();
     RxList<Map<String, dynamic>> filteredCityList = cityList.obs;
@@ -1140,10 +1148,13 @@ class _PromoteVideoViewState extends State<PromoteVideoView> {
       if (query.isEmpty) {
         filteredCityList.value = cityList;
       } else {
-        filteredCityList.value = cityList
-            .where((city) =>
-            city['name'].toLowerCase().contains(query.toLowerCase()))
-            .toList();
+        filteredCityList.value =
+            cityList
+                .where(
+                  (city) =>
+                      city['name'].toLowerCase().contains(query.toLowerCase()),
+                )
+                .toList();
       }
     }
 
@@ -1153,175 +1164,195 @@ class _PromoteVideoViewState extends State<PromoteVideoView> {
           borderRadius: BorderRadius.circular(20.r),
         ),
         child: Obx(
-              () => Container(
+          () => Container(
             width: 350.w,
             padding: EdgeInsets.all(16.w),
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(20.r),
             ),
-            child: cityController.isLoading.value
-                ? Center(child: CircularProgressIndicator())
-                : Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Row(
+            child:
+                cityController.isLoading.value
+                    ? Center(child: CircularProgressIndicator())
+                    : Column(
+                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.location_on, color: Colors.black),
-                        SizedBox(width: 8.w),
-                        Text(
-                          "select_cities_dialog_label".tr,
-                          style: TextStyle(
-                            fontSize: 14.sp,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.black,
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(Icons.location_on, color: Colors.black),
+                                SizedBox(width: 8.w),
+                                Text(
+                                  "select_cities_dialog_label".tr,
+                                  style: TextStyle(
+                                    fontSize: 14.sp,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.black,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            InkWell(
+                              onTap: () => Get.back(),
+                              child: Icon(Icons.close, color: Colors.grey),
+                            ),
+                          ],
+                        ),
+                        SizedBox(height: 16.h),
+                        TextField(
+                          controller: searchController,
+                          decoration: InputDecoration(
+                            hintText: 'search_city_placeholder'.tr,
+                            prefixIcon: Icon(Icons.search, color: Colors.grey),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(10.r),
+                              borderSide: BorderSide(color: Colors.grey),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(10.r),
+                              borderSide: BorderSide(
+                                color: ColorUtils.primaryColor,
+                              ),
+                            ),
+                            contentPadding: EdgeInsets.symmetric(
+                              vertical: 10.h,
+                              horizontal: 12.w,
+                            ),
+                          ),
+                          onChanged: (value) => filterCities(value),
+                        ),
+                        SizedBox(height: 16.h),
+                        Container(
+                          height: 230.h,
+                          child: SingleChildScrollView(
+                            child: Obx(
+                              () => Column(
+                                children: List.generate(filteredCityList.length, (
+                                  index,
+                                ) {
+                                  String cityName =
+                                      filteredCityList[index]['name'];
+                                  int cityId = filteredCityList[index]['id'];
+                                  bool isSelected = selectedCityIds.contains(
+                                    cityId,
+                                  );
+
+                                  return Column(
+                                    children: [
+                                      InkWell(
+                                        onTap: () {
+                                          controller.toggleCity(
+                                            cityName,
+                                            cityId,
+                                          );
+                                          if (isSelected) {
+                                            selectedCityIds.remove(cityId);
+                                            selectedCities.remove(cityName);
+                                          } else {
+                                            selectedCityIds.add(cityId);
+                                            selectedCities.add(cityName);
+                                          }
+                                        },
+                                        child: Padding(
+                                          padding: EdgeInsets.symmetric(
+                                            vertical: 12.h,
+                                          ),
+                                          child: Row(
+                                            mainAxisAlignment:
+                                                MainAxisAlignment.spaceBetween,
+                                            children: [
+                                              ConstrainedBox(
+                                                constraints: BoxConstraints(
+                                                  maxWidth: 200.w,
+                                                ),
+                                                child: Text(
+                                                  // Display ID to differentiate duplicate names
+                                                  '$cityName',
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                  style: TextStyle(
+                                                    fontSize: 13.sp,
+                                                    fontWeight:
+                                                        isSelected
+                                                            ? FontWeight.bold
+                                                            : FontWeight.normal,
+                                                    color: Colors.black,
+                                                  ),
+                                                ),
+                                              ),
+                                              Checkbox(
+                                                value: isSelected,
+                                                onChanged: (bool? value) {
+                                                  if (value != null) {
+                                                    controller.toggleCity(
+                                                      cityName,
+                                                      cityId,
+                                                    );
+                                                    if (value) {
+                                                      selectedCityIds.add(
+                                                        cityId,
+                                                      );
+                                                      selectedCities.add(
+                                                        cityName,
+                                                      );
+                                                    } else {
+                                                      selectedCityIds.remove(
+                                                        cityId,
+                                                      );
+                                                      selectedCities.remove(
+                                                        cityName,
+                                                      );
+                                                    }
+                                                  }
+                                                },
+                                                activeColor:
+                                                    ColorUtils.primaryColor,
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+                                      if (index < filteredCityList.length - 1)
+                                        Divider(
+                                          height: 1.h,
+                                          thickness: 1.r,
+                                          color: Colors.grey.shade300,
+                                        ),
+                                    ],
+                                  );
+                                }),
+                              ),
+                            ),
+                          ),
+                        ),
+                        SizedBox(height: 20.h),
+                        Obx(
+                          () => ElevatedButton(
+                            onPressed:
+                                controller.selectedCities.isNotEmpty
+                                    ? () => Get.back()
+                                    : null,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: ColorUtils.primaryColor,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10.r),
+                              ),
+                              minimumSize: Size(double.infinity, 44.h),
+                            ),
+                            child: Text(
+                              "Submit".tr,
+                              style: TextStyle(
+                                fontSize: 14.sp,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.white,
+                              ),
+                            ),
                           ),
                         ),
                       ],
                     ),
-                    InkWell(
-                      onTap: () => Get.back(),
-                      child: Icon(Icons.close, color: Colors.grey),
-                    ),
-                  ],
-                ),
-                SizedBox(height: 16.h),
-                TextField(
-                  controller: searchController,
-                  decoration: InputDecoration(
-                    hintText: 'search_city_placeholder'.tr,
-                    prefixIcon: Icon(Icons.search, color: Colors.grey),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(10.r),
-                      borderSide: BorderSide(color: Colors.grey),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(10.r),
-                      borderSide: BorderSide(
-                        color: ColorUtils.primaryColor,
-                      ),
-                    ),
-                    contentPadding: EdgeInsets.symmetric(
-                      vertical: 10.h,
-                      horizontal: 12.w,
-                    ),
-                  ),
-                  onChanged: (value) => filterCities(value),
-                ),
-                SizedBox(height: 16.h),
-                Container(
-                  height: 230.h,
-                  child: SingleChildScrollView(
-                    child: Obx(
-                          () => Column(
-                        children: List.generate(
-                          filteredCityList.length,
-                              (index) {
-                            String cityName = filteredCityList[index]['name'];
-                            int cityId = filteredCityList[index]['id'];
-                            bool isSelected = selectedCityIds.contains(cityId);
-
-                            return Column(
-                              children: [
-                                InkWell(
-                                  onTap: () {
-                                    controller.toggleCity(cityName, cityId);
-                                    if (isSelected) {
-                                      selectedCityIds.remove(cityId);
-                                      selectedCities.remove(cityName);
-                                    } else {
-                                      selectedCityIds.add(cityId);
-                                      selectedCities.add(cityName);
-                                    }
-                                  },
-                                  child: Padding(
-                                    padding: EdgeInsets.symmetric(
-                                      vertical: 12.h,
-                                    ),
-                                    child: Row(
-                                      mainAxisAlignment:
-                                      MainAxisAlignment.spaceBetween,
-                                      children: [
-                                        ConstrainedBox(
-                                          constraints: BoxConstraints(
-                                            maxWidth: 200.w,
-                                          ),
-                                          child: Text(
-                                            // Display ID to differentiate duplicate names
-                                            '$cityName',
-                                            overflow: TextOverflow.ellipsis,
-                                            style: TextStyle(
-                                              fontSize: 13.sp,
-                                              fontWeight: isSelected
-                                                  ? FontWeight.bold
-                                                  : FontWeight.normal,
-                                              color: Colors.black,
-                                            ),
-                                          ),
-                                        ),
-                                        Checkbox(
-                                          value: isSelected,
-                                          onChanged: (bool? value) {
-                                            if (value != null) {
-                                              controller.toggleCity(
-                                                  cityName, cityId);
-                                              if (value) {
-                                                selectedCityIds.add(cityId);
-                                                selectedCities.add(cityName);
-                                              } else {
-                                                selectedCityIds.remove(cityId);
-                                                selectedCities.remove(cityName);
-                                              }
-                                            }
-                                          },
-                                          activeColor: ColorUtils.primaryColor,
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                                if (index < filteredCityList.length - 1)
-                                  Divider(
-                                    height: 1.h,
-                                    thickness: 1.r,
-                                    color: Colors.grey.shade300,
-                                  ),
-                              ],
-                            );
-                          },
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-                SizedBox(height: 20.h),
-                Obx(
-                      () => ElevatedButton(
-                    onPressed: controller.selectedCities.isNotEmpty
-                        ? () => Get.back()
-                        : null,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: ColorUtils.primaryColor,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10.r),
-                      ),
-                      minimumSize: Size(double.infinity, 44.h),
-                    ),
-                    child: Text(
-                      "Submit".tr,
-                      style: TextStyle(
-                        fontSize: 14.sp,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
           ),
         ),
       ),

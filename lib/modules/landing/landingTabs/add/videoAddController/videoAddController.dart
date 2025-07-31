@@ -19,6 +19,7 @@ import 'package:video_thumbnail/video_thumbnail.dart';
 
 import '../../../../../loaders/pulseLoader.dart';
 import '../../../../../services/apiClient.dart';
+import '../../../../../services/urway_response_config.dart';
 import '../../../../promoteVideo/promoteVideoModel/promoteVideoModel.dart';
 import '../../profile/profileControlller/profileController.dart';
 import '../videoUploadSettingsModel/videoUploadSettingsModel.dart';
@@ -1073,9 +1074,9 @@ class VideoAddController extends GetxController {
   }
 
   Future<Map<String, dynamic>?> initiatePayment(
-    String orderId,
-    BuildContext context,
-  ) async {
+      String orderId,
+      BuildContext context,
+      ) async {
     try {
       String response = await Payment.makepaymentService(
         context: context,
@@ -1108,6 +1109,7 @@ class VideoAddController extends GetxController {
         print(jsonResponse);
 
         String? result = jsonResponse["Result"]?.toString().toLowerCase();
+        String? responseCode = jsonResponse["ResponseCode"]?.toString();
         final paymentParams = {
           "PaymentId": jsonResponse["PaymentId"]?.toString() ?? "",
           "TranId": jsonResponse["TranId"]?.toString() ?? "",
@@ -1126,9 +1128,12 @@ class VideoAddController extends GetxController {
           print("Payment successful, proceeding with video upload.");
           return paymentParams;
         } else {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text("form_unknown_error".tr)));
+          // Use ResponseConfig to get the error message
+          ResponseConfig responseConfig = ResponseConfig();
+          String errorMessage = responseConfig.respCode[responseCode] ??
+              "form_unknown_error".tr;
+          ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(backgroundColor: Colors.redAccent, content: Text(errorMessage)));
           return null;
         }
       } else {
@@ -1136,9 +1141,8 @@ class VideoAddController extends GetxController {
       }
     } catch (e) {
       print("PRINTING ERROR: $e");
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text("payment_cancelled".tr)));
+      ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("payment_cancelled".tr)));
       return null;
     }
   }

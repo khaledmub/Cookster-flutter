@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:urwaypayment/urwaypayment.dart';
 import '../../../services/apiClient.dart';
+import '../../../services/urway_response_config.dart';
 import '../promoteVideoModel/promoteVideoModel.dart';
 
 class PromoteVideoController extends GetxController {
@@ -201,14 +202,13 @@ class PromoteVideoController extends GetxController {
         return false;
       }
 
-      // Check if selectedCityIds is empty
       if (selectedCityIds.isEmpty) {
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text("select_city_error".tr)));
         return false;
       }
-      // Set loading state to true at the start
+
       isLoading.value = true;
 
       final orderId = "PRO_${DateTime.now().millisecondsSinceEpoch}";
@@ -244,6 +244,7 @@ class PromoteVideoController extends GetxController {
         print(jsonResponse);
 
         String? result = jsonResponse["Result"]?.toString().toLowerCase();
+        String? responseCode = jsonResponse["ResponseCode"]?.toString();
         final paymentParams = {
           "PaymentId": jsonResponse["PaymentId"]?.toString() ?? "",
           "TranId": jsonResponse["TranId"]?.toString() ?? "",
@@ -259,15 +260,20 @@ class PromoteVideoController extends GetxController {
         print("PRINTING THE RESULT: $result");
 
         if (result == "successful") {
-          // Call promoteVideo and pass isLoading management to it
           bool success = await promoteVideo(videoId, context, paymentParams);
-          // isLoading is managed in promoteVideo, so no need to set it here
           return success;
         } else {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text("form_unknown_error".tr)));
-          isLoading.value = false; // Reset loading state on failure
+          // Use ResponseConfig to get the error message
+          ResponseConfig responseConfig = ResponseConfig();
+          String errorMessage =
+              responseConfig.respCode[responseCode] ?? "form_unknown_error".tr;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              backgroundColor: Colors.redAccent,
+              content: Text(errorMessage),
+            ),
+          );
+          isLoading.value = false;
           return false;
         }
       } else {
@@ -278,7 +284,7 @@ class PromoteVideoController extends GetxController {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text("payment_cancelled".tr)));
-      isLoading.value = false; // Reset loading state on error
+      isLoading.value = false;
       return false;
     }
   }
