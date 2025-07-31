@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:developer';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -142,6 +143,9 @@ class VisitProfileController extends GetxController {
     }
   }
 
+  RxInt localFollowersCount = 0.obs;
+  RxInt localFollowingCount = 0.obs;
+
   Future<void> fetchUserProfile(String userId) async {
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       print('PRINTING THE USER ID: $userId');
@@ -159,10 +163,14 @@ class VisitProfileController extends GetxController {
 
         if (response.statusCode == 200) {
           var jsonData = jsonDecode(response.body);
-          print("Response JSON: $jsonData");
+          log("Response JSON: $jsonData");
           visitProfile.value = VisitProfile.fromJson(jsonData);
 
+          final user = visitProfile.value;
+
           print("Visit Profile: ${visitProfile.value}");
+          localFollowersCount.value = user!.followers;
+          localFollowingCount.value = user.following!;
           // Initialize like status after profile is loaded
           await initializeLikeStatus(
             userId,

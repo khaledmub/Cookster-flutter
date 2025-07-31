@@ -45,8 +45,7 @@ class _VisitProfileViewState extends State<VisitProfileView>
   int _currentTabIndex = 0;
 
   // Add an RxInt to track followers count locally
-  RxInt localFollowersCount = 0.obs;
-  RxInt localFollowingCount = 0.obs;
+
   bool isLocalCountInitialized = false;
 
   String? userId;
@@ -279,14 +278,6 @@ class _VisitProfileViewState extends State<VisitProfileView>
           );
         }
 
-        // Initialize the local followers count when data is first loaded
-        if (!isLocalCountInitialized && user != null) {
-          localFollowersCount.value = user.followers!;
-          localFollowingCount.value = user.following!;
-
-          isLocalCountInitialized = true;
-        }
-
         // Initialize TabController when data is loaded
         if (_tabController == null &&
             videoTypes != null &&
@@ -419,7 +410,7 @@ class _VisitProfileViewState extends State<VisitProfileView>
                         );
                       },
                       child: ProfileStat(
-                        number: "${localFollowingCount}",
+                        number: "${visitProfileController.localFollowingCount}",
                         label: "Following".tr,
                       ),
                     ),
@@ -435,7 +426,8 @@ class _VisitProfileViewState extends State<VisitProfileView>
                           );
                         },
                         child: ProfileStat(
-                          number: "${localFollowersCount}",
+                          number:
+                              "${visitProfileController.localFollowersCount}",
                           label: "Followers".tr,
                         ),
                       ),
@@ -542,9 +534,13 @@ class _VisitProfileViewState extends State<VisitProfileView>
                                   return;
                                 }
                                 if (isFollowing) {
-                                  localFollowersCount.value--;
+                                  visitProfileController
+                                      .localFollowersCount
+                                      .value--;
                                 } else {
-                                  localFollowersCount.value++;
+                                  visitProfileController
+                                      .localFollowersCount
+                                      .value++;
                                 }
                                 if (isProfileNull) {
                                   profileController.toggleFollowStatus(
@@ -687,19 +683,13 @@ class _VisitProfileViewState extends State<VisitProfileView>
                                   width: 100.w,
                                   height: 133.h,
                                   child: GestureDetector(
-                                    onTap: () async {
-                                      bool isAuthenticated =
-                                          await _isUserAuthenticated();
-
-                                      // if (isAuthenticated) {
-                                      //
-                                      // } else {
-                                      //   Get.toNamed(AppRoutes.signIn);
-                                      // }
+                                    onTap: () {
                                       Get.to(
                                         SingleVideoScreen(
                                           followers:
-                                          localFollowersCount.toString(),
+                                              visitProfileController
+                                                  .localFollowersCount
+                                                  .toString(),
                                           frondUserId: video.frontUserId,
                                           userImage: video.userImage,
                                           videoId: video.id,
@@ -713,17 +703,9 @@ class _VisitProfileViewState extends State<VisitProfileView>
                                           createdAt: video.createdAt,
                                           isImage: video.isImage.toString(),
                                         ),
-                                      )!.then((_) {
-                                        user = null;
-                                        _initializeProfile();
-                                        localFollowersCount.value = 0;
-                                        localFollowingCount.value = 0;
-
-                                        isLocalCountInitialized = true;
-                                        localFollowersCount.value =
-                                        user!.followers!;
-                                        localFollowingCount.value =
-                                        user!.following!;
+                                      )!.then((_) async {
+                                        await visitProfileController
+                                            .fetchUserProfile(widget.userId);
                                       });
                                     },
                                     child: Stack(

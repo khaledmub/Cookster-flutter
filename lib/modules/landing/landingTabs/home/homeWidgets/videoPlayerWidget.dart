@@ -43,9 +43,12 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
       if (mounted) {
         setState(() {
           _chewieController = ChewieController(
+            isLive: true,
             videoPlayerController: _videoPlayerController,
             autoPlay: widget.autoPlay,
             looping: true,
+            allowFullScreen: true,
+
             showControls: false,
             errorBuilder: (context, errorMessage) {
               return const Center(
