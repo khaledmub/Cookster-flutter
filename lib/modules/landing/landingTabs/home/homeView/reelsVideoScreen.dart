@@ -1595,12 +1595,26 @@ class videoUserDetails extends StatelessWidget {
                                 VisitProfileView(
                                   userId: videoDetail.frontUserId!,
                                 ),
-                              )?.then((_) {
-                                controller.setSelectedType(
-                                  controller.selectedType.value,
-                                );
+                              )!.then((result) async {
+                                // Handle the result when user comes back
+                                if (result != null &&
+                                    result is Map<String, dynamic>) {
+                                  bool followerChanged =
+                                      result['followerChanged'] ?? false;
 
-                                controller.fetchVideos();
+                                  if (followerChanged) {
+                                    print(
+                                      "User follow/unfollow status changed - refreshing data",
+                                    );
+                                    controller.setSelectedType(
+                                      controller.selectedType.value,
+                                    );
+
+                                    controller.fetchVideos();
+                                  } else {
+                                    print("No follow status changes detected");
+                                  }
+                                }
                               });
                             },
                             child: Row(
