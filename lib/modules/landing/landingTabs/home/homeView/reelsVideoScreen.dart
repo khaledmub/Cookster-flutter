@@ -211,518 +211,490 @@ class _VideoReelScreenState extends State<VideoReelScreen>
         backgroundColor: Colors.transparent,
       ),
 
-      body: Obx(() {
-        return Stack(
-          children: [
-            controller.isLoading.value || controller.isLocationFetching.value
-                ? Center(
-                  child: PulseLogoLoader(
-                    logoPath: "assets/images/appIcon.png",
-                    size: 80,
-                  ),
-                )
-                : controller.videoFeed.value.videos == null ||
-                    controller.videoFeed.value.videos!.isEmpty
-                ? Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        textAlign: TextAlign.center,
-                        "${'no_video_for'.tr} ${controller.currentCity.value} ${'try_to_change'.tr}",
-                        style: TextStyle(color: Colors.white, fontSize: 14.sp),
-                      ),
-                      SizedBox(height: 16),
+      body: GestureDetector(
+        onHorizontalDragEnd: (DragEndDetails details) {
+          // Get available tab types based on settings
+          List<String> availableTabs = [];
 
-                      Row(
+          if ((promoteVideoController
+                      .siteSettings
+                      .value
+                      ?.settings
+                      ?.allowGeneralVideos ??
+                  0) ==
+              1) {
+            availableTabs.add("General");
+          }
+          availableTabs.add("Near Me");
+          if ((promoteVideoController
+                      .siteSettings
+                      .value
+                      ?.settings
+                      ?.allowGeneralVideos ??
+                  0) ==
+              1) {
+            availableTabs.add("Following");
+          }
+
+          if (availableTabs.isEmpty) return;
+
+          // Get current tab index
+          int currentIndex = availableTabs.indexOf(
+            controller.selectedType.value,
+          );
+          if (currentIndex == -1) currentIndex = 0;
+
+          // Determine swipe direction and calculate new index
+          if (details.primaryVelocity! > 0) {
+            // Swiped right - go to previous tab
+            currentIndex =
+                (currentIndex - 1 + availableTabs.length) %
+                availableTabs.length;
+          } else if (details.primaryVelocity! < 0) {
+            // Swiped left - go to next tab
+            currentIndex = (currentIndex + 1) % availableTabs.length;
+          }
+
+          String newTabType = availableTabs[currentIndex];
+
+          // Handle authentication check for Following tab
+          if (newTabType == "Following" && !isAuthenticated) {
+            Get.toNamed(AppRoutes.signIn);
+            return;
+          }
+
+          // Switch to new tab if it's different from current
+          if (newTabType != controller.selectedType.value) {
+            if (!controller.isLoading.value &&
+                !controller.isLocationFetching.value) {
+              controller.disposeControllers();
+              controller.setSelectedType(newTabType);
+              controller.fetchVideos();
+            }
+          }
+        },
+        child: Obx(() {
+          return Stack(
+            children: [
+              controller.isLoading.value || controller.isLocationFetching.value
+                  ? Center(
+                    child: PulseLogoLoader(
+                      logoPath: "assets/images/appIcon.png",
+                      size: 80,
+                    ),
+                  )
+                  : controller.videoFeed.value.videos == null ||
+                      controller.videoFeed.value.videos!.isEmpty
+                  ? Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                    child: Container(
+                      height: double.infinity,
+                      width: double.infinity,
+                      color: Colors.black,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.center,
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          if (controller.selectedType.value == "Near Me")
-                            Expanded(
-                              child: AppButton(
-                                text: "Change Location",
-                                onTap: () {
-                                  _showBottomSheet(context);
-                                },
-                              ),
-                            ),
-
-                          SizedBox(width: 8),
-                          InkWell(
-                            onTap: () {
-                              Get.to(
-                                () => SearchView(
-                                  isGeneral:
-                                      controller.selectedType.value == "General"
-                                          ? 1
-                                          : 0,
-                                ),
-                              )?.then((_) {
-                                controller.fetchVideos(
-                                  city: controller.currentCity.value,
-                                  country: controller.currentCountry.value,
-                                );
-                              });
-                            },
-                            child: Container(
-                              decoration: BoxDecoration(
-                                color: Colors.transparent,
-                                // Transparent to show blur
-                                borderRadius: BorderRadius.circular(50),
-                              ),
-                              child: ClipRRect(
-                                borderRadius: BorderRadius.circular(50),
-                                child: BackdropFilter(
-                                  filter: ImageFilter.blur(
-                                    sigmaX: 10.0,
-                                    sigmaY: 10.0,
-                                  ), // Blur effect
-                                  child: Container(
-                                    padding: EdgeInsets.all(14),
-                                    decoration: BoxDecoration(
-                                      color: ColorUtils.primaryColor,
-                                      // Blue tint
-                                      borderRadius: BorderRadius.circular(50),
-                                    ),
-                                    child: Icon(
-                                      Icons.search,
-                                      color: Colors.black,
-                                      size: 24.sp,
-                                    ),
-                                  ),
-                                ),
-                              ),
+                          Text(
+                            textAlign: TextAlign.center,
+                            "${'no_video_for'.tr} ${controller.currentCity.value} ${'try_to_change'.tr}",
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 14.sp,
                             ),
                           ),
-                          SizedBox(width: 8),
-                          InkWell(
-                            onTap: () {
-                              controller.fetchVideos();
-                            },
-                            child: Container(
-                              decoration: BoxDecoration(
-                                color: Colors.transparent,
-                                // Transparent to show blur
-                                borderRadius: BorderRadius.circular(50),
-                              ),
-                              child: ClipRRect(
-                                borderRadius: BorderRadius.circular(50),
-                                child: BackdropFilter(
-                                  filter: ImageFilter.blur(
-                                    sigmaX: 10.0,
-                                    sigmaY: 10.0,
-                                  ), // Blur effect
-                                  child: Container(
-                                    padding: EdgeInsets.all(14),
-                                    decoration: BoxDecoration(
-                                      color: ColorUtils.primaryColor,
-                                      // Blue tint
-                                      borderRadius: BorderRadius.circular(50),
+                          SizedBox(height: 16),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              if (controller.selectedType.value == "Near Me")
+                                Expanded(
+                                  child: AppButton(
+                                    text: "Change Location",
+                                    onTap: () {
+                                      _showBottomSheet(context);
+                                    },
+                                  ),
+                                ),
+                              SizedBox(width: 8),
+                              InkWell(
+                                onTap: () {
+                                  Get.to(
+                                    () => SearchView(
+                                      isGeneral:
+                                          controller.selectedType.value ==
+                                                  "General"
+                                              ? 1
+                                              : 0,
                                     ),
-                                    child: Icon(
-                                      Icons.refresh,
-                                      color: Colors.black,
-                                      size: 24.sp,
+                                  )?.then((_) {
+                                    controller.fetchVideos(
+                                      city: controller.currentCity.value,
+                                      country: controller.currentCountry.value,
+                                    );
+                                  });
+                                },
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    color: Colors.transparent,
+                                    borderRadius: BorderRadius.circular(50),
+                                  ),
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(50),
+                                    child: BackdropFilter(
+                                      filter: ImageFilter.blur(
+                                        sigmaX: 10.0,
+                                        sigmaY: 10.0,
+                                      ),
+                                      child: Container(
+                                        padding: EdgeInsets.all(14),
+                                        decoration: BoxDecoration(
+                                          color: ColorUtils.primaryColor,
+                                          borderRadius: BorderRadius.circular(
+                                            50,
+                                          ),
+                                        ),
+                                        child: Icon(
+                                          Icons.search,
+                                          color: Colors.black,
+                                          size: 24.sp,
+                                        ),
+                                      ),
                                     ),
                                   ),
                                 ),
                               ),
-                            ),
+                              SizedBox(width: 8),
+                              InkWell(
+                                onTap: () {
+                                  controller.fetchVideos();
+                                },
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    color: Colors.transparent,
+                                    borderRadius: BorderRadius.circular(50),
+                                  ),
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(50),
+                                    child: BackdropFilter(
+                                      filter: ImageFilter.blur(
+                                        sigmaX: 10.0,
+                                        sigmaY: 10.0,
+                                      ),
+                                      child: Container(
+                                        padding: EdgeInsets.all(14),
+                                        decoration: BoxDecoration(
+                                          color: ColorUtils.primaryColor,
+                                          borderRadius: BorderRadius.circular(
+                                            50,
+                                          ),
+                                        ),
+                                        child: Icon(
+                                          Icons.refresh,
+                                          color: Colors.black,
+                                          size: 24.sp,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ],
                       ),
-                    ],
-                  ),
-                )
-                : Listener(
-                  child: GestureDetector(
-                    onVerticalDragEnd: (details) {
-                      if (details.primaryVelocity! > 300) {
-                        _scrollToPrevious();
-                      } else if (details.primaryVelocity! < -300) {
-                        _scrollToNext();
-                      }
-                    },
-                    onPanEnd: (details) {
-                      if (details.velocity.pixelsPerSecond.dy > 100) {
-                        _scrollToPrevious();
-                      } else if (details.velocity.pixelsPerSecond.dy < -100) {
-                        _scrollToNext();
-                      }
-                    },
-                    child: FocusDetector(
-                      onFocusGained: () {
-                        print("PageController: $_pageController");
-                        print(
-                          "Last Viewed Index: ${controller.visiblePageIndex.value}",
-                        );
-                        print(
-                          "Video List Length: ${controller.videoFeed.value.videos?.length ?? 0}",
-                        );
+                    ),
+                  )
+                  : FocusDetector(
+                    onFocusGained: () {
+                      print("PageController: $_pageController");
+                      print(
+                        "Last Viewed Index: ${controller.visiblePageIndex.value}",
+                      );
+                      print(
+                        "Video List Length: ${controller.videoFeed.value.videos?.length ?? 0}",
+                      );
 
-                        _pageController.jumpToPage(
-                          controller.visiblePageIndex.value,
-                        );
-                        print(
-                          'Focus Gained.'
-                          '\nTriggered when either [onVisibilityGained] or '
-                          '[onForegroundGained] '
-                          'is called.'
-                          '\nEquivalent to onResume() on Android or viewDidAppear() on iOS.',
-                        );
+                      _pageController.jumpToPage(
+                        controller.visiblePageIndex.value,
+                      );
+                      print(
+                        'Focus Gained.'
+                        '\nTriggered when either [onVisibilityGained] or '
+                        '[onForegroundGained] '
+                        'is called.'
+                        '\nEquivalent to onResume() on Android or viewDidAppear() on iOS.',
+                      );
+                    },
+                    child: PageView.custom(
+                      scrollDirection: Axis.vertical,
+                      controller: _pageController,
+                      clipBehavior: Clip.none,
+                      pageSnapping: true,
+                      physics: AlwaysScrollableScrollPhysics(
+                        parent: BouncingScrollPhysics(),
+                      ),
+                      padEnds: true,
+                      onPageChanged: (index) async {
+                        controller.visiblePageIndex.value = index;
+                        int actualIndex =
+                            controller.videoFeed.value.videos != null
+                                ? index %
+                                    controller.videoFeed.value.videos!.length
+                                : 0;
+
+                        setState(() {
+                          _lastViewedIndex = index;
+                        });
+
+                        print("PRINTING INDEX: $index $_lastViewedIndex");
+
+                        if (controller.videoFeed.value.videos != null &&
+                            actualIndex >=
+                                controller.videoFeed.value.videos!.length - 3) {
+                          await controller.fetchMoreVideos();
+                        }
+
+                        if (mounted) setState(() {});
+
+                        String? videoId =
+                            controller.videoFeed.value.videos != null
+                                ? controller
+                                    .videoFeed
+                                    .value
+                                    .videos![actualIndex]
+                                    .id
+                                : null;
+                        if (videoId != null) {
+                          await _trackVideoView(
+                            videoId,
+                            userId,
+                            isAuthenticated,
+                          );
+                        } else {
+                          print(
+                            'Error: Video ID is null for index $actualIndex',
+                          );
+                        }
                       },
-                      child: PageView.custom(
-                        scrollDirection: Axis.vertical,
-                        controller: _pageController,
-                        clipBehavior: Clip.none,
-                        pageSnapping: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        padEnds: true,
-                        onPageChanged: (index) async {
-                          controller.visiblePageIndex.value = index;
+                      childrenDelegate: SliverChildBuilderDelegate(
+                        (context, index) {
+                          if (controller.videoFeed.value.videos == null ||
+                              controller.videoFeed.value.videos!.isEmpty) {
+                            return Container(
+                              width: MediaQuery.of(context).size.width,
+                              height: MediaQuery.of(context).size.height,
+                              color: Colors.black,
+                              child: const Center(
+                                child: Text(
+                                  'No videos available',
+                                  style: TextStyle(
+                                    fontSize: 18,
+                                    color: Colors.grey,
+                                  ),
+                                ),
+                              ),
+                            );
+                          }
+
                           int actualIndex =
-                              controller.videoFeed.value.videos != null
-                                  ? index %
-                                      controller.videoFeed.value.videos!.length
-                                  : 0;
+                              index % controller.videoFeed.value.videos!.length;
+                          var videoDetail =
+                              controller.videoFeed.value.videos![actualIndex];
 
-                          // Store the current index
-                          setState(() {
-                            _lastViewedIndex = index;
-                          });
-
-                          print("PRINTING INDEX: $index $_lastViewedIndex");
-
-                          // Check if we're nearing the end of the list (3 videos left)
-                          if (controller.videoFeed.value.videos != null &&
-                              actualIndex >=
-                                  controller.videoFeed.value.videos!.length -
-                                      3) {
-                            // Fetch more videos to append to the list
-                            await controller.fetchMoreVideos();
-                          }
-
-                          if (mounted) setState(() {});
-
-                          // Track view in Firestore
-                          String? videoId =
-                              controller.videoFeed.value.videos != null
-                                  ? controller
-                                      .videoFeed
-                                      .value
-                                      .videos![actualIndex]
-                                      .id
-                                  : null;
-                          if (videoId != null) {
-                            await _trackVideoView(
-                              videoId,
-                              userId,
-                              isAuthenticated,
-                            );
-                          } else {
-                            print(
-                              'Error: Video ID is null for index $actualIndex',
-                            );
-                          }
+                          return Stack(
+                            clipBehavior: Clip.none,
+                            alignment: Alignment.bottomLeft,
+                            children: [
+                              VideoPlayerWidget(
+                                isImage: videoDetail.isImage,
+                                thumbnailUrl:
+                                    '${Common.videoUrl}/${videoDetail.image}',
+                                videoUrl:
+                                    '${Common.videoUrl}/${videoDetail.video}',
+                                autoPlay: true,
+                              ),
+                              VideoDescriptionWidget(
+                                title: videoDetail.title,
+                                description: videoDetail.description,
+                                tags: videoDetail.tags,
+                                controller: controller,
+                              ),
+                              videoUserDetails(
+                                profileController: profileController,
+                                professionalProfileController:
+                                    professionalProfileController,
+                                videoDetail: videoDetail,
+                                controller: controller,
+                                userId: userId,
+                                isAuthenticated: isAuthenticated,
+                              ),
+                              videoActions(
+                                videoDetail,
+                                currentUserDetails,
+                                currentUser,
+                                context,
+                              ),
+                              Positioned(
+                                top: Get.height * 0.05,
+                                left: isRtl ? 0 : null,
+                                right: isRtl ? null : 0,
+                                child: GestureDetector(
+                                  onTap: () {
+                                    Get.to(
+                                      () => SearchView(
+                                        isGeneral:
+                                            controller.selectedType.value ==
+                                                    "General"
+                                                ? 1
+                                                : 0,
+                                      ),
+                                    )!.then((_) {
+                                      controller.disposeControllers();
+                                      controller.fetchVideos(
+                                        city: controller.currentCity.value,
+                                        country:
+                                            controller.currentCountry.value,
+                                      );
+                                    });
+                                  },
+                                  child: Container(
+                                    margin: EdgeInsets.symmetric(
+                                      horizontal: 16,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: Colors.transparent,
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: ClipRRect(
+                                      borderRadius: BorderRadius.circular(100),
+                                      child: BackdropFilter(
+                                        filter: ImageFilter.blur(
+                                          sigmaX: 10.0,
+                                          sigmaY: 10.0,
+                                        ),
+                                        child: Container(
+                                          padding: EdgeInsets.all(6),
+                                          decoration: BoxDecoration(
+                                            color: Colors.black.withOpacity(
+                                              0.3,
+                                            ),
+                                            shape: BoxShape.circle,
+                                          ),
+                                          child: Icon(
+                                            Icons.search,
+                                            color: Colors.white,
+                                            size: 40,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          );
                         },
-
-                        childrenDelegate: SliverChildBuilderDelegate(
-                          (context, index) {
-                            if (controller.videoFeed.value.videos == null ||
-                                controller.videoFeed.value.videos!.isEmpty) {
-                              return Container(
-                                width: MediaQuery.of(context).size.width,
-                                height: MediaQuery.of(context).size.height,
-                                color: Colors.black,
-                                child: const Center(
-                                  child: Text(
-                                    'No videos available',
-                                    style: TextStyle(
-                                      fontSize: 18,
-                                      color: Colors.grey,
-                                    ),
-                                  ),
-                                ),
-                              );
-                            }
-
-                            int actualIndex =
-                                index %
-                                controller.videoFeed.value.videos!.length;
-                            var videoDetail =
-                                controller.videoFeed.value.videos![actualIndex];
-
-                            return Stack(
-                              clipBehavior: Clip.none,
-                              alignment: Alignment.bottomLeft,
-                              children: [
-                                VideoPlayerWidget(
-                                  isImage: videoDetail.isImage,
-                                  thumbnailUrl:
-                                      '${Common.videoUrl}/${videoDetail.image}',
-                                  videoUrl:
-                                      '${Common.videoUrl}/${videoDetail.video}',
-                                  autoPlay: true,
-                                  // Optional: Set to false if you don't want autoplay
-                                  // uniqueId: videoDetail.id!,
-                                ),
-                                VideoDescriptionWidget(
-                                  title: videoDetail.title,
-                                  description: videoDetail.description,
-                                  tags: videoDetail.tags,
-                                  controller: controller,
-                                ),
-                                videoUserDetails(
-                                  profileController: profileController,
-                                  professionalProfileController:
-                                      professionalProfileController,
-                                  videoDetail: videoDetail,
-                                  controller: controller,
-                                  userId: userId,
-                                  isAuthenticated: isAuthenticated,
-                                ),
-                                videoActions(
-                                  videoDetail,
-                                  currentUserDetails,
-                                  currentUser,
-                                  context,
-                                ),
-
-                                Positioned(
-                                  top: Get.height * 0.05,
-                                  left: isRtl ? 0 : null,
-                                  right: isRtl ? null : 0,
-                                  child: GestureDetector(
-                                    onTap: () {
-                                      Get.to(
-                                        () => SearchView(
-                                          isGeneral:
-                                              controller.selectedType.value ==
-                                                      "General"
-                                                  ? 1
-                                                  : 0,
-                                        ),
-                                      )!.then((_) {
-                                        controller.disposeControllers();
-                                        controller.fetchVideos(
-                                          city: controller.currentCity.value,
-                                          country:
-                                              controller.currentCountry.value,
-                                        );
-                                      });
-                                    },
-                                    child: Container(
-                                      margin: EdgeInsets.symmetric(
-                                        horizontal: 16,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: Colors.transparent,
-                                        shape: BoxShape.circle,
-                                      ),
-                                      child: ClipRRect(
-                                        borderRadius: BorderRadius.circular(
-                                          100,
-                                        ),
-
-                                        child: BackdropFilter(
-                                          filter: ImageFilter.blur(
-                                            sigmaX: 10.0,
-                                            sigmaY: 10.0,
-                                          ),
-                                          child: Container(
-                                            padding: EdgeInsets.all(6),
-                                            decoration: BoxDecoration(
-                                              color: Colors.black.withOpacity(
-                                                0.3,
-                                              ),
-                                              shape: BoxShape.circle,
-                                            ),
-                                            child: Icon(
-                                              Icons.search,
-                                              color: Colors.white,
-                                              size: 40,
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            );
-                          },
-                          childCount:
-                              controller.videoFeed.value.videos != null
-                                  ? controller.videoFeed.value.videos!.length
-                                  : 1,
-                        ),
+                        childCount:
+                            controller.videoFeed.value.videos != null
+                                ? controller.videoFeed.value.videos!.length
+                                : 1,
                       ),
                     ),
                   ),
-                ),
 
-            SafeArea(
-              child: Obx(
-                () => Container(
-                  margin: EdgeInsets.only(top: 10),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceAround,
-                    children: [
-                      SizedBox(width: 16),
-
-                      InkWell(
-                        onTap: () {
-                          isAuthenticated
-                              ? Get.to(JoinScreen())
-                              : Get.toNamed(AppRoutes.signIn);
-                        },
-                        child: SvgPicture.asset(
-                          "assets/icons/live.svg",
-                          color: Colors.white,
-                        ),
-                      ),
-                      SizedBox(width: 16),
-                      if ((promoteVideoController
-                                  .siteSettings
-                                  .value
-                                  ?.settings
-                                  ?.allowGeneralVideos ??
-                              0) ==
-                          1)
-                        GestureDetector(
-                          onTap: () async {
-                            if (controller.isLoading.value ||
-                                controller.isLocationFetching.value) {
-                            } else {
-                              controller.disposeControllers();
-                              controller.setSelectedType("General");
-                              controller.fetchVideos();
-                            }
-                            ;
+              SafeArea(
+                child: Obx(
+                  () => Container(
+                    margin: EdgeInsets.only(top: 10),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceAround,
+                      children: [
+                        SizedBox(width: 16),
+                        InkWell(
+                          onTap: () {
+                            isAuthenticated
+                                ? Get.to(JoinScreen())
+                                : Get.toNamed(AppRoutes.signIn);
                           },
-                          child: Text(
-                            "General".tr,
-                            style: TextStyle(
-                              shadows: <Shadow>[
-                                // Subtle depth shadow
-                                Shadow(
-                                  offset: Offset(0.0, 2.0),
-                                  blurRadius: 4.0,
-                                  color: Color.fromARGB(60, 0, 0, 0),
-                                ),
-                                // Soft outline for readability
-                                Shadow(
-                                  offset: Offset(0.0, 0.0),
-                                  blurRadius: 8.0,
-                                  color: Color.fromARGB(80, 0, 0, 0),
-                                ),
-                                // Crisp edge definition
-                                Shadow(
-                                  offset: Offset(0.5, 0.5),
-                                  blurRadius: 1.0,
-                                  color: Color.fromARGB(100, 0, 0, 0),
-                                ),
-                              ],
-                              color:
-                                  controller.selectedType.value == "General"
-                                      ? Colors.white
-                                      : Colors.white.withOpacity(0.5),
-                              fontWeight:
-                                  controller.selectedType.value == "General"
-                                      ? FontWeight.w500
-                                      : FontWeight.w300,
-                              fontSize: 18,
-                            ),
+                          child: SvgPicture.asset(
+                            "assets/icons/live.svg",
+                            color: Colors.white,
                           ),
                         ),
-                      SizedBox(width: 20),
-                      GestureDetector(
-                        onTap: () {
-                          if (controller.isLoading.value) {
-                          } else {
-                            controller.setSelectedType("Near Me");
-                            controller.fetchVideos();
-                          }
-                          ;
-                        },
-                        child: Text(
-                          "Near Me".tr,
-                          style: TextStyle(
-                            shadows: <Shadow>[
-                              // Subtle depth shadow
-                              Shadow(
-                                offset: Offset(0.0, 2.0),
-                                blurRadius: 4.0,
-                                color: Color.fromARGB(60, 0, 0, 0),
-                              ),
-                              // Soft outline for readability
-                              Shadow(
-                                offset: Offset(0.0, 0.0),
-                                blurRadius: 8.0,
-                                color: Color.fromARGB(80, 0, 0, 0),
-                              ),
-                              // Crisp edge definition
-                              Shadow(
-                                offset: Offset(0.5, 0.5),
-                                blurRadius: 1.0,
-                                color: Color.fromARGB(100, 0, 0, 0),
-                              ),
-                            ],
-                            color:
-                                controller.selectedType.value == "Near Me"
-                                    ? Colors.white
-                                    : Colors.white.withOpacity(0.5),
-                            fontWeight:
-                                controller.selectedType.value == "Near Me"
-                                    ? FontWeight.w500
-                                    : FontWeight.w300,
-                            fontSize: 18,
-                          ),
-                        ),
-                      ),
-                      SizedBox(width: 20),
-                      if ((promoteVideoController
-                                  .siteSettings
-                                  .value
-                                  ?.settings
-                                  ?.allowGeneralVideos ??
-                              0) ==
-                          1)
-                        GestureDetector(
-                          onTap: () async {
-                            print("RINTING IS AUTHENTICAT ${isAuthenticated}");
-                            if (isAuthenticated) {
+                        SizedBox(width: 16),
+                        if ((promoteVideoController
+                                    .siteSettings
+                                    .value
+                                    ?.settings
+                                    ?.allowGeneralVideos ??
+                                0) ==
+                            1)
+                          GestureDetector(
+                            onTap: () async {
                               if (controller.isLoading.value ||
                                   controller.isLocationFetching.value) {
                               } else {
                                 controller.disposeControllers();
-                                controller.setSelectedType("Following");
+                                controller.setSelectedType("General");
                                 controller.fetchVideos();
                               }
-                              ;
+                            },
+                            child: Text(
+                              "General".tr,
+                              style: TextStyle(
+                                shadows: <Shadow>[
+                                  Shadow(
+                                    offset: Offset(0.0, 2.0),
+                                    blurRadius: 4.0,
+                                    color: Color.fromARGB(60, 0, 0, 0),
+                                  ),
+                                  Shadow(
+                                    offset: Offset(0.0, 0.0),
+                                    blurRadius: 8.0,
+                                    color: Color.fromARGB(80, 0, 0, 0),
+                                  ),
+                                  Shadow(
+                                    offset: Offset(0.5, 0.5),
+                                    blurRadius: 1.0,
+                                    color: Color.fromARGB(100, 0, 0, 0),
+                                  ),
+                                ],
+                                color:
+                                    controller.selectedType.value == "General"
+                                        ? Colors.white
+                                        : Colors.white.withOpacity(0.5),
+                                fontWeight:
+                                    controller.selectedType.value == "General"
+                                        ? FontWeight.w500
+                                        : FontWeight.w300,
+                                fontSize: 18,
+                              ),
+                            ),
+                          ),
+                        SizedBox(width: 20),
+                        GestureDetector(
+                          onTap: () {
+                            if (controller.isLoading.value) {
                             } else {
-                              Get.toNamed(AppRoutes.signIn);
+                              controller.setSelectedType("Near Me");
+                              controller.fetchVideos();
                             }
                           },
                           child: Text(
-                            "Following".tr,
+                            "Near Me".tr,
                             style: TextStyle(
                               shadows: <Shadow>[
-                                // Subtle depth shadow
                                 Shadow(
                                   offset: Offset(0.0, 2.0),
                                   blurRadius: 4.0,
                                   color: Color.fromARGB(60, 0, 0, 0),
                                 ),
-                                // Soft outline for readability
                                 Shadow(
                                   offset: Offset(0.0, 0.0),
                                   blurRadius: 8.0,
                                   color: Color.fromARGB(80, 0, 0, 0),
                                 ),
-                                // Crisp edge definition
                                 Shadow(
                                   offset: Offset(0.5, 0.5),
                                   blurRadius: 1.0,
@@ -730,42 +702,100 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                                 ),
                               ],
                               color:
-                                  controller.selectedType.value == "Following"
+                                  controller.selectedType.value == "Near Me"
                                       ? Colors.white
                                       : Colors.white.withOpacity(0.5),
                               fontWeight:
-                                  controller.selectedType.value == "Following"
+                                  controller.selectedType.value == "Near Me"
                                       ? FontWeight.w500
                                       : FontWeight.w300,
                               fontSize: 18,
                             ),
                           ),
                         ),
-
-                      SizedBox(width: 16),
-
-                      ChatIconWithCounter(
-                        userId: userId ?? '',
-                        isAuthenticated: isAuthenticated,
-                        onTap: () {
-                          isAuthenticated
-                              ? Get.to(
-                                ChatListScreen(userId: userIdFromStorage),
-                              )?.then((_) {
-                                // controller.restoreVideoState();
-                              })
-                              : Get.toNamed(AppRoutes.signIn);
-                        },
-                      ),
-                      SizedBox(width: 16),
-                    ],
+                        SizedBox(width: 20),
+                        if ((promoteVideoController
+                                    .siteSettings
+                                    .value
+                                    ?.settings
+                                    ?.allowGeneralVideos ??
+                                0) ==
+                            1)
+                          GestureDetector(
+                            onTap: () async {
+                              print(
+                                "PRINTING IS AUTHENTICATED ${isAuthenticated}",
+                              );
+                              if (isAuthenticated) {
+                                if (controller.isLoading.value ||
+                                    controller.isLocationFetching.value) {
+                                } else {
+                                  controller.disposeControllers();
+                                  controller.setSelectedType("Following");
+                                  controller.fetchVideos();
+                                }
+                              } else {
+                                Get.toNamed(AppRoutes.signIn);
+                              }
+                            },
+                            child: Text(
+                              "Following".tr,
+                              style: TextStyle(
+                                shadows: <Shadow>[
+                                  Shadow(
+                                    offset: Offset(0.0, 2.0),
+                                    blurRadius: 4.0,
+                                    color: Color.fromARGB(60, 0, 0, 0),
+                                  ),
+                                  Shadow(
+                                    offset: Offset(0.0, 0.0),
+                                    blurRadius: 8.0,
+                                    color: Color.fromARGB(80, 0, 0, 0),
+                                  ),
+                                  Shadow(
+                                    offset: Offset(0.5, 0.5),
+                                    blurRadius: 1.0,
+                                    color: Color.fromARGB(100, 0, 0, 0),
+                                  ),
+                                ],
+                                color:
+                                    controller.selectedType.value == "Following"
+                                        ? Colors.white
+                                        : Colors.white.withOpacity(0.5),
+                                fontWeight:
+                                    controller.selectedType.value == "Following"
+                                        ? FontWeight.w500
+                                        : FontWeight.w300,
+                                fontSize: 18,
+                              ),
+                            ),
+                          ),
+                        SizedBox(width: 16),
+                        ChatIconWithCounter(
+                          userId: userId ?? '',
+                          isAuthenticated: isAuthenticated,
+                          onTap: () {
+                            isAuthenticated
+                                ? Get.to(
+                                  ChatListScreen(userId: userIdFromStorage),
+                                )?.then((_) {
+                                  // controller.restoreVideoState();
+                                })
+                                : Get.toNamed(AppRoutes.signIn);
+                          },
+                        ),
+                        SizedBox(width: 16),
+                      ],
+                    ),
                   ),
                 ),
               ),
-            ),
-          ],
-        );
-      }),
+
+              // Optional: Swipe indicator at the bottom
+            ],
+          );
+        }),
+      ),
     );
   }
 
