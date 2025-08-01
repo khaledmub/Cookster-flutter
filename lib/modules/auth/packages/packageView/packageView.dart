@@ -21,7 +21,7 @@ class PackagesScreen extends StatefulWidget {
 class _PackagesScreenState extends State<PackagesScreen> {
   final SignUpController signUpController = Get.put(SignUpController());
   final CarouselSliderController _carouselController =
-  CarouselSliderController();
+      CarouselSliderController();
   int _currentIndex = 0;
 
   @override
@@ -100,39 +100,40 @@ class _PackagesScreenState extends State<PackagesScreen> {
                         },
                       ),
                       items:
-                      packages
-                          .map((package) => _buildPackageCard(package))
-                          .toList(),
+                          packages
+                              .map((package) => _buildPackageCard(package))
+                              .toList(),
                     ),
                   ),
                   SizedBox(height: 12.h),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children:
-                    packages.asMap().entries.map((entry) {
-                      final index = entry.key;
-                      return Container(
-                        width: _currentIndex == index ? 12.w : 8.w,
-                        height: _currentIndex == index ? 12.w : 8.w,
-                        margin: EdgeInsets.symmetric(horizontal: 4.w),
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color:
-                          _currentIndex == index
-                              ? ColorUtils.darkBrown
-                              : ColorUtils.secondaryColor,
-                        ),
-                      );
-                    }).toList(),
+                        packages.asMap().entries.map((entry) {
+                          final index = entry.key;
+                          return Container(
+                            width: _currentIndex == index ? 12.w : 8.w,
+                            height: _currentIndex == index ? 12.w : 8.w,
+                            margin: EdgeInsets.symmetric(horizontal: 4.w),
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color:
+                                  _currentIndex == index
+                                      ? ColorUtils.darkBrown
+                                      : ColorUtils.secondaryColor,
+                            ),
+                          );
+                        }).toList(),
                   ),
                   SizedBox(height: 20.h),
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16.0),
                     child: AppButton(
                       isLoading:
-                      signUpController.isLoading.value ||
+                          signUpController.isLoading.value ||
                           signUpController.isProfileCreating.value ||
-                          signUpController.isPaymentLoading.value, // Added payment loading state
+                          signUpController.isPaymentLoading.value,
+                      // Added payment loading state
                       text: "activate_now".tr,
                       onTap: () async {
                         if (signUpController
@@ -145,19 +146,19 @@ class _PackagesScreenState extends State<PackagesScreen> {
                           print("EXECUTING THE PAYMENT PROCESS");
                           // First initiate payment
                           Map<String, dynamic>? paymentResult =
-                          await initiatePayment(context);
+                              await initiatePayment(context);
 
                           if (paymentResult != null &&
                               paymentResult['success'] == true) {
                             // If payment is successful, then submit the form with payment parameters
                             signUpController.submitForm(
                               packageId:
-                              signUpController.selectedPackageId.value,
+                                  signUpController.selectedPackageId.value,
                               paymentParams: paymentResult['paymentParams'],
                             );
                           } else {
                             // Payment failed, show error message
-                            Get.snackbar("error".tr, "payment_failed".tr);
+                            // Get.snackbar("error".tr, "payment_failed".tr);
                           }
                         } else {
                           Get.snackbar("error".tr, "please_select_package".tr);
@@ -171,13 +172,13 @@ class _PackagesScreenState extends State<PackagesScreen> {
             ),
             Positioned(
               left:
-              Directionality.of(context) == dir.TextDirection.rtl
-                  ? null
-                  : 16,
+                  Directionality.of(context) == dir.TextDirection.rtl
+                      ? null
+                      : 16,
               right:
-              Directionality.of(context) == dir.TextDirection.rtl
-                  ? 16
-                  : null,
+                  Directionality.of(context) == dir.TextDirection.rtl
+                      ? 16
+                      : null,
               top: 20.h,
               child: GestureDetector(
                 behavior: HitTestBehavior.opaque,
@@ -235,75 +236,88 @@ class _PackagesScreenState extends State<PackagesScreen> {
       final selectedPackage = signUpController.packagesList.value.packages!
           .firstWhere(
             (package) => package.id == signUpController.selectedPackageId.value,
-      );
+          );
 
-      String response = await Payment.makepaymentService(
-        context: context,
-        country: "Qatar",
-        action: "1",
-        currency: "SAR",
-        amt: selectedPackage.amount.toString(),
-        customerEmail: "",
-        trackid: orderId,
-        udf1: "",
-        udf2: "",
-        udf3: Directionality.of(context) == dir.TextDirection.rtl ? "AR" : "EN",
-        udf4: "",
-        udf5: "",
-        metadata: '{"orderId":"$orderId","source":"FlutterApp"}',
-        cardToken: "",
-        address: "",
-        city: "",
-        state: "",
-        tokenizationType: "0",
-        zipCode: "",
-        tokenOperation: "",
-      );
+      if (selectedPackage.amount != 0) {
+        String response = await Payment.makepaymentService(
+          context: context,
+          country: "Qatar",
+          action: "1",
+          currency: "SAR",
+          amt: selectedPackage.amount.toString(),
+          customerEmail: "",
+          trackid: orderId,
+          udf1: "",
+          udf2: "",
+          udf3:
+              Directionality.of(context) == dir.TextDirection.rtl ? "AR" : "EN",
+          udf4: "",
+          udf5: "",
+          metadata: '{"orderId":"$orderId","source":"FlutterApp"}',
+          cardToken: "",
+          address: "",
+          city: "",
+          state: "",
+          tokenizationType: "0",
+          zipCode: "",
+          tokenOperation: "",
+        );
 
-      print("Raw Response: $response");
+        print("Raw Response: $response");
 
-      if (response.isNotEmpty && response.trim().startsWith('{')) {
-        Map<String, dynamic> jsonResponse = jsonDecode(response);
-        print("PRINTING PAYMENT RESPONSE");
-        print(jsonResponse);
+        if (response.isNotEmpty && response.trim().startsWith('{')) {
+          Map<String, dynamic> jsonResponse = jsonDecode(response);
+          print("PRINTING PAYMENT RESPONSE");
+          print(jsonResponse);
 
-        String? result = jsonResponse["Result"]?.toString().toLowerCase();
-        String? responseCode = jsonResponse["ResponseCode"]?.toString();
-        final paymentParams = {
-          "PaymentId": jsonResponse["PaymentId"]?.toString() ?? "",
-          "TranId": jsonResponse["TranId"]?.toString() ?? "",
-          "ECI": jsonResponse["ECI"]?.toString() ?? "",
-          "TrackId": jsonResponse["TrackId"]?.toString() ?? "",
-          "RRN": jsonResponse["RRN"]?.toString() ?? "",
-          "cardBrand": jsonResponse["cardBrand"]?.toString() ?? "",
-          "amount": jsonResponse["amount"]?.toString() ?? "",
-          "maskedPAN": jsonResponse["maskedPAN"]?.toString() ?? "",
-          "PaymentType": jsonResponse["PaymentType"]?.toString() ?? "",
-        };
+          String? result = jsonResponse["Result"]?.toString().toLowerCase();
+          String? responseCode = jsonResponse["ResponseCode"]?.toString();
+          final paymentParams = {
+            "PaymentId": jsonResponse["PaymentId"]?.toString() ?? "",
+            "TranId": jsonResponse["TranId"]?.toString() ?? "",
+            "ECI": jsonResponse["ECI"]?.toString() ?? "",
+            "TrackId": jsonResponse["TrackId"]?.toString() ?? "",
+            "RRN": jsonResponse["RRN"]?.toString() ?? "",
+            "cardBrand": jsonResponse["cardBrand"]?.toString() ?? "",
+            "amount": jsonResponse["amount"]?.toString() ?? "",
+            "maskedPAN": jsonResponse["maskedPAN"]?.toString() ?? "",
+            "PaymentType": jsonResponse["PaymentType"]?.toString() ?? "",
+          };
 
-        print("PRINTING THE RESULT: $result");
+          print("PRINTING THE RESULT: $result");
 
-        if (result == "successful") {
-          signUpController.isPaymentLoading.value = false; // Reset loading state
-          return {'success': true, 'paymentParams': paymentParams};
+          if (result == "successful") {
+            signUpController.isPaymentLoading.value =
+                false; // Reset loading state
+            return {'success': true, 'paymentParams': paymentParams};
+          } else {
+            // Use ResponseConfig to get the error message
+            ResponseConfig responseConfig = ResponseConfig();
+            String errorMessage =
+                responseConfig.respCode[responseCode] ??
+                "form_unknown_error".tr;
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                backgroundColor: Colors.redAccent,
+                content: Text(errorMessage),
+              ),
+            );
+            signUpController.isPaymentLoading.value =
+                false; // Reset loading state
+            return {'success': false};
+          }
         } else {
-          // Use ResponseConfig to get the error message
-          ResponseConfig responseConfig = ResponseConfig();
-          String errorMessage = responseConfig.respCode[responseCode] ??
-              "form_unknown_error".tr;
-          ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(backgroundColor: Colors.redAccent, content: Text(errorMessage)));
-          signUpController.isPaymentLoading.value = false; // Reset loading state
-          return {'success': false};
+          throw Exception("Invalid response format: $response");
         }
       } else {
-        throw Exception("Invalid response format: $response");
+        return {'success': true};
       }
     } catch (e) {
       print("PRINTING ERROR: $e");
       signUpController.isPaymentLoading.value = false; // Reset loading state
-      ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("payment_cancelled".tr)));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text("payment_cancelled".tr)));
       return {'success': false};
     }
   }
@@ -336,9 +350,9 @@ class _PackagesScreenState extends State<PackagesScreen> {
             ),
           ),
           color:
-          package.title == 'Best Seller'
-              ? Colors.orange.shade100
-              : Colors.white,
+              package.title == 'Best Seller'
+                  ? Colors.orange.shade100
+                  : Colors.white,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisAlignment: MainAxisAlignment.start,

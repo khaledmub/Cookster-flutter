@@ -49,10 +49,7 @@ class ChangePlanController extends GetxController {
   }
 
   // Submit the selected package
-  Future<void> submitForm({
-    required String packageId,
-    required paymentParams,
-  }) async {
+  Future<void> submitForm({required String packageId, paymentParams}) async {
     final ProfessionalProfileController profileController = Get.find();
     try {
       isProfileCreating.value = true;
@@ -61,15 +58,17 @@ class ChangePlanController extends GetxController {
         // Assuming EndPoints.subscribe is the endpoint for subscription
         {
           'package_id': packageId,
-          "PaymentId": paymentParams["PaymentId"]?.toString() ?? "",
-          "TranId": paymentParams["TranId"]?.toString() ?? "",
-          "ECI": paymentParams["ECI"]?.toString() ?? "",
-          "TrackId": paymentParams["TrackId"]?.toString() ?? "",
-          "RRN": paymentParams["RRN"]?.toString() ?? "",
-          "cardBrand": paymentParams["cardBrand"]?.toString() ?? "",
-          "amount": paymentParams["amount"]?.toString() ?? "",
-          "maskedPAN": paymentParams["maskedPAN"]?.toString() ?? "",
-          "PaymentType": paymentParams["PaymentType"]?.toString() ?? "",
+          if (paymentParams != null) ...{
+            'PaymentId': paymentParams['PaymentId']?.toString() ?? '',
+            'TranId': paymentParams['TranId']?.toString() ?? '',
+            'ECI': paymentParams['ECI']?.toString() ?? '',
+            'TrackId': paymentParams['TrackId']?.toString() ?? '',
+            'RRN': paymentParams['RRN']?.toString() ?? '',
+            'cardBrand': paymentParams['cardBrand']?.toString() ?? '',
+            'amount': paymentParams['amount']?.toString() ?? '',
+            'maskedPAN': paymentParams['maskedPAN']?.toString() ?? '',
+            'PaymentType': paymentParams['PaymentType']?.toString() ?? '',
+          },
         },
       );
 

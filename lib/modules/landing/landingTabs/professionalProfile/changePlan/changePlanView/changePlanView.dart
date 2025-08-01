@@ -253,71 +253,84 @@ class _ChangePlanViewState extends State<ChangePlanView> {
                 package.id == changePlanController.selectedPackageId.value,
           );
 
-      String response = await Payment.makepaymentService(
-        context: context,
-        country: "Qatar",
-        action: "1",
-        currency: "SAR",
-        amt: selectedPackage.amount.toString(),
-        customerEmail: "",
-        trackid: orderId,
-        udf1: "",
-        udf2: "",
-        udf3: Directionality.of(context) == dir.TextDirection.rtl ? "AR" : "EN",
-        udf4: "",
-        udf5: "",
-        metadata: '{"orderId":"$orderId","source":"FlutterApp"}',
-        cardToken: "",
-        address: "",
-        city: "",
-        state: "",
-        tokenizationType: "0",
-        zipCode: "",
-        tokenOperation: "",
-      );
+      if (selectedPackage.amount != 0) {
+        String response = await Payment.makepaymentService(
+          context: context,
+          country: "Qatar",
+          action: "1",
+          currency: "SAR",
+          amt: selectedPackage.amount.toString(),
+          customerEmail: "",
+          trackid: orderId,
+          udf1: "",
+          udf2: "",
+          udf3:
+              Directionality.of(context) == dir.TextDirection.rtl ? "AR" : "EN",
+          udf4: "",
+          udf5: "",
+          metadata: '{"orderId":"$orderId","source":"FlutterApp"}',
+          cardToken: "",
+          address: "",
+          city: "",
+          state: "",
+          tokenizationType: "0",
+          zipCode: "",
+          tokenOperation: "",
+        );
 
-      print("Raw Response: $response");
+        print("Raw Response: $response");
 
-      if (response.isNotEmpty && response.trim().startsWith('{')) {
-        Map<String, dynamic> jsonResponse = jsonDecode(response);
-        print("PRINTING PAYMENT RESPONSE");
-        print(jsonResponse);
+        if (response.isNotEmpty && response.trim().startsWith('{')) {
+          Map<String, dynamic> jsonResponse = jsonDecode(response);
+          print("PRINTING PAYMENT RESPONSE");
+          print(jsonResponse);
 
-        String? result = jsonResponse["Result"]?.toString().toLowerCase();
-        String? responseCode = jsonResponse["ResponseCode"]?.toString();
-        final paymentParams = {
-          "PaymentId": jsonResponse["PaymentId"]?.toString() ?? "",
-          "TranId": jsonResponse["TranId"]?.toString() ?? "",
-          "ECI": jsonResponse["ECI"]?.toString() ?? "",
-          "TrackId": jsonResponse["TrackId"]?.toString() ?? "",
-          "RRN": jsonResponse["RRN"]?.toString() ?? "",
-          "cardBrand": jsonResponse["cardBrand"]?.toString() ?? "",
-          "amount": jsonResponse["amount"]?.toString() ?? "",
-          "maskedPAN": jsonResponse["maskedPAN"]?.toString() ?? "",
-          "PaymentType": jsonResponse["PaymentType"]?.toString() ?? "",
-        };
+          String? result = jsonResponse["Result"]?.toString().toLowerCase();
+          String? responseCode = jsonResponse["ResponseCode"]?.toString();
+          final paymentParams = {
+            "PaymentId": jsonResponse["PaymentId"]?.toString() ?? "",
+            "TranId": jsonResponse["TranId"]?.toString() ?? "",
+            "ECI": jsonResponse["ECI"]?.toString() ?? "",
+            "TrackId": jsonResponse["TrackId"]?.toString() ?? "",
+            "RRN": jsonResponse["RRN"]?.toString() ?? "",
+            "cardBrand": jsonResponse["cardBrand"]?.toString() ?? "",
+            "amount": jsonResponse["amount"]?.toString() ?? "",
+            "maskedPAN": jsonResponse["maskedPAN"]?.toString() ?? "",
+            "PaymentType": jsonResponse["PaymentType"]?.toString() ?? "",
+          };
 
-        print("PRINTING THE RESULT: $result");
+          print("PRINTING THE RESULT: $result");
 
-        if (result == "successful") {
-          changePlanController.isPaymentLoading.value =
-              false; // Reset loading state
-          return {'success': true, 'paymentParams': paymentParams};
+          if (result == "successful") {
+            changePlanController.isPaymentLoading.value =
+                false; // Reset loading state
+            return {'success': true, 'paymentParams': paymentParams};
+          } else {
+            // Use ResponseConfig to get the error message
+            ResponseConfig responseConfig = ResponseConfig();
+            String errorMessage =
+                responseConfig.respCode[responseCode] ??
+                "form_unknown_error".tr;
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                backgroundColor: Colors.redAccent,
+                content: Text(errorMessage),
+              ),
+            );
+            changePlanController.isPaymentLoading.value =
+                false; // Reset loading state
+            return {'success': false};
+          }
         } else {
-          // Use ResponseConfig to get the error message
-          ResponseConfig responseConfig = ResponseConfig();
-          String errorMessage =
-              responseConfig.respCode[responseCode] ?? "form_unknown_error".tr;
-          ScaffoldMessenger.of(
-
-            context,
-          ).showSnackBar(SnackBar(backgroundColor: Colors.redAccent, content: Text(errorMessage)));
-          changePlanController.isPaymentLoading.value =
-              false; // Reset loading state
-          return {'success': false};
+          throw Exception("Invalid response format: $response");
         }
       } else {
-        throw Exception("Invalid response format: $response");
+        changePlanController.submitForm(
+          packageId: changePlanController.selectedPackageId.value,
+        );
+
+        changePlanController.isPaymentLoading.value =
+            false; // Reset loading state
       }
     } catch (e) {
       print("PRINTING ERROR: $e");

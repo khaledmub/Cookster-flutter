@@ -569,7 +569,7 @@ class SignUpController extends GetxController {
         if (packageId != null) "package_id": packageId,
 
       // Add payment parameters for profile ID 2
-      if (selectedProfileId.value == 2 && paymentParams != null) ...{
+      if (selectedProfileId.value == 2 &&  paymentParams != null) ...{
         "PaymentId": paymentParams["PaymentId"]?.toString() ?? "",
         "TranId": paymentParams["TranId"]?.toString() ?? "",
         "ECI": paymentParams["ECI"]?.toString() ?? "",
