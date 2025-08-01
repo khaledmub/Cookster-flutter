@@ -367,7 +367,6 @@ class _SignInViewState extends State<SignInView> {
               ],
             ),
           ),
-
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16.0),
             child: RichText(
@@ -442,6 +441,64 @@ class _SignInViewState extends State<SignInView> {
               ],
             ),
           ),
+          RichText(
+            textAlign: TextAlign.center,
+            text: TextSpan(
+              style: TextStyle(color: Colors.black, fontSize: 12.sp),
+              children: [
+                TextSpan(text: "enquiry_contact_us".tr),
+                TextSpan(
+                  text: "contact_us".tr,
+                  style: TextStyle(
+                    decoration: TextDecoration.underline,
+                    color: Colors.black,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  recognizer:
+                  TapGestureRecognizer()
+                    ..onTap = () async {
+                      // Get email from controller
+                      final String? email =
+                          promoteVideoController
+                              .siteSettings
+                              .value
+                              ?.settings
+                              ?.email;
+
+                      if (email == null || email.isEmpty) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Email address not available'),
+                          ),
+                        );
+                        return;
+                      }
+
+                      // Create the mailto URL
+                      final Uri emailUri = Uri(
+                        scheme: 'mailto',
+                        path: email,
+                        queryParameters: {
+                          'subject': 'Contact Us', // Pre-fill subject
+                        },
+                      );
+
+                      // Launch the mail app
+                      if (await canLaunchUrl(emailUri)) {
+                        await launchUrl(emailUri);
+                      } else {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('No email app found'),
+                          ),
+                        );
+                      }
+                    },
+                ),
+              ],
+            ),
+          ),
+
         ],
       ),
     );
