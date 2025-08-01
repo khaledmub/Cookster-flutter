@@ -919,4 +919,5 @@ const Map<String, String> en = {
   "email_or_contact_number_required": "Either Email Address or Contact Number Field is required",
   "send_link_via_sms_limit_exceeded": "send link via SMS limit exceeded",
   "contact_us" : "Contact Us",
+  "enquiry_contact_us" : "For any enquiry please "
 };

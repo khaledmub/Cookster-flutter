@@ -10,10 +10,12 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:get/get.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../../appUtils/colorUtils.dart';
 import '../../../../../loaders/pulseLoader.dart';
 import '../../../../followersFollowing/followersFollowingView/followersFollowingView.dart';
+import '../../../../promoteVideo/promoteVideoController/promoteVideoController.dart';
 import '../../../../promoteVideo/promoteVideoView/promoteVideoView.dart';
 import '../../../../singleVideoView/singleVideoView.dart';
 import '../../add/editVideo/editVideoView.dart';
@@ -32,6 +34,8 @@ class ProfileView extends StatefulWidget {
 class _ProfileViewState extends State<ProfileView>
     with SingleTickerProviderStateMixin {
   final ProfileController profileController = Get.find();
+
+  final PromoteVideoController promoteVideoController = Get.find();
 
   int? entity;
 
@@ -67,6 +71,7 @@ class _ProfileViewState extends State<ProfileView>
             Colors.transparent, // Optional: Status bar background color
       ),
     );
+
     return Obx(() {
       final userDetails = profileController.simpleUserDetails.value?.user;
       // : profileController.userDetails.value?.user;
@@ -93,6 +98,65 @@ class _ProfileViewState extends State<ProfileView>
         },
         child: Scaffold(
           backgroundColor: Colors.white,
+          floatingActionButton: InkWell(
+            onTap: () async {
+              // Get email from controller
+              final String? email =
+                  promoteVideoController.siteSettings.value?.settings?.email;
+
+              if (email == null || email.isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Email address not available')),
+                );
+                return;
+              }
+
+              // Create the mailto URL
+              final Uri emailUri = Uri(
+                scheme: 'mailto',
+                path: email,
+                queryParameters: {
+                  'subject': 'Contact Us', // Pre-fill subject
+                },
+              );
+
+              // Launch the mail app
+              if (await canLaunchUrl(emailUri)) {
+                await launchUrl(emailUri);
+              } else {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('No email app found')),
+                );
+              }
+            },
+            child: Container(
+              height: 40,
+              width: 130,
+              padding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+              margin: EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+
+              decoration: BoxDecoration(
+                color: ColorUtils.primaryColor,
+                borderRadius: BorderRadius.circular(12),
+              ),
+
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Icon(Icons.email, size: 18, color: Colors.white),
+                  Text(
+                    "Contact Us",
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 14.sp,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
           appBar: AppBar(
             automaticallyImplyLeading: false,
             surfaceTintColor: Colors.transparent,

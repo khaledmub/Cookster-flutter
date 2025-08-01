@@ -1012,4 +1012,5 @@ const Map<String, String> ar = {
   "send_link_via_sms_limit_exceeded":
       "تم تجاوز حد إرسال الرابط عبر الرسائل النصية",
   "contact_us": "اتصل بنا",
+  "enquiry_contact_us": "لأي استفسار، يرجى",
 };

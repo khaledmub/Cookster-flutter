@@ -6,6 +6,7 @@ import 'package:cookster/appUtils/appCenterIcon.dart';
 import 'package:cookster/appUtils/appUtils.dart';
 import 'package:cookster/modules/auth/signIn/signInController/signInController.dart';
 import 'package:cookster/modules/initLanguageSelection/initLanguageView.dart';
+import 'package:cookster/modules/promoteVideo/promoteVideoController/promoteVideoController.dart';
 import 'package:cookster/modules/selectLanguage/selectLanguageView/selectLanguageView.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
@@ -14,6 +15,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:get/get.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../appUtils/colorUtils.dart';
 import '../../authSocailButton.dart';
@@ -41,6 +43,8 @@ class _SignInViewState extends State<SignInView> {
           prefs.getString('language') ?? 'en'; // Default to 'en' if not set
     });
   }
+
+  final PromoteVideoController promoteVideoController = Get.find();
 
   @override
   void initState() {
@@ -111,7 +115,9 @@ class _SignInViewState extends State<SignInView> {
                                       Get.back();
                                     } else {
                                       // Navigate to landing page if no stack behind
-                                      Get.offAllNamed(AppRoutes.landing); // or Get.offAll(LandingPage())
+                                      Get.offAllNamed(
+                                        AppRoutes.landing,
+                                      ); // or Get.offAll(LandingPage())
                                     }
                                   } catch (e) {
                                     print(e);
@@ -361,6 +367,7 @@ class _SignInViewState extends State<SignInView> {
               ],
             ),
           ),
+
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16.0),
             child: RichText(

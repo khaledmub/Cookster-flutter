@@ -11,6 +11,7 @@ import 'package:flutter_svg/svg.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../appRoutes/appRoutes.dart';
 import '../../../../appUtils/appUtils.dart';
@@ -1642,20 +1643,94 @@ class _SignVpViewState extends State<SignVpView> {
                                         fontWeight: FontWeight.w500,
                                       ),
                                       recognizer:
+                                      TapGestureRecognizer()
+                                        ..onTap = () {
+                                          Get.toNamed(AppRoutes.signIn);
+                                          if (kDebugMode) {
+                                            print(
+                                              "Navigate to Sign Up screen",
+                                            );
+                                          }
+                                          // You can use Navigator.push() here to go to the Sign Up screen.
+                                        },
+                                    ),
+                                  ],
+                                ),
+                              ),
+
+                              RichText(
+                                textAlign: TextAlign.center,
+                                text: TextSpan(
+                                  style: TextStyle(
+                                    color: Colors.black,
+                                    fontSize: 12.sp,
+                                  ),
+                                  children: [
+                                    TextSpan(text: "enquiry_contact_us".tr),
+                                    TextSpan(
+                                      text: "contact_us".tr,
+                                      style: TextStyle(
+                                        decoration: TextDecoration.underline,
+                                        color: Colors.black,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                      recognizer:
                                           TapGestureRecognizer()
-                                            ..onTap = () {
-                                              Get.toNamed(AppRoutes.signIn);
-                                              if (kDebugMode) {
-                                                print(
-                                                  "Navigate to Sign Up screen",
+                                            ..onTap = () async {
+                                              // Get email from controller
+                                              final String? email =
+                                                  signUpController
+                                                      .siteSettings
+                                                      .value
+                                                      ?.settings
+                                                      ?.email;
+
+                                              if (email == null ||
+                                                  email.isEmpty) {
+                                                ScaffoldMessenger.of(
+                                                  context,
+                                                ).showSnackBar(
+                                                  const SnackBar(
+                                                    content: Text(
+                                                      'Email address not available',
+                                                    ),
+                                                  ),
+                                                );
+                                                return;
+                                              }
+
+                                              // Create the mailto URL
+                                              final Uri emailUri = Uri(
+                                                scheme: 'mailto',
+                                                path: email,
+                                                queryParameters: {
+                                                  'subject': 'Contact Us',
+                                                  // Pre-fill subject
+                                                },
+                                              );
+
+                                              // Launch the mail app
+                                              if (await canLaunchUrl(
+                                                emailUri,
+                                              )) {
+                                                await launchUrl(emailUri);
+                                              } else {
+                                                ScaffoldMessenger.of(
+                                                  context,
+                                                ).showSnackBar(
+                                                  const SnackBar(
+                                                    content: Text(
+                                                      'No email app found',
+                                                    ),
+                                                  ),
                                                 );
                                               }
-                                              // You can use Navigator.push() here to go to the Sign Up screen.
                                             },
                                     ),
                                   ],
                                 ),
                               ),
+
                               SizedBox(height: 16),
                             ],
                           ),
@@ -1746,7 +1821,6 @@ class _SignVpViewState extends State<SignVpView> {
         .firstWhere(
           (entity) => entity.id == signUpController.selectedProfileId.value,
         );
-
 
     print(selectedEntity.description);
 
