@@ -213,28 +213,6 @@ class _SingleVideoScreenState extends State<SingleVideoScreen>
     print("PRINTING VIDEO URL: ${videoUrl}");
 
     try {
-      // Check if the video is already cached
-      // FileInfo? cachedFile = await _cacheManager.getFileFromCache(videoUrl);
-      //
-      // if (cachedFile == null || !cachedFile.file.existsSync()) {
-      //   // If not cached or cache is invalid, download and cache the video
-      //   cachedFile = await _cacheManager.downloadFile(videoUrl);
-      // }
-
-      // Use the cached file if available
-      // if (cachedFile != null && cachedFile.file.existsSync()) {
-      //   _videoPlayerController = VideoPlayerController.file(
-      //     cachedFile.file,
-      //     videoPlayerOptions: VideoPlayerOptions(
-      //       mixWithOthers: false,
-      //       allowBackgroundPlayback: false,
-      //     ),
-      //   );
-      // } else {
-      //   // Fallback to network if caching fails
-      //
-      // }
-
       _videoPlayerController = VideoPlayerController.network(
         videoUrl,
         videoPlayerOptions: VideoPlayerOptions(
@@ -327,16 +305,6 @@ class _SingleVideoScreenState extends State<SingleVideoScreen>
     });
   }
 
-  // Future<void> _clearCache() async {
-  //   final videoUrl = '${Common.videoUrl}/${widget.videoUrl}';
-  //   try {
-  //     await _cacheManager.removeFile(videoUrl);
-  //     print('Cache cleared for $videoUrl');
-  //   } catch (e) {
-  //     print('Error clearing cache: $e');
-  //   }
-  // }
-
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
@@ -347,6 +315,7 @@ class _SingleVideoScreenState extends State<SingleVideoScreen>
     super.dispose();
   }
 
+  bool _followerChanged = false; // Track if follow status changed
   @override
   Widget build(BuildContext context) {
     super.build(context);
@@ -370,9 +339,8 @@ class _SingleVideoScreenState extends State<SingleVideoScreen>
 
     return WillPopScope(
       onWillPop: () async {
-        // _pauseVideo();
-        // await _clearCache(); // Clear cache when user presses back
-        return true;
+        Get.back(result: {'followerChanged': _followerChanged});
+        return false; // Return false since we're handling navigation manually
       },
       child: Scaffold(
         backgroundColor: Colors.black,
@@ -460,7 +428,9 @@ class _SingleVideoScreenState extends State<SingleVideoScreen>
                             onTap: () {
                               // _pauseVideo();
                               // _clearCache(); // Clear cache when back arrow is tapped
-                              Get.back();
+                              Get.back(
+                                result: {'followerChanged': _followerChanged},
+                              );
                             },
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
@@ -559,6 +529,7 @@ class _SingleVideoScreenState extends State<SingleVideoScreen>
 
                                       _isProcessing = true;
                                       try {
+                                        _followerChanged = true;
                                         if (isFollowing) {
                                           localFollowersCount.value--;
                                         } else {

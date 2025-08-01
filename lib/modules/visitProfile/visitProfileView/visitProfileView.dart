@@ -703,9 +703,28 @@ class _VisitProfileViewState extends State<VisitProfileView>
                                           createdAt: video.createdAt,
                                           isImage: video.isImage.toString(),
                                         ),
-                                      )!.then((_) async {
-                                        await visitProfileController
-                                            .fetchUserProfile(widget.userId);
+                                      )!.then((result) async {
+                                        // Handle the result when user comes back
+                                        if (result != null &&
+                                            result is Map<String, dynamic>) {
+                                          bool followerChanged =
+                                              result['followerChanged'] ??
+                                              false;
+
+                                          if (followerChanged) {
+                                            print(
+                                              "User follow/unfollow status changed - refreshing data",
+                                            );
+                                            await visitProfileController
+                                                .fetchUserProfile(
+                                                  widget.userId,
+                                                );
+                                          } else {
+                                            print(
+                                              "No follow status changes detected",
+                                            );
+                                          }
+                                        }
                                       });
                                     },
                                     child: Stack(
