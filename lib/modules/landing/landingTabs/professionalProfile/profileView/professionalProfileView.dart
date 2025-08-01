@@ -138,64 +138,6 @@ class _ProfessionalProfileViewState extends State<ProfessionalProfileView>
         },
         child: Scaffold(
           backgroundColor: Colors.white,
-          floatingActionButton: InkWell(
-            onTap: () async {
-              // Get email from controller
-              final String? email =
-                  promoteVideoController.siteSettings.value?.settings?.email;
-
-              if (email == null || email.isEmpty) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Email address not available')),
-                );
-                return;
-              }
-
-              // Create the mailto URL
-              final Uri emailUri = Uri(
-                scheme: 'mailto',
-                path: email,
-                queryParameters: {
-                  'subject': 'Contact Us', // Pre-fill subject
-                },
-              );
-
-              // Launch the mail app
-              if (await canLaunchUrl(emailUri)) {
-                await launchUrl(emailUri);
-              } else {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('No email app found')),
-                );
-              }
-            },
-            child: Container(
-              height: 40,
-              width: 130,
-              padding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-              margin: EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-
-              decoration: BoxDecoration(
-                color: ColorUtils.primaryColor,
-                borderRadius: BorderRadius.circular(12),
-              ),
-
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Icon(Icons.email, size: 18, color: Colors.white),
-                  Text(
-                    "Contact Us",
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 14.sp,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
 
           appBar: AppBar(
             leadingWidth: 145,
@@ -260,6 +202,46 @@ class _ProfessionalProfileViewState extends State<ProfessionalProfileView>
                 padding: const EdgeInsets.symmetric(horizontal: 16.0),
                 child: Row(
                   children: [
+                    InkWell(
+                      onTap: () async {
+                        // Get email from controller
+                        final String? email =
+                            promoteVideoController
+                                .siteSettings
+                                .value
+                                ?.settings
+                                ?.email;
+
+                        if (email == null || email.isEmpty) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Email address not available'),
+                            ),
+                          );
+                          return;
+                        }
+
+                        // Create the mailto URL
+                        final Uri emailUri = Uri(
+                          scheme: 'mailto',
+                          path: email,
+                          queryParameters: {
+                            'subject': 'Contact Us', // Pre-fill subject
+                          },
+                        );
+
+                        // Launch the mail app
+                        if (await canLaunchUrl(emailUri)) {
+                          await launchUrl(emailUri);
+                        } else {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('No email app found')),
+                          );
+                        }
+                      },
+                      child: Icon(Icons.support_agent_outlined, color: Colors.black, size: 30,),
+                    ),
+                    SizedBox(width: 16),
                     InkWell(
                       onTap: () {
                         Get.to(() => EditProfessionalProfileView());
