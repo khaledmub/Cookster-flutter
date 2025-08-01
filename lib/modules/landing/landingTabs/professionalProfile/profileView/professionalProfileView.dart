@@ -17,6 +17,7 @@ import '../../../../../appUtils/colorUtils.dart';
 import '../../../../../appUtils/openToWork.dart';
 import '../../../../../loaders/pulseLoader.dart';
 import '../../../../followersFollowing/followersFollowingView/followersFollowingView.dart';
+import '../../../../promoteVideo/promoteVideoController/promoteVideoController.dart';
 import '../../../../promoteVideo/promoteVideoView/promoteVideoView.dart';
 import '../../../../singleVideoView/singleVideoView.dart';
 import '../../add/editVideo/editVideoView.dart';
@@ -40,6 +41,7 @@ class ProfessionalProfileView extends StatefulWidget {
 class _ProfessionalProfileViewState extends State<ProfessionalProfileView>
     with SingleTickerProviderStateMixin {
   final ProfessionalProfileController profileController = Get.find();
+  final PromoteVideoController promoteVideoController = Get.find();
 
   int? entity;
   TabController? _tabController;
@@ -136,6 +138,65 @@ class _ProfessionalProfileViewState extends State<ProfessionalProfileView>
         },
         child: Scaffold(
           backgroundColor: Colors.white,
+          floatingActionButton: InkWell(
+            onTap: () async {
+              // Get email from controller
+              final String? email =
+                  promoteVideoController.siteSettings.value?.settings?.email;
+
+              if (email == null || email.isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Email address not available')),
+                );
+                return;
+              }
+
+              // Create the mailto URL
+              final Uri emailUri = Uri(
+                scheme: 'mailto',
+                path: email,
+                queryParameters: {
+                  'subject': 'Contact Us', // Pre-fill subject
+                },
+              );
+
+              // Launch the mail app
+              if (await canLaunchUrl(emailUri)) {
+                await launchUrl(emailUri);
+              } else {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('No email app found')),
+                );
+              }
+            },
+            child: Container(
+              height: 40,
+              width: 130,
+              padding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+              margin: EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+
+              decoration: BoxDecoration(
+                color: ColorUtils.primaryColor,
+                borderRadius: BorderRadius.circular(12),
+              ),
+
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Icon(Icons.email, size: 18, color: Colors.white),
+                  Text(
+                    "Contact Us",
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 14.sp,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
           appBar: AppBar(
             leadingWidth: 145,
             leading: InkWell(

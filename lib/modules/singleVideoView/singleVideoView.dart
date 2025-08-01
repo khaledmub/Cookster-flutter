@@ -1087,38 +1087,38 @@ class _SingleVideoScreenState extends State<SingleVideoScreen>
                 },
               ),
 
-              ListTile(
-                leading: Icon(Icons.headphones, color: ColorUtils.grey),
-                trailing: Text(
-                  infoEmail!,
-                  style: TextStyle(color: Colors.black, fontSize: 14.sp),
-                ),
-                title: Text(
-                  'contact_us'.tr,
-                  style: TextStyle(color: Colors.black, fontSize: 14.sp),
-                ),
-                onTap: () async {
-                  final Uri emailUri = Uri(
-                    scheme: 'mailto',
-                    path: infoEmail,
-                    queryParameters: {
-                      'subject': 'Contact Us',
-                      // Optional: Pre-fill subject
-                      // 'body': 'Your message here', // Optional: Pre-fill body
-                    },
-                  );
-
-                  // Launch the mail app
-                  if (await canLaunchUrl(emailUri)) {
-                    await launchUrl(emailUri);
-                  } else {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('No email app found')),
-                    );
-                  }
-                  Navigator.pop(context);
-                },
-              ),
+              // ListTile(
+              //   leading: Icon(Icons.headphones, color: ColorUtils.grey),
+              //   trailing: Text(
+              //     infoEmail!,
+              //     style: TextStyle(color: Colors.black, fontSize: 14.sp),
+              //   ),
+              //   title: Text(
+              //     'contact_us'.tr,
+              //     style: TextStyle(color: Colors.black, fontSize: 14.sp),
+              //   ),
+              //   onTap: () async {
+              //     final Uri emailUri = Uri(
+              //       scheme: 'mailto',
+              //       path: infoEmail,
+              //       queryParameters: {
+              //         'subject': 'Contact Us',
+              //         // Optional: Pre-fill subject
+              //         // 'body': 'Your message here', // Optional: Pre-fill body
+              //       },
+              //     );
+              //
+              //     // Launch the mail app
+              //     if (await canLaunchUrl(emailUri)) {
+              //       await launchUrl(emailUri);
+              //     } else {
+              //       ScaffoldMessenger.of(context).showSnackBar(
+              //         SnackBar(content: Text('No email app found')),
+              //       );
+              //     }
+              //     Navigator.pop(context);
+              //   },
+              // ),
             ],
           ),
         );
