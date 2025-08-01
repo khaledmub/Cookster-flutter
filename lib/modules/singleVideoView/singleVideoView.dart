@@ -23,6 +23,7 @@ import 'package:http/http.dart' as http;
 import 'package:like_button/like_button.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:video_player/video_player.dart';
 
 import '../../appRoutes/appRoutes.dart';
@@ -37,6 +38,7 @@ import '../landing/landingTabs/home/homeWidgets/reviewSheet.dart';
 import '../landing/landingTabs/professionalProfile/profileControlller/professionalProfileController.dart';
 import '../landing/landingTabs/profile/profileControlller/profileController.dart';
 import '../landing/landingTabs/reportContent/reportContentView/reportContentView.dart';
+import '../promoteVideo/promoteVideoController/promoteVideoController.dart';
 
 class SingleVideoScreen extends StatefulWidget {
   final String? followers;
@@ -1018,6 +1020,9 @@ class _SingleVideoScreenState extends State<SingleVideoScreen>
   }
 
   void showMoreOptions(BuildContext context, String videoId, String userId) {
+    final PromoteVideoController promoteVideoController = Get.find();
+
+    var infoEmail = promoteVideoController.siteSettings.value?.settings?.email;
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.white,
@@ -1079,6 +1084,39 @@ class _SingleVideoScreenState extends State<SingleVideoScreen>
                 onTap: () {
                   Navigator.pop(bottomSheetContext); // Close bottom sheet
                   Get.to(ReportContentView(videoId: videoId));
+                },
+              ),
+
+              ListTile(
+                leading: Icon(Icons.headphones, color: ColorUtils.grey),
+                trailing: Text(
+                  infoEmail!,
+                  style: TextStyle(color: Colors.black, fontSize: 14.sp),
+                ),
+                title: Text(
+                  'contact_us'.tr,
+                  style: TextStyle(color: Colors.black, fontSize: 14.sp),
+                ),
+                onTap: () async {
+                  final Uri emailUri = Uri(
+                    scheme: 'mailto',
+                    path: infoEmail,
+                    queryParameters: {
+                      'subject': 'Contact Us',
+                      // Optional: Pre-fill subject
+                      // 'body': 'Your message here', // Optional: Pre-fill body
+                    },
+                  );
+
+                  // Launch the mail app
+                  if (await canLaunchUrl(emailUri)) {
+                    await launchUrl(emailUri);
+                  } else {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('No email app found')),
+                    );
+                  }
+                  Navigator.pop(context);
                 },
               ),
             ],

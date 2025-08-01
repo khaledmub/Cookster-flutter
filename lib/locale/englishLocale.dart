@@ -917,5 +917,6 @@ const Map<String, String> en = {
   "stcpay_direct_integration_not_supported": "STCPAY Direct Integration not supported for given terminal",
   "payment_link_send_options_not_configured": "payment link send options not configured",
   "email_or_contact_number_required": "Either Email Address or Contact Number Field is required",
-  "send_link_via_sms_limit_exceeded": "send link via SMS limit exceeded"
+  "send_link_via_sms_limit_exceeded": "send link via SMS limit exceeded",
+  "contact_us" : "Contact Us",
 };

@@ -25,14 +25,14 @@ const Map<String, String> ar = {
   "add your personal info": "أضف معلوماتك الشخصية",
   "select_your_account_type": "اختر نوع الحساب",
   "password_limit":
-  "يجب أن تحتوي كلمة المرور على 6 أحرف على الأقل، بما في ذلك أرقام وحرف كبير واحد على الأقل",
+      "يجب أن تحتوي كلمة المرور على 6 أحرف على الأقل، بما في ذلك أرقام وحرف كبير واحد على الأقل",
   "or sign up with": "أو سجل باستخدام",
   "signUpSubtitle":
-  "أنشئ ملفًا شخصيًا بسهولة، أنشئ محتواك الخاص، تابع الحسابات الأخرى والمزيد",
+      "أنشئ ملفًا شخصيًا بسهولة، أنشئ محتواك الخاص، تابع الحسابات الأخرى والمزيد",
   "sign up": "إنشاء حساب",
   "sign in now": "تسجيل الدخول الآن",
   "signInSubtitle":
-  "استكشف وصفات لذيذة، مدونات الطعام، ونصائح الطبخ من محبي الطعام حول العالم.",
+      "استكشف وصفات لذيذة، مدونات الطعام، ونصائح الطبخ من محبي الطعام حول العالم.",
   "password": "كلمة المرور",
   "sign in": "تسجيل الدخول",
   "forget_password": "نسيت كلمة المرور",
@@ -78,7 +78,7 @@ const Map<String, String> ar = {
   "processing_video": "جارٍ معالجة الفيديو",
   "Discard changes": "تجاهل التغييرات",
   "If you go back now, you'll lose your edits":
-  "إذا عدت الآن، ستفقد التعديلات التي أجريتها",
+      "إذا عدت الآن، ستفقد التعديلات التي أجريتها",
   "Discard": "تجاهل",
   "Saved Reels": "البوسترات المحفوظة",
   "Followers": "المتابعون",
@@ -108,11 +108,11 @@ const Map<String, String> ar = {
   "Please select a city before closing": "يرجى اختيار مدينة قبل الإغلاق",
   "Change Language": "تغيير اللغة",
   "Password must be at least 6 characters":
-  "يجب أن تتكون كلمة المرور من 6 أحرف على الأقل",
+      "يجب أن تتكون كلمة المرور من 6 أحرف على الأقل",
   "Password must contain at least one capital letter":
-  "يجب أن تحتوي كلمة المرور على حرف كبير واحد على الأقل",
+      "يجب أن تحتوي كلمة المرور على حرف كبير واحد على الأقل",
   "Password must contain at least one special character":
-  "يجب أن تحتوي كلمة المرور على رمز خاص واحد على الأقل",
+      "يجب أن تحتوي كلمة المرور على رمز خاص واحد على الأقل",
   "go_back_warning": "إذا عدت الآن، ستفقد تعديلاتك.",
   "cancel": "إلغاء",
   "discard_changes": "تجاهل التغييرات",
@@ -166,13 +166,13 @@ const Map<String, String> ar = {
   "next_button": "التالي",
   "upload_video_button": "رفع الفيديو",
   "step1_invalid_form_error":
-  "الخطوة 1: النموذج غير صالح، يرجى ملء جميع الحقول",
+      "الخطوة 1: النموذج غير صالح، يرجى ملء جميع الحقول",
   "step2_invalid_form_error":
-  "الخطوة 2: النموذج غير صالح، يرجى ملء جميع الحقول",
+      "الخطوة 2: النموذج غير صالح، يرجى ملء جميع الحقول",
   ////
   "discard_changes_title": "تجاهل التغييرات؟",
   "discard_changes_message":
-  "لديك تغييرات غير محفوظة ستفقد إذا غادرت هذه الشاشة.",
+      "لديك تغييرات غير محفوظة ستفقد إذا غادرت هذه الشاشة.",
   "stay_button": "البقاء",
   "discard_button": "تجاهل",
   "select_country_city_error": "يرجى اختيار الدولة والمدينة",
@@ -227,9 +227,9 @@ const Map<String, String> ar = {
   "password_required_error": "لا يمكن ترك كلمة المرور فارغة",
   "password_length_error": "يجب أن تكون كلمة المرور 6 أحرف على الأقل",
   "password_uppercase_error":
-  "يجب أن تحتوي كلمة المرور على حرف كبير واحد على الأقل",
+      "يجب أن تحتوي كلمة المرور على حرف كبير واحد على الأقل",
   "password_special_char_error":
-  "يجب أن تحتوي كلمة المرور على رمز خاص واحد على الأقل",
+      "يجب أن تحتوي كلمة المرور على رمز خاص واحد على الأقل",
   "name_required_error": "أدخل اسمك لتخصيص ملفك الشخصي والتواصل مع الآخرين.",
   "name_length_error": "يجب أن يكون الاسم 3 أحرف على الأقل.",
   "name_format_error": "يمكن أن يحتوي الاسم على أحرف وأرقام ومسافات فقط.",
@@ -260,7 +260,7 @@ const Map<String, String> ar = {
   "additional-comments": "تعليقات إضافية",
   "provide-report-details": "يرجى تقديم تفاصيل إضافية حول تقريرك...",
   "report-community-standards":
-  "تقريرك يساعدنا في الحفاظ على معايير المجتمع. شكرًا لك.",
+      "تقريرك يساعدنا في الحفاظ على معايير المجتمع. شكرًا لك.",
   "submit-report": "إرسال التقرير",
   "continue": "متابعة",
   "error": "خطأ",
@@ -280,7 +280,7 @@ const Map<String, String> ar = {
   "package_amount_prefix": "SAR",
   "package_duration_suffix": "أشهر",
   "sure_to_delete":
-  "هل أنت متأكد من رغبتك في حذف هذا الفيديو؟ سيتم حذف كل المحتوى المتعلق بهذا الفيديو ولن يمكن استرداده.",
+      "هل أنت متأكد من رغبتك في حذف هذا الفيديو؟ سيتم حذف كل المحتوى المتعلق بهذا الفيديو ولن يمكن استرداده.",
   "yes_delete": "نعم، احذف",
   "delete_video": "حذف الفيديو",
   "saved_videos": "البوسترات المحفوظة",
@@ -292,9 +292,9 @@ const Map<String, String> ar = {
   "try_different": "جرّب مصطلح بحث مختلف",
   "search_followers_following": "ابحث في المتابعين والمتابَعين",
   "enter_email":
-  "أدخل بريدك الإلكتروني لتلقي رمز OTP لإعادة تعيين كلمة المرور.",
+      "أدخل بريدك الإلكتروني لتلقي رمز OTP لإعادة تعيين كلمة المرور.",
   "otp_sent":
-  "تم إرسال رمز OTP إلى بريدك الإلكتروني. أدخله أدناه لإعادة تعيين كلمة المرور.",
+      "تم إرسال رمز OTP إلى بريدك الإلكتروني. أدخله أدناه لإعادة تعيين كلمة المرور.",
   "enter_new_password": "أدخل كلمة المرور الجديدة.",
   "reset_password": "إعادة تعيين كلمة المرور",
   "verify_otp": "التحقق من رمز OTP",
@@ -340,11 +340,11 @@ const Map<String, String> ar = {
   'view': 'عرض',
   "package_expired": "الاشتراك منتهي",
   "your_package_has_been_expired":
-  "لقد انتهت اشتراكك. نتيجة لذلك، لم تعد مقاطع الفيديو الخاصة بك مرئية للمستخدمين الآخرين، ولا يمكنك رفع محتوى جديد.",
+      "لقد انتهت اشتراكك. نتيجة لذلك، لم تعد مقاطع الفيديو الخاصة بك مرئية للمستخدمين الآخرين، ولا يمكنك رفع محتوى جديد.",
   "renew": "تجديد",
   "exit_app": "الخروج من التطبيق",
   "are_you_sure_you_want_to_exit_the_app":
-  "هل أنت متأكد أنك تريد الخروج من التطبيق؟",
+      "هل أنت متأكد أنك تريد الخروج من التطبيق؟",
   "processing": "معالجة",
   "recent_searches": "عمليات البحث الأخيرة",
   "unfollowed": "تم إلغاء المتابعة",
@@ -353,12 +353,12 @@ const Map<String, String> ar = {
   "personal": "شخصي",
   "no_internet": "الخادوم لا يستجيب",
   "no_internet_description":
-  "غير قادرين على الاتصال بالخادوم. من فضلك، حاول مرة أخرى لاحقًا.",
+      "غير قادرين على الاتصال بالخادوم. من فضلك، حاول مرة أخرى لاحقًا.",
   "retry_button": "إعادة المحاولة",
   "retrying_button": "جارٍ التحقق...",
   "snackbar_title": "الخادوم غير متاح",
   "snackbar_message":
-  "غير قادر على الوصول إلى الخادوم. من فضلك، حاول مرة أخرى لاحقًا.",
+      "غير قادر على الوصول إلى الخادوم. من فضلك، حاول مرة أخرى لاحقًا.",
   "post": "منشور",
   "enter_inform_to_signup": "يرجى إدخال معلوماتك لإكمال التسجيل",
   "select_account_type": "اختر نوع الشركة",
@@ -369,7 +369,7 @@ const Map<String, String> ar = {
   "permission_denied": "تم رفض الإذن",
   "location_access_required": "الوصول إلى الموقع مطلوب.",
   "permissions_permanently_denied":
-  "تم رفض أذونات الموقع بشكل دائم. من فضلك، قم بتفعيلها من الإعدادات.",
+      "تم رفض أذونات الموقع بشكل دائم. من فضلك، قم بتفعيلها من الإعدادات.",
   "failed_to_get_location": "فشل في الحصول على الموقع. حاول مرة أخرى.",
   "user_location_not_found": "لم يتم العثور على موقع المستخدم!",
   "confirm_location": "تأكيد الموقع",
@@ -382,7 +382,7 @@ const Map<String, String> ar = {
   "dob": "تاريخ الميلاد",
   "please_select_business_type": "من فضلك، اختر نوع العمل.",
   "search_not_found_result":
-  "لم نتمكن من العثور على أي نتائج مطابقة لبحثك. يرجى تجربة كلمات مفتاحية مختلفة.",
+      "لم نتمكن من العثور على أي نتائج مطابقة لبحثك. يرجى تجربة كلمات مفتاحية مختلفة.",
   "no_music": "لا موسيقى",
   "select_music": "اختر موسيقى",
   "Premium": "مميز",
@@ -391,12 +391,12 @@ const Map<String, String> ar = {
   "days": "أيام",
   "sure_to_delete_account": " هل أنت متأكد أنك تريد حذف حسابك؟",
   "sure_to_delete_description":
-  "هذا الإجراء نهائي وسيزيل جميع بياناتك، بما في ذلك ملفك الشخصي، منشوراتك، وأي محتوى محفوظ. بمجرد الحذف، لا يمكن استعادة حسابك.",
+      "هذا الإجراء نهائي وسيزيل جميع بياناتك، بما في ذلك ملفك الشخصي، منشوراتك، وأي محتوى محفوظ. بمجرد الحذف، لا يمكن استعادة حسابك.",
   "payment_error": "خطأ في الدفع",
   "block_user": "حظر المستخدم",
   "block": "حظر",
   "block_user_description":
-  "لن يتم إبلاغهم بأنك قمت بحظرهم. لا يمكن للمستخدمين المحظورين التفاعل مع محتواك",
+      "لن يتم إبلاغهم بأنك قمت بحظرهم. لا يمكن للمستخدمين المحظورين التفاعل مع محتواك",
   "bad_word_error": "العنوان يحتوي على كلمات غير لائقة",
   "Delete Account": "حذف الحساب",
   "contact_email_required": "البريد الإلكتروني للتواصل مطلوب",
@@ -414,14 +414,14 @@ const Map<String, String> ar = {
   "unblock": "إلغاء الحظر",
   "chat_support": "دعم الدردشة",
   "basic_description":
-  "يتم الترويج لهذه الفيديوهات للمستخدمين في مدن محددة، حتى إذا لم يكونوا يتابعون صاحب الفيديو. تظهر الفيديوهات الممولة بعد كل عدة فيديوهات عادية لزيادة الظهور والوصول إلى جمهور أوسع.",
+      "يتم الترويج لهذه الفيديوهات للمستخدمين في مدن محددة، حتى إذا لم يكونوا يتابعون صاحب الفيديو. تظهر الفيديوهات الممولة بعد كل عدة فيديوهات عادية لزيادة الظهور والوصول إلى جمهور أوسع.",
   "premium_description":
-  "تحصل الفيديوهات الممولة المميزة على أعلى مستوى من الظهور. يتم الترويج لها بشكل مكثف وتظهر بجانب أو بعد عدة فيديوهات ممولة. وهي مثالية للعلامات التجارية أو المبدعين الذين يرغبون في أقصى قدر من الانتشار في المدن المحددة.",
+      "تحصل الفيديوهات الممولة المميزة على أعلى مستوى من الظهور. يتم الترويج لها بشكل مكثف وتظهر بجانب أو بعد عدة فيديوهات ممولة. وهي مثالية للعلامات التجارية أو المبدعين الذين يرغبون في أقصى قدر من الانتشار في المدن المحددة.",
   "country": "البلد",
   "video_title_length_error": "يجب ألا يتجاوز العنوان 70 حرفًا",
   // 'location_access_required': 'الوصول إلى الموقع مطلوب',
   'location_description':
-  'نحتاج إلى موقعك للعثور على الشركات القريبة. يرجى تمكين خدمات الموقع أو منح الإذن.',
+      'نحتاج إلى موقعك للعثور على الشركات القريبة. يرجى تمكين خدمات الموقع أو منح الإذن.',
   'allow_location': 'السماح بالموقع',
   'open_settings': 'فتح الإعدادات',
   "go_live": "ابدأ البث المباشر",
@@ -435,12 +435,12 @@ const Map<String, String> ar = {
   "be_the_first_to_go_live": "كن أول من يبدأ البث المباشر!",
   "creating_livestream": "جارٍ إنشاء البث المباشر...",
   "please_wait_while_we_set_up_your_stream":
-  "يرجى الانتظار أثناء إعداد البث الخاص بك",
+      "يرجى الانتظار أثناء إعداد البث الخاص بك",
   "end": "إنهاء",
   "leave": "مغادرة",
   "live_comments": "تعليقات البث المباشر",
   "are_you_sure_end_livestream":
-  "هل أنت متأكد أنك تريد إنهاء البث المباشر للجميع؟",
+      "هل أنت متأكد أنك تريد إنهاء البث المباشر للجميع؟",
   "end_livestream": "إنهاء البث المباشر",
   "join": "انضم",
   "message_label": "رسالة",
@@ -462,13 +462,13 @@ const Map<String, String> ar = {
   "end_live_stream_title": "هل تريد إنهاء البث المباشر؟",
   "leave_live_stream_title": "هل تريد مغادرة البث المباشر؟",
   "end_live_stream_message":
-  "هل أنت متأكد أنك تريد إنهاء هذا البث المباشر؟ سيتم فصل جميع المشاركين.",
+      "هل أنت متأكد أنك تريد إنهاء هذا البث المباشر؟ سيتم فصل جميع المشاركين.",
   "leave_live_stream_message": "هل أنت متأكد أنك تريد مغادرة هذا البث المباشر؟",
   "cancel_button": "إلغاء",
   "end_stream_button": "إنهاء البث",
   "leave_button": "مغادرة",
   "live_stream_end_message":
-  "البث المباشر انتهى: تم الوصول إلى الحد الأقصى البالغ 15 دقيقة",
+      "البث المباشر انتهى: تم الوصول إلى الحد الأقصى البالغ 15 دقيقة",
   "business": "الأنشطة التجارية",
   "b2b": "التعامل التجاري",
   "view_statistics": "عرض الإحصائيات",
@@ -507,23 +507,29 @@ const Map<String, String> ar = {
   "hours_ago": "منذ ساعات",
   "unknown_time": "وقت غير معروف",
   "done_to_add_hashtag":
-  "اكتب الكلمة، ثم اضغط على زر 'تم' من لوحة المفاتيح، سيتم إنشاء هاشتاق ويمكنك إضافة عدة هاشتاقات.",
+      "اكتب الكلمة، ثم اضغط على زر 'تم' من لوحة المفاتيح، سيتم إنشاء هاشتاق ويمكنك إضافة عدة هاشتاقات.",
   "update_title": "تحديث متاح",
-  "update_description": "إصدار جديد من كوكستر متاح. قم بالتحديث الآن للحصول على أحدث الميزات والتحسينات!",
+  "update_description":
+      "إصدار جديد من كوكستر متاح. قم بالتحديث الآن للحصول على أحدث الميزات والتحسينات!",
   "update_now": "حدّث الآن",
   "transaction_successful": "المعاملة ناجحة",
   "pending_for_authorisation": "في انتظار التفويض",
   "field_is_blank_in_a_request": "الحقل فارغ في الطلب",
   "internal_mapping_for_iso_not_set": "لم يتم تعيين التعيين الداخلي لـ ISO",
-  "iso_message_field_configuration_not_found": "لم يتم العثور على تكوين حقل رسالة ISO",
-  "response_code_not_found_in_iso_message": "لم يتم العثور على رمز الاستجابة في رسالة ISO",
-  "problem_while_creating_or_parsing_iso_message": "مشكلة أثناء إنشاء أو تحليل رسالة ISO",
+  "iso_message_field_configuration_not_found":
+      "لم يتم العثور على تكوين حقل رسالة ISO",
+  "response_code_not_found_in_iso_message":
+      "لم يتم العثور على رمز الاستجابة في رسالة ISO",
+  "problem_while_creating_or_parsing_iso_message":
+      "مشكلة أثناء إنشاء أو تحليل رسالة ISO",
   "terminal_does_not_exist": "الجهاز غير موجود",
   "merchant_does_not_exist": "التاجر غير موجود",
   "institution_does_not_exist": "المؤسسة غير موجودة",
-  "card_prefix_not_belong_to_card_type": "بادئة البطاقة لا تنتمي إلى نوع البطاقة المقابل",
+  "card_prefix_not_belong_to_card_type":
+      "بادئة البطاقة لا تنتمي إلى نوع البطاقة المقابل",
   "card_not_allowed_for_transaction": "البطاقة غير مسموح بها لهذه المعاملة",
-  "negative_ip_customer_not_allowed": "عنوان IP سلبي، العميل غير مسموح له بإجراء المعاملة",
+  "negative_ip_customer_not_allowed":
+      "عنوان IP سلبي، العميل غير مسموح له بإجراء المعاملة",
   "original_transaction_not_found": "لم يتم العثور على المعاملة الأصلية",
   "transaction_flow_not_set": "لم يتم تعيين تدفق المعاملة لنوع المعاملة",
   "terminal_status_deactive": "حالة الجهاز غير نشطة، تم رفض المعاملة",
@@ -538,119 +544,186 @@ const Map<String, String> ar = {
   "mod10_check_failed": "فشل فحص MOD10",
   "card_type_not_supported_by_merchant": "نوع البطاقة غير مدعوم من التاجر",
   "cvv_check_failed": "فشل فحص CVV، قيمة CVV غير موجودة",
-  "avs_capture_check_failed": "فشل فحص التقاط AVS، تعذر العثور على عنوان العميل",
-  "customer_info_check_failed": "فشل فحص معلومات العميل، تعذر العثور على معلومات العميل",
+  "avs_capture_check_failed":
+      "فشل فحص التقاط AVS، تعذر العثور على عنوان العميل",
+  "customer_info_check_failed":
+      "فشل فحص معلومات العميل، تعذر العثور على معلومات العميل",
   "card_expiry_date_invalid": "تاريخ انتهاء البطاقة ليس أكبر من التاريخ الحالي",
-  "invalid_login_attempts_exceeded": "تم تجاوز محاولات تسجيل الدخول غير الصالحة",
+  "invalid_login_attempts_exceeded":
+      "تم تجاوز محاولات تسجيل الدخول غير الصالحة",
   "wrong_terminal_password": "كلمة مرور الجهاز خاطئة، يرجى إعادة بدء المعاملة",
-  "negative_country_customer_not_allowed": "بلد سلبي، العميل غير مسموح له بإجراء المعاملة",
+  "negative_country_customer_not_allowed":
+      "بلد سلبي، العميل غير مسموح له بإجراء المعاملة",
   "card_type_not_supported_by_institution": "نوع البطاقة غير مدعوم من المؤسسة",
   "multiple_captures_not_allowed": "التقاطات متعددة غير مسموح بها",
-  "original_transaction_different_terminal": "تمت المعاملة الأصلية بواسطة جهاز مختلف، المعاملة ذات الصلة غير مسموح بها لهذا الجهاز",
+  "original_transaction_different_terminal":
+      "تمت المعاملة الأصلية بواسطة جهاز مختلف، المعاملة ذات الصلة غير مسموح بها لهذا الجهاز",
   "instrument_type_not_supported": "نوع الأداة غير مدعوم",
-  "card_number_not_belong_to_instrument": "رقم البطاقة لا ينتمي إلى نوع الأداة الموجود في Bin",
-  "instrument_type_not_allowed_for_merchant": "نوع الأداة غير مسموح به للتاجر المحدد",
-  "recurring_instrument_type_mismatch": "نوع الأداة المتكررة لا يتطابق مع طريقة الدفع",
-  "card_data_not_belong_to_instrument": "بيانات البطاقة لا تنتمي إلى نوع الأداة الموجود في جدول الأدوات العالمي",
-  "global_instrument_table_empty": "جدول الأدوات العالمي لا يحتوي على قيم للمعرف المحدد",
+  "card_number_not_belong_to_instrument":
+      "رقم البطاقة لا ينتمي إلى نوع الأداة الموجود في Bin",
+  "instrument_type_not_allowed_for_merchant":
+      "نوع الأداة غير مسموح به للتاجر المحدد",
+  "recurring_instrument_type_mismatch":
+      "نوع الأداة المتكررة لا يتطابق مع طريقة الدفع",
+  "card_data_not_belong_to_instrument":
+      "بيانات البطاقة لا تنتمي إلى نوع الأداة الموجود في جدول الأدوات العالمي",
+  "global_instrument_table_empty":
+      "جدول الأدوات العالمي لا يحتوي على قيم للمعرف المحدد",
   "payment_session_timeout": "انتهت مهلة جلسة الدفع",
   "transaction_already_initiated": "تم بدء المعاملة بالفعل",
   "merchant_inactive": "التاجر غير نشط",
-  "transaction_not_allowed_for_terminal": "المعاملة غير مسموح بها للجهاز المحدد",
-  "transaction_not_allowed_for_merchant": "المعاملة غير مسموح بها للتاجر المحدد",
-  "transaction_not_allowed_for_institution": "المعاملة غير مسموح بها للمؤسسة المحددة",
+  "transaction_not_allowed_for_terminal":
+      "المعاملة غير مسموح بها للجهاز المحدد",
+  "transaction_not_allowed_for_merchant":
+      "المعاملة غير مسموح بها للتاجر المحدد",
+  "transaction_not_allowed_for_institution":
+      "المعاملة غير مسموح بها للمؤسسة المحددة",
   "currency_not_supported_for_terminal": "العملة غير مدعومة للجهاز المحدد",
   "currency_not_supported_for_merchant": "العملة غير مدعومة للتاجر المحدد",
   "currency_not_supported_for_institution": "العملة غير مدعومة للمؤسسة المحددة",
-  "velocity_check_failed_terminal_profile": "فشل فحص السرعة، لم يتم العثور على ملف السرعة، المستوى - الجهاز",
-  "velocity_check_failed_merchant_profile": "فشل فحص السرعة، لم يتم العثور على ملف السرعة، المستوى - التاجر",
-  "velocity_check_failed_institution_profile": "فشل فحص السرعة، لم يتم العثور على ملف السرعة، المستوى - المؤسسة",
-  "transaction_profile_not_set_terminal": "لم يتم تعيين ملف المعاملة للجهاز، غير قادر على التحقق من ملف المعاملة",
-  "transaction_profile_not_set_merchant": "لم يتم تعيين ملف المعاملة للتاجر، غير قادر على التحقق من ملف المعاملة",
-  "transaction_profile_not_set_institution": "لم يتم تعيين ملف المعاملة للمؤسسة، غير قادر على التحقق من ملف المعاملة",
-  "currency_profile_not_set_terminal": "لم يتم تعيين ملف العملة للجهاز، غير قادر على التحقق من ملف العملة",
-  "currency_profile_not_set_merchant": "لم يتم تعيين ملف العملة للتاجر، غير قادر على التحقق من ملف العملة",
-  "currency_profile_not_set_institution": "لم يتم تعيين ملف العملة للمؤسسة، غير قادر على التحقق من ملف العملة",
-  "velocity_profile_not_set_terminal": "لم يتم تعيين ملف السرعة للجهاز، غير قادر على التحقق من ملف السرعة",
-  "velocity_profile_not_set_merchant": "لم يتم تعيين ملف السرعة للتاجر، غير قادر على التحقق من ملف السرعة",
-  "velocity_profile_not_set_institution": "لم يتم تعيين ملف السرعة للمؤسسة، غير قادر على التحقق من ملف السرعة",
+  "velocity_check_failed_terminal_profile":
+      "فشل فحص السرعة، لم يتم العثور على ملف السرعة، المستوى - الجهاز",
+  "velocity_check_failed_merchant_profile":
+      "فشل فحص السرعة، لم يتم العثور على ملف السرعة، المستوى - التاجر",
+  "velocity_check_failed_institution_profile":
+      "فشل فحص السرعة، لم يتم العثور على ملف السرعة، المستوى - المؤسسة",
+  "transaction_profile_not_set_terminal":
+      "لم يتم تعيين ملف المعاملة للجهاز، غير قادر على التحقق من ملف المعاملة",
+  "transaction_profile_not_set_merchant":
+      "لم يتم تعيين ملف المعاملة للتاجر، غير قادر على التحقق من ملف المعاملة",
+  "transaction_profile_not_set_institution":
+      "لم يتم تعيين ملف المعاملة للمؤسسة، غير قادر على التحقق من ملف المعاملة",
+  "currency_profile_not_set_terminal":
+      "لم يتم تعيين ملف العملة للجهاز، غير قادر على التحقق من ملف العملة",
+  "currency_profile_not_set_merchant":
+      "لم يتم تعيين ملف العملة للتاجر، غير قادر على التحقق من ملف العملة",
+  "currency_profile_not_set_institution":
+      "لم يتم تعيين ملف العملة للمؤسسة، غير قادر على التحقق من ملف العملة",
+  "velocity_profile_not_set_terminal":
+      "لم يتم تعيين ملف السرعة للجهاز، غير قادر على التحقق من ملف السرعة",
+  "velocity_profile_not_set_merchant":
+      "لم يتم تعيين ملف السرعة للتاجر، غير قادر على التحقق من ملف السرعة",
+  "velocity_profile_not_set_institution":
+      "لم يتم تعيين ملف السرعة للمؤسسة، غير قادر على التحقق من ملف السرعة",
   "refund_limit_exceeds_terminal": "تم تجاوز حد الاسترداد للجهاز",
   "refund_limit_exceeds_merchant": "تم تجاوز حد الاسترداد للتاجر",
   "refund_limit_exceeds_institution": "تم تجاوز حد الاسترداد للمؤسسة",
-  "velocity_check_failed_min_amount_terminal": "فشل فحص السرعة، مبلغ المعاملة أقل من الحد الأدنى المسموح به، المستوى - الجهاز",
-  "velocity_check_failed_min_amount_merchant": "فشل فحص السرعة، مبلغ المعاملة أقل من الحد الأدنى المسموح به، المستوى - التاجر",
-  "velocity_check_failed_min_amount_institution": "فشل فحص السرعة، مبلغ المعاملة أقل من الحد الأدنى المسموح به، المستوى - المؤسسة",
-  "velocity_check_failed_max_amount_terminal": "فشل فحص السرعة، مبلغ المعاملة يتجاوز الحد الأقصى المسموح به، المستوى - الجهاز",
-  "velocity_check_failed_max_amount_merchant": "فشل فحص السرعة، مبلغ المعاملة يتجاوز الحد الأقصى المسموح به، المستوى - التاجر",
-  "velocity_check_failed_max_amount_institution": "فشل فحص السرعة، مبلغ المعاملة يتجاوز الحد الأقصى المسموح به، المستوى - المؤسسة",
+  "velocity_check_failed_min_amount_terminal":
+      "فشل فحص السرعة، مبلغ المعاملة أقل من الحد الأدنى المسموح به، المستوى - الجهاز",
+  "velocity_check_failed_min_amount_merchant":
+      "فشل فحص السرعة، مبلغ المعاملة أقل من الحد الأدنى المسموح به، المستوى - التاجر",
+  "velocity_check_failed_min_amount_institution":
+      "فشل فحص السرعة، مبلغ المعاملة أقل من الحد الأدنى المسموح به، المستوى - المؤسسة",
+  "velocity_check_failed_max_amount_terminal":
+      "فشل فحص السرعة، مبلغ المعاملة يتجاوز الحد الأقصى المسموح به، المستوى - الجهاز",
+  "velocity_check_failed_max_amount_merchant":
+      "فشل فحص السرعة، مبلغ المعاملة يتجاوز الحد الأقصى المسموح به، المستوى - التاجر",
+  "velocity_check_failed_max_amount_institution":
+      "فشل فحص السرعة، مبلغ المعاملة يتجاوز الحد الأقصى المسموح به، المستوى - المؤسسة",
   "velocity_check_failed_terminal": "فشل فحص السرعة، المستوى - الجهاز",
   "velocity_check_failed_merchant": "فشل فحص السرعة، المستوى - التاجر",
   "velocity_check_failed_institution": "فشل فحص السرعة، المستوى - المؤسسة",
-  "velocity_check_failed_daily_count_terminal": "فشل فحص السرعة، المعاملة تتجاوز العدد الإجمالي اليومي للمعاملات، المستوى - الجهاز",
-  "velocity_check_failed_daily_count_merchant": "فشل فحص السرعة، المعاملة تتجاوز العدد الإجمالي اليومي للمعاملات، المستوى - التاجر",
-  "velocity_check_failed_daily_count_institution": "فشل فحص السرعة، المعاملة تتجاوز العدد الإجمالي اليومي للمعاملات، المستوى - المؤسسة",
-  "velocity_check_failed_daily_amount_terminal": "فشل فحص السرعة، مبلغ المعاملة يتجاوز المبلغ الإجمالي اليومي المسموح به، المستوى - الجهاز",
-  "velocity_check_failed_daily_amount_merchant": "فشل فحص السرعة، مبلغ المعاملة يتجاوز المبلغ الإجمالي اليومي المسموح به، المستوى - التاجر",
-  "velocity_check_failed_daily_amount_institution": "فشل فحص السرعة، مبلغ المعاملة يتجاوز المبلغ الإجمالي اليومي المسموح به، المستوى - المؤسسة",
-  "velocity_check_failed_card_count_terminal": "فشل فحص السرعة، المعاملة تتجاوز العدد الإجمالي للمعاملات لهذه البطاقة، المستوى - الجهاز",
-  "velocity_check_failed_card_count_merchant": "فشل فحص السرعة، المعاملة تتجاوز العدد الإجمالي للمعاملات لهذه البطاقة، المستوى - التاجر",
-  "velocity_check_failed_card_count_institution": "فشل فحص السرعة، المعاملة تتجاوز العدد الإجمالي للمعاملات لهذه البطاقة، المستوى - المؤسسة",
-  "velocity_check_failed_weekly_count_terminal": "فشل فحص السرعة، المعاملة تتجاوز العدد الإجمالي الأسبوعي للمعاملات، المستوى - الجهاز",
-  "velocity_check_failed_monthly_count_terminal": "فشل فحص السرعة، المعاملة تتجاوز العدد الإجمالي الشهري للمعاملات، المستوى - الجهاز",
-  "velocity_check_failed_weekly_count_merchant": "فشل فحص السرعة، المعاملة تتجاوز العدد الإجمالي الأسبوعي للمعاملات، المستوى - التاجر",
-  "velocity_check_failed_monthly_count_merchant": "فشل فحص السرعة، المعاملة تتجاوز العدد الإجمالي الشهري للمعاملات، المستوى - التاجر",
-  "velocity_check_failed_weekly_count_institution": "فشل فحص السرعة، المعاملة تتجاوز العدد الإجمالي الأسبوعي للمعاملات، المستوى - المؤسسة",
-  "velocity_check_failed_monthly_count_institution": "فشل فحص السرعة، المعاملة تتجاوز العدد الإجمالي الشهري للمعاملات، المستوى - المؤسسة",
-  "velocity_check_failed_weekly_amount_terminal": "فشل فحص السرعة، مبلغ المعاملة يتجاوز المبلغ الإجمالي الأسبوعي المسموح به، المستوى - الجهاز",
-  "velocity_check_failed_monthly_amount_terminal": "فشل فحص السرعة، مبلغ المعاملة يتجاوز المبلغ الإجمالي الشهري المسموح به، المستوى - الجهاز",
-  "velocity_check_failed_weekly_amount_merchant": "فشل فحص السرعة، مبلغ المعاملة يتجاوز المبلغ الإجمالي الأسبوعي المسموح به، المستوى - التاجر",
-  "velocity_check_failed_monthly_amount_merchant": "فشل فحص السرعة، مبلغ المعاملة يتجاوز المبلغ الإجمالي الشهري المسموح به، المستوى - التاجر",
-  "velocity_check_failed_weekly_amount_institution": "فشل فحص السرعة، مبلغ المعاملة يتجاوز المبلغ الإجمالي الأسبوعي المسموح به، المستوى - المؤسسة",
-  "velocity_check_failed_monthly_amount_institution": "فشل فحص السرعة، مبلغ المعاملة يتجاوز المبلغ الإجمالي الشهري المسموح به، المستوى - المؤسسة",
-  "invalid_length_of_beneficiary_bank_clearing_code": "طول رمز تسوية البنك المستفيد غير صالح",
+  "velocity_check_failed_daily_count_terminal":
+      "فشل فحص السرعة، المعاملة تتجاوز العدد الإجمالي اليومي للمعاملات، المستوى - الجهاز",
+  "velocity_check_failed_daily_count_merchant":
+      "فشل فحص السرعة، المعاملة تتجاوز العدد الإجمالي اليومي للمعاملات، المستوى - التاجر",
+  "velocity_check_failed_daily_count_institution":
+      "فشل فحص السرعة، المعاملة تتجاوز العدد الإجمالي اليومي للمعاملات، المستوى - المؤسسة",
+  "velocity_check_failed_daily_amount_terminal":
+      "فشل فحص السرعة، مبلغ المعاملة يتجاوز المبلغ الإجمالي اليومي المسموح به، المستوى - الجهاز",
+  "velocity_check_failed_daily_amount_merchant":
+      "فشل فحص السرعة، مبلغ المعاملة يتجاوز المبلغ الإجمالي اليومي المسموح به، المستوى - التاجر",
+  "velocity_check_failed_daily_amount_institution":
+      "فشل فحص السرعة، مبلغ المعاملة يتجاوز المبلغ الإجمالي اليومي المسموح به، المستوى - المؤسسة",
+  "velocity_check_failed_card_count_terminal":
+      "فشل فحص السرعة، المعاملة تتجاوز العدد الإجمالي للمعاملات لهذه البطاقة، المستوى - الجهاز",
+  "velocity_check_failed_card_count_merchant":
+      "فشل فحص السرعة، المعاملة تتجاوز العدد الإجمالي للمعاملات لهذه البطاقة، المستوى - التاجر",
+  "velocity_check_failed_card_count_institution":
+      "فشل فحص السرعة، المعاملة تتجاوز العدد الإجمالي للمعاملات لهذه البطاقة، المستوى - المؤسسة",
+  "velocity_check_failed_weekly_count_terminal":
+      "فشل فحص السرعة، المعاملة تتجاوز العدد الإجمالي الأسبوعي للمعاملات، المستوى - الجهاز",
+  "velocity_check_failed_monthly_count_terminal":
+      "فشل فحص السرعة، المعاملة تتجاوز العدد الإجمالي الشهري للمعاملات، المستوى - الجهاز",
+  "velocity_check_failed_weekly_count_merchant":
+      "فشل فحص السرعة، المعاملة تتجاوز العدد الإجمالي الأسبوعي للمعاملات، المستوى - التاجر",
+  "velocity_check_failed_monthly_count_merchant":
+      "فشل فحص السرعة، المعاملة تتجاوز العدد الإجمالي الشهري للمعاملات، المستوى - التاجر",
+  "velocity_check_failed_weekly_count_institution":
+      "فشل فحص السرعة، المعاملة تتجاوز العدد الإجمالي الأسبوعي للمعاملات، المستوى - المؤسسة",
+  "velocity_check_failed_monthly_count_institution":
+      "فشل فحص السرعة، المعاملة تتجاوز العدد الإجمالي الشهري للمعاملات، المستوى - المؤسسة",
+  "velocity_check_failed_weekly_amount_terminal":
+      "فشل فحص السرعة، مبلغ المعاملة يتجاوز المبلغ الإجمالي الأسبوعي المسموح به، المستوى - الجهاز",
+  "velocity_check_failed_monthly_amount_terminal":
+      "فشل فحص السرعة، مبلغ المعاملة يتجاوز المبلغ الإجمالي الشهري المسموح به، المستوى - الجهاز",
+  "velocity_check_failed_weekly_amount_merchant":
+      "فشل فحص السرعة، مبلغ المعاملة يتجاوز المبلغ الإجمالي الأسبوعي المسموح به، المستوى - التاجر",
+  "velocity_check_failed_monthly_amount_merchant":
+      "فشل فحص السرعة، مبلغ المعاملة يتجاوز المبلغ الإجمالي الشهري المسموح به، المستوى - التاجر",
+  "velocity_check_failed_weekly_amount_institution":
+      "فشل فحص السرعة، مبلغ المعاملة يتجاوز المبلغ الإجمالي الأسبوعي المسموح به، المستوى - المؤسسة",
+  "velocity_check_failed_monthly_amount_institution":
+      "فشل فحص السرعة، مبلغ المعاملة يتجاوز المبلغ الإجمالي الشهري المسموح به، المستوى - المؤسسة",
+  "invalid_length_of_beneficiary_bank_clearing_code":
+      "طول رمز تسوية البنك المستفيد غير صالح",
   "invalid_length_of_beneficiary_bank": "طول البنك المستفيد غير صالح",
   "invalid_beneficiary_currency": "عملة المستفيد غير صالحة",
   "internal_error_b2b_destination": "حدث خطأ داخلي أثناء الاتصال بوجهة B2B",
   "b2b_transaction_partially_proceed": "تمت معالجة معاملة B2B جزئيًا",
-  "more_than_10_beneficiaries_not_supported": "أكثر من 10 مستفيدين غير مدعوم لبنك الرياض",
+  "more_than_10_beneficiaries_not_supported":
+      "أكثر من 10 مستفيدين غير مدعوم لبنك الرياض",
   "token_not_found_in_vault": "لم يتم العثور على الرمز في الخزنة",
   "unable_to_generate_token": "غير قادر على إنشاء الرمز، حدث خطأ",
   "stc_pay_not_enabled_for_terminal": "STC PAY غير مفعل للجهاز",
   "stc_pay_transaction_failed": "فشلت معاملة STC PAY",
   "stc_pay_does_not_support_apple_pay": "STC PAY لا يدعم معاملات Apple Pay",
-  "non_3d_terminal_not_allowed_stcpay": "الجهاز غير ثلاثي الأبعاد غير مسموح له بمعالجة معاملة STCPAY",
-  "transaction_failed_max_otp_retry": "فشلت المعاملة بسبب الوصول إلى الحد الأقصى لإعادة محاولة OTP",
+  "non_3d_terminal_not_allowed_stcpay":
+      "الجهاز غير ثلاثي الأبعاد غير مسموح له بمعالجة معاملة STCPAY",
+  "transaction_failed_max_otp_retry":
+      "فشلت المعاملة بسبب الوصول إلى الحد الأقصى لإعادة محاولة OTP",
   "error_getting_stcpay_response": "حدث خطأ أثناء الحصول على استجابة من STCPAY",
   "provide_subscription_id_recurring": "يرجى تقديم معرف الاشتراك لطلب متكرر",
   "invalid_subscription_id": "معرف الاشتراك غير صالح أو غير متوفر",
   "provide_valid_subscription_type": "يرجى تقديم نوع اشتراك صالح للطلب المتكرر",
-  "recurring_transaction_date_invalid": "يجب أن يكون تاريخ المعاملة المتكررة أكبر من أو يساوي تاريخ بدء الدفع",
+  "recurring_transaction_date_invalid":
+      "يجب أن يكون تاريخ المعاملة المتكررة أكبر من أو يساوي تاريخ بدء الدفع",
   "failed_to_cancel_subscription": "فشل في إلغاء الاشتراك",
   "subscription_already_cancelled": "تم إلغاء الاشتراك بالفعل",
   "failed_to_renew_subscription": "فشل في تجديد الاشتراك",
-  "recurring_transactions_less_than_processed": "عدد المعاملات المتكررة لا يمكن أن يكون أقل من المعاملات المعالجة",
-  "subscription_completed_cannot_cancel": "بالنسبة لهذا الاشتراك، تم الانتهاء من القسط/الاشتراك بالفعل. لا يمكن إلغاؤه الآن",
+  "recurring_transactions_less_than_processed":
+      "عدد المعاملات المتكررة لا يمكن أن يكون أقل من المعاملات المعالجة",
+  "subscription_completed_cannot_cancel":
+      "بالنسبة لهذا الاشتراك، تم الانتهاء من القسط/الاشتراك بالفعل. لا يمكن إلغاؤه الآن",
   "failed_to_generate_b2b_schedule": "فشل في إنشاء جدول لدفعات B2B",
   "error_parsing_b2b_xml_response": "حدث خطأ أثناء تحليل استجابة XML لـ B2B",
   "b2b_transaction_failed": "فشلت معاملة B2B",
   "customer_account_number_required": "رقم حساب العميل مطلوب",
   "customer_name_not_available": "اسم العميل غير متوفر في الطلب",
-  "beneficiary_name_not_available_or_wrong_length": "اسم المستفيد غير متوفر في الطلب أو طوله غير صحيح",
-  "beneficiary_account_number_required_or_wrong_length": "رقم حساب المستفيد مطلوب أو طوله غير صحيح",
-  "beneficiary_bankcode_required_or_wrong_length": "رمز البنك المستفيد مطلوب أو طوله غير صحيح",
+  "beneficiary_name_not_available_or_wrong_length":
+      "اسم المستفيد غير متوفر في الطلب أو طوله غير صحيح",
+  "beneficiary_account_number_required_or_wrong_length":
+      "رقم حساب المستفيد مطلوب أو طوله غير صحيح",
+  "beneficiary_bankcode_required_or_wrong_length":
+      "رمز البنك المستفيد مطلوب أو طوله غير صحيح",
   "invalid_sub_interface_code": "رمز الواجهة الفرعية غير صالح",
   "b2b_transactions_not_enabled_for_terminal": "معاملات B2B غير مفعلة للجهاز",
-  "multiple_beneficiary_not_supported": "المستفيدون المتعددون غير مدعومون للواجهة المختارة",
+  "multiple_beneficiary_not_supported":
+      "المستفيدون المتعددون غير مدعومون للواجهة المختارة",
   "beneficiary_not_available_in_request": "المستفيد غير متوفر في الطلب",
-  "invalid_date_format_payment_start_date": "تنسيق التاريخ غير صالح لتاريخ بدء الدفع",
+  "invalid_date_format_payment_start_date":
+      "تنسيق التاريخ غير صالح لتاريخ بدء الدفع",
   "sub_interface_not_supported": "الواجهة الفرعية غير مدعومة للوجهة المختارة",
   "pg_service_down": "خدمة PG معطلة",
   "beneficiary_amount_invalid": "مبلغ المستفيد غير صالح",
-  "sum_beneficiary_transaction_amount_mismatch": "يجب أن يكون مجموع مبلغ المستفيد ومبلغ المعاملة متساويًا",
-  "b2b_payment_start_date_invalid": "يجب أن يكون تاريخ بدء دفع B2B أكبر من التاريخ الحالي",
+  "sum_beneficiary_transaction_amount_mismatch":
+      "يجب أن يكون مجموع مبلغ المستفيد ومبلغ المعاملة متساويًا",
+  "b2b_payment_start_date_invalid":
+      "يجب أن يكون تاريخ بدء دفع B2B أكبر من التاريخ الحالي",
   "invalid_payment_details": "تفاصيل الدفع غير صالحة",
   "invalid_length_of_beneficiary_address": "طول عنوان المستفيد غير صالح",
-  "invalid_length_of_beneficiary_bank_address": "طول عنوان البنك المستفيد غير صالح",
+  "invalid_length_of_beneficiary_bank_address":
+      "طول عنوان البنك المستفيد غير صالح",
   "destination_not_configured": "الوجهة غير مكونة",
   "cannot_lookup_destination": "لا يمكن البحث عن الوجهة لإرسال الرسالة",
   "unable_to_route_message": "غير قادر على توجيه الرسالة إلى الوجهة",
@@ -704,7 +777,8 @@ const Map<String, String> ar = {
   "expired_card_contact_bank": "البطاقة منتهية الصلاحية (اتصل بالبنك)",
   "incorrect_pin": "رمز PIN غير صحيح",
   "no_card_record": "لا يوجد سجل بطاقة",
-  "transaction_not_permitted_to_cardholder": "المعاملة غير مسموح بها لحامل البطاقة",
+  "transaction_not_permitted_to_cardholder":
+      "المعاملة غير مسموح بها لحامل البطاقة",
   "transaction_not_permitted_on_terminal": "المعاملة غير مسموح بها على الجهاز",
   "suspected_fraud": "احتيال مشتبه به",
   "contact_acquirer": "اتصل بالمستحوذ",
@@ -719,7 +793,8 @@ const Map<String, String> ar = {
   "pin_tries_exceeded": "تم تجاوز محاولات PIN",
   "approved_country_club": "تمت الموافقة على نادي البلد",
   "intervene_bank_approval_required": "التدخل، مطلوب موافقة البنك",
-  "original_transaction_could_not_be_found": "لم يتم العثور على المعاملة الأصلية",
+  "original_transaction_could_not_be_found":
+      "لم يتم العثور على المعاملة الأصلية",
   "approved_administrative_transaction": "تمت الموافقة على المعاملة الإدارية",
   "approved_national_negative_file_hit_ok": "تمت الموافقة، نجاح ملف سلبي وطني",
   "approved_commercial": "تمت الموافقة التجارية",
@@ -740,14 +815,19 @@ const Map<String, String> ar = {
   "communication_system_malfunction": "عطل نظام الاتصالات",
   "communication_error": "خطأ في الاتصال",
   "exceeds_cash_limit": "يتجاوز حد النقد",
-  "host_response_check_bank_response_code": "استجابة المضيف، يرجى التحقق من رمز استجابة البنك",
-  "unable_to_authorise_card_type_incorrect": "غير قادر على التفويض / نوع البطاقة غير صحيح",
+  "host_response_check_bank_response_code":
+      "استجابة المضيف، يرجى التحقق من رمز استجابة البنك",
+  "unable_to_authorise_card_type_incorrect":
+      "غير قادر على التفويض / نوع البطاقة غير صحيح",
   "invalid_pan_length": "طول PAN غير صالح",
   "preauthorisation_full": "التفويض المسبق ممتلئ",
-  "maximum_online_refund_reached": "تم الوصول إلى الحد الأقصى للاسترداد عبر الإنترنت",
-  "maximum_offline_refund_reached": "تم الوصول إلى الحد الأقصى للاسترداد دون اتصال",
+  "maximum_online_refund_reached":
+      "تم الوصول إلى الحد الأقصى للاسترداد عبر الإنترنت",
+  "maximum_offline_refund_reached":
+      "تم الوصول إلى الحد الأقصى للاسترداد دون اتصال",
   "maximum_credit_per_refund": "الحد الأقصى للائتمان لكل استرداد",
-  "maximum_refund_credit_reached": "تم الوصول إلى الحد الأقصى للائتمان الاسترداد",
+  "maximum_refund_credit_reached":
+      "تم الوصول إلى الحد الأقصى للائتمان الاسترداد",
   "decline_for_cvv2_failure": "رفض بسبب فشل CVV2",
   "over_floor_limit": "فوق الحد الأدنى",
   "maximum_number_refund_credits": "الحد الأقصى لعدد الائتمانات الاسترداد",
@@ -785,15 +865,20 @@ const Map<String, String> ar = {
   "approved_administrative_request_5r1": "تمت الموافقة على الطلب الإداري",
   "approved_administrative_request_5r2": "تمت الموافقة على الطلب الإداري",
   "chargeback_customer_file_updated": "تم تحديث ملف العميل بسبب الاسترداد",
-  "chargeback_acquirer_not_found": "تم تحديث ملف العميل بسبب الاسترداد - لم يتم العثور على المستحوذ",
+  "chargeback_acquirer_not_found":
+      "تم تحديث ملف العميل بسبب الاسترداد - لم يتم العثور على المستحوذ",
   "chargeback_incorrect_prefix_number": "الاسترداد - رقم البادئة غير صحيح",
-  "chargeback_incorrect_response_code_or_cpf": "الاسترداد - رمز الاستجابة أو تكوين CPF غير صحيح",
+  "chargeback_incorrect_response_code_or_cpf":
+      "الاسترداد - رمز الاستجابة أو تكوين CPF غير صحيح",
   "administrative_transactions_not_supported": "المعاملات الإدارية غير مدعومة",
   "card_on_national_negative_file": "البطاقة مدرجة في الملف السلبي الوطني",
   "ptlf_full": "PTLF ممتلئ",
-  "chargeback_approved_customer_file_not_updated": "تمت الموافقة على الاسترداد، لم يتم تحديث ملف العميل",
-  "chargeback_approved_acquirer_not_found": "تمت الموافقة على الاسترداد، لم يتم تحديث ملف العميل، لم يتم العثور على المستحوذ",
-  "chargeback_accepted_incorrect_destination": "تم قبول الاسترداد، وجهة غير صحيحة",
+  "chargeback_approved_customer_file_not_updated":
+      "تمت الموافقة على الاسترداد، لم يتم تحديث ملف العميل",
+  "chargeback_approved_acquirer_not_found":
+      "تمت الموافقة على الاسترداد، لم يتم تحديث ملف العميل، لم يتم العثور على المستحوذ",
+  "chargeback_accepted_incorrect_destination":
+      "تم قبول الاسترداد، وجهة غير صحيحة",
   "admin_file_problem": "مشكلة ملف الإدارة",
   "unable_to_validate_pi": "غير قادر على التحقق من PI",
   "invalid_credit_card_advance_amount": "مبلغ تقدم بطاقة الائتمان غير صالح",
@@ -828,27 +913,44 @@ const Map<String, String> ar = {
   "invalid_ip_address": "عنوان IP غير صالح",
   "invalid_email_address": "عنوان بريد إلكتروني غير صالح",
   "transaction_cancelled_by_user": "تم إلغاء المعاملة بواسطة المستخدم",
-  "3d_secure_check_failed": "فشل فحص التحقق ثلاثي الأبعاد، لا يمكن متابعة المعاملة",
+  "3d_secure_check_failed":
+      "فشل فحص التحقق ثلاثي الأبعاد، لا يمكن متابعة المعاملة",
   "invalid_cvv_mandatory": "CVV غير صالح، CVV إلزامي",
-  "capture_not_allowed_amount_mismatch": "التقاط غير مسموح، عدم تطابق في مبلغ التقاط والمعاملة الأصلية",
-  "transaction_not_captured_refund_not_allowed": "لم يتم التقاط المعاملة/الشراء، الاسترداد غير مسموح",
-  "refund_amount_exceeds_captured": "مبلغ الاسترداد يتجاوز المبلغ المُلتقط/المشترى",
+  "capture_not_allowed_amount_mismatch":
+      "التقاط غير مسموح، عدم تطابق في مبلغ التقاط والمعاملة الأصلية",
+  "transaction_not_captured_refund_not_allowed":
+      "لم يتم التقاط المعاملة/الشراء، الاسترداد غير مسموح",
+  "refund_amount_exceeds_captured":
+      "مبلغ الاسترداد يتجاوز المبلغ المُلتقط/المشترى",
   "transaction_is_void_capture_not_allowed": "المعاملة لاغية، التقاط غير مسموح",
-  "transaction_captured_void_auth_not_allowed": "تم التقاط المعاملة، إلغاء التفويض غير مسموح",
+  "transaction_captured_void_auth_not_allowed":
+      "تم التقاط المعاملة، إلغاء التفويض غير مسموح",
   "original_transaction_not_found_632": "لم يتم العثور على المعاملة الأصلية",
-  "transaction_already_refunded": "تم استرداد المعاملة بالفعل، الاسترداد المكرر غير مسموح",
-  "transaction_is_void_refund_not_allowed": "المعاملة لاغية، الاسترداد غير مسموح",
-  "transaction_captured_multiple_captures_not_allowed": "تم التقاط المعاملة، التقاطات متعددة غير مسموح بها",
-  "transaction_voided_multiple_voids_not_allowed": "تم إلغاء المعاملة، إلغاءات متعددة غير مسموح بها",
-  "purchase_transaction_cannot_be_captured": "لا يمكن التقاط معاملة الشراء. يجب أن تكون معاملة تفويض",
+  "transaction_already_refunded":
+      "تم استرداد المعاملة بالفعل، الاسترداد المكرر غير مسموح",
+  "transaction_is_void_refund_not_allowed":
+      "المعاملة لاغية، الاسترداد غير مسموح",
+  "transaction_captured_multiple_captures_not_allowed":
+      "تم التقاط المعاملة، التقاطات متعددة غير مسموح بها",
+  "transaction_voided_multiple_voids_not_allowed":
+      "تم إلغاء المعاملة، إلغاءات متعددة غير مسموح بها",
+  "purchase_transaction_cannot_be_captured":
+      "لا يمكن التقاط معاملة الشراء. يجب أن تكون معاملة تفويض",
   "purchase_transaction_cannot_be_voided": "لا يمكن إلغاء معاملة الشراء",
-  "invalid_void_transaction_amount_mismatch": "معاملة إلغاء غير صالحة، عدم تطابق مبلغ الإلغاء ومعاملة التفويض الأصلية",
-  "refund_transaction_in_progress": "معاملة الاسترداد قيد التقدم، لا يمكن معالجة معاملة مكررة",
-  "capture_transaction_in_progress": "معاملة التقاط قيد التقدم، لا يمكن معالجة معاملة مكررة",
-  "void_auth_transaction_in_progress": "معاملة إلغاء التفويض قيد التقدم، لا يمكن معالجة معاملة مكررة",
-  "transaction_fully_refunded": "تم استرداد المعاملة بالكامل، الاسترداد غير مسموح",
-  "transaction_is_chargeback_refund_not_allowed": "المعاملة هي معاملة استرداد، الاسترداد غير مسموح",
-  "transaction_chargeback_refund_amount_exceeds": "المعاملة هي معاملة استرداد، مبلغ الاسترداد يتجاوز المبلغ المسموح به",
+  "invalid_void_transaction_amount_mismatch":
+      "معاملة إلغاء غير صالحة، عدم تطابق مبلغ الإلغاء ومعاملة التفويض الأصلية",
+  "refund_transaction_in_progress":
+      "معاملة الاسترداد قيد التقدم، لا يمكن معالجة معاملة مكررة",
+  "capture_transaction_in_progress":
+      "معاملة التقاط قيد التقدم، لا يمكن معالجة معاملة مكررة",
+  "void_auth_transaction_in_progress":
+      "معاملة إلغاء التفويض قيد التقدم، لا يمكن معالجة معاملة مكررة",
+  "transaction_fully_refunded":
+      "تم استرداد المعاملة بالكامل، الاسترداد غير مسموح",
+  "transaction_is_chargeback_refund_not_allowed":
+      "المعاملة هي معاملة استرداد، الاسترداد غير مسموح",
+  "transaction_chargeback_refund_amount_exceeds":
+      "المعاملة هي معاملة استرداد، مبلغ الاسترداد يتجاوز المبلغ المسموح به",
   "invalid_subscription_type_647": "نوع الاشتراك غير صالح",
   "invalid_payment_type_648": "نوع الدفع غير صالح",
   "invalid_payment_cycle": "دورة الدفع غير صالحة",
@@ -862,35 +964,52 @@ const Map<String, String> ar = {
   "tm_time_out": "انتهت مهلة TM",
   "merchant_not_authorize_tokenization": "التاجر غير مخول لإجراء طلب الترميز",
   "tokenization_not_enabled_for_merchant": "الترميز غير مفعل للتاجر",
-  "error_in_3d_authentication_tokenize": "خطأ في التوثيق ثلاثي الأبعاد لطلب الترميز",
+  "error_in_3d_authentication_tokenize":
+      "خطأ في التوثيق ثلاثي الأبعاد لطلب الترميز",
   "invalid_tokenize_response": "استجابة الترميز غير صالحة",
   "invalid_token_operation": "عملية الرمز غير صالحة",
   "invalid_card_token": "رمز البطاقة غير صالح",
   "provide_valid_mobile_number_907": "يرجى تقديم رقم هاتف محمول صالح",
   "currency_not_allowed_for_sts_pay": "هذه العملة غير مسموح بها لـ STS Pay",
-  "transaction_type_not_supported_for_destination": "نوع المعاملة غير مدعوم للوجهة",
+  "transaction_type_not_supported_for_destination":
+      "نوع المعاملة غير مدعوم للوجهة",
   "maximum_amount_limit_exceeds": "تم تجاوز الحد الأقصى للمبلغ للمعاملة",
-  "terminal_not_supported_for_link_base_api": "الجهاز غير مدعوم لدفع واجهة برمجة التطبيقات القائمة على الرابط",
+  "terminal_not_supported_for_link_base_api":
+      "الجهاز غير مدعوم لدفع واجهة برمجة التطبيقات القائمة على الرابط",
   "link_flag_invalid": "علامة الرابط غير صالحة",
   "expiry_days_not_greater_than_4": "أيام الانتهاء ليست أكبر من 4",
-  "paymentfor_field_invalid": "حقل PaymentFor غير صالح أو طوله أكبر من 50 حرفًا",
+  "paymentfor_field_invalid":
+      "حقل PaymentFor غير صالح أو طوله أكبر من 50 حرفًا",
   "link_not_created": "لم يتم إنشاء رابط للمعاملة القائمة على الرابط",
   "invalid_link_id": "معرف الرابط غير صالح",
-  "link_base_transaction_status": "المعاملة القائمة على الرابط ناجحة بالفعل، أو فشلت، أو تم حذفها",
+  "link_base_transaction_status":
+      "المعاملة القائمة على الرابط ناجحة بالفعل، أو فشلت، أو تم حذفها",
   "paymentfor_field_required": "حقل طلب PaymentFor ضروري للرابط القائم",
-  "merchant_id_not_supported_for_link_base": "معرف التاجر غير مدعوم للدفع القائم على الرابط",
+  "merchant_id_not_supported_for_link_base":
+      "معرف التاجر غير مدعوم للدفع القائم على الرابط",
   "merchant_status_not_active": "حالة التاجر غير نشطة",
   "terminal_status_not_active": "حالة الجهاز غير نشطة",
   "user_field_5_mandatory_for_link_base": "حقل المستخدم 5 إلزامي للرابط القائم",
   "expiry_days_field_not_valid": "حقل أيام الانتهاء غير صالح",
-  "partial_payment_allowed_field_invalid": "حقل الدفع الجزئي المسموح به غير صالح",
-  "email_id_mandatory_for_link_base_api": "حقل معرف البريد الإلكتروني إلزامي لواجهة برمجة التطبيقات القائمة على الرابط",
-  "provide_valid_mobile_number_in_udf4": "يرجى تقديم رقم هاتف محمول صالح في udf4",
-  "excessive_refund_not_enabled_terminal": "الاسترداد الزائد غير مفعل على مستوى الجهاز",
-  "excessive_refund_amount_limit_not_set": "لم يتم تعيين حد مبلغ الاسترداد الزائد على مستوى الجهاز",
-  "terminal_mid_or_password_not_configured": "لم يتم تهيئة معرف MID للجهاز أو كلمة المرور",
-  "stcpay_direct_integration_not_supported": "التكامل المباشر مع STCPAY غير مدعوم للجهاز المحدد",
-  "payment_link_send_options_not_configured": "خيارات إرسال رابط الدفع غير مكونة",
-  "email_or_contact_number_required": "مطلوب إما عنوان البريد الإلكتروني أو رقم الاتصال",
-  "send_link_via_sms_limit_exceeded": "تم تجاوز حد إرسال الرابط عبر الرسائل النصية"
+  "partial_payment_allowed_field_invalid":
+      "حقل الدفع الجزئي المسموح به غير صالح",
+  "email_id_mandatory_for_link_base_api":
+      "حقل معرف البريد الإلكتروني إلزامي لواجهة برمجة التطبيقات القائمة على الرابط",
+  "provide_valid_mobile_number_in_udf4":
+      "يرجى تقديم رقم هاتف محمول صالح في udf4",
+  "excessive_refund_not_enabled_terminal":
+      "الاسترداد الزائد غير مفعل على مستوى الجهاز",
+  "excessive_refund_amount_limit_not_set":
+      "لم يتم تعيين حد مبلغ الاسترداد الزائد على مستوى الجهاز",
+  "terminal_mid_or_password_not_configured":
+      "لم يتم تهيئة معرف MID للجهاز أو كلمة المرور",
+  "stcpay_direct_integration_not_supported":
+      "التكامل المباشر مع STCPAY غير مدعوم للجهاز المحدد",
+  "payment_link_send_options_not_configured":
+      "خيارات إرسال رابط الدفع غير مكونة",
+  "email_or_contact_number_required":
+      "مطلوب إما عنوان البريد الإلكتروني أو رقم الاتصال",
+  "send_link_via_sms_limit_exceeded":
+      "تم تجاوز حد إرسال الرابط عبر الرسائل النصية",
+  "contact_us": "اتصل بنا",
 };

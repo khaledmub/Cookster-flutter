@@ -21,12 +21,14 @@ import 'package:get/get_connect/http/src/response/response.dart' as http;
 import 'package:http/src/response.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:video_player/video_player.dart';
 import '../../services/apiClient.dart';
 import '../landing/landingTabs/home/homeController/addCommentControllr.dart';
 import '../landing/landingTabs/home/homeView/reelsVideoScreen.dart';
 import '../landing/landingTabs/reportContent/reportContentView/reportContentView.dart';
 import '../landing/landingView/landingView.dart';
+import '../promoteVideo/promoteVideoController/promoteVideoController.dart';
 import '../singleVideoView/singleVideoView.dart' hide VideoDescriptionWidget;
 
 class SingleVisitVideo extends StatefulWidget {
@@ -577,6 +579,9 @@ class _SingleVideoVisitState extends State<SingleVisitVideo>
   }
 
   void showMoreOptions(BuildContext context, String videoId, String userId) {
+    final PromoteVideoController promoteVideoController = Get.find();
+
+    var infoEmail = promoteVideoController.siteSettings.value?.settings?.email;
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.white,
@@ -639,6 +644,40 @@ class _SingleVideoVisitState extends State<SingleVisitVideo>
                   Get.to(() => ReportContentView(videoId: videoId));
                 },
               ),
+
+              ListTile(
+                leading: Icon(Icons.headphones, color: ColorUtils.grey),
+                trailing: Text(
+                  infoEmail!,
+                  style: TextStyle(color: Colors.black, fontSize: 14.sp),
+                ),
+                title: Text(
+                  'contact_us'.tr,
+                  style: TextStyle(color: Colors.black, fontSize: 14.sp),
+                ),
+                onTap: () async {
+                  final Uri emailUri = Uri(
+                    scheme: 'mailto',
+                    path: infoEmail,
+                    queryParameters: {
+                      'subject': 'Contact Us',
+                      // Optional: Pre-fill subject
+                      // 'body': 'Your message here', // Optional: Pre-fill body
+                    },
+                  );
+
+                  // Launch the mail app
+                  if (await canLaunchUrl(emailUri)) {
+                    await launchUrl(emailUri);
+                  } else {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('No email app found')),
+                    );
+                  }
+                  Navigator.pop(context);
+                },
+              ),
+
             ],
           ),
         );

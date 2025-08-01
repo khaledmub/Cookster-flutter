@@ -6,6 +6,7 @@ import 'package:cookster/appRoutes/appRoutes.dart';
 import 'package:cookster/appUtils/apiEndPoints.dart';
 import 'package:cookster/appUtils/appUtils.dart';
 import 'package:cookster/goLive/join_screen.dart';
+import 'package:cookster/modules/auth/signUp/signUpController/signUpController.dart';
 import 'package:cookster/modules/landing/landingController/landingController.dart';
 import 'package:cookster/modules/landing/landingTabs/home/homeController/saveController.dart';
 import 'package:cookster/modules/landing/landingTabs/home/homeModel/userSaveUnsave.dart';
@@ -29,6 +30,7 @@ import 'package:get/get.dart';
 import 'package:pro_image_editor/core/platform/io/io_helper.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 import '../../../../../appUtils/colorUtils.dart';
 import '../../../../../loaders/pulseLoader.dart';
@@ -1453,6 +1455,9 @@ class _VideoReelScreenState extends State<VideoReelScreen>
     String frontUserId,
     String userId,
   ) {
+    // final PromoteVideoController promoteVideoController = Get.find();
+
+    var infoEmail = promoteVideoController.siteSettings.value?.settings?.email;
     // _handleScreenExit();
     // controller.pauseCurrentVideo();
     showModalBottomSheet(
@@ -1510,6 +1515,38 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                     Get.to(ReportContentView(videoId: videoId))?.then((_) {
                       // controller.restoreVideoState();
                     });
+                  },
+                ),
+                ListTile(
+                  leading: Icon(Icons.headphones, color: ColorUtils.grey),
+                  trailing: Text(
+                    infoEmail!,
+                    style: TextStyle(color: Colors.black, fontSize: 14.sp),
+                  ),
+                  title: Text(
+                    'contact_us'.tr,
+                    style: TextStyle(color: Colors.black, fontSize: 14.sp),
+                  ),
+                  onTap: () async {
+                    final Uri emailUri = Uri(
+                      scheme: 'mailto',
+                      path: infoEmail,
+                      queryParameters: {
+                        'subject': 'Contact Us',
+                        // Optional: Pre-fill subject
+                        // 'body': 'Your message here', // Optional: Pre-fill body
+                      },
+                    );
+
+                    // Launch the mail app
+                    if (await canLaunchUrl(emailUri)) {
+                      await launchUrl(emailUri);
+                    } else {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('No email app found')),
+                      );
+                    }
+                    Navigator.pop(context);
                   },
                 ),
               ],
