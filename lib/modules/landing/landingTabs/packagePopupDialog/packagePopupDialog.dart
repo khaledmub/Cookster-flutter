@@ -29,10 +29,7 @@ void showPackageDialog(BuildContext context, {required List<dynamic>? videos}) {
       video.startDate != null
           ? dateFormat.format(DateTime.parse(video.startDate))
           : 'N/A';
-  final endDate =
-      video.endDate != null
-          ? dateFormat.format(DateTime.parse(video.endDate))
-          : 'N/A';
+  final endDate = video.endDate.toString();
 
   showGeneralDialog(
     context: context,
