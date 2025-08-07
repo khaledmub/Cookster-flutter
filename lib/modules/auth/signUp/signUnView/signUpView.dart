@@ -1645,12 +1645,7 @@ class _SignVpViewState extends State<SignVpView> {
                                       recognizer:
                                       TapGestureRecognizer()
                                         ..onTap = () {
-                                          Get.toNamed(AppRoutes.signIn);
-                                          if (kDebugMode) {
-                                            print(
-                                              "Navigate to Sign Up screen",
-                                            );
-                                          }
+                                        Get.back();
                                           // You can use Navigator.push() here to go to the Sign Up screen.
                                         },
                                     ),
