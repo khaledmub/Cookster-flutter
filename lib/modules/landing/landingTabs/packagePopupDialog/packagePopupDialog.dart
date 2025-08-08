@@ -340,6 +340,7 @@ class _AnimatedDialog extends StatelessWidget {
                       ),
                     if (_isValidValue(endDate))
                       _DetailTile(
+                        valueColor: Colors.red,
                         label: 'end_date'.tr,
                         value: formatDate(endDate), // Format the date here
                         valueIcon: Icons.calendar_today_outlined,
