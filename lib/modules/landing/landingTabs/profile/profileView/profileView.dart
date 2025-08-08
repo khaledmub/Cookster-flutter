@@ -137,7 +137,7 @@ class _ProfileViewState extends State<ProfileView>
                           scheme: 'mailto',
                           path: email,
                           queryParameters: {
-                            'subject': 'Contact Us', // Pre-fill subject
+                            'subject': '', // Pre-fill subject
                           },
                         );
 
