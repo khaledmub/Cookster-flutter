@@ -119,6 +119,7 @@ class _SingleVideoScreenState extends State<SingleVideoScreen>
   void initState() {
     super.initState();
     _loadLanguage();
+    print(widget.videoId);
     _trackVideoView(
       widget.videoId ?? '',
       widget.frondUserId,

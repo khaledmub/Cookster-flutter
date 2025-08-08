@@ -26,9 +26,7 @@ void showPackageDialog(BuildContext context, {required List<dynamic>? videos}) {
 
   // Format dates or show 'N/A' if null
   final startDate =
-      video.startDate != null
-          ? dateFormat.format(DateTime.parse(video.startDate))
-          : 'N/A';
+      video.startDate.toString();
   final endDate = video.endDate.toString();
 
   showGeneralDialog(
@@ -176,6 +174,13 @@ class _AnimatedDialog extends StatelessWidget {
 
     final packageColor =
         packageValue == 'Premium' ? ColorUtils.darkBrown : Colors.black87;
+
+    String formatDate(String startDate) {
+      // Parse the string to DateTime
+      DateTime parsedDate = DateTime.parse(startDate);
+      // Format to desired pattern: "26 Aug, 2025 12:00 PM"
+      return DateFormat('dd MMM, yyyy hh:mm a').format(parsedDate);
+    }
 
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
@@ -329,16 +334,15 @@ class _AnimatedDialog extends StatelessWidget {
                     if (_isValidValue(startDate))
                       _DetailTile(
                         label: 'start_date'.tr,
-                        value: startDate,
+                        value: formatDate(startDate), // Format the date here
                         valueIcon: Icons.calendar_today_outlined,
                         valueIconSize: 16,
                       ),
                     if (_isValidValue(endDate))
                       _DetailTile(
                         label: 'end_date'.tr,
-                        value: endDate,
-                        valueColor: Colors.redAccent,
-                        valueIcon: Icons.event_outlined,
+                        value: formatDate(endDate), // Format the date here
+                        valueIcon: Icons.calendar_today_outlined,
                         valueIconSize: 16,
                       ),
                   ],
