@@ -86,7 +86,7 @@ class LikesScreen extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Text(
-                    'No likes yet',
+                    'no_likes_yet'.tr,
                     style: const TextStyle(
                       color: Color(0xFFFFD700),
                       fontSize: 16,
@@ -147,7 +147,7 @@ class LikesScreen extends StatelessWidget {
               if (!usersSnapshot.hasData || usersSnapshot.data!.isEmpty) {
                 return Center(
                   child: Text(
-                    'No users found',
+                    'no_users_found'.tr,
                     style: const TextStyle(
                       color: Color(0xFFFFD700),
                       fontSize: 16,

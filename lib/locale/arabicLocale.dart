@@ -1013,4 +1013,7 @@ const Map<String, String> ar = {
       "تم تجاوز حد إرسال الرابط عبر الرسائل النصية",
   "contact_us": "اتصل بنا",
   "enquiry_contact_us": "لأي استفسار، يرجى",
+  "no_users_found": "لم يتم العثور على مستخدمين",
+  "no_likes_yet" : "لا توجد إعجابات بعد"
+
 };
