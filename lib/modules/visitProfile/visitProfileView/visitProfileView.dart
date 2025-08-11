@@ -17,6 +17,7 @@ import '../../../appUtils/appCenterIcon.dart';
 import '../../../appUtils/colorUtils.dart';
 import '../../../appUtils/openToWork.dart';
 import '../../../loaders/pulseLoader.dart';
+import '../../user_like_screen/user_like_screen.dart';
 import '../../viewReview/viewReviewView/viewReviewView.dart';
 import '../../chatScreen/chatScreenView.dart';
 import '../../followersFollowing/followersFollowingView/followersFollowingView.dart';
@@ -446,10 +447,15 @@ class _VisitProfileViewState extends State<VisitProfileView>
                           ),
                         ),
                       ),
-                      ProfileStat(
-                        number:
-                            "${visitProfileController.profileLikesCount.value}",
-                        label: "Likes".tr,
+                      InkWell(
+                        onTap: () {
+                          Get.to(LikesScreen(currentUserId: user.user!.id));
+                        },
+                        child: ProfileStat(
+                          number:
+                              "${visitProfileController.profileLikesCount.value}",
+                          label: "Likes".tr,
+                        ),
                       ),
                     ],
                   ),

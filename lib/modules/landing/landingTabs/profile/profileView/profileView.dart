@@ -18,6 +18,7 @@ import '../../../../followersFollowing/followersFollowingView/followersFollowing
 import '../../../../promoteVideo/promoteVideoController/promoteVideoController.dart';
 import '../../../../promoteVideo/promoteVideoView/promoteVideoView.dart';
 import '../../../../singleVideoView/singleVideoView.dart';
+import '../../../../user_like_screen/user_like_screen.dart';
 import '../../add/editVideo/editVideoView.dart';
 import '../../packagePopupDialog/packagePopupDialog.dart';
 import '../../savedVideosScreen/savedVideosView/savedVideosView.dart';
@@ -150,7 +151,11 @@ class _ProfileViewState extends State<ProfileView>
                           );
                         }
                       },
-                      child: Icon(Icons.support_agent_outlined, color: Colors.black, size: 30,),
+                      child: Icon(
+                        Icons.support_agent_outlined,
+                        color: Colors.black,
+                        size: 30,
+                      ),
                     ),
                     SizedBox(width: 16),
 
@@ -313,9 +318,18 @@ class _ProfileViewState extends State<ProfileView>
                                         label: "Likes".tr,
                                       );
                                     }
-                                    return ProfileStat(
-                                      number: "${snapshot.data ?? 0}",
-                                      label: "Likes".tr,
+                                    return InkWell(
+                                      onTap: () {
+                                        Get.to(
+                                          LikesScreen(
+                                            currentUserId: userDetails.id,
+                                          ),
+                                        );
+                                      },
+                                      child: ProfileStat(
+                                        number: "${snapshot.data ?? 0}",
+                                        label: "Likes".tr,
+                                      ),
                                     );
                                   },
                                 ),
