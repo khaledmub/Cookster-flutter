@@ -12,20 +12,13 @@ class LikedVideosScreen extends StatefulWidget {
 
 class _LikedVideosScreenState extends State<LikedVideosScreen> {
   // Stream to get total likes count
+  // Stream to get count of liked videos by this user
   Stream<int> checkLikedVideos(String userId) {
     return FirebaseFirestore.instance
         .collection('videos')
         .where('likes', arrayContains: userId)
         .snapshots()
-        .map((QuerySnapshot querySnapshot) {
-      int totalLikes = 0;
-      for (var doc in querySnapshot.docs) {
-        var data = doc.data() as Map<String, dynamic>;
-        List<String> likes = List<String>.from(data['likes'] ?? []);
-        totalLikes += likes.length;
-      }
-      return totalLikes;
-    });
+        .map((QuerySnapshot querySnapshot) => querySnapshot.docs.length);
   }
 
   // Stream to get video IDs liked by the user
@@ -35,8 +28,8 @@ class _LikedVideosScreenState extends State<LikedVideosScreen> {
         .where('likes', arrayContains: userId)
         .snapshots()
         .map((QuerySnapshot querySnapshot) {
-      return querySnapshot.docs.map((doc) => doc.id).toList();
-    });
+          return querySnapshot.docs.map((doc) => doc.id).toList();
+        });
   }
 
   @override
@@ -89,7 +82,8 @@ class _LikedVideosScreenState extends State<LikedVideosScreen> {
                 }
                 if (snapshot.hasError) {
                   return const Center(
-                      child: Text('Error loading liked videos'));
+                    child: Text('Error loading liked videos'),
+                  );
                 }
                 final videoIds = snapshot.data ?? [];
 
@@ -100,7 +94,6 @@ class _LikedVideosScreenState extends State<LikedVideosScreen> {
                   return const Center(child: Text('No liked videos found'));
                 }
 
-
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -110,7 +103,9 @@ class _LikedVideosScreenState extends State<LikedVideosScreen> {
                       child: Text(
                         'Comma-separated IDs:\n$commaSeparatedIds',
                         style: const TextStyle(
-                            fontSize: 14, color: Colors.grey),
+                          fontSize: 14,
+                          color: Colors.grey,
+                        ),
                       ),
                     ),
                     const Divider(),
@@ -125,7 +120,8 @@ class _LikedVideosScreenState extends State<LikedVideosScreen> {
                             onTap: () {
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(
-                                    content: Text('Tapped Video ID: $videoId')),
+                                  content: Text('Tapped Video ID: $videoId'),
+                                ),
                               );
                             },
                           );
@@ -141,5 +137,4 @@ class _LikedVideosScreenState extends State<LikedVideosScreen> {
       ),
     );
   }
-
 }
