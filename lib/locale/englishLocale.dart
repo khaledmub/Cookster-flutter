@@ -921,5 +921,6 @@ const Map<String, String> en = {
   "contact_us" : "Contact Us",
   "enquiry_contact_us" : "For any enquiry please ",
   "no_users_found" : "No Users Found",
-  "no_likes_yet" : "No Likes Yet"
+  "no_likes_yet" : "No Likes Yet",
+  "video_likes" : "Video Likes"
 };

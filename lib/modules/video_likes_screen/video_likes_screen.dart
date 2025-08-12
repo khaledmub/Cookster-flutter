@@ -52,7 +52,7 @@ class VideoLikesScreen extends StatelessWidget {
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
-          'likes'.tr,
+          'video_likes'.tr,
           style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
         ),
       ),

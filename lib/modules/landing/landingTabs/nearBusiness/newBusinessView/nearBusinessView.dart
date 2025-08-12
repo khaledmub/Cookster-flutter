@@ -521,14 +521,19 @@ class _GoogleMapWithBusinessImagesState
   }
 
   static const String _mapStyle = '''
-    [
-      {"featureType": "water", "elementType": "geometry", "stylers": [{"color": "#e9e9e9"}, {"lightness": 17}]},
-      {"featureType": "landscape", "elementType": "geometry", "stylers": [{"color": "#f5f5f5"}, {"lightness": 20}]},
-      {"featureType": "road.highway", "elementType": "geometry.fill", "stylers": [{"color": "#ffffff"}, {"lightness": 17}]},
-      {"featureType": "poi", "stylers": [{"visibility": "simplified"}]},
-      {"featureType": "transit", "stylers": [{"visibility": "off"}]}
-    ]
-  ''';
+[
+  {"featureType": "water", "elementType": "geometry", "stylers": [{"color": "#e9e9e9"}, {"lightness": 17}]},
+  {"featureType": "landscape", "elementType": "geometry", "stylers": [{"color": "#f5f5f5"}, {"lightness": 20}]},
+  {"featureType": "road.highway", "elementType": "geometry.fill", "stylers": [{"color": "#ffffff"}, {"lightness": 17}]},
+  {"featureType": "poi", "elementType": "labels.text", "stylers": [{"visibility": "off"}]},
+  {"featureType": "poi.business", "elementType": "labels", "stylers": [{"visibility": "off"}]},
+  {"featureType": "poi.place_of_worship", "elementType": "labels.text", "stylers": [{"visibility": "off"}]},
+  {"featureType": "poi.park", "elementType": "labels.text", "stylers": [{"visibility": "off"}]},
+  {"featureType": "poi.school", "elementType": "labels.text", "stylers": [{"visibility": "off"}]},
+  {"featureType": "poi.medical", "elementType": "labels.text", "stylers": [{"visibility": "off"}]},
+  {"featureType": "transit", "stylers": [{"visibility": "off"}]}
+]
+''';
 }
 
 class ContactCard extends StatelessWidget {
