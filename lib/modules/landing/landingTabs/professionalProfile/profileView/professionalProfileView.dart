@@ -17,6 +17,7 @@ import '../../../../../appUtils/colorUtils.dart';
 import '../../../../../appUtils/openToWork.dart';
 import '../../../../../loaders/pulseLoader.dart';
 import '../../../../followersFollowing/followersFollowingView/followersFollowingView.dart';
+import '../../../../popup_like/popup_like_dialog.dart';
 import '../../../../promoteVideo/promoteVideoController/promoteVideoController.dart';
 import '../../../../promoteVideo/promoteVideoView/promoteVideoView.dart';
 import '../../../../singleVideoView/singleVideoView.dart';
@@ -497,15 +498,16 @@ class _ProfessionalProfileViewState extends State<ProfessionalProfileView>
                             Obx(
                               () => InkWell(
                                 onTap: () {
-                                  // Get.to(
-                                  //   SocialListsScreen(
-                                  //     initialTab: SocialTab.following,
-                                  //     userName: userDetails.name,
-                                  //     userId: userDetails.id,
-                                  //   ),
-                                  // )?.then((value) async {
-                                  //   await profileController.getUserDetails();
-                                  // });
+                                  showDialog(
+                                    context: context,
+                                    builder: (BuildContext context) {
+                                      return LikePopup(
+                                        username: userDetails.name,
+                                        likeCount:
+                                            profileController.totalLikes.value,
+                                      );
+                                    },
+                                  );
                                 },
                                 child: ProfileStat(
                                   number: "${profileController.totalLikes}",

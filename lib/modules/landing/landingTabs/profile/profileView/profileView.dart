@@ -15,6 +15,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../../../appUtils/colorUtils.dart';
 import '../../../../../loaders/pulseLoader.dart';
 import '../../../../followersFollowing/followersFollowingView/followersFollowingView.dart';
+import '../../../../popup_like/popup_like_dialog.dart';
 import '../../../../promoteVideo/promoteVideoController/promoteVideoController.dart';
 import '../../../../promoteVideo/promoteVideoView/promoteVideoView.dart';
 import '../../../../singleVideoView/singleVideoView.dart';
@@ -304,7 +305,18 @@ class _ProfileViewState extends State<ProfileView>
                                   ),
                                 ),
                                 InkWell(
-                                  onTap: () {},
+                                  onTap: () {
+                                    showDialog(
+                                      context: context,
+                                      builder: (BuildContext context) {
+                                        return LikePopup(
+                                          username: userDetails.name,
+                                          likeCount:
+                                          profileController.totalLikes.value,
+                                        );
+                                      },
+                                    );
+                                  },
                                   child: ProfileStat(
                                     number: "${profileController.totalLikes}",
                                     label: "likes".tr,
