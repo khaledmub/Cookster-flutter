@@ -312,7 +312,9 @@ class _ProfileViewState extends State<ProfileView>
                                         return LikePopup(
                                           username: userDetails.name,
                                           likeCount:
-                                          profileController.totalLikes.value,
+                                              profileController
+                                                  .totalLikes
+                                                  .value,
                                         );
                                       },
                                     );
@@ -328,7 +330,7 @@ class _ProfileViewState extends State<ProfileView>
 
                           Padding(
                             padding: const EdgeInsets.symmetric(
-                              horizontal: 40.0,
+                              horizontal: 16.0,
                             ),
                             child: Row(
                               mainAxisAlignment: MainAxisAlignment.center,
@@ -344,7 +346,20 @@ class _ProfileViewState extends State<ProfileView>
                                     ),
                                   ),
                                 ),
-                                SizedBox(width: 16),
+                                SizedBox(width: 4),
+                                Expanded(
+                                  child: InkWell(
+                                    onTap: () {
+                                      Get.to(SavedVideosView());
+                                    },
+                                    child: CustomButtonWidget(
+                                      icon: "assets/icons/heart.svg",
+                                      label: "liked_videos".tr,
+                                    ),
+                                  ),
+                                ),
+                                SizedBox(width: 4),
+
                                 InkWell(
                                   onTap: () {
                                     showMoreOptionsProfile(
@@ -374,6 +389,7 @@ class _ProfileViewState extends State<ProfileView>
                               ],
                             ),
                           ),
+
                           if (videoTypes != null && videoTypes.isNotEmpty)
                             Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
