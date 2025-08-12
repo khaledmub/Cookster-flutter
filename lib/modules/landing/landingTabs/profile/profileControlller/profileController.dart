@@ -69,6 +69,22 @@ class ProfileController extends GetxController {
         });
   }
 
+  Stream<int> checkLikedVideos(String userId) {
+    return FirebaseFirestore.instance
+        .collection('videos')
+        .where('likes', arrayContains: userId)
+        .snapshots()
+        .map((QuerySnapshot querySnapshot) {
+      int totalLikes = 0;
+      for (var doc in querySnapshot.docs) {
+        var data = doc.data() as Map<String, dynamic>;
+        List<String> likes = List<String>.from(data['likes'] ?? []);
+        totalLikes += likes.length; // Count likes for each video
+      }
+      return totalLikes;
+    });
+  }
+
   final TextEditingController nameController = TextEditingController();
   final TextEditingController emailController = TextEditingController();
   final TextEditingController birthdayController = TextEditingController();
@@ -439,6 +455,9 @@ class ProfileController extends GetxController {
     selectedIndex.value = index;
   }
 
+  RxList<String> videoIds = <String>[].obs;
+  RxInt totalLikes = 0.obs;
+
   Future<void> getUserDetails() async {
     try {
       print("Step 1: Starting getUserDetails method.");
@@ -447,7 +466,14 @@ class ProfileController extends GetxController {
       print("Step 2: isLoading set to true.");
 
       print("Step 3: Sending GET request to fetch user details.");
-      var response = await ApiClient.getRequest(EndPoints.getUserProfile);
+      var response = await ApiClient.getRequest(EndPoints.getUserProfile).timeout(
+        const Duration(seconds: 10),
+        onTimeout: () {
+          print("Step 4: Request timed out. Navigating to noInternet screen.");
+          Get.offAllNamed('/noInternet');
+          throw TimeoutException("The connection has timed out!");
+        },
+      );
       print(
         "Step 5: Response received with status code: ${response.statusCode}",
       );
@@ -466,9 +492,38 @@ class ProfileController extends GetxController {
           followersList.value = simpleUserDetails.value!.followers ?? [];
           print("Check Following list fetched");
           followingList.value = simpleUserDetails.value!.following ?? [];
+
+          // Extract video IDs
+          videoIds.clear();
+          if (simpleUserDetails.value!.videoTypes != null) {
+            for (var videoType in simpleUserDetails.value!.videoTypes!) {
+              if (videoType.videos != null) {
+                videoIds.addAll(
+                  videoType.videos!.map((video) => video.id.toString()).toList(),
+                );
+              }
+            }
+          }
+          print("Step 8: Extracted video IDs: $videoIds");
+
+          // Fetch total likes for all videos
+          totalLikes.value = 0;
+          for (var videoId in videoIds) {
+            var videoDoc =
+            await FirebaseFirestore.instance
+                .collection('videos')
+                .doc(videoId)
+                .get();
+            if (videoDoc.exists) {
+              var data = videoDoc.data() as Map<String, dynamic>;
+              List<String> likes = List<String>.from(data['likes'] ?? []);
+              totalLikes.value += likes.length;
+            }
+          }
+          print("Step 9: Total likes on all videos: ${totalLikes.value}");
         } else {
           print(
-            "Step 8: Invalid response format. Expected Map, got ${data.runtimeType}",
+            "Step 10: Invalid response format. Expected Map, got ${data.runtimeType}",
           );
           throw Exception(
             "Invalid response format: Expected Map<String, dynamic>",
@@ -476,16 +531,16 @@ class ProfileController extends GetxController {
         }
       } else {
         print(
-          "Step 9: Failed to fetch user details. Status code: ${response.statusCode}",
+          "Step 11: Failed to fetch user details. Status code: ${response.statusCode}",
         );
       }
     } catch (e, stackTrace) {
-      print("Step 10: Error occurred while fetching user details: $e");
+      print("Step 12: Error occurred while fetching user details: $e");
       print("Stack trace: $stackTrace");
     } finally {
       isLoading.value = false;
       print(
-        "Step 11: isLoading set to false. getUserDetails method completed.",
+        "Step 13: isLoading set to false. getUserDetails method completed.",
       );
     }
   }

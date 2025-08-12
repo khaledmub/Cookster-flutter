@@ -122,21 +122,38 @@ class ProfessionalProfileController extends GetxController {
         .where('profileId', isEqualTo: currentUserId)
         .snapshots()
         .map((QuerySnapshot snapshot) {
-      print("Step 2: Received snapshot for profileLikes");
-      if (snapshot.docs.isNotEmpty) {
-        int likeCount = snapshot.docs.first['likeCount'] ?? 0;
-        print("Step 3: Updating profileLikesCount to $likeCount");
-        profileLikesCount.value = likeCount;
-        return likeCount;
-      } else {
-        print("Step 3: No likes found. profileLikesCount set to 0.");
-        profileLikesCount.value = 0;
-        return 0;
-      }
-    }).handleError((e) {
-      print("Error in stream: $e");
-      return 0;
-    });
+          print("Step 2: Received snapshot for profileLikes");
+          if (snapshot.docs.isNotEmpty) {
+            int likeCount = snapshot.docs.first['likeCount'] ?? 0;
+            print("Step 3: Updating profileLikesCount to $likeCount");
+            profileLikesCount.value = likeCount;
+            return likeCount;
+          } else {
+            print("Step 3: No likes found. profileLikesCount set to 0.");
+            profileLikesCount.value = 0;
+            return 0;
+          }
+        })
+        .handleError((e) {
+          print("Error in stream: $e");
+          return 0;
+        });
+  }
+
+  Stream<int> checkLikedVideos(String userId) {
+    return FirebaseFirestore.instance
+        .collection('videos')
+        .where('likes', arrayContains: userId)
+        .snapshots()
+        .map((QuerySnapshot querySnapshot) {
+          int totalLikes = 0;
+          for (var doc in querySnapshot.docs) {
+            var data = doc.data() as Map<String, dynamic>;
+            List<String> likes = List<String>.from(data['likes'] ?? []);
+            totalLikes += likes.length; // Count likes for each video
+          }
+          return totalLikes;
+        });
   }
 
   bool isFollowing(String userId) {
@@ -156,7 +173,7 @@ class ProfessionalProfileController extends GetxController {
 
     try {
       final endpoint =
-      isFollowing(userId) ? '${EndPoints.unfollow}' : '${EndPoints.follow}';
+          isFollowing(userId) ? '${EndPoints.unfollow}' : '${EndPoints.follow}';
 
       final response = await ApiClient.postRequest(endpoint, {
         'following_id': userId,
@@ -212,7 +229,6 @@ class ProfessionalProfileController extends GetxController {
       isFollowingProcess.value = false;
     }
   }
-
 
   Future<void> showLogoutDialog(BuildContext context) async {
     AwesomeDialog(
@@ -330,10 +346,10 @@ class ProfessionalProfileController extends GetxController {
   }
 
   Future<bool> deleteVideo(
-      BuildContext context,
-      String videoId,
-      String frondUserId,
-      ) async {
+    BuildContext context,
+    String videoId,
+    String frondUserId,
+  ) async {
     final String endpoint = '${EndPoints.deleteVideo}?id=$videoId';
     bool isDeleted = false;
 
@@ -450,6 +466,9 @@ class ProfessionalProfileController extends GetxController {
     return isDeleted;
   }
 
+  RxList<String> videoIds = <String>[].obs;
+  RxInt totalLikes = 0.obs;
+
   Future<void> getUserDetails() async {
     try {
       print("Step 1: Starting getUserDetails method.");
@@ -477,11 +496,40 @@ class ProfessionalProfileController extends GetxController {
         print("Step 6: Successfully fetched user details. Parsing data.");
         var data = jsonDecode(response.body);
 
-        {
-          userDetails.value = UserDetails.fromJson(data);
-          followersList.value = userDetails.value!.followers!;
-          followingList.value = userDetails.value!.following!;
+        // Parse user details
+        userDetails.value = UserDetails.fromJson(data);
+        followersList.value = userDetails.value!.followers!;
+        followingList.value = userDetails.value!.following!;
+
+        // Extract video IDs
+        videoIds.clear();
+        if (userDetails.value!.videoTypes != null) {
+          for (var videoType in userDetails.value!.videoTypes!) {
+            if (videoType.videos != null) {
+              videoIds.addAll(
+                videoType.videos!.map((video) => video.id.toString()).toList(),
+              );
+            }
+          }
         }
+        print("Step 7: Extracted video IDs: $videoIds");
+
+        // Reset totalLikes before calculating
+        totalLikes.value = 0;
+
+        for (var videoId in videoIds) {
+          var videoDoc =
+          await FirebaseFirestore.instance
+              .collection('videos')
+              .doc(videoId)
+              .get();
+          if (videoDoc.exists) {
+            var data = videoDoc.data() as Map<String, dynamic>;
+            List<String> likes = List<String>.from(data['likes'] ?? []);
+            totalLikes.value += likes.length;
+          }
+        }
+        print("Step 8: Total likes on all videos: ${totalLikes.value}");
       } else {
         print(
           "Step 9: Failed to fetch user details. Status code: ${response.statusCode}",

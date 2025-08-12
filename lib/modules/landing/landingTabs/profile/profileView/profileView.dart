@@ -303,35 +303,12 @@ class _ProfileViewState extends State<ProfileView>
                                     label: "Following".tr,
                                   ),
                                 ),
-
-                                StreamBuilder<int>(
-                                  stream: profileController.checkReceivedLikes(
-                                    userDetails.id,
+                                InkWell(
+                                  onTap: () {},
+                                  child: ProfileStat(
+                                    number: "${profileController.totalLikes}",
+                                    label: "likes".tr,
                                   ),
-                                  builder: (
-                                    context,
-                                    AsyncSnapshot<int> snapshot,
-                                  ) {
-                                    if (snapshot.hasError) {
-                                      return ProfileStat(
-                                        number: "Error",
-                                        label: "Likes".tr,
-                                      );
-                                    }
-                                    return InkWell(
-                                      onTap: () {
-                                        Get.to(
-                                          LikesScreen(
-                                            currentUserId: userDetails.id,
-                                          ),
-                                        );
-                                      },
-                                      child: ProfileStat(
-                                        number: "${snapshot.data ?? 0}",
-                                        label: "Likes".tr,
-                                      ),
-                                    );
-                                  },
                                 ),
                               ],
                             );
@@ -508,7 +485,10 @@ class _ProfileViewState extends State<ProfileView>
                                                         video.isImage
                                                             .toString(),
                                                   ),
-                                                );
+                                                )!.then((_) {
+                                                  profileController
+                                                      .getUserDetails();
+                                                });
                                               },
                                               child: Stack(
                                                 children: [

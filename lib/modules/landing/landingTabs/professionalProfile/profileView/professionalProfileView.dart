@@ -468,31 +468,50 @@ class _ProfessionalProfileViewState extends State<ProfessionalProfileView>
                                 label: "Following".tr,
                               ),
                             ),
-                            StreamBuilder<int>(
-                              stream: profileController.checkReceivedLikes(
-                                userDetails.id,
+                            // StreamBuilder<int>(
+                            //   stream: profileController.checkLikedVideos(
+                            //     userDetails.id,
+                            //   ),
+                            //   builder: (context, AsyncSnapshot<int> snapshot) {
+                            //     if (snapshot.hasError) {
+                            //       return ProfileStat(
+                            //         number: "Error",
+                            //         label: "Likes".tr,
+                            //       );
+                            //     }
+                            //     return InkWell(
+                            //       onTap: () {
+                            //         Get.to(
+                            //           LikesScreen(
+                            //             currentUserId: userDetails.id,
+                            //           ),
+                            //         );
+                            //       },
+                            //       child: ProfileStat(
+                            //         number: "${snapshot.data ?? 0}",
+                            //         label: "Likes".tr,
+                            //       ),
+                            //     );
+                            //   },
+                            // ),
+                            Obx(
+                              () => InkWell(
+                                onTap: () {
+                                  // Get.to(
+                                  //   SocialListsScreen(
+                                  //     initialTab: SocialTab.following,
+                                  //     userName: userDetails.name,
+                                  //     userId: userDetails.id,
+                                  //   ),
+                                  // )?.then((value) async {
+                                  //   await profileController.getUserDetails();
+                                  // });
+                                },
+                                child: ProfileStat(
+                                  number: "${profileController.totalLikes}",
+                                  label: "likes".tr,
+                                ),
                               ),
-                              builder: (context, AsyncSnapshot<int> snapshot) {
-                                if (snapshot.hasError) {
-                                  return ProfileStat(
-                                    number: "Error",
-                                    label: "Likes".tr,
-                                  );
-                                }
-                                return InkWell(
-                                  onTap: () {
-                                    Get.to(
-                                      LikesScreen(
-                                        currentUserId: userDetails.id,
-                                      ),
-                                    );
-                                  },
-                                  child: ProfileStat(
-                                    number: "${snapshot.data ?? 0}",
-                                    label: "Likes".tr,
-                                  ),
-                                );
-                              },
                             ),
                           ],
                         );
@@ -739,7 +758,10 @@ class _ProfessionalProfileViewState extends State<ProfessionalProfileView>
                                                     video.isImage.toString(),
                                                 userEmail: video.userEmail,
                                               ),
-                                            );
+                                            )!.then((_) {
+                                              profileController
+                                                  .getUserDetails();
+                                            });
                                           },
                                           child: Stack(
                                             children: [
