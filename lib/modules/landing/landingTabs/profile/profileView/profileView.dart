@@ -15,6 +15,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../../../appUtils/colorUtils.dart';
 import '../../../../../loaders/pulseLoader.dart';
 import '../../../../followersFollowing/followersFollowingView/followersFollowingView.dart';
+import '../../../../liked_videos_screen/liked_videos_screen.dart';
 import '../../../../popup_like/popup_like_dialog.dart';
 import '../../../../promoteVideo/promoteVideoController/promoteVideoController.dart';
 import '../../../../promoteVideo/promoteVideoView/promoteVideoView.dart';
@@ -350,7 +351,11 @@ class _ProfileViewState extends State<ProfileView>
                                 Expanded(
                                   child: InkWell(
                                     onTap: () {
-                                      Get.to(SavedVideosView());
+                                      Get.to(
+                                        LikedVideosScreen(
+                                          userId: userDetails.id,
+                                        ),
+                                      );
                                     },
                                     child: CustomButtonWidget(
                                       icon: "assets/icons/heart.svg",

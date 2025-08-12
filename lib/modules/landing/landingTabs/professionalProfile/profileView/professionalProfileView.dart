@@ -17,6 +17,7 @@ import '../../../../../appUtils/colorUtils.dart';
 import '../../../../../appUtils/openToWork.dart';
 import '../../../../../loaders/pulseLoader.dart';
 import '../../../../followersFollowing/followersFollowingView/followersFollowingView.dart';
+import '../../../../liked_videos_screen/liked_videos_screen.dart';
 import '../../../../popup_like/popup_like_dialog.dart';
 import '../../../../promoteVideo/promoteVideoController/promoteVideoController.dart';
 import '../../../../promoteVideo/promoteVideoView/promoteVideoView.dart';
@@ -580,7 +581,7 @@ class _ProfessionalProfileViewState extends State<ProfessionalProfileView>
                         ),
                       ),
                       Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 40.0),
+                        padding: const EdgeInsets.symmetric(horizontal: 16.0),
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
@@ -595,33 +596,22 @@ class _ProfessionalProfileViewState extends State<ProfessionalProfileView>
                                 ),
                               ),
                             ),
-                            SizedBox(width: 8),
-
-                            InkWell(
-                              onTap: () {
-                                Get.to(
-                                  ViewReviews(professionalId: userDetails.id),
-                                );
-                              },
-                              child: Container(
-                                // padding: EdgeInsets.all(8),
-                                height: 40,
-                                width: 40,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  border: Border.all(
-                                    color: ColorUtils.darkBrown,
-                                  ),
-                                ),
-                                child: Icon(
-                                  Icons.star_rounded,
-                                  color: ColorUtils.primaryColor,
-                                  size: 30,
+                            SizedBox(width: 4),
+                            Expanded(
+                              child: InkWell(
+                                onTap: () {
+                                  Get.to(
+                                    LikedVideosScreen(userId: userDetails.id),
+                                  );
+                                },
+                                child: CustomButtonWidget(
+                                  icon: "assets/icons/heart.svg",
+                                  label: "liked_videos".tr,
                                 ),
                               ),
                             ),
+                            SizedBox(width: 4),
 
-                            SizedBox(width: 8),
                             InkWell(
                               onTap: () {
                                 showMoreOptionsProfile(
@@ -651,6 +641,7 @@ class _ProfessionalProfileViewState extends State<ProfessionalProfileView>
                           ],
                         ),
                       ),
+
                       if (videoTypes != null && videoTypes.isNotEmpty)
                         Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
