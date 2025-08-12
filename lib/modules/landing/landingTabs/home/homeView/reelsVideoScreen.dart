@@ -39,6 +39,7 @@ import '../../../../chatScreen/userChatList.dart';
 import '../../../../promoteVideo/promoteVideoController/promoteVideoController.dart';
 import '../../../../search/searchController/searchController.dart';
 import '../../../../singleVideoView/singleVideoView.dart';
+import '../../../../video_likes_screen/video_likes_screen.dart';
 import '../../add/videoAddController/videoAddController.dart';
 import '../homeController/addCommentControllr.dart';
 import '../homeController/homeController.dart';
@@ -535,6 +536,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                                 videoDetail,
                                 currentUserDetails,
                                 currentUser,
+                                isAuthenticated,
                                 context,
                               ),
                               Positioned(
@@ -942,9 +944,9 @@ class _VideoReelScreenState extends State<VideoReelScreen>
     WallVideos videoDetail,
     SimpleUser? currentUserDetails,
     User? currentUser,
+    dynamic isAuthenticated,
     BuildContext context,
   ) {
-    bool isAuthenticated = currentUserDetails != null || currentUser != null;
     return Positioned(
       right: 10,
       bottom: Platform.isAndroid ? Get.height * 0.02 : Get.height * 0.02,
@@ -1044,11 +1046,18 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                                 ),
                               ),
                               SizedBox(height: 2),
-                              Text(
-                                formattedLikeCount ?? "0",
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 10.sp,
+                              InkWell(
+                                onTap: () {
+                                  Get.to(
+                                    VideoLikesScreen(videoId: videoDetail.id!),
+                                  );
+                                },
+                                child: Text(
+                                  formattedLikeCount ?? "0",
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 10.sp,
+                                  ),
                                 ),
                               ),
                               // Comment Button

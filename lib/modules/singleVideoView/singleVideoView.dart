@@ -39,6 +39,7 @@ import '../landing/landingTabs/professionalProfile/profileControlller/profession
 import '../landing/landingTabs/profile/profileControlller/profileController.dart';
 import '../landing/landingTabs/reportContent/reportContentView/reportContentView.dart';
 import '../promoteVideo/promoteVideoController/promoteVideoController.dart';
+import '../video_likes_screen/video_likes_screen.dart';
 
 class SingleVideoScreen extends StatefulWidget {
   final String? followers;
@@ -1506,9 +1507,14 @@ class _VideoLikesWidgetState extends State<VideoLikesWidget> {
               },
             ),
             SizedBox(height: 2),
-            Text(
-              formattedLikeCount,
-              style: TextStyle(color: Colors.white, fontSize: 10.sp),
+            InkWell(
+              onTap: () {
+                Get.to(VideoLikesScreen(videoId: widget.videoId));
+              },
+              child: Text(
+                formattedLikeCount,
+                style: TextStyle(color: Colors.white, fontSize: 10.sp),
+              ),
             ),
           ],
         );
