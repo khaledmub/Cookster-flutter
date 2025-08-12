@@ -17,6 +17,7 @@ import '../../../appUtils/appCenterIcon.dart';
 import '../../../appUtils/colorUtils.dart';
 import '../../../appUtils/openToWork.dart';
 import '../../../loaders/pulseLoader.dart';
+import '../../popup_like/popup_like_dialog.dart';
 import '../../user_like_screen/user_like_screen.dart';
 import '../../viewReview/viewReviewView/viewReviewView.dart';
 import '../../chatScreen/chatScreenView.dart';
@@ -450,7 +451,16 @@ class _VisitProfileViewState extends State<VisitProfileView>
                       Obx(() {
                         return InkWell(
                           onTap: () {
-                            // Get.to(LikesScreen(currentUserId: user.user!.id));
+                            showDialog(
+                              context: context,
+                              builder: (BuildContext context) {
+                                return LikePopup(
+                                  username: userDetails.name,
+                                  likeCount:
+                                      visitProfileController.totalLikes.value,
+                                );
+                              },
+                            );
                           },
                           child: ProfileStat(
                             number:
@@ -584,15 +594,15 @@ class _VisitProfileViewState extends State<VisitProfileView>
                                 },
                               ),
                             ),
-                            const SizedBox(width: 8),
-                            InkWell(
-                              child: ProfileLikeButton(
-                                profileId: widget.userId,
-                                currentUserId: userId.toString(),
-                                controller: visitProfileController,
-                              ),
-                            ),
 
+                            // const SizedBox(width: 8),
+                            // InkWell(
+                            //   child: ProfileLikeButton(
+                            //     profileId: widget.userId,
+                            //     currentUserId: userId.toString(),
+                            //     controller: visitProfileController,
+                            //   ),
+                            // ),
                             if (user.user!.entity == 2) ...[
                               const SizedBox(width: 8),
 

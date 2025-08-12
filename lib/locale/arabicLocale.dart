@@ -1014,8 +1014,13 @@ const Map<String, String> ar = {
   "contact_us": "اتصل بنا",
   "enquiry_contact_us": "لأي استفسار، يرجى",
   "no_users_found": "لم يتم العثور على مستخدمين",
-  "no_likes_yet" : "لا توجد إعجابات بعد",
-  "video_likes" : "إعجابات الفيديو"
-
+  "no_likes_yet": "لا توجد إعجابات بعد",
+  "video_likes": "إعجابات الفيديو",
+  "total_likes_message":
+      "{username} تلقى إجمالي\n{likeCount} إعجاب عبر جميع الفيديوهات",
+  "total_likes_message_en":
+      "{username} received a total\nof {likeCount} likes across all videos",
+  "total_likes": "إجمالي الإعجابات",
+  "likes_message": "%s تلقى إجمالي %s إعجابات عبر جميع الفيديوهات"
 
 };
