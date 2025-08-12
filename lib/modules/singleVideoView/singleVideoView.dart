@@ -1413,39 +1413,7 @@ class _VideoLikesWidgetState extends State<VideoLikesWidget> {
               .doc(widget.videoId)
               .snapshots(),
       builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return Column(
-            children: [
-              LikeButton(
-                size: 20.h,
-                circleColor: CircleColor(
-                  start: Colors.red[200]!,
-                  end: Colors.red[400]!,
-                ),
-                bubblesColor: BubblesColor(
-                  dotPrimaryColor: Colors.red[300]!,
-                  dotSecondaryColor: Colors.red[200]!,
-                ),
-                likeBuilder:
-                    (bool isLiked) => SizedBox(
-                      height: 20.h,
-                      width: 20.h,
-                      child: SizedBox(
-                        height: 20.h,
-                        width: 20.h,
-                        child: SvgPicture.asset(
-                          "assets/icons/heart.svg",
-                          fit: BoxFit.fill,
-                          color: isLiked ? Colors.red : Colors.white,
-                        ),
-                      ),
-                    ),
-              ),
-              const SizedBox(height: 2),
-              const Text("...", style: TextStyle(color: Colors.white)),
-            ],
-          );
-        }
+
 
         final data = snapshot.data?.data() as Map<String, dynamic>? ?? {};
         List<dynamic> likes = data['likes'] ?? [];
@@ -1548,19 +1516,6 @@ class VideoCommentsWidget extends StatelessWidget {
               .collection('comments')
               .snapshots(),
       builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return Column(
-            children: [
-              SvgPicture.asset(
-                "assets/icons/comment.svg",
-                fit: BoxFit.fill,
-                color: Colors.white,
-              ),
-              SizedBox(height: 2),
-              Text("...", style: TextStyle(color: Colors.white)),
-            ],
-          );
-        }
 
         int commentCount = snapshot.data?.docs.length ?? 0;
         String formattedCount =

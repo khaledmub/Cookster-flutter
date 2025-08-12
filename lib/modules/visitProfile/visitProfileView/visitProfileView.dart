@@ -447,16 +447,18 @@ class _VisitProfileViewState extends State<VisitProfileView>
                           ),
                         ),
                       ),
-                      InkWell(
-                        onTap: () {
-                          Get.to(LikesScreen(currentUserId: user.user!.id));
-                        },
-                        child: ProfileStat(
-                          number:
-                              "${visitProfileController.profileLikesCount.value}",
-                          label: "Likes".tr,
-                        ),
-                      ),
+                      Obx(() {
+                        return InkWell(
+                          onTap: () {
+                            // Get.to(LikesScreen(currentUserId: user.user!.id));
+                          },
+                          child: ProfileStat(
+                            number:
+                                "${visitProfileController.totalLikes.value}",
+                            label: "Likes".tr,
+                          ),
+                        );
+                      }),
                     ],
                   ),
 
@@ -735,27 +737,8 @@ class _VisitProfileViewState extends State<VisitProfileView>
                                             isImage: video.isImage.toString(),
                                           ),
                                         )!.then((result) async {
-                                          // Handle the result when user comes back
-                                          if (result != null &&
-                                              result is Map<String, dynamic>) {
-                                            bool followerChanged =
-                                                result['followerChanged'] ??
-                                                false;
-
-                                            if (followerChanged) {
-                                              print(
-                                                "User follow/unfollow status changed - refreshing data",
-                                              );
-                                              await visitProfileController
-                                                  .fetchUserProfile(
-                                                    widget.userId,
-                                                  );
-                                            } else {
-                                              print(
-                                                "No follow status changes detected",
-                                              );
-                                            }
-                                          }
+                                          await visitProfileController
+                                              .fetchUserProfile(widget.userId);
                                         });
                                       },
                                       child: Stack(

@@ -145,6 +145,8 @@ class VisitProfileController extends GetxController {
 
   RxInt localFollowersCount = 0.obs;
   RxInt localFollowingCount = 0.obs;
+  RxList<String> videoIds = <String>[].obs;
+  RxInt totalLikes = 0.obs;
 
   Future<void> fetchUserProfile(String userId) async {
     WidgetsBinding.instance.addPostFrameCallback((_) async {
@@ -171,6 +173,38 @@ class VisitProfileController extends GetxController {
           print("Visit Profile: ${visitProfile.value}");
           localFollowersCount.value = user!.followers;
           localFollowingCount.value = user.following!;
+
+          // Extract video IDs
+          videoIds.clear();
+          if (user.videoTypes != null) {
+            for (var videoType in user.videoTypes!) {
+              if (videoType.videos != null) {
+                videoIds.addAll(
+                  videoType.videos!
+                      .map((video) => video.id.toString())
+                      .toList(),
+                );
+              }
+            }
+          }
+          print("Step 8: Extracted video IDs: $videoIds");
+
+          // Fetch total likes for all videos
+          totalLikes.value = 0;
+          for (var videoId in videoIds) {
+            var videoDoc =
+                await FirebaseFirestore.instance
+                    .collection('videos')
+                    .doc(videoId)
+                    .get();
+            if (videoDoc.exists) {
+              var data = videoDoc.data() as Map<String, dynamic>;
+              List<String> likes = List<String>.from(data['likes'] ?? []);
+              totalLikes.value += likes.length;
+            }
+          }
+          print("Step 9: Total likes on all videos: ${totalLikes.value}");
+
           // Initialize like status after profile is loaded
           await initializeLikeStatus(
             userId,
@@ -179,9 +213,9 @@ class VisitProfileController extends GetxController {
         } else {
           ScaffoldMessenger.of(Get.context!).showSnackBar(
             SnackBar(
-              content: Text('Error" ${response.body.toString()}'),
-              backgroundColor: Colors.red, // Optional: for error styling
-              duration: Duration(seconds: 3), // Optional: set duration
+              content: Text('Error: ${response.body.toString()}'),
+              backgroundColor: Colors.red,
+              duration: Duration(seconds: 3),
             ),
           );
         }
