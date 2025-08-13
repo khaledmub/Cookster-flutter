@@ -200,15 +200,6 @@ class LikedVideosScreen extends StatelessWidget {
                                               .doc(video.id)
                                               .snapshots(),
                                       builder: (context, snapshot) {
-                                        if (snapshot.connectionState ==
-                                            ConnectionState.waiting) {
-                                          return Text(
-                                            "...",
-                                            style: TextStyle(
-                                              color: Colors.white,
-                                            ),
-                                          );
-                                        }
                                         if (!snapshot.hasData ||
                                             !snapshot.data!.exists) {
                                           return Text(
