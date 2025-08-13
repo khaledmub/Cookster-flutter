@@ -1,139 +1,256 @@
-import 'package:flutter/material.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/cupertino.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:get/get.dart';
+import '../../appUtils/apiEndPoints.dart';
+import '../../appUtils/colorUtils.dart';
+import '../../loaders/pulseLoader.dart';
+import '../singleVideoView/singleVideoView.dart';
+import 'liked_videos_controller/liked_videos_controller.dart'; // Import the controller
 
-class LikedVideosScreen extends StatefulWidget {
+class LikedVideosScreen extends StatelessWidget {
   final String userId;
 
   const LikedVideosScreen({Key? key, required this.userId}) : super(key: key);
 
   @override
-  _LikedVideosScreenState createState() => _LikedVideosScreenState();
-}
-
-class _LikedVideosScreenState extends State<LikedVideosScreen> {
-  // Stream to get total likes count
-  // Stream to get count of liked videos by this user
-  Stream<int> checkLikedVideos(String userId) {
-    return FirebaseFirestore.instance
-        .collection('videos')
-        .where('likes', arrayContains: userId)
-        .snapshots()
-        .map((QuerySnapshot querySnapshot) => querySnapshot.docs.length);
-  }
-
-  // Stream to get video IDs liked by the user
-  Stream<List<String>> getLikedVideoIds(String userId) {
-    return FirebaseFirestore.instance
-        .collection('videos')
-        .where('likes', arrayContains: userId)
-        .snapshots()
-        .map((QuerySnapshot querySnapshot) {
-          return querySnapshot.docs.map((doc) => doc.id).toList();
-        });
-  }
-
-  @override
   Widget build(BuildContext context) {
+    // Initialize the controller with the userId
+    final controller = Get.put(
+      LikedVideosController(userId: userId, context: context),
+    );
+
     return Scaffold(
       backgroundColor: Colors.white,
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        surfaceTintColor: Colors.transparent,
-        title: const Text('Liked Videos'),
-      ),
-      body: Column(
-        children: [
-          // Total likes
-          StreamBuilder<int>(
-            stream: checkLikedVideos(widget.userId),
-            builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Padding(
-                  padding: EdgeInsets.all(16.0),
-                  child: CircularProgressIndicator(),
-                );
-              }
-              if (snapshot.hasError) {
-                return const Padding(
-                  padding: EdgeInsets.all(16.0),
-                  child: Text('Error loading total likes'),
-                );
-              }
-              final totalLikes = snapshot.data ?? 0;
-              return Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Text(
-                  'Total Likes Across Videos: $totalLikes',
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              );
-            },
-          ),
-          // Liked videos list
-          Expanded(
-            child: StreamBuilder<List<String>>(
-              stream: getLikedVideoIds(widget.userId),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-                if (snapshot.hasError) {
-                  return const Center(
-                    child: Text('Error loading liked videos'),
-                  );
-                }
-                final videoIds = snapshot.data ?? [];
-
-                // Create comma-separated string
-                final commaSeparatedIds = videoIds.join(",");
-
-                if (videoIds.isEmpty) {
-                  return const Center(child: Text('No liked videos found'));
-                }
-
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Display comma separated list
-                    Padding(
-                      padding: const EdgeInsets.all(8.0),
-                      child: Text(
-                        'Comma-separated IDs:\n$commaSeparatedIds',
-                        style: const TextStyle(
-                          fontSize: 14,
-                          color: Colors.grey,
-                        ),
-                      ),
-                    ),
-                    const Divider(),
-                    Expanded(
-                      child: ListView.builder(
-                        itemCount: videoIds.length,
-                        itemBuilder: (context, index) {
-                          final videoId = videoIds[index];
-                          return ListTile(
-                            title: Text('Video ID: $videoId'),
-                            leading: const Icon(Icons.video_library),
-                            onTap: () {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text('Tapped Video ID: $videoId'),
-                                ),
-                              );
-                            },
-                          );
-                        },
-                      ),
-                    ),
-                  ],
-                );
-              },
+      appBar: PreferredSize(
+        preferredSize: Size.fromHeight(80),
+        child: Container(
+          padding: EdgeInsets.only(top: 20.h),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.vertical(bottom: Radius.circular(30)),
+            gradient: LinearGradient(
+              colors: [Color(0XFFFFD700), Color(0XFFFFFADC)],
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
             ),
           ),
-        ],
+          child: Stack(
+            children: [
+              Center(
+                child: Text(
+                  "liked_videos".tr,
+                  style: TextStyle(
+                    color: Colors.black,
+                    fontSize: 20.sp,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+              Positioned(
+                left:
+                    Directionality.of(context) == TextDirection.rtl ? null : 16,
+                right:
+                    Directionality.of(context) == TextDirection.rtl ? 16 : null,
+                top: 25,
+                child: InkWell(
+                  onTap: () {
+                    Get.back();
+                  },
+                  child: Container(
+                    height: 40,
+                    width: 40,
+                    decoration: BoxDecoration(
+                      color: Color(0xFFE6BE00),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Center(
+                      child: Icon(
+                        Directionality.of(context) == TextDirection.rtl
+                            ? Icons.arrow_back
+                            : Icons.arrow_back,
+                        color: ColorUtils.darkBrown,
+                        size: 24,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+      body: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        child: SizedBox(
+          // Ensure the content takes up at least the full screen height
+          height: MediaQuery.of(context).size.height,
+          child: Obx(() {
+            if (controller.isLoading.value) {
+              return const Center(
+                child: PulseLogoLoader(logoPath: "assets/images/appLogo.png"),
+              );
+            }
+
+            final videos = controller.likedVideos;
+
+            if (videos.isEmpty) {
+              return Center(
+                child: Image.asset(
+                  "assets/images/notfound.png",
+                  fit: BoxFit.cover,
+                ),
+              );
+            }
+
+            return Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+              child: Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children:
+                    videos.map((video) {
+                      return SizedBox(
+                        width: 100.w,
+                        height: 133.h,
+                        child: GestureDetector(
+                          // Use onTap to avoid gesture conflicts
+                          onTap: () {
+                            Get.to(
+                              SingleVideoScreen(
+                                followers: video.followersCount.toString(),
+                                frondUserId: video.frontUserId,
+                                userImage: video.userImage,
+                                videoId: video.id,
+                                videoUrl: video.video,
+                                title: video.title,
+                                image: video.image,
+                                allowComments: video.allowComments,
+                                description: video.description,
+                                tags: video.tags,
+                                userName: video.userName,
+                                createdAt: video.createdAt,
+                              ),
+                            );
+                          },
+                          child: Stack(
+                            children: [
+                              Container(
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(12.r),
+                                  image: DecorationImage(
+                                    image:
+                                        (video.image != null &&
+                                                video.image!.isNotEmpty)
+                                            ? CachedNetworkImageProvider(
+                                              '${Common.videoUrl}/${video.image}',
+                                            )
+                                            : const AssetImage(
+                                                  "assets/images/food1.jpg",
+                                                )
+                                                as ImageProvider,
+                                    fit: BoxFit.cover,
+                                  ),
+                                ),
+                              ),
+                              Center(
+                                child: Icon(
+                                  Icons.play_circle_outline,
+                                  color: Colors.white.withOpacity(0.7),
+                                  size: 30.sp,
+                                ),
+                              ),
+                              Positioned(
+                                bottom: 0,
+                                left: 0,
+                                right: 0,
+                                child: Container(
+                                  height: 40,
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.vertical(
+                                      bottom: Radius.circular(12.r),
+                                    ),
+                                    gradient: const LinearGradient(
+                                      begin: Alignment.bottomCenter,
+                                      end: Alignment.topCenter,
+                                      colors: [
+                                        Colors.black,
+                                        Colors.transparent,
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              Positioned(
+                                bottom: 8,
+                                left: 8,
+                                child: Row(
+                                  children: [
+                                    Icon(
+                                      CupertinoIcons.heart_fill,
+                                      color: Colors.white,
+                                      size: 14.sp,
+                                    ),
+                                    SizedBox(width: 4),
+                                    StreamBuilder<DocumentSnapshot>(
+                                      stream:
+                                          FirebaseFirestore.instance
+                                              .collection('videos')
+                                              .doc(video.id)
+                                              .snapshots(),
+                                      builder: (context, snapshot) {
+                                        if (snapshot.connectionState ==
+                                            ConnectionState.waiting) {
+                                          return Text(
+                                            "...",
+                                            style: TextStyle(
+                                              color: Colors.white,
+                                            ),
+                                          );
+                                        }
+                                        if (!snapshot.hasData ||
+                                            !snapshot.data!.exists) {
+                                          return Text(
+                                            "0",
+                                            style: TextStyle(
+                                              color: Colors.white,
+                                            ),
+                                          );
+                                        }
+                                        final data =
+                                            snapshot.data!.data()
+                                                as Map<String, dynamic>? ??
+                                            {};
+                                        List<dynamic> likes =
+                                            data['likes'] ?? [];
+                                        int likeCount = likes.length;
+                                        String formattedLikeCount =
+                                            likeCount > 1000
+                                                ? '${(likeCount / 1000).toStringAsFixed(1)}K'
+                                                : likeCount.toString();
+
+                                        return Text(
+                                          formattedLikeCount,
+                                          style: TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 10.sp,
+                                          ),
+                                        );
+                                      },
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    }).toList(),
+              ),
+            );
+          }),
+        ),
       ),
     );
   }

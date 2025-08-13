@@ -18,6 +18,7 @@ class Common {
 }
 
 class EndPoints {
+  static String myLikedVideos = "videos/liked_videos_list";
   static String getPaymentKeys = "urway_credentials";
   static String updateReviewVisibility = "update_review_visibility";
   static String updateReviewStatus = "update_review_status";

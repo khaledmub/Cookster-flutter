@@ -44,7 +44,9 @@ class _SignInViewState extends State<SignInView> {
     });
   }
 
-  final PromoteVideoController promoteVideoController = Get.find();
+  final PromoteVideoController promoteVideoController = Get.put(
+    PromoteVideoController(),
+  );
 
   @override
   void initState() {
@@ -100,48 +102,48 @@ class _SignInViewState extends State<SignInView> {
                               ],
                             ),
 
-                            Positioned(
-                              left: isRtl ? null : 16,
-                              right: isRtl ? 16 : null,
-                              top: 10.h,
-                              child: GestureDetector(
-                                behavior: HitTestBehavior.opaque,
-                                onTap: () {
-                                  try {
-                                    print("Tapped");
-
-                                    // Check if there's a stack to go back to
-                                    if (Get.key.currentState!.canPop()) {
-                                      Get.back();
-                                    } else {
-                                      // Navigate to landing page if no stack behind
-                                      Get.offAllNamed(
-                                        AppRoutes.landing,
-                                      ); // or Get.offAll(LandingPage())
-                                    }
-                                  } catch (e) {
-                                    print(e);
-                                  }
-                                },
-                                child: Container(
-                                  height: 40,
-                                  width: 40,
-                                  decoration: const BoxDecoration(
-                                    color: Color(0xFFE6BE00),
-                                    shape: BoxShape.circle,
-                                  ),
-                                  child: Center(
-                                    child: Icon(
-                                      isRtl
-                                          ? Icons.arrow_back
-                                          : Icons.arrow_back,
-                                      color: ColorUtils.darkBrown,
-                                      size: 24,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
+                            // Positioned(
+                            //   left: isRtl ? null : 16,
+                            //   right: isRtl ? 16 : null,
+                            //   top: 10.h,
+                            //   child: GestureDetector(
+                            //     behavior: HitTestBehavior.opaque,
+                            //     onTap: () {
+                            //       try {
+                            //         print("Tapped");
+                            //
+                            //         // Check if there's a stack to go back to
+                            //         if (Get.key.currentState!.canPop()) {
+                            //           Get.back();
+                            //         } else {
+                            //           // Navigate to landing page if no stack behind
+                            //           Get.offAllNamed(
+                            //             AppRoutes.landing,
+                            //           ); // or Get.offAll(LandingPage())
+                            //         }
+                            //       } catch (e) {
+                            //         print(e);
+                            //       }
+                            //     },
+                            //     child: Container(
+                            //       height: 40,
+                            //       width: 40,
+                            //       decoration: const BoxDecoration(
+                            //         color: Color(0xFFE6BE00),
+                            //         shape: BoxShape.circle,
+                            //       ),
+                            //       child: Center(
+                            //         child: Icon(
+                            //           isRtl
+                            //               ? Icons.arrow_back
+                            //               : Icons.arrow_back,
+                            //           color: ColorUtils.darkBrown,
+                            //           size: 24,
+                            //         ),
+                            //       ),
+                            //     ),
+                            //   ),
+                            // ),
                             AppCenterIcon(),
                             Positioned(
                               right: isRtl ? null : 16,
@@ -455,50 +457,49 @@ class _SignInViewState extends State<SignInView> {
                     fontWeight: FontWeight.w500,
                   ),
                   recognizer:
-                  TapGestureRecognizer()
-                    ..onTap = () async {
-                      // Get email from controller
-                      final String? email =
-                          promoteVideoController
-                              .siteSettings
-                              .value
-                              ?.settings
-                              ?.email;
+                      TapGestureRecognizer()
+                        ..onTap = () async {
+                          // Get email from controller
+                          final String? email =
+                              promoteVideoController
+                                  .siteSettings
+                                  .value
+                                  ?.settings
+                                  ?.email;
 
-                      if (email == null || email.isEmpty) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Email address not available'),
-                          ),
-                        );
-                        return;
-                      }
+                          if (email == null || email.isEmpty) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Email address not available'),
+                              ),
+                            );
+                            return;
+                          }
 
-                      // Create the mailto URL
-                      final Uri emailUri = Uri(
-                        scheme: 'mailto',
-                        path: email,
-                        queryParameters: {
-                          'subject': 'Contact Us', // Pre-fill subject
+                          // Create the mailto URL
+                          final Uri emailUri = Uri(
+                            scheme: 'mailto',
+                            path: email,
+                            queryParameters: {
+                              'subject': 'Contact Us', // Pre-fill subject
+                            },
+                          );
+
+                          // Launch the mail app
+                          if (await canLaunchUrl(emailUri)) {
+                            await launchUrl(emailUri);
+                          } else {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('No email app found'),
+                              ),
+                            );
+                          }
                         },
-                      );
-
-                      // Launch the mail app
-                      if (await canLaunchUrl(emailUri)) {
-                        await launchUrl(emailUri);
-                      } else {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('No email app found'),
-                          ),
-                        );
-                      }
-                    },
                 ),
               ],
             ),
           ),
-
         ],
       ),
     );
