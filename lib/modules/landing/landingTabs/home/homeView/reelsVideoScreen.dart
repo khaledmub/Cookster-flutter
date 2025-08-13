@@ -1011,10 +1011,6 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                               // Simplified Like Button
                               InkWell(
                                 onTap: () async {
-                                  if (!isAuthenticated) {
-                                    Get.toNamed(AppRoutes.signIn);
-                                    return;
-                                  }
                                   final String videoId = videoDetail.id!;
                                   String userId =
                                       currentUserDetails?.id ??

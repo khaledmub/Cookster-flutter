@@ -46,8 +46,8 @@ dependencies:
   videosdk: ^2.3.0
 #  video_editor_2:
 #  visibility_detector: ^0.4.0+2
-  ffmpeg_kit_flutter_full_gpl: ^6.0.3
-#  ffmpeg_kit_flutter_new: ^1.6.1
+#  ffmpeg_kit_flutter_full_gpl: ^6.0.3
+  ffmpeg_kit_flutter_new: ^1.6.1
   file_picker: ^9.1.0
   giphy_get: ^3.6.1
   permission_handler:
