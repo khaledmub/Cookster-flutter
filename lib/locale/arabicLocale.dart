@@ -1022,5 +1022,5 @@ const Map<String, String> ar = {
       "{username} received a total\nof {likeCount} likes across all videos",
   "total_likes": "إجمالي الإعجابات",
   "likes_message": "%s تلقى إجمالي %s إعجابات عبر جميع الفيديوهات",
-  "liked_videos": "الفيديوهات المعجب بها",
+  "liked_videos": "المنشورات المعجب بها",
 };
