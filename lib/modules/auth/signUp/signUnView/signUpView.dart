@@ -1643,11 +1643,11 @@ class _SignVpViewState extends State<SignVpView> {
                                         fontWeight: FontWeight.w500,
                                       ),
                                       recognizer:
-                                      TapGestureRecognizer()
-                                        ..onTap = () {
-                                        Get.back();
-                                          // You can use Navigator.push() here to go to the Sign Up screen.
-                                        },
+                                          TapGestureRecognizer()
+                                            ..onTap = () {
+                                              Get.back();
+                                              // You can use Navigator.push() here to go to the Sign Up screen.
+                                            },
                                     ),
                                   ],
                                 ),
@@ -1931,7 +1931,7 @@ void showCountrySelectionDialog(
               ),
               onChanged: (value) => filterCountries(value),
             ),
-            SizedBox(height: 16.h),
+            SizedBox(height: 10.h),
 
             /// **Scrollable Country List**
             Container(
@@ -2006,20 +2006,24 @@ void showCountrySelectionDialog(
                 ),
               ),
             ),
-            SizedBox(height: 20.h),
+            SizedBox(height: 5.h),
             Obx(
               () => ElevatedButton(
                 onPressed:
                     selectedCountryName.value.isNotEmpty
                         ? () async {
+                          Get.back();
+
                           int? selectedId =
                               allCountries[selectedCountryName.value];
                           if (selectedId != null) {
+                            signUpController.isLoading.value = true;
+
                             signUpController.selectCountryId.value =
                                 selectedId.toString();
                             signUpController.countryError.value = '';
                             await cityController.fetchCities(selectedId);
-                            Get.back();
+                            signUpController.isLoading.value = false;
                           }
                         }
                         : null,
@@ -2145,12 +2149,12 @@ void showCitySelectionDialog(
               ),
               onChanged: (value) => filterCities(value),
             ),
-            SizedBox(height: 16.h),
+            SizedBox(height: 10.h),
 
             /// **Scrollable City List**
             /// Scrollable City List
             Container(
-              height: 240.h,
+              height: 220.h,
               child: SingleChildScrollView(
                 child: Obx(
                   () => Column(
@@ -2220,7 +2224,7 @@ void showCitySelectionDialog(
               ),
             ),
 
-            SizedBox(height: 20.h),
+            SizedBox(height: 5.h),
 
             /// Submit Button
             Obx(
