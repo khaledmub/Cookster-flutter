@@ -26,6 +26,7 @@ class _OnBoardingState extends State<OnBoarding> {
 
   @override
   Widget build(BuildContext context) {
+
     // Determine text direction based on locale
     final bool isRtl = Get.locale?.languageCode == 'ar';
 
@@ -71,6 +72,7 @@ class _OnBoardingState extends State<OnBoarding> {
         },
 
         child: Scaffold(
+          backgroundColor: ColorUtils.secondaryColor,
           body: Padding(
             padding: EdgeInsets.only(
               bottom: MediaQuery.of(context).viewPadding.bottom + 20,
