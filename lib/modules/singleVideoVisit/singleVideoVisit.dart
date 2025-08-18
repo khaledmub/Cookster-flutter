@@ -589,96 +589,98 @@ class _SingleVideoVisitState extends State<SingleVisitVideo>
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (BuildContext bottomSheetContext) {
-        return Container(
-          padding: EdgeInsets.symmetric(vertical: 20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: ColorUtils.grey,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-              if (_frontUserId ==
-                  singleVideoController
-                      .singleVideoContent
-                      .value
-                      .video
-                      ?.frontUserId)
-                ListTile(
-                  leading: Icon(Icons.delete, color: Colors.redAccent),
-                  trailing: Icon(Icons.delete, color: Colors.redAccent),
-                  title: Text(
-                    'delete_video'.tr,
-                    style: TextStyle(color: Colors.redAccent, fontSize: 14.sp),
+        return SafeArea(
+          child: Container(
+            padding: EdgeInsets.symmetric(vertical: 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: ColorUtils.grey,
+                    borderRadius: BorderRadius.circular(2),
                   ),
-                  onTap: () async {
+                ),
+                if (_frontUserId ==
+                    singleVideoController
+                        .singleVideoContent
+                        .value
+                        .video
+                        ?.frontUserId)
+                  ListTile(
+                    leading: Icon(Icons.delete, color: Colors.redAccent),
+                    trailing: Icon(Icons.delete, color: Colors.redAccent),
+                    title: Text(
+                      'delete_video'.tr,
+                      style: TextStyle(color: Colors.redAccent, fontSize: 14.sp),
+                    ),
+                    onTap: () async {
+                      Navigator.pop(bottomSheetContext);
+                      _pauseVideo();
+                      final bool isDeleted = await deleteVideo(
+                        context,
+                        videoId,
+                        _frontUserId!,
+                      );
+                      if (isDeleted) {
+                        print("Video deleted: $isDeleted");
+                        Get.back();
+                      }
+                    },
+                  ),
+                ListTile(
+                  leading: Icon(Icons.flag_outlined, color: ColorUtils.grey),
+                  trailing: Icon(
+                    Icons.chevron_right_rounded,
+                    color: ColorUtils.grey,
+                  ),
+                  title: Text(
+                    'report-content'.tr,
+                    style: TextStyle(color: Colors.black, fontSize: 14.sp),
+                  ),
+                  onTap: () {
                     Navigator.pop(bottomSheetContext);
-                    _pauseVideo();
-                    final bool isDeleted = await deleteVideo(
-                      context,
-                      videoId,
-                      _frontUserId!,
-                    );
-                    if (isDeleted) {
-                      print("Video deleted: $isDeleted");
-                      Get.back();
-                    }
+                    Get.to(() => ReportContentView(videoId: videoId));
                   },
                 ),
-              ListTile(
-                leading: Icon(Icons.flag_outlined, color: ColorUtils.grey),
-                trailing: Icon(
-                  Icons.chevron_right_rounded,
-                  color: ColorUtils.grey,
-                ),
-                title: Text(
-                  'report-content'.tr,
-                  style: TextStyle(color: Colors.black, fontSize: 14.sp),
-                ),
-                onTap: () {
-                  Navigator.pop(bottomSheetContext);
-                  Get.to(() => ReportContentView(videoId: videoId));
-                },
-              ),
-
-              // ListTile(
-              //   leading: Icon(Icons.headphones, color: ColorUtils.grey),
-              //   trailing: Text(
-              //     infoEmail!,
-              //     style: TextStyle(color: Colors.black, fontSize: 14.sp),
-              //   ),
-              //   title: Text(
-              //     'contact_us'.tr,
-              //     style: TextStyle(color: Colors.black, fontSize: 14.sp),
-              //   ),
-              //   onTap: () async {
-              //     final Uri emailUri = Uri(
-              //       scheme: 'mailto',
-              //       path: infoEmail,
-              //       queryParameters: {
-              //         'subject': 'Contact Us',
-              //         // Optional: Pre-fill subject
-              //         // 'body': 'Your message here', // Optional: Pre-fill body
-              //       },
-              //     );
-              //
-              //     // Launch the mail app
-              //     if (await canLaunchUrl(emailUri)) {
-              //       await launchUrl(emailUri);
-              //     } else {
-              //       ScaffoldMessenger.of(context).showSnackBar(
-              //         SnackBar(content: Text('No email app found')),
-              //       );
-              //     }
-              //     Navigator.pop(context);
-              //   },
-              // ),
-
-            ],
+          
+                // ListTile(
+                //   leading: Icon(Icons.headphones, color: ColorUtils.grey),
+                //   trailing: Text(
+                //     infoEmail!,
+                //     style: TextStyle(color: Colors.black, fontSize: 14.sp),
+                //   ),
+                //   title: Text(
+                //     'contact_us'.tr,
+                //     style: TextStyle(color: Colors.black, fontSize: 14.sp),
+                //   ),
+                //   onTap: () async {
+                //     final Uri emailUri = Uri(
+                //       scheme: 'mailto',
+                //       path: infoEmail,
+                //       queryParameters: {
+                //         'subject': 'Contact Us',
+                //         // Optional: Pre-fill subject
+                //         // 'body': 'Your message here', // Optional: Pre-fill body
+                //       },
+                //     );
+                //
+                //     // Launch the mail app
+                //     if (await canLaunchUrl(emailUri)) {
+                //       await launchUrl(emailUri);
+                //     } else {
+                //       ScaffoldMessenger.of(context).showSnackBar(
+                //         SnackBar(content: Text('No email app found')),
+                //       );
+                //     }
+                //     Navigator.pop(context);
+                //   },
+                // ),
+          
+              ],
+            ),
           ),
         );
       },

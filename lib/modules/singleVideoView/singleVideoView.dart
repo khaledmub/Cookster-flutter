@@ -1034,94 +1034,96 @@ class _SingleVideoScreenState extends State<SingleVideoScreen>
       builder: (BuildContext bottomSheetContext) {
         return Container(
           padding: EdgeInsets.symmetric(vertical: 20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: ColorUtils.grey,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-              if (widget.frondUserId == userId)
-                ListTile(
-                  leading: Icon(Icons.delete, color: Colors.redAccent),
-                  trailing: Icon(Icons.delete, color: Colors.redAccent),
-                  title: Text(
-                    'delete_video'.tr,
-                    style: TextStyle(color: Colors.redAccent, fontSize: 14.sp),
+          child: SafeArea(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: ColorUtils.grey,
+                    borderRadius: BorderRadius.circular(2),
                   ),
-                  onTap: () async {
-                    // Close the bottom sheet first
-                    Navigator.pop(bottomSheetContext);
-                    // Pause the video to prevent it from playing during deletion
-                    _pauseVideo();
-                    // Call deleteVideo with the original context
-                    final bool isDeleted = await deleteVideo(
-                      context,
-                      videoId,
-                      userId,
-                    );
-                    if (isDeleted) {
-                      print("===============");
-                      print(isDeleted);
-                      Navigator.pop(context); // Close the bottom sheet
-                      // Ensure navigation happens after successful deletion
-                      Get.back();
-                    }
+                ),
+                if (widget.frondUserId == userId)
+                  ListTile(
+                    leading: Icon(Icons.delete, color: Colors.redAccent),
+                    trailing: Icon(Icons.delete, color: Colors.redAccent),
+                    title: Text(
+                      'delete_video'.tr,
+                      style: TextStyle(color: Colors.redAccent, fontSize: 14.sp),
+                    ),
+                    onTap: () async {
+                      // Close the bottom sheet first
+                      Navigator.pop(bottomSheetContext);
+                      // Pause the video to prevent it from playing during deletion
+                      _pauseVideo();
+                      // Call deleteVideo with the original context
+                      final bool isDeleted = await deleteVideo(
+                        context,
+                        videoId,
+                        userId,
+                      );
+                      if (isDeleted) {
+                        print("===============");
+                        print(isDeleted);
+                        Navigator.pop(context); // Close the bottom sheet
+                        // Ensure navigation happens after successful deletion
+                        Get.back();
+                      }
+                    },
+                  ),
+                ListTile(
+                  leading: Icon(Icons.flag_outlined, color: ColorUtils.grey),
+                  trailing: Icon(
+                    Icons.chevron_right_rounded,
+                    color: ColorUtils.grey,
+                  ),
+                  title: Text(
+                    'report-content'.tr,
+                    style: TextStyle(color: Colors.black, fontSize: 14.sp),
+                  ),
+                  onTap: () {
+                    Navigator.pop(bottomSheetContext); // Close bottom sheet
+                    Get.to(ReportContentView(videoId: videoId));
                   },
                 ),
-              ListTile(
-                leading: Icon(Icons.flag_outlined, color: ColorUtils.grey),
-                trailing: Icon(
-                  Icons.chevron_right_rounded,
-                  color: ColorUtils.grey,
-                ),
-                title: Text(
-                  'report-content'.tr,
-                  style: TextStyle(color: Colors.black, fontSize: 14.sp),
-                ),
-                onTap: () {
-                  Navigator.pop(bottomSheetContext); // Close bottom sheet
-                  Get.to(ReportContentView(videoId: videoId));
-                },
-              ),
-
-              // ListTile(
-              //   leading: Icon(Icons.headphones, color: ColorUtils.grey),
-              //   trailing: Text(
-              //     infoEmail!,
-              //     style: TextStyle(color: Colors.black, fontSize: 14.sp),
-              //   ),
-              //   title: Text(
-              //     'contact_us'.tr,
-              //     style: TextStyle(color: Colors.black, fontSize: 14.sp),
-              //   ),
-              //   onTap: () async {
-              //     final Uri emailUri = Uri(
-              //       scheme: 'mailto',
-              //       path: infoEmail,
-              //       queryParameters: {
-              //         'subject': 'Contact Us',
-              //         // Optional: Pre-fill subject
-              //         // 'body': 'Your message here', // Optional: Pre-fill body
-              //       },
-              //     );
-              //
-              //     // Launch the mail app
-              //     if (await canLaunchUrl(emailUri)) {
-              //       await launchUrl(emailUri);
-              //     } else {
-              //       ScaffoldMessenger.of(context).showSnackBar(
-              //         SnackBar(content: Text('No email app found')),
-              //       );
-              //     }
-              //     Navigator.pop(context);
-              //   },
-              // ),
-            ],
+            
+                // ListTile(
+                //   leading: Icon(Icons.headphones, color: ColorUtils.grey),
+                //   trailing: Text(
+                //     infoEmail!,
+                //     style: TextStyle(color: Colors.black, fontSize: 14.sp),
+                //   ),
+                //   title: Text(
+                //     'contact_us'.tr,
+                //     style: TextStyle(color: Colors.black, fontSize: 14.sp),
+                //   ),
+                //   onTap: () async {
+                //     final Uri emailUri = Uri(
+                //       scheme: 'mailto',
+                //       path: infoEmail,
+                //       queryParameters: {
+                //         'subject': 'Contact Us',
+                //         // Optional: Pre-fill subject
+                //         // 'body': 'Your message here', // Optional: Pre-fill body
+                //       },
+                //     );
+                //
+                //     // Launch the mail app
+                //     if (await canLaunchUrl(emailUri)) {
+                //       await launchUrl(emailUri);
+                //     } else {
+                //       ScaffoldMessenger.of(context).showSnackBar(
+                //         SnackBar(content: Text('No email app found')),
+                //       );
+                //     }
+                //     Navigator.pop(context);
+                //   },
+                // ),
+              ],
+            ),
           ),
         );
       },
