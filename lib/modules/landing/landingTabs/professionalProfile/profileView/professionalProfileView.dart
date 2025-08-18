@@ -349,6 +349,7 @@ class _ProfessionalProfileViewState extends State<ProfessionalProfileView>
                                           coverImage: _selectedImage!,
                                           context: context,
                                         );
+                                        _isEditMode = true;
                                       }
                                     },
                                     child: Container(
