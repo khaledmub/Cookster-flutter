@@ -133,7 +133,18 @@ class CustomButtonWidget extends StatelessWidget {
         children: [
           SvgPicture.asset(icon, height: 16, color: ColorUtils.darkBrown),
           SizedBox(width: 8),
-          Text(label, style: TextStyle(color: ColorUtils.darkBrown)),
+          ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: 100),
+            child: IntrinsicWidth(
+              child: Text(
+                label,
+                style: TextStyle(color: ColorUtils.darkBrown),
+                overflow: TextOverflow.ellipsis,
+                softWrap: false,
+              ),
+            ),
+          ),
+
         ],
       ),
     );

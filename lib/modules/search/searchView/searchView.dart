@@ -1221,11 +1221,11 @@ class _SearchViewState extends State<SearchView>
                 ),
                 onChanged: (value) => filterCountries(value),
               ),
-              SizedBox(height: 16.h),
+              SizedBox(height: 10.h),
 
               /// **Scrollable Location List**
               Container(
-                height: 230.h,
+                height: 220.h,
                 child: SingleChildScrollView(
                   child: Obx(
                     () => Column(
@@ -1296,7 +1296,7 @@ class _SearchViewState extends State<SearchView>
                   ),
                 ),
               ),
-              SizedBox(height: 20.h),
+              SizedBox(height: 5.h),
 
               /// **Submit Button**
               Obx(
@@ -1467,7 +1467,7 @@ class _SearchViewState extends State<SearchView>
                           ),
                           onChanged: (value) => filterCities(value),
                         ),
-                        SizedBox(height: 16.h),
+                        SizedBox(height: 10.h),
 
                         /// **Scrollable Location List**
                         Container(
@@ -1555,7 +1555,7 @@ class _SearchViewState extends State<SearchView>
                             ),
                           ),
                         ),
-                        SizedBox(height: 20.h),
+                        SizedBox(height: 5.h),
 
                         /// **Submit Button**
                         Obx(

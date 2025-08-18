@@ -895,22 +895,25 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                       ),
                     ),
                     SizedBox(height: 20),
-                    AppButton(
-                      text: "Submit".tr,
-                      onTap: () {
-                        Navigator.pop(context);
-                        controller.currentCity.value == ""
-                            ? null
-                            : controller
-                                .fetchVideos(
-                                  city: controller.currentCity.value,
-                                  country: controller.currentCountry.value,
-                                )
-                                .then((value) {
-                                  controller.saveLocationData();
-                                });
-                      },
-                    ),
+                    Obx(() {
+                      return AppButton(
+                        isLoading: controller.isLoading.value,
+                        text: "Submit".tr,
+                        onTap: () {
+                          Navigator.pop(context);
+                          controller.currentCity.value == ""
+                              ? null
+                              : controller
+                                  .fetchVideos(
+                                    city: controller.currentCity.value,
+                                    country: controller.currentCountry.value,
+                                  )
+                                  .then((value) {
+                                    controller.saveLocationData();
+                                  });
+                        },
+                      );
+                    }),
                   ],
                 ),
               );
@@ -1901,7 +1904,7 @@ void showLocationDialog(BuildContext context) {
               )
               .toList();
     }
-    Get.back();
+    // Get.back();
   }
 
   Get.dialog(
@@ -1964,11 +1967,11 @@ void showLocationDialog(BuildContext context) {
               ),
               onChanged: (value) => filterCountries(value),
             ),
-            SizedBox(height: 16.h),
+            SizedBox(height: 10.h),
 
             /// Scrollable Location List
             Container(
-              height: 240.h,
+              height: 220.h,
               child: SingleChildScrollView(
                 child: Obx(
                   () => Column(
@@ -2038,7 +2041,7 @@ void showLocationDialog(BuildContext context) {
                 ),
               ),
             ),
-            SizedBox(height: 20.h),
+            SizedBox(height: 5.h),
 
             /// Submit Button
             Obx(
@@ -2047,6 +2050,9 @@ void showLocationDialog(BuildContext context) {
                     selectedCountryName.value.isNotEmpty
                         ? () async {
                           try {
+                            homeController.isLoading.value = true;
+                            Get.back(); // Close the country dialog
+
                             String country = selectedCountryName.value;
                             controller.selectLocation(
                               country,
@@ -2058,7 +2064,8 @@ void showLocationDialog(BuildContext context) {
                               countryMap[country]!,
                             );
                             homeController.currentCountry.value = country;
-                            Get.back(); // Close the country dialog
+                            homeController.isLoading.value = false;
+
                             showCityDialog(context);
                           } catch (e) {
                             print('Error selecting country: $e');
@@ -2210,7 +2217,7 @@ void showCityDialog(BuildContext context, {int? initialCity}) {
                         ),
                         onChanged: (value) => filterCities(value),
                       ),
-                      SizedBox(height: 16.h),
+                      SizedBox(height: 10.h),
 
                       /// **Scrollable Location List**
                       Container(
@@ -2291,7 +2298,7 @@ void showCityDialog(BuildContext context, {int? initialCity}) {
                           ),
                         ),
                       ),
-                      SizedBox(height: 20.h),
+                      SizedBox(height: 5.h),
 
                       /// **Submit Button**
                       Obx(

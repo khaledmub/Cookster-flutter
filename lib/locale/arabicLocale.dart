@@ -80,7 +80,7 @@ const Map<String, String> ar = {
   "If you go back now, you'll lose your edits":
       "إذا عدت الآن، ستفقد التعديلات التي أجريتها",
   "Discard": "تجاهل",
-  "Saved Reels": "البوسترات المحفوظة",
+  "Saved Reels": "المنشورات المحفوظة",
   "Followers": "المتابعون",
   "Following": "المتابعة",
   "Likes": "الإعجابات",
@@ -1022,5 +1022,5 @@ const Map<String, String> ar = {
       "{username} received a total\nof {likeCount} likes across all videos",
   "total_likes": "إجمالي الإعجابات",
   "likes_message": "%s تلقى إجمالي %s إعجابات عبر جميع الفيديوهات",
-  "liked_videos": "المنشورات المعجب بها",
+  "liked\_videos": "المنشورات المعجب بها",
 };

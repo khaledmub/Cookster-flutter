@@ -1,5 +1,6 @@
 import 'package:cookster/appUtils/appCenterIcon.dart';
 import 'package:cookster/appUtils/appUtils.dart';
+import 'package:cookster/modules/auth/signIn/signInView/signInView.dart';
 import 'package:cookster/modules/landing/landingView/landingView.dart';
 import 'package:cookster/modules/selectLanguage/selectController/selectLanguageController.dart';
 import 'package:flutter/material.dart';
@@ -128,7 +129,7 @@ class _SelectLanguageViewState extends State<SelectLanguageView> {
                           onTap: () async {
                             await languageController.applyLanguageChange().then(
                               (_) {
-                                Get.offAll(Landing());
+                                Get.offAll(SignInView());
                               },
                             );
                           },

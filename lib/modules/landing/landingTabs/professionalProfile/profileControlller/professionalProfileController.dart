@@ -514,21 +514,28 @@ class ProfessionalProfileController extends GetxController {
         }
         print("Step 7: Extracted video IDs: $videoIds");
 
-        // Reset totalLikes before calculating
+        // Fetch total likes for all videos
         totalLikes.value = 0;
+        int likesCount = 0;
 
         for (var videoId in videoIds) {
           var videoDoc =
-          await FirebaseFirestore.instance
-              .collection('videos')
-              .doc(videoId)
-              .get();
+              await FirebaseFirestore.instance
+                  .collection('videos')
+                  .doc(videoId)
+                  .get();
+
           if (videoDoc.exists) {
             var data = videoDoc.data() as Map<String, dynamic>;
             List<String> likes = List<String>.from(data['likes'] ?? []);
-            totalLikes.value += likes.length;
+            likesCount += likes.length;
           }
         }
+
+        // ✅ Update only once after loop finishes
+        totalLikes.value = likesCount;
+        print("Step 9: Total likes on all videos: ${totalLikes.value}");
+
         print("Step 8: Total likes on all videos: ${totalLikes.value}");
       } else {
         print(
