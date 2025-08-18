@@ -21,6 +21,7 @@ class SelectLanguageView extends StatefulWidget {
 class _SelectLanguageViewState extends State<SelectLanguageView> {
   final LanguageController languageController = Get.put(LanguageController());
   String _language = 'en'; // Default to English
+
   // Load language from SharedPreferences
   Future<void> _loadLanguage() async {
     final prefs = await SharedPreferences.getInstance();
@@ -32,7 +33,6 @@ class _SelectLanguageViewState extends State<SelectLanguageView> {
 
   @override
   void initState() {
-    // TODO: implement initState
     super.initState();
     _loadLanguage();
   }
@@ -60,10 +60,9 @@ class _SelectLanguageViewState extends State<SelectLanguageView> {
               ),
             ),
 
-            // Your main content goes here
+            // Main content
             Column(
               spacing: 12.h,
-
               children: [
                 Container(
                   margin: EdgeInsets.symmetric(horizontal: 16, vertical: 90),
@@ -109,7 +108,6 @@ class _SelectLanguageViewState extends State<SelectLanguageView> {
                                 ),
                           ),
                         ),
-
                         Obx(
                           () => _buildLanguageOption(
                             language: "Arabic".tr,
@@ -123,15 +121,17 @@ class _SelectLanguageViewState extends State<SelectLanguageView> {
                           ),
                         ),
                         SizedBox(height: 4),
-
                         AppButton(
                           text: "Save".tr,
                           onTap: () async {
-                            await languageController.applyLanguageChange().then(
-                              (_) {
-                                Get.offAll(SignInView());
-                              },
-                            );
+                            await languageController.applyLanguageChange();
+                            final prefs = await SharedPreferences.getInstance();
+                            final userId = prefs.getString('user_id');
+                            if (userId != null && userId.isNotEmpty) {
+                              Get.offAll(() => Landing());
+                            } else {
+                              Get.offAll(() => SignInView());
+                            }
                           },
                         ),
                         SizedBox(height: 20.h),
@@ -142,11 +142,9 @@ class _SelectLanguageViewState extends State<SelectLanguageView> {
               ],
             ),
             Positioned(
-              // Conditionally set left or right based on language
               left: isRtl ? null : 16,
               right: isRtl ? 16 : null,
               top: 20,
-              // Assuming .h is from a package like flutter_screenutil, replace with 20 if not using it
               child: GestureDetector(
                 behavior: HitTestBehavior.opaque,
                 onTap: () {
@@ -166,7 +164,6 @@ class _SelectLanguageViewState extends State<SelectLanguageView> {
                   ),
                   child: Center(
                     child: Icon(
-                      // Use right chevron for Arabic, left chevron for English
                       isRtl ? Icons.arrow_back : Icons.arrow_back,
                       color: ColorUtils.darkBrown,
                       size: 24,
@@ -175,8 +172,6 @@ class _SelectLanguageViewState extends State<SelectLanguageView> {
                 ),
               ),
             ),
-
-            // Center Logo
             AppCenterIcon(),
           ],
         ),
@@ -204,7 +199,7 @@ class _SelectLanguageViewState extends State<SelectLanguageView> {
         ),
         child: Column(
           children: [
-            SvgPicture.asset(imagePath, height: 50.h), // Adjust flag size
+            SvgPicture.asset(imagePath, height: 50.h),
             SizedBox(height: 8),
             Text(
               language,
