@@ -481,7 +481,7 @@ class _SignInViewState extends State<SignInView> {
                             scheme: 'mailto',
                             path: email,
                             queryParameters: {
-                              'subject': 'Contact Us', // Pre-fill subject
+                              'subject': '', // Pre-fill subject
                             },
                           );
 

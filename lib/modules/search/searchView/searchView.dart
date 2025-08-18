@@ -569,8 +569,7 @@ class _SearchViewState extends State<SearchView>
                                     await _isUserAuthenticated();
                                 Get.to(
                                   SingleVideoScreen(
-                                    followers:
-                                    video.followersCount.toString(),
+                                    followers: video.followersCount.toString(),
                                     frondUserId: video.frontUserId,
                                     userImage: video.userImage,
                                     videoId: video.id,
@@ -1087,13 +1086,18 @@ class _SearchViewState extends State<SearchView>
                       ),
                     ),
                     SizedBox(height: 20),
-                    AppButton(
-                      text: "Submit",
-                      onTap: () {
-                        searchController.saveLocationData();
-                        Navigator.pop(context);
-                      },
-                    ),
+                    Obx(() {
+                      return AppButton(
+                        text: "Submit",
+                        isLoading: searchController.isCityLoading.value,
+                        onTap: () {
+                          searchController.isCityLoading.value
+                              ? null
+                              : searchController.saveLocationData();
+                          Navigator.pop(context);
+                        },
+                      );
+                    }),
                   ],
                 ),
               );
@@ -1307,6 +1311,9 @@ class _SearchViewState extends State<SearchView>
                             int? selectedId =
                                 countryMap[selectedCountryName.value];
                             if (selectedId != null) {
+                              Get.back(); // Close the country dialog
+
+                              searchControllerNew.isCityLoading.value = true;
                               searchControllerNew.currentCountry.value =
                                   selectedCountryName.value;
                               controller.selectLocation(
@@ -1316,7 +1323,8 @@ class _SearchViewState extends State<SearchView>
                               homeController.currentCountry.value =
                                   selectedCountryName.value;
                               await cityController.fetchCities(selectedId);
-                              Get.back(); // Close the country dialog
+                              searchControllerNew.isCityLoading.value = false;
+
                               showCityDialog(context);
                             }
                           }
@@ -1572,7 +1580,8 @@ class _SearchViewState extends State<SearchView>
                                           "Selected City: $selectedName (ID: $selectedId)",
                                         );
 
-                                        homeController.currentCityId.value = selectedId.toString();
+                                        homeController.currentCityId.value =
+                                            selectedId.toString();
 
                                         homeUpdateController
                                             .currentCityId

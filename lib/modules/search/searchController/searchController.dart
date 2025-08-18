@@ -15,6 +15,7 @@ import '../searchModel/searchModel.dart';
 
 class UserSearchController extends GetxController {
   var isLoading = false.obs;
+  var isCityLoading = false.obs;
   var searchResult = SearchResult().obs;
   var type = 1.obs;
   var hasSearched = false.obs;
@@ -28,6 +29,8 @@ class UserSearchController extends GetxController {
   var b2bUsersList = B2BUsersList().obs; // Add observable for B2BUsersList
   var filteredB2bUsersList =
       B2BUsersList().obs; // Add observable for filtered B2BUsersList
+
+
   RxList<String> recentSearches = <String>[].obs;
 
   final HomeController homeController = Get.find();

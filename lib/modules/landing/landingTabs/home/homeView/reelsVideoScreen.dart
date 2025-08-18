@@ -900,7 +900,9 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                         isLoading: controller.isLoading.value,
                         text: "Submit".tr,
                         onTap: () {
-                          Navigator.pop(context);
+                          controller.isLoading.value
+                              ? null
+                              : Navigator.pop(context);
                           controller.currentCity.value == ""
                               ? null
                               : controller
