@@ -79,8 +79,14 @@ class _PolicyScreenState extends State<PolicyScreen> {
                     ),
                   ),
                   Positioned(
-                    left: Directionality.of(context) == TextDirection.rtl ? null : 16,
-                    right: Directionality.of(context) == TextDirection.rtl ? 16 : null,
+                    left:
+                        Directionality.of(context) == TextDirection.rtl
+                            ? null
+                            : 16,
+                    right:
+                        Directionality.of(context) == TextDirection.rtl
+                            ? 16
+                            : null,
                     top: 25,
                     child: InkWell(
                       onTap: () {
@@ -97,9 +103,7 @@ class _PolicyScreenState extends State<PolicyScreen> {
                           child: Icon(
                             Directionality.of(context) == TextDirection.rtl
                                 ? Icons.arrow_back
-
-                                : Icons.arrow_back
-,
+                                : Icons.arrow_back,
                             color: ColorUtils.darkBrown,
                             size: 24,
                           ),
@@ -111,18 +115,19 @@ class _PolicyScreenState extends State<PolicyScreen> {
               ),
             ),
           ),
-          body: snapshot.connectionState == ConnectionState.waiting
-              ? const Center(
-            child: PulseLogoLoader(
-              logoPath: "assets/images/appIcon.png",
-              size: 80,
-            ),
-          )
-              : snapshot.hasError
-              ? Center(child: Text("Error: ${snapshot.error}"))
-              : !snapshot.hasData
-              ? const Center(child: Text("No Data Available"))
-              : _buildPolicyContent(snapshot.data!),
+          body:
+              snapshot.connectionState == ConnectionState.waiting
+                  ? const Center(
+                    child: PulseLogoLoader(
+                      logoPath: "assets/images/appIcon.png",
+                      size: 80,
+                    ),
+                  )
+                  : snapshot.hasError
+                  ? Center(child: Text("Error: ${snapshot.error}"))
+                  : !snapshot.hasData
+                  ? const Center(child: Text("No Data Available"))
+                  : _buildPolicyContent(snapshot.data!),
         );
       },
     );
@@ -133,7 +138,11 @@ class _PolicyScreenState extends State<PolicyScreen> {
     String description = data['description'] ?? '';
 
     return Padding(
-      padding: const EdgeInsets.all(16.0),
+      padding: EdgeInsets.only(
+        left: 16,
+        right: 16,
+        bottom: MediaQuery.of(context).viewPadding.bottom + 20,
+      ),
       child: SingleChildScrollView(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,

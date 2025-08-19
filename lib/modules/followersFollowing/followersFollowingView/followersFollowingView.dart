@@ -130,129 +130,138 @@ class _SocialListsScreenState extends State<SocialListsScreen>
         ),
         centerTitle: true,
       ),
-      body: Column(
-        children: [
-          // Search Bar
-          Container(
-            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            decoration: BoxDecoration(
-              color: Colors.grey[100],
-              borderRadius: BorderRadius.circular(24),
-              border: Border.all(color: Colors.grey[300]!, width: 1),
-            ),
-            child: TextField(
-              controller: _searchController,
-              style: const TextStyle(color: Colors.black),
-              decoration: InputDecoration(
-                hintText: 'search_followers_following'.tr,
-                hintStyle: TextStyle(color: Colors.grey[600]),
-                prefixIcon: Icon(Icons.search, color: Colors.grey[600]),
-                suffixIcon:
-                    _isSearching.value
-                        ? IconButton(
-                          icon: const Icon(
-                            Icons.clear,
-                            color: Color(0xFFFFD700),
-                          ),
-                          onPressed: _clearSearch,
-                        )
-                        : null,
-                border: InputBorder.none,
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 12,
+      body: Padding(
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.of(context).viewPadding.bottom + 20,
+        ),
+        child: Column(
+          children: [
+            // Search Bar
+            Container(
+              margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.grey[100],
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(color: Colors.grey[300]!, width: 1),
+              ),
+              child: TextField(
+                controller: _searchController,
+                style: const TextStyle(color: Colors.black),
+                decoration: InputDecoration(
+                  hintText: 'search_followers_following'.tr,
+                  hintStyle: TextStyle(color: Colors.grey[600]),
+                  prefixIcon: Icon(Icons.search, color: Colors.grey[600]),
+                  suffixIcon:
+                      _isSearching.value
+                          ? IconButton(
+                            icon: const Icon(
+                              Icons.clear,
+                              color: Color(0xFFFFD700),
+                            ),
+                            onPressed: _clearSearch,
+                          )
+                          : null,
+                  border: InputBorder.none,
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
                 ),
               ),
             ),
-          ),
 
-          // Tab Bar
-          Container(
-            margin: const EdgeInsets.symmetric(horizontal: 16),
-            decoration: BoxDecoration(
-              color: Colors.grey[100],
-              borderRadius: BorderRadius.circular(25),
-              border: Border.all(color: Colors.grey[300]!, width: 1),
-            ),
-            child: TabBar(
-              controller: _tabController,
-              indicator: BoxDecoration(
-                color: const Color(0xFFFFD700),
+            // Tab Bar
+            Container(
+              margin: const EdgeInsets.symmetric(horizontal: 16),
+              decoration: BoxDecoration(
+                color: Colors.grey[100],
                 borderRadius: BorderRadius.circular(25),
+                border: Border.all(color: Colors.grey[300]!, width: 1),
               ),
-              indicatorSize: TabBarIndicatorSize.tab,
-              dividerColor: Colors.transparent,
-              labelColor: Colors.white,
-              unselectedLabelColor: Colors.grey[700],
-              labelStyle: const TextStyle(
-                fontWeight: FontWeight.w600,
-                fontSize: 14,
-              ),
-              tabs: [
-                Tab(
-                  child: Obx(
-                    () => Container(
-                      padding: const EdgeInsets.symmetric(vertical: 8),
-                      child: Text(
-                        '${_filteredFollowers.length} ${"Followers".tr}',
-                      ),
-                    ),
-                  ),
+              child: TabBar(
+                controller: _tabController,
+                indicator: BoxDecoration(
+                  color: const Color(0xFFFFD700),
+                  borderRadius: BorderRadius.circular(25),
                 ),
-                Tab(
-                  child: Obx(
-                    () => Container(
-                      padding: const EdgeInsets.symmetric(vertical: 8),
-                      child: Text(
-                        '${_filteredFollowing.length} ${"Following".tr}',
-                      ),
-                    ),
-                  ),
+                indicatorSize: TabBarIndicatorSize.tab,
+                dividerColor: Colors.transparent,
+                labelColor: Colors.white,
+                unselectedLabelColor: Colors.grey[700],
+                labelStyle: const TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 14,
                 ),
-              ],
-            ),
-          ),
-
-          const SizedBox(height: 16),
-
-          // Tab Content
-          Expanded(
-            child: Obx(
-              () =>
-                  _controller.isLoading.value
-                      ? Center(
-                        child: PulseLogoLoader(
-                          logoPath: "assets/images/appIconC.png",
+                tabs: [
+                  Tab(
+                    child: Obx(
+                      () => Container(
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        child: Text(
+                          '${_filteredFollowers.length} ${"Followers".tr}',
                         ),
-                      )
-                      : _controller.errorMessage.isNotEmpty
-                      ? Center(child: Text(_controller.errorMessage.value))
-                      : TabBarView(
-                        controller: _tabController,
-                        children: [
-                          RefreshIndicator(
-                            onRefresh: () async {
-                              await _controller.fetchSocialData(widget.userId);
-                            },
-                            child: _buildUserList(
-                              _filteredFollowers,
-                              isFollowers: true,
-                            ),
-                          ),
-                          RefreshIndicator(
-                            onRefresh: () async {
-                              await _controller.fetchSocialData(widget.userId);
-                            },
-                            child: _buildUserList(
-                              _filteredFollowing,
-                              isFollowers: false,
-                            ),
-                          ),
-                        ],
                       ),
+                    ),
+                  ),
+                  Tab(
+                    child: Obx(
+                      () => Container(
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        child: Text(
+                          '${_filteredFollowing.length} ${"Following".tr}',
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
-        ],
+
+            const SizedBox(height: 16),
+
+            // Tab Content
+            Expanded(
+              child: Obx(
+                () =>
+                    _controller.isLoading.value
+                        ? Center(
+                          child: PulseLogoLoader(
+                            logoPath: "assets/images/appIconC.png",
+                          ),
+                        )
+                        : _controller.errorMessage.isNotEmpty
+                        ? Center(child: Text(_controller.errorMessage.value))
+                        : TabBarView(
+                          controller: _tabController,
+                          children: [
+                            RefreshIndicator(
+                              onRefresh: () async {
+                                await _controller.fetchSocialData(
+                                  widget.userId,
+                                );
+                              },
+                              child: _buildUserList(
+                                _filteredFollowers,
+                                isFollowers: true,
+                              ),
+                            ),
+                            RefreshIndicator(
+                              onRefresh: () async {
+                                await _controller.fetchSocialData(
+                                  widget.userId,
+                                );
+                              },
+                              child: _buildUserList(
+                                _filteredFollowing,
+                                isFollowers: false,
+                              ),
+                            ),
+                          ],
+                        ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

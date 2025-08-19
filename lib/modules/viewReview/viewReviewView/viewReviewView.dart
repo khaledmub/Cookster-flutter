@@ -114,274 +114,283 @@ class _ViewReviewsState extends State<ViewReviews> {
           ),
         ),
       ),
-      body: Obx(
-        () => RefreshIndicator(
-          onRefresh: () async {
-            await reviewController.fetchReviews(widget.professionalId);
-          },
-          child:
-              reviewController.isLoading.value
-                  ? const Center(
-                    child: PulseLogoLoader(
-                      logoPath: "assets/images/appLogo.png",
-                    ),
-                  )
-                  : Padding(
-                    padding: EdgeInsets.all(16.w),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Rating Overview Section
-                        Container(
-                          padding: EdgeInsets.all(16.w),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(12.r),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.grey.withOpacity(0.1),
-                                spreadRadius: 1,
-                                blurRadius: 5,
-                                offset: const Offset(0, 2),
-                              ),
-                            ],
-                          ),
-                          child: Obx(() {
-                            final reviewCounters =
-                                reviewController
-                                    .reviewsModel
-                                    .value
-                                    .reviewCounters;
-                            final averageRating =
-                                reviewCounters?.averageRating?.toStringAsFixed(
-                                  1,
-                                ) ??
-                                "0.0";
-                            final totalReviews =
-                                reviewCounters?.totalReviews?.toString() ?? "0";
-                            final ratings = reviewCounters?.ratings;
+      body: Padding(
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.of(context).viewPadding.bottom + 20,
+        ),
+        child: Obx(
+          () => RefreshIndicator(
+            onRefresh: () async {
+              await reviewController.fetchReviews(widget.professionalId);
+            },
+            child:
+                reviewController.isLoading.value
+                    ? const Center(
+                      child: PulseLogoLoader(
+                        logoPath: "assets/images/appLogo.png",
+                      ),
+                    )
+                    : Padding(
+                      padding: EdgeInsets.all(16.w),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Rating Overview Section
+                          Container(
+                            padding: EdgeInsets.all(16.w),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(12.r),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.grey.withOpacity(0.1),
+                                  spreadRadius: 1,
+                                  blurRadius: 5,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                            child: Obx(() {
+                              final reviewCounters =
+                                  reviewController
+                                      .reviewsModel
+                                      .value
+                                      .reviewCounters;
+                              final averageRating =
+                                  reviewCounters?.averageRating
+                                      ?.toStringAsFixed(1) ??
+                                  "0.0";
+                              final totalReviews =
+                                  reviewCounters?.totalReviews?.toString() ??
+                                  "0";
+                              final ratings = reviewCounters?.ratings;
 
-                            return Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          averageRating,
-                                          style: TextStyle(
-                                            fontSize: 32.sp,
-                                            fontWeight: FontWeight.bold,
-                                            color: ColorUtils.darkBrown,
-                                          ),
-                                        ),
-                                        Row(
-                                          children: List.generate(5, (index) {
-                                            return Icon(
-                                              index <
-                                                      double.parse(
-                                                        averageRating,
-                                                      ).round()
-                                                  ? Icons.star_rounded
-                                                  : Icons.star_border_rounded,
-                                              color: const Color(0xFFFFD700),
-                                              size: 20.sp,
-                                            );
-                                          }),
-                                        ),
-                                        SizedBox(height: 4.h),
-                                        Text(
-                                          "based_on_reviews".tr.replaceAll(
-                                            "{count}",
-                                            totalReviews,
-                                          ),
-                                          style: TextStyle(
-                                            fontSize: 12.sp,
-                                            color: Colors.grey[600],
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                    SizedBox(width: 24.w),
-                                    Expanded(
-                                      child: Column(
+                              return Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
                                         children: [
-                                          _buildRatingBar(
-                                            "excellent".tr,
-                                            5,
-                                            _calculateProgress(
-                                              ratings?.five ?? 0,
-                                              totalReviews,
+                                          Text(
+                                            averageRating,
+                                            style: TextStyle(
+                                              fontSize: 32.sp,
+                                              fontWeight: FontWeight.bold,
+                                              color: ColorUtils.darkBrown,
                                             ),
-                                            const Color(0xFF4CAF50),
                                           ),
-                                          SizedBox(height: 8.h),
-                                          _buildRatingBar(
-                                            "good".tr,
-                                            4,
-                                            _calculateProgress(
-                                              ratings?.four ?? 0,
-                                              totalReviews,
-                                            ),
-                                            const Color(0xFF8BC34A),
+                                          Row(
+                                            children: List.generate(5, (index) {
+                                              return Icon(
+                                                index <
+                                                        double.parse(
+                                                          averageRating,
+                                                        ).round()
+                                                    ? Icons.star_rounded
+                                                    : Icons.star_border_rounded,
+                                                color: const Color(0xFFFFD700),
+                                                size: 20.sp,
+                                              );
+                                            }),
                                           ),
-                                          _buildRatingBar(
-                                            "average".tr,
-                                            3,
-                                            _calculateProgress(
-                                              ratings?.three ?? 0,
+                                          SizedBox(height: 4.h),
+                                          Text(
+                                            "based_on_reviews".tr.replaceAll(
+                                              "{count}",
                                               totalReviews,
                                             ),
-                                            const Color(0xFFFFEB3B),
-                                          ),
-                                          _buildRatingBar(
-                                            "poor".tr,
-                                            2,
-                                            _calculateProgress(
-                                              ratings?.two ?? 0,
-                                              totalReviews,
+                                            style: TextStyle(
+                                              fontSize: 12.sp,
+                                              color: Colors.grey[600],
                                             ),
-                                            const Color(0xFFFF9800),
-                                          ),
-                                          _buildRatingBar(
-                                            "terrible".tr,
-                                            1,
-                                            _calculateProgress(
-                                              ratings?.one ?? 0,
-                                              totalReviews,
-                                            ),
-                                            const Color(0xFFF44336),
                                           ),
                                         ],
                                       ),
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            );
-                          }),
-                        ),
-                        SizedBox(height: 24.h),
-                        // Reviews List
-                        Expanded(
-                          child: Obx(
-                            () =>
-                                reviewController.isLoading.value
-                                    ? const Center(
-                                      child: PulseLogoLoader(
-                                        logoPath: "assets/images/appLogo.png",
-                                      ),
-                                    )
-                                    : reviewController.reviews.isEmpty
-                                    ? Center(
-                                      child: Text(
-                                        "no_reviews_found".tr,
-                                        style: TextStyle(
-                                          fontSize: 16.sp,
-                                          fontWeight: FontWeight.w500,
-                                          color: ColorUtils.primaryColor,
+                                      SizedBox(width: 24.w),
+                                      Expanded(
+                                        child: Column(
+                                          children: [
+                                            _buildRatingBar(
+                                              "excellent".tr,
+                                              5,
+                                              _calculateProgress(
+                                                ratings?.five ?? 0,
+                                                totalReviews,
+                                              ),
+                                              const Color(0xFF4CAF50),
+                                            ),
+                                            SizedBox(height: 8.h),
+                                            _buildRatingBar(
+                                              "good".tr,
+                                              4,
+                                              _calculateProgress(
+                                                ratings?.four ?? 0,
+                                                totalReviews,
+                                              ),
+                                              const Color(0xFF8BC34A),
+                                            ),
+                                            _buildRatingBar(
+                                              "average".tr,
+                                              3,
+                                              _calculateProgress(
+                                                ratings?.three ?? 0,
+                                                totalReviews,
+                                              ),
+                                              const Color(0xFFFFEB3B),
+                                            ),
+                                            _buildRatingBar(
+                                              "poor".tr,
+                                              2,
+                                              _calculateProgress(
+                                                ratings?.two ?? 0,
+                                                totalReviews,
+                                              ),
+                                              const Color(0xFFFF9800),
+                                            ),
+                                            _buildRatingBar(
+                                              "terrible".tr,
+                                              1,
+                                              _calculateProgress(
+                                                ratings?.one ?? 0,
+                                                totalReviews,
+                                              ),
+                                              const Color(0xFFF44336),
+                                            ),
+                                          ],
                                         ),
                                       ),
-                                    )
-                                    : () {
-                                      final reviews =
-                                          isProfessional
-                                              ? reviewController.reviews
-                                              : reviewController.reviews
-                                                  .where(
-                                                    (review) =>
-                                                        review.isVisible == 1 &&
-                                                        review.status == 1,
-                                                  )
-                                                  .toList();
-                                      return reviews.isEmpty
-                                          ? Center(
-                                            child: Text(
-                                              "no_reviews".tr,
-                                              style: TextStyle(fontSize: 16.sp),
-                                            ),
-                                          )
-                                          : ListView.builder(
-                                            itemCount: reviews.length,
-                                            itemBuilder: (context, index) {
-                                              final review = reviews[index];
-                                              final reviewerName =
-                                                  review.reviewerName ??
-                                                  'Anonymous';
-                                              final rating =
-                                                  review.rating?.toInt() ?? 0;
-                                              final reviewText =
-                                                  review.review ?? '';
-                                              final createdAt =
-                                                  review.utcTime ?? '';
-                                              final reviewerImage =
-                                                  review.reviewerImage ??
-                                                  'assets/images/default_user.png';
-                                              final isApproved =
-                                                  review.status == 1;
-
-                                              return Padding(
-                                                padding: EdgeInsets.only(
-                                                  bottom: 16.h,
-                                                ),
-                                                child: _buildReviewCard(
-                                                  reviewerName,
-                                                  reviewerImage,
-                                                  rating,
-                                                  createdAt,
-                                                  // Pass raw createdAt
-                                                  reviewText,
-                                                  reviewController
-                                                          .toggleStates[reviewerName] ??
-                                                      false,
-                                                  () => reviewController
-                                                      .toggleReviewVisibility(
-                                                        context,
-                                                        review.id!,
-                                                      ),
-                                                  () => reviewController
-                                                      .updateReviewStatus(
-                                                        context,
-                                                        review.id!,
-                                                        1,
-                                                      ),
-                                                  () => reviewController
-                                                      .updateReviewStatus(
-                                                        context,
-                                                        review.id!,
-                                                        2,
-                                                      ),
-                                                  isProfessional,
-                                                  isApproved,
-                                                ),
-                                              );
-                                            },
-                                          );
-                                    }(),
-                          ),
-                        ),
-                        if (!isProfessional) ...[
-                          SizedBox(height: 16.h),
-                          SafeArea(
-                            child: AppButton(
-                              onTap: () {
-                                Get.to(
-                                  AddReviewView(
-                                    professionalId: widget.professionalId,
+                                    ],
                                   ),
-                                );
-                              },
-                              text: "write_review".tr,
+                                ],
+                              );
+                            }),
+                          ),
+                          SizedBox(height: 24.h),
+                          // Reviews List
+                          Expanded(
+                            child: Obx(
+                              () =>
+                                  reviewController.isLoading.value
+                                      ? const Center(
+                                        child: PulseLogoLoader(
+                                          logoPath: "assets/images/appLogo.png",
+                                        ),
+                                      )
+                                      : reviewController.reviews.isEmpty
+                                      ? Center(
+                                        child: Text(
+                                          "no_reviews_found".tr,
+                                          style: TextStyle(
+                                            fontSize: 16.sp,
+                                            fontWeight: FontWeight.w500,
+                                            color: ColorUtils.primaryColor,
+                                          ),
+                                        ),
+                                      )
+                                      : () {
+                                        final reviews =
+                                            isProfessional
+                                                ? reviewController.reviews
+                                                : reviewController.reviews
+                                                    .where(
+                                                      (review) =>
+                                                          review.isVisible ==
+                                                              1 &&
+                                                          review.status == 1,
+                                                    )
+                                                    .toList();
+                                        return reviews.isEmpty
+                                            ? Center(
+                                              child: Text(
+                                                "no_reviews".tr,
+                                                style: TextStyle(
+                                                  fontSize: 16.sp,
+                                                ),
+                                              ),
+                                            )
+                                            : ListView.builder(
+                                              itemCount: reviews.length,
+                                              itemBuilder: (context, index) {
+                                                final review = reviews[index];
+                                                final reviewerName =
+                                                    review.reviewerName ??
+                                                    'Anonymous';
+                                                final rating =
+                                                    review.rating?.toInt() ?? 0;
+                                                final reviewText =
+                                                    review.review ?? '';
+                                                final createdAt =
+                                                    review.utcTime ?? '';
+                                                final reviewerImage =
+                                                    review.reviewerImage ??
+                                                    'assets/images/default_user.png';
+                                                final isApproved =
+                                                    review.status == 1;
+
+                                                return Padding(
+                                                  padding: EdgeInsets.only(
+                                                    bottom: 16.h,
+                                                  ),
+                                                  child: _buildReviewCard(
+                                                    reviewerName,
+                                                    reviewerImage,
+                                                    rating,
+                                                    createdAt,
+                                                    // Pass raw createdAt
+                                                    reviewText,
+                                                    reviewController
+                                                            .toggleStates[reviewerName] ??
+                                                        false,
+                                                    () => reviewController
+                                                        .toggleReviewVisibility(
+                                                          context,
+                                                          review.id!,
+                                                        ),
+                                                    () => reviewController
+                                                        .updateReviewStatus(
+                                                          context,
+                                                          review.id!,
+                                                          1,
+                                                        ),
+                                                    () => reviewController
+                                                        .updateReviewStatus(
+                                                          context,
+                                                          review.id!,
+                                                          2,
+                                                        ),
+                                                    isProfessional,
+                                                    isApproved,
+                                                  ),
+                                                );
+                                              },
+                                            );
+                                      }(),
                             ),
                           ),
+                          if (!isProfessional) ...[
+                            SizedBox(height: 16.h),
+                            SafeArea(
+                              child: AppButton(
+                                onTap: () {
+                                  Get.to(
+                                    AddReviewView(
+                                      professionalId: widget.professionalId,
+                                    ),
+                                  );
+                                },
+                                text: "write_review".tr,
+                              ),
+                            ),
+                          ],
                         ],
-                      ],
+                      ),
                     ),
-                  ),
+          ),
         ),
       ),
     );

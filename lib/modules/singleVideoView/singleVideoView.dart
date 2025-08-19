@@ -349,631 +349,651 @@ class _SingleVideoScreenState extends State<SingleVideoScreen>
       child: Scaffold(
         backgroundColor: Colors.black,
         appBar: AppBar(toolbarHeight: 0),
-        body: Stack(
-          clipBehavior: Clip.none,
-          alignment: Alignment.bottomLeft,
+        body: Padding(
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.of(context).viewPadding.bottom + 20,
+          ),
+          child: Stack(
+            clipBehavior: Clip.none,
+            alignment: Alignment.bottomLeft,
 
-          children: [
-            Positioned.fill(
-              child: GestureDetector(
-                onTap: () {
-                  if (!_isInitializing) {
-                    _togglePlayPause();
-                  }
-                },
-                onDoubleTap: _toggleMute,
-                child:
-                    _isInitializing
-                        ? Center(
-                          child: Image.network(
-                            "${Common.videoUrl}/${widget.image}",
-                          ),
-                        )
-                        : _chewieController != null
-                        ? Chewie(controller: _chewieController!)
-                        : SizedBox.shrink(),
-              ),
-            ),
-            if (widget.isImage == "0")
-              Positioned(
-                left: 16,
-                right: 16,
-                bottom: 10,
-                child:
-                    _isInitializing
-                        ? SizedBox.shrink()
-                        : EnhancedSeekBar(controller: _videoPlayerController),
-              ),
-            if (_showPlayPauseIcon && !_isInitializing)
-              Center(
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.3),
-                    shape: BoxShape.circle,
-                  ),
-                  padding: EdgeInsets.all(8),
-                  child: Icon(
-                    _isPlaying
-                        ? Icons.pause_circle_filled
-                        : Icons.play_circle_filled,
-                    size: 64.0,
-                    color: Colors.white.withOpacity(0.9),
-                  ),
-                ),
-              ),
-            Positioned(
-              top: Get.height * 0.05,
-              left: isRtl ? null : 16,
-              right: isRtl ? 16 : null,
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(50),
-                child: BackdropFilter(
-                  filter: ImageFilter.blur(sigmaX: 10.0, sigmaY: 10.0),
-                  child: ConstrainedBox(
-                    constraints: BoxConstraints(
-                      maxWidth:
-                          Get.width *
-                          0.88, // Maximum width for the entire container
-                    ),
-                    child: Container(
-                      padding: EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 8,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.black.withOpacity(0.3),
-                        borderRadius: BorderRadius.circular(50),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        // Shrink Row to fit content
-                        children: [
-                          InkWell(
-                            onTap: () {
-                              // _pauseVideo();
-                              // _clearCache(); // Clear cache when back arrow is tapped
-                              Get.back(
-                                result: {'followerChanged': _followerChanged},
-                              );
-                            },
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              // Shrink inner Row
-                              children: [
-                                Icon(
-                                  Icons.arrow_back,
-                                  color: Colors.white,
-                                  size: 30,
-                                ),
-                                // SizedBox(width: 8),
-                                CircleAvatar(
-                                  radius: 20, // Adjust size as needed
-                                  backgroundImage:
-                                      widget.userImage != null &&
-                                              widget.userImage!.isNotEmpty
-                                          ? NetworkImage(
-                                            '${Common.profileImage}/${widget.userImage}',
-                                          )
-                                          : null,
-                                  child:
-                                      widget.userImage == null ||
-                                              widget.userImage!.isEmpty
-                                          ? Icon(
-                                            Icons.person,
-                                            color: Colors.white,
-                                          )
-                                          : null,
-                                ),
-                                SizedBox(width: 8),
-                                Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Container(
-                                      constraints: BoxConstraints(
-                                        maxWidth:
-                                            Get.width *
-                                            0.3, // Max width for username
-                                      ),
-                                      child: Text(
-                                        widget.userName ?? 'Unknown User',
-                                        style: TextStyle(
-                                          color: Colors.white,
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 14.sp,
-                                        ),
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ),
-                                    Obx(
-                                      () => Text(
-                                        "${localFollowersCount} ${"Followers".tr}",
-                                        style: TextStyle(
-                                          color: Colors.white,
-                                          fontSize: 10.sp,
-                                          fontWeight: FontWeight.w400,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                SizedBox(width: 8),
-                              ],
+            children: [
+              Positioned.fill(
+                child: GestureDetector(
+                  onTap: () {
+                    if (!_isInitializing) {
+                      _togglePlayPause();
+                    }
+                  },
+                  onDoubleTap: _toggleMute,
+                  child:
+                      _isInitializing
+                          ? Center(
+                            child: Image.network(
+                              "${Common.videoUrl}/${widget.image}",
                             ),
-                          ),
-                          if (userId != widget.frondUserId)
-                            Obx(() {
-                              var isProfileNull =
-                                  professionalProfileController
-                                      .userDetails
-                                      .value
-                                      ?.user ==
-                                  null;
-                              bool isFollowing =
-                                  isProfileNull && widget.frondUserId != null
-                                      ? profileController.isFollowing(
-                                        widget.frondUserId!,
-                                      )
-                                      : widget.frondUserId != null
-                                      ? professionalProfileController
-                                          .isFollowing(widget.frondUserId!)
-                                      : false;
-
-                              return Padding(
-                                padding: EdgeInsets.only(left: 8),
-                                child: InkWell(
-                                  onTap: () async {
-                                    bool isAuthenticated =
-                                        await _isUserAuthenticated();
-
-                                    if (isAuthenticated) {
-                                      if (_isProcessing ||
-                                          widget.frondUserId == null)
-                                        return;
-
-                                      _isProcessing = true;
-                                      try {
-                                        _followerChanged = true;
-                                        if (isFollowing) {
-                                          localFollowersCount.value--;
-                                        } else {
-                                          localFollowersCount.value++;
-                                        }
-
-                                        if (isProfileNull) {
-                                          await profileController
-                                              .toggleFollowStatus(
-                                                widget.frondUserId!,
-                                              );
-                                          print("User");
-                                        } else {
-                                          await professionalProfileController
-                                              .toggleFollowStatus(
-                                                widget.frondUserId!,
-                                              );
-                                          print("Professional");
-                                        }
-                                      } finally {
-                                        _isProcessing = false;
-                                      }
-                                    } else {
-                                      Get.toNamed(AppRoutes.signIn);
-                                      return;
-                                    }
-                                  },
-                                  child: Container(
-                                    height: 30,
-                                    padding: EdgeInsets.symmetric(
-                                      horizontal: 12,
-                                      vertical: 6,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      borderRadius: BorderRadius.circular(6),
-                                      border: Border.all(color: Colors.white),
-                                      color:
-                                          isFollowing
-                                              ? Colors.white
-                                              : Colors.black,
-                                    ),
-                                    child: Center(
-                                      child: Text(
-                                        isFollowing
-                                            ? "Following".tr
-                                            : "follow".tr,
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.w500,
-                                          color:
-                                              isFollowing
-                                                  ? Colors.black
-                                                  : Colors.white,
-                                          fontSize: 12.sp,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              );
-                            }),
-                        ],
-                      ),
+                          )
+                          : _chewieController != null
+                          ? Chewie(controller: _chewieController!)
+                          : SizedBox.shrink(),
+                ),
+              ),
+              if (widget.isImage == "0")
+                Positioned(
+                  left: 16,
+                  right: 16,
+                  bottom: 10,
+                  child:
+                      _isInitializing
+                          ? SizedBox.shrink()
+                          : EnhancedSeekBar(controller: _videoPlayerController),
+                ),
+              if (_showPlayPauseIcon && !_isInitializing)
+                Center(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.black.withOpacity(0.3),
+                      shape: BoxShape.circle,
+                    ),
+                    padding: EdgeInsets.all(8),
+                    child: Icon(
+                      _isPlaying
+                          ? Icons.pause_circle_filled
+                          : Icons.play_circle_filled,
+                      size: 64.0,
+                      color: Colors.white.withOpacity(0.9),
                     ),
                   ),
                 ),
-              ),
-            ),
-
-            VideoDescriptionWidget(
-              title: widget.title,
-              description: widget.description,
-              tags: widget.tags,
-              pauseVideo: _pauseVideo,
-            ),
-            Positioned(
-              right: 10,
-              bottom: Get.height * 0.1,
-              child: Column(
-                children: [
-                  ClipRRect(
-                    // Use ClipRRect to confine the blur effect
-                    borderRadius: BorderRadius.circular(50),
-                    child: BackdropFilter(
-                      filter: ImageFilter.blur(sigmaX: 10.0, sigmaY: 10.0),
+              Positioned(
+                top: Get.height * 0.05,
+                left: isRtl ? null : 16,
+                right: isRtl ? 16 : null,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(50),
+                  child: BackdropFilter(
+                    filter: ImageFilter.blur(sigmaX: 10.0, sigmaY: 10.0),
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(
+                        maxWidth:
+                            Get.width *
+                            0.88, // Maximum width for the entire container
+                      ),
                       child: Container(
                         padding: EdgeInsets.symmetric(
-                          horizontal: 6,
-                          vertical: 16,
+                          horizontal: 12,
+                          vertical: 8,
                         ),
                         decoration: BoxDecoration(
                           color: Colors.black.withOpacity(0.3),
                           borderRadius: BorderRadius.circular(50),
                         ),
-                        child: Column(
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          // Shrink Row to fit content
                           children: [
-                            VideoLikesWidget(
-                              videoId: widget.videoId ?? '',
-                              userId: userId ?? '',
-                              videoCommentsController: videoCommentsController,
-                              isAuthenticated: isAuthenticated,
-                            ),
-                            SizedBox(height: 8),
-
-                            // Comments Section (Extracted into a separate widget)
-                            if (widget.allowComments == 1)
-                              VideoCommentsWidget(
-                                videoId: widget.videoId ?? '',
-                                userId: userId ?? '',
-                                userImage:
-                                    currentUserDetails?.image ??
-                                    currentUser?.image ??
-                                    '',
-                                isAuthenticated: isAuthenticated,
-                              ),
-                            if (widget.allowComments == 1) SizedBox(height: 8),
                             InkWell(
                               onTap: () {
-                                if (widget.videoId != null) {
-                                  _handleShare(widget.videoId!);
-                                }
+                                // _pauseVideo();
+                                // _clearCache(); // Clear cache when back arrow is tapped
+                                Get.back(
+                                  result: {'followerChanged': _followerChanged},
+                                );
                               },
-                              child: Column(
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                // Shrink inner Row
                                 children: [
-                                  SizedBox(
-                                    height: 20.h,
-                                    width: 20.h,
-                                    child: SvgPicture.asset(
-                                      "assets/icons/share.svg",
-                                      fit: BoxFit.fill,
-                                      color: Colors.white,
-                                    ),
+                                  Icon(
+                                    Icons.arrow_back,
+                                    color: Colors.white,
+                                    size: 30,
                                   ),
-                                  Text(
-                                    "share".tr,
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 10.sp,
-                                    ),
+                                  // SizedBox(width: 8),
+                                  CircleAvatar(
+                                    radius: 20, // Adjust size as needed
+                                    backgroundImage:
+                                        widget.userImage != null &&
+                                                widget.userImage!.isNotEmpty
+                                            ? NetworkImage(
+                                              '${Common.profileImage}/${widget.userImage}',
+                                            )
+                                            : null,
+                                    child:
+                                        widget.userImage == null ||
+                                                widget.userImage!.isEmpty
+                                            ? Icon(
+                                              Icons.person,
+                                              color: Colors.white,
+                                            )
+                                            : null,
                                   ),
+                                  SizedBox(width: 8),
+                                  Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Container(
+                                        constraints: BoxConstraints(
+                                          maxWidth:
+                                              Get.width *
+                                              0.3, // Max width for username
+                                        ),
+                                        child: Text(
+                                          widget.userName ?? 'Unknown User',
+                                          style: TextStyle(
+                                            color: Colors.white,
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 14.sp,
+                                          ),
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                      Obx(
+                                        () => Text(
+                                          "${localFollowersCount} ${"Followers".tr}",
+                                          style: TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 10.sp,
+                                            fontWeight: FontWeight.w400,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  SizedBox(width: 8),
                                 ],
                               ),
                             ),
-                            SizedBox(height: 8),
+                            if (userId != widget.frondUserId)
+                              Obx(() {
+                                var isProfileNull =
+                                    professionalProfileController
+                                        .userDetails
+                                        .value
+                                        ?.user ==
+                                    null;
+                                bool isFollowing =
+                                    isProfileNull && widget.frondUserId != null
+                                        ? profileController.isFollowing(
+                                          widget.frondUserId!,
+                                        )
+                                        : widget.frondUserId != null
+                                        ? professionalProfileController
+                                            .isFollowing(widget.frondUserId!)
+                                        : false;
 
-                            Obx(() {
-                              // Check if video is already saved
-                              bool isSaved = saveController.savedVideos.any(
-                                (video) =>
-                                    video.id.toString() == widget.videoId,
-                              );
-
-                              return Column(
-                                children: [
-                                  InkWell(
+                                return Padding(
+                                  padding: EdgeInsets.only(left: 8),
+                                  child: InkWell(
                                     onTap: () async {
                                       bool isAuthenticated =
                                           await _isUserAuthenticated();
+
                                       if (isAuthenticated) {
-                                        if (isSaved) {
-                                          // 1. Immediately remove from local list
-                                          saveController.savedVideos
-                                              .removeWhere(
-                                                (video) =>
-                                                    video.id.toString() ==
-                                                    widget.videoId.toString(),
-                                              );
-
-                                          // 2. Then hit API
-                                          await saveController.saveVideo(
-                                            widget.videoId!,
-                                          );
-                                        } else {
-                                          // 1. Immediately add to local list
-                                          saveController.savedVideos.add(
-                                            SavedVideos(
-                                              id: widget.videoId,
-
-                                              // Add other fields if needed, or just id is fine for now
-                                            ),
-                                          );
-
-                                          // 2. Then hit API
-                                          await saveController.saveVideo(
-                                            widget.videoId!,
-                                          );
-                                        }
-                                      } else {
-                                        Get.toNamed(AppRoutes.signIn);
-                                        return;
-                                      }
-                                    },
-                                    child: SizedBox(
-                                      height: 20.h,
-                                      width: 20.h,
-                                      child: SvgPicture.asset(
-                                        "assets/icons/bookmark.svg",
-                                        fit: BoxFit.fill,
-                                        color:
-                                            isSaved
-                                                ? ColorUtils.primaryColor
-                                                : Colors.white,
-                                      ),
-                                    ),
-                                  ),
-                                  Text(
-                                    "Save".tr,
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 10.sp,
-                                    ),
-                                  ),
-                                ],
-                              );
-                            }),
-                            SizedBox(height: 8),
-                            if (widget.frondUserId != userId)
-                              Column(
-                                children: [
-                                  InkWell(
-                                    onTap: () async {
-                                      bool isAuthenticated =
-                                          await _isUserAuthenticated();
-                                      if (isAuthenticated) {
-                                        if (widget.videoId != null) {
-                                          showMoreOptions(
-                                            context,
-                                            widget.videoId!,
-                                            userId.toString(),
-                                          );
-                                        }
-                                      } else {
-                                        Get.toNamed(AppRoutes.signIn);
-                                        return;
-                                      }
-                                    },
-                                    child: SizedBox(
-                                      height: 20.h,
-                                      width: 20.h,
-                                      child: SvgPicture.asset(
-                                        "assets/icons/more.svg",
-                                        fit: BoxFit.fill,
-                                        color: Colors.white,
-                                      ),
-                                    ),
-                                  ),
-
-                                  // SizedBox(height: 2),
-                                  Text(
-                                    "more".tr,
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 10.sp,
-                                    ),
-                                  ),
-                                ],
-                              ),
-
-                            userId != widget.frondUserId &&
-                                    widget.takeOrder == "1" &&
-                                    (widget.contactPhone?.isNotEmpty == true ||
-                                        widget.contactEmail?.isNotEmpty ==
-                                            true ||
-                                        widget.latitude?.isNotEmpty == true)
-                                ? Column(
-                                  children: [
-                                    Container(
-                                      margin: EdgeInsets.symmetric(vertical: 4),
-                                      width: 40,
-                                      height: 1,
-                                      decoration: BoxDecoration(
-                                        color: Colors.white,
-                                      ),
-                                    ),
-                                    InkWell(
-                                      onTap: () async {
-                                        bool isAuthenticated =
-                                            await _isUserAuthenticated();
-
-                                        if (isAuthenticated) {
-                                          final businessId =
-                                              widget.frondUserId.toString();
-                                          final firestore =
-                                              FirebaseFirestore.instance;
-                                          final docRef = firestore
-                                              .collection('countContactClick')
-                                              .doc(businessId);
-
-                                          // Run transaction to ensure atomic update
-                                          firestore.runTransaction((
-                                            transaction,
-                                          ) async {
-                                            final docSnapshot =
-                                                await transaction.get(docRef);
-
-                                            if (!docSnapshot.exists) {
-                                              // If document doesn't exist, create it with initial data
-                                              transaction.set(docRef, {
-                                                'businessId':
-                                                    widget.frondUserId,
-                                                'videoId': widget.videoId,
-                                                'totalClicks': 1,
-                                                'userIds': [userId],
-                                              });
-                                            } else {
-                                              final data = docSnapshot.data()!;
-                                              final userIds = List<String>.from(
-                                                data['userIds'] ?? [],
-                                              );
-
-                                              if (!userIds.contains(userId)) {
-                                                // User hasn't clicked before, increment count and add userId
-                                                transaction.update(docRef, {
-                                                  'totalClicks':
-                                                      FieldValue.increment(1),
-                                                  'userIds':
-                                                      FieldValue.arrayUnion([
-                                                        userId,
-                                                      ]),
-                                                });
-                                              }
-                                            }
-                                          });
-
-                                          showContactNowDialog(
-                                            context,
-                                            website: widget.website ?? "",
-                                            phoneNumber:
-                                                widget.contactPhone ?? "",
-                                            latitude: widget.latitude ?? "",
-                                            longitude: widget.longitude ?? "",
-                                            email: widget.contactEmail ?? "",
-                                            videoId: widget.videoId.toString(),
-                                          );
-                                        } else {
-                                          Get.toNamed(AppRoutes.signIn);
+                                        if (_isProcessing ||
+                                            widget.frondUserId == null)
                                           return;
+
+                                        _isProcessing = true;
+                                        try {
+                                          _followerChanged = true;
+                                          if (isFollowing) {
+                                            localFollowersCount.value--;
+                                          } else {
+                                            localFollowersCount.value++;
+                                          }
+
+                                          if (isProfileNull) {
+                                            await profileController
+                                                .toggleFollowStatus(
+                                                  widget.frondUserId!,
+                                                );
+                                            print("User");
+                                          } else {
+                                            await professionalProfileController
+                                                .toggleFollowStatus(
+                                                  widget.frondUserId!,
+                                                );
+                                            print("Professional");
+                                          }
+                                        } finally {
+                                          _isProcessing = false;
                                         }
-                                      },
-                                      child: Container(
-                                        padding: EdgeInsets.all(8),
-                                        decoration: BoxDecoration(
-                                          color: ColorUtils.primaryColor,
-                                          shape: BoxShape.circle,
-                                        ),
-                                        child: SvgPicture.asset(
-                                          "assets/icons/contact.svg",
+                                      } else {
+                                        Get.toNamed(AppRoutes.signIn);
+                                        return;
+                                      }
+                                    },
+                                    child: Container(
+                                      height: 30,
+                                      padding: EdgeInsets.symmetric(
+                                        horizontal: 12,
+                                        vertical: 6,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        borderRadius: BorderRadius.circular(6),
+                                        border: Border.all(color: Colors.white),
+                                        color:
+                                            isFollowing
+                                                ? Colors.white
+                                                : Colors.black,
+                                      ),
+                                      child: Center(
+                                        child: Text(
+                                          isFollowing
+                                              ? "Following".tr
+                                              : "follow".tr,
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.w500,
+                                            color:
+                                                isFollowing
+                                                    ? Colors.black
+                                                    : Colors.white,
+                                            fontSize: 12.sp,
+                                          ),
                                         ),
                                       ),
                                     ),
-                                  ],
-                                )
-                                : SizedBox.shrink(),
+                                  ),
+                                );
+                              }),
                           ],
                         ),
                       ),
                     ),
                   ),
+                ),
+              ),
 
-                  SizedBox(height: 16.h),
+              VideoDescriptionWidget(
+                title: widget.title,
+                description: widget.description,
+                tags: widget.tags,
+                pauseVideo: _pauseVideo,
+              ),
+              Positioned(
+                right: 10,
+                bottom: Get.height * 0.1,
+                child: Column(
+                  children: [
+                    ClipRRect(
+                      // Use ClipRRect to confine the blur effect
+                      borderRadius: BorderRadius.circular(50),
+                      child: BackdropFilter(
+                        filter: ImageFilter.blur(sigmaX: 10.0, sigmaY: 10.0),
+                        child: Container(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 16,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withOpacity(0.3),
+                            borderRadius: BorderRadius.circular(50),
+                          ),
+                          child: Column(
+                            children: [
+                              VideoLikesWidget(
+                                videoId: widget.videoId ?? '',
+                                userId: userId ?? '',
+                                videoCommentsController:
+                                    videoCommentsController,
+                                isAuthenticated: isAuthenticated,
+                              ),
+                              SizedBox(height: 8),
 
-                  if (widget.frondUserId != userId)
-                    Container(
-                      margin: EdgeInsets.only(top: 16),
-                      decoration: BoxDecoration(
-                        color: Colors.transparent,
-                        borderRadius: BorderRadius.circular(50),
-                      ),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(50),
-                        child: BackdropFilter(
-                          filter: ImageFilter.blur(sigmaX: 10.0, sigmaY: 10.0),
-                          child: Container(
-                            padding: EdgeInsets.symmetric(
-                              horizontal: 6,
-                              vertical: 16,
-                            ),
-                            decoration: BoxDecoration(
-                              color: Colors.black.withOpacity(0.3),
-                              borderRadius: BorderRadius.circular(50),
-                            ),
-                            child: InkWell(
-                              onTap: () async {
-                                bool isAuthenticated =
-                                    await _isUserAuthenticated();
-
-                                if (isAuthenticated) {
-                                  _pauseVideo();
-                                  String? userId =
-                                      currentUserDetails?.id ?? currentUser!.id;
-                                  String? userImage =
+                              // Comments Section (Extracted into a separate widget)
+                              if (widget.allowComments == 1)
+                                VideoCommentsWidget(
+                                  videoId: widget.videoId ?? '',
+                                  userId: userId ?? '',
+                                  userImage:
                                       currentUserDetails?.image ??
                                       currentUser?.image ??
-                                      "";
-                                  showReviewsBottomSheet(
-                                    context,
-                                    widget.videoId!,
-                                    userId!,
-                                    userImage!,
-                                  );
-                                } else {
-                                  Get.toNamed(AppRoutes.signIn);
-                                  return;
-                                }
-                              },
-                              child: Column(
-                                children: [
-                                  Icon(
-                                    Icons.star_rounded,
-                                    color: Colors.amberAccent,
-                                    size: 40,
-                                  ),
-                                  StreamBuilder<double>(
-                                    stream: _getAverageRating(widget.videoId!),
-                                    builder: (context, snapshot) {
-                                      final averageRating =
-                                          snapshot.hasData && snapshot.data! > 0
-                                              ? snapshot.data!.toStringAsFixed(
-                                                1,
-                                              )
-                                              : "0.0";
-                                      return Text(
-                                        averageRating,
-                                        style: TextStyle(
-                                          color: Colors.white,
-                                          fontSize: 14.sp,
+                                      '',
+                                  isAuthenticated: isAuthenticated,
+                                ),
+                              if (widget.allowComments == 1)
+                                SizedBox(height: 8),
+                              InkWell(
+                                onTap: () {
+                                  if (widget.videoId != null) {
+                                    _handleShare(widget.videoId!);
+                                  }
+                                },
+                                child: Column(
+                                  children: [
+                                    SizedBox(
+                                      height: 20.h,
+                                      width: 20.h,
+                                      child: SvgPicture.asset(
+                                        "assets/icons/share.svg",
+                                        fit: BoxFit.fill,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                    Text(
+                                      "share".tr,
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 10.sp,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              SizedBox(height: 8),
+
+                              Obx(() {
+                                // Check if video is already saved
+                                bool isSaved = saveController.savedVideos.any(
+                                  (video) =>
+                                      video.id.toString() == widget.videoId,
+                                );
+
+                                return Column(
+                                  children: [
+                                    InkWell(
+                                      onTap: () async {
+                                        bool isAuthenticated =
+                                            await _isUserAuthenticated();
+                                        if (isAuthenticated) {
+                                          if (isSaved) {
+                                            // 1. Immediately remove from local list
+                                            saveController.savedVideos
+                                                .removeWhere(
+                                                  (video) =>
+                                                      video.id.toString() ==
+                                                      widget.videoId.toString(),
+                                                );
+
+                                            // 2. Then hit API
+                                            await saveController.saveVideo(
+                                              widget.videoId!,
+                                            );
+                                          } else {
+                                            // 1. Immediately add to local list
+                                            saveController.savedVideos.add(
+                                              SavedVideos(
+                                                id: widget.videoId,
+
+                                                // Add other fields if needed, or just id is fine for now
+                                              ),
+                                            );
+
+                                            // 2. Then hit API
+                                            await saveController.saveVideo(
+                                              widget.videoId!,
+                                            );
+                                          }
+                                        } else {
+                                          Get.toNamed(AppRoutes.signIn);
+                                          return;
+                                        }
+                                      },
+                                      child: SizedBox(
+                                        height: 20.h,
+                                        width: 20.h,
+                                        child: SvgPicture.asset(
+                                          "assets/icons/bookmark.svg",
+                                          fit: BoxFit.fill,
+                                          color:
+                                              isSaved
+                                                  ? ColorUtils.primaryColor
+                                                  : Colors.white,
                                         ),
-                                      );
-                                    },
-                                  ),
-                                ],
+                                      ),
+                                    ),
+                                    Text(
+                                      "Save".tr,
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 10.sp,
+                                      ),
+                                    ),
+                                  ],
+                                );
+                              }),
+                              SizedBox(height: 8),
+                              if (widget.frondUserId != userId)
+                                Column(
+                                  children: [
+                                    InkWell(
+                                      onTap: () async {
+                                        bool isAuthenticated =
+                                            await _isUserAuthenticated();
+                                        if (isAuthenticated) {
+                                          if (widget.videoId != null) {
+                                            showMoreOptions(
+                                              context,
+                                              widget.videoId!,
+                                              userId.toString(),
+                                            );
+                                          }
+                                        } else {
+                                          Get.toNamed(AppRoutes.signIn);
+                                          return;
+                                        }
+                                      },
+                                      child: SizedBox(
+                                        height: 20.h,
+                                        width: 20.h,
+                                        child: SvgPicture.asset(
+                                          "assets/icons/more.svg",
+                                          fit: BoxFit.fill,
+                                          color: Colors.white,
+                                        ),
+                                      ),
+                                    ),
+
+                                    // SizedBox(height: 2),
+                                    Text(
+                                      "more".tr,
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 10.sp,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+
+                              userId != widget.frondUserId &&
+                                      widget.takeOrder == "1" &&
+                                      (widget.contactPhone?.isNotEmpty ==
+                                              true ||
+                                          widget.contactEmail?.isNotEmpty ==
+                                              true ||
+                                          widget.latitude?.isNotEmpty == true)
+                                  ? Column(
+                                    children: [
+                                      Container(
+                                        margin: EdgeInsets.symmetric(
+                                          vertical: 4,
+                                        ),
+                                        width: 40,
+                                        height: 1,
+                                        decoration: BoxDecoration(
+                                          color: Colors.white,
+                                        ),
+                                      ),
+                                      InkWell(
+                                        onTap: () async {
+                                          bool isAuthenticated =
+                                              await _isUserAuthenticated();
+
+                                          if (isAuthenticated) {
+                                            final businessId =
+                                                widget.frondUserId.toString();
+                                            final firestore =
+                                                FirebaseFirestore.instance;
+                                            final docRef = firestore
+                                                .collection('countContactClick')
+                                                .doc(businessId);
+
+                                            // Run transaction to ensure atomic update
+                                            firestore.runTransaction((
+                                              transaction,
+                                            ) async {
+                                              final docSnapshot =
+                                                  await transaction.get(docRef);
+
+                                              if (!docSnapshot.exists) {
+                                                // If document doesn't exist, create it with initial data
+                                                transaction.set(docRef, {
+                                                  'businessId':
+                                                      widget.frondUserId,
+                                                  'videoId': widget.videoId,
+                                                  'totalClicks': 1,
+                                                  'userIds': [userId],
+                                                });
+                                              } else {
+                                                final data =
+                                                    docSnapshot.data()!;
+                                                final userIds =
+                                                    List<String>.from(
+                                                      data['userIds'] ?? [],
+                                                    );
+
+                                                if (!userIds.contains(userId)) {
+                                                  // User hasn't clicked before, increment count and add userId
+                                                  transaction.update(docRef, {
+                                                    'totalClicks':
+                                                        FieldValue.increment(1),
+                                                    'userIds':
+                                                        FieldValue.arrayUnion([
+                                                          userId,
+                                                        ]),
+                                                  });
+                                                }
+                                              }
+                                            });
+
+                                            showContactNowDialog(
+                                              context,
+                                              website: widget.website ?? "",
+                                              phoneNumber:
+                                                  widget.contactPhone ?? "",
+                                              latitude: widget.latitude ?? "",
+                                              longitude: widget.longitude ?? "",
+                                              email: widget.contactEmail ?? "",
+                                              videoId:
+                                                  widget.videoId.toString(),
+                                            );
+                                          } else {
+                                            Get.toNamed(AppRoutes.signIn);
+                                            return;
+                                          }
+                                        },
+                                        child: Container(
+                                          padding: EdgeInsets.all(8),
+                                          decoration: BoxDecoration(
+                                            color: ColorUtils.primaryColor,
+                                            shape: BoxShape.circle,
+                                          ),
+                                          child: SvgPicture.asset(
+                                            "assets/icons/contact.svg",
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  )
+                                  : SizedBox.shrink(),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+
+                    SizedBox(height: 16.h),
+
+                    if (widget.frondUserId != userId)
+                      Container(
+                        margin: EdgeInsets.only(top: 16),
+                        decoration: BoxDecoration(
+                          color: Colors.transparent,
+                          borderRadius: BorderRadius.circular(50),
+                        ),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(50),
+                          child: BackdropFilter(
+                            filter: ImageFilter.blur(
+                              sigmaX: 10.0,
+                              sigmaY: 10.0,
+                            ),
+                            child: Container(
+                              padding: EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 16,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.black.withOpacity(0.3),
+                                borderRadius: BorderRadius.circular(50),
+                              ),
+                              child: InkWell(
+                                onTap: () async {
+                                  bool isAuthenticated =
+                                      await _isUserAuthenticated();
+
+                                  if (isAuthenticated) {
+                                    _pauseVideo();
+                                    String? userId =
+                                        currentUserDetails?.id ??
+                                        currentUser!.id;
+                                    String? userImage =
+                                        currentUserDetails?.image ??
+                                        currentUser?.image ??
+                                        "";
+                                    showReviewsBottomSheet(
+                                      context,
+                                      widget.videoId!,
+                                      userId!,
+                                      userImage!,
+                                    );
+                                  } else {
+                                    Get.toNamed(AppRoutes.signIn);
+                                    return;
+                                  }
+                                },
+                                child: Column(
+                                  children: [
+                                    Icon(
+                                      Icons.star_rounded,
+                                      color: Colors.amberAccent,
+                                      size: 40,
+                                    ),
+                                    StreamBuilder<double>(
+                                      stream: _getAverageRating(
+                                        widget.videoId!,
+                                      ),
+                                      builder: (context, snapshot) {
+                                        final averageRating =
+                                            snapshot.hasData &&
+                                                    snapshot.data! > 0
+                                                ? snapshot.data!
+                                                    .toStringAsFixed(1)
+                                                : "0.0";
+                                        return Text(
+                                          averageRating,
+                                          style: TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 14.sp,
+                                          ),
+                                        );
+                                      },
+                                    ),
+                                  ],
+                                ),
                               ),
                             ),
                           ),
                         ),
                       ),
-                    ),
-                ],
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -1052,7 +1072,10 @@ class _SingleVideoScreenState extends State<SingleVideoScreen>
                     trailing: Icon(Icons.delete, color: Colors.redAccent),
                     title: Text(
                       'delete_video'.tr,
-                      style: TextStyle(color: Colors.redAccent, fontSize: 14.sp),
+                      style: TextStyle(
+                        color: Colors.redAccent,
+                        fontSize: 14.sp,
+                      ),
                     ),
                     onTap: () async {
                       // Close the bottom sheet first
@@ -1089,7 +1112,7 @@ class _SingleVideoScreenState extends State<SingleVideoScreen>
                     Get.to(ReportContentView(videoId: videoId));
                   },
                 ),
-            
+
                 // ListTile(
                 //   leading: Icon(Icons.headphones, color: ColorUtils.grey),
                 //   trailing: Text(
@@ -1415,8 +1438,6 @@ class _VideoLikesWidgetState extends State<VideoLikesWidget> {
               .doc(widget.videoId)
               .snapshots(),
       builder: (context, snapshot) {
-
-
         final data = snapshot.data?.data() as Map<String, dynamic>? ?? {};
         List<dynamic> likes = data['likes'] ?? [];
         int likeCount = likes.length; // Count likes from array length
@@ -1518,7 +1539,6 @@ class VideoCommentsWidget extends StatelessWidget {
               .collection('comments')
               .snapshots(),
       builder: (context, snapshot) {
-
         int commentCount = snapshot.data?.docs.length ?? 0;
         String formattedCount =
             commentCount > 1000

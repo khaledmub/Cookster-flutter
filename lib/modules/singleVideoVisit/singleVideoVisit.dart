@@ -303,236 +303,243 @@ class _SingleVideoVisitState extends State<SingleVisitVideo>
         key: _scaffoldKey,
         backgroundColor: Colors.black,
         appBar: AppBar(toolbarHeight: 0),
-        body: Obx(() {
-          final video = singleVideoController.singleVideoContent.value.video;
-          if (video == null) {
-            return Center(
-              child: Text(
-                'Video not found',
-                style: TextStyle(color: Colors.white, fontSize: 16.sp),
-              ),
-            );
-          }
-          if (singleVideoController.isLoading.value) {
-            return Image.network("${Common.videoUrl}/${video.image}");
-          }
-
-          _trackVideoView(
-            video.id.toString(),
-            _frontUserId!,
-            _frontUserId != null ? true : false,
-          );
-
-          return Stack(
-            clipBehavior: Clip.none,
-            alignment: Alignment.bottomLeft,
-            children: [
-              Positioned.fill(
-                child: GestureDetector(
-                  onTap: () {
-                    if (!_isInitializing) {
-                      _togglePlayPause();
-                    }
-                  },
-                  onDoubleTap: _toggleMute,
-                  child:
-                      _isInitializing
-                          ? Center(
-                            child: PulseLogoLoader(
-                              logoPath: "assets/images/appIcon.png",
-                              size: 80,
-                            ),
-                          )
-                          : _chewieController != null
-                          ? Chewie(controller: _chewieController!)
-                          : SizedBox.shrink(),
+        body: Padding(
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.of(context).viewPadding.bottom + 20,
+          ),
+          child: Obx(() {
+            final video = singleVideoController.singleVideoContent.value.video;
+            if (video == null) {
+              return Center(
+                child: Text(
+                  'Video not found',
+                  style: TextStyle(color: Colors.white, fontSize: 16.sp),
                 ),
-              ),
-              Positioned(
-                left: 16,
-                right: 16,
-                bottom: 10,
-                child:
-                    _isInitializing || _videoPlayerController == null
-                        ? SizedBox.shrink()
-                        : video.isImage == 1
-                        ? SizedBox.shrink()
-                        : EnhancedSeekBar(controller: _videoPlayerController!),
-              ),
-              if (_showPlayPauseIcon && !_isInitializing)
-                Center(
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: Colors.black.withOpacity(0.3),
-                      shape: BoxShape.circle,
+              );
+            }
+            if (singleVideoController.isLoading.value) {
+              return Image.network("${Common.videoUrl}/${video.image}");
+            }
+
+            _trackVideoView(
+              video.id.toString(),
+              _frontUserId!,
+              _frontUserId != null ? true : false,
+            );
+
+            return Stack(
+              clipBehavior: Clip.none,
+              alignment: Alignment.bottomLeft,
+              children: [
+                Positioned.fill(
+                  child: GestureDetector(
+                    onTap: () {
+                      if (!_isInitializing) {
+                        _togglePlayPause();
+                      }
+                    },
+                    onDoubleTap: _toggleMute,
+                    child:
+                        _isInitializing
+                            ? Center(
+                              child: PulseLogoLoader(
+                                logoPath: "assets/images/appIcon.png",
+                                size: 80,
+                              ),
+                            )
+                            : _chewieController != null
+                            ? Chewie(controller: _chewieController!)
+                            : SizedBox.shrink(),
+                  ),
+                ),
+                Positioned(
+                  left: 16,
+                  right: 16,
+                  bottom: 10,
+                  child:
+                      _isInitializing || _videoPlayerController == null
+                          ? SizedBox.shrink()
+                          : video.isImage == 1
+                          ? SizedBox.shrink()
+                          : EnhancedSeekBar(
+                            controller: _videoPlayerController!,
+                          ),
+                ),
+                if (_showPlayPauseIcon && !_isInitializing)
+                  Center(
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(0.3),
+                        shape: BoxShape.circle,
+                      ),
+                      padding: EdgeInsets.all(8),
+                      child: Icon(
+                        _isPlaying
+                            ? Icons.pause_circle_filled
+                            : Icons.play_circle_filled,
+                        size: 64.0,
+                        color: Colors.white.withOpacity(0.9),
+                      ),
                     ),
-                    padding: EdgeInsets.all(8),
-                    child: Icon(
-                      _isPlaying
-                          ? Icons.pause_circle_filled
-                          : Icons.play_circle_filled,
-                      size: 64.0,
-                      color: Colors.white.withOpacity(0.9),
+                  ),
+                Positioned(
+                  top: Get.height * 0.05,
+                  left: isRtl ? null : 16,
+                  right: isRtl ? 16 : null,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(50),
+                    child: BackdropFilter(
+                      filter: ImageFilter.blur(sigmaX: 10.0, sigmaY: 10.0),
+                      child: Container(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withOpacity(0.3),
+                          borderRadius: BorderRadius.circular(50),
+                        ),
+                        child: InkWell(
+                          onTap: () {
+                            _pauseVideo();
+                            Get.back();
+                          },
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.arrow_back,
+                                color: Colors.white,
+                                size: 30,
+                              ),
+                              SizedBox(width: 8),
+                              Text(
+                                video.userName ?? 'Unknown User',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 14.sp,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
                     ),
                   ),
                 ),
-              Positioned(
-                top: Get.height * 0.05,
-                left: isRtl ? null : 16,
-                right: isRtl ? 16 : null,
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(50),
-                  child: BackdropFilter(
-                    filter: ImageFilter.blur(sigmaX: 10.0, sigmaY: 10.0),
-                    child: Container(
-                      padding: EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 8,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.black.withOpacity(0.3),
-                        borderRadius: BorderRadius.circular(50),
-                      ),
-                      child: InkWell(
-                        onTap: () {
-                          _pauseVideo();
-                          Get.back();
-                        },
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
+
+                VideoDescriptionWidget(
+                  title: video.title,
+                  description: video.description,
+                  tags: video.tags,
+                ),
+                Positioned(
+                  right: 10,
+                  bottom: Get.height * 0.1,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(50),
+                    child: BackdropFilter(
+                      filter: ImageFilter.blur(sigmaX: 10.0, sigmaY: 10.0),
+                      child: Container(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 16,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withOpacity(0.3),
+                          borderRadius: BorderRadius.circular(50),
+                        ),
+                        child: Column(
                           children: [
-                            Icon(
-                              Icons.arrow_back,
-                              color: Colors.white,
-                              size: 30,
+                            VideoLikesWidget(
+                              videoId: widget.videoId ?? '',
+                              userId: _frontUserId ?? '',
+                              videoCommentsController: videoCommentsController,
+                              isAuthenticated: false,
                             ),
-                            SizedBox(width: 8),
-                            Text(
-                              video.userName ?? 'Unknown User',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 14.sp,
+                            SizedBox(height: 8),
+
+                            if (video.allowComments == 1)
+                              VideoCommentsWidget(
+                                videoId: widget.videoId ?? '',
+                                userId: _frontUserId ?? '',
+                                userImage: _frontUserImage ?? '',
+                                isAuthenticated: true,
                               ),
-                              overflow: TextOverflow.ellipsis,
+
+                            InkWell(
+                              onTap: () {
+                                if (widget.videoId.isNotEmpty) {
+                                  _handleShare(widget.videoId);
+                                }
+                              },
+                              child: Column(
+                                children: [
+                                  SizedBox(
+                                    height: 20.h,
+
+                                    width: 20.h,
+                                    child: SvgPicture.asset(
+                                      "assets/icons/share.svg",
+                                      fit: BoxFit.fill,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                  Text(
+                                    "share".tr,
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 10.sp,
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
+                            SizedBox(height: 8),
+                            if (_frontUserId != video.frontUserId)
+                              Column(
+                                children: [
+                                  InkWell(
+                                    onTap: () {
+                                      if (widget.videoId.isNotEmpty) {
+                                        showMoreOptions(
+                                          context,
+                                          widget.videoId,
+                                          _frontUserId ?? '',
+                                        );
+                                      }
+                                    },
+                                    child: SizedBox(
+                                      height: 20.h,
+                                      width: 20.h,
+                                      child: SvgPicture.asset(
+                                        "assets/icons/more.svg",
+                                        fit: BoxFit.fill,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                  ),
+                                  Text(
+                                    "more".tr,
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 10.sp,
+                                    ),
+                                  ),
+                                ],
+                              ),
                           ],
                         ),
                       ),
                     ),
                   ),
                 ),
-              ),
-
-              VideoDescriptionWidget(
-                title: video.title,
-                description: video.description,
-                tags: video.tags,
-              ),
-              Positioned(
-                right: 10,
-                bottom: Get.height * 0.1,
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(50),
-                  child: BackdropFilter(
-                    filter: ImageFilter.blur(sigmaX: 10.0, sigmaY: 10.0),
-                    child: Container(
-                      padding: EdgeInsets.symmetric(
-                        horizontal: 6,
-                        vertical: 16,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.black.withOpacity(0.3),
-                        borderRadius: BorderRadius.circular(50),
-                      ),
-                      child: Column(
-                        children: [
-                          VideoLikesWidget(
-                            videoId: widget.videoId ?? '',
-                            userId: _frontUserId ?? '',
-                            videoCommentsController: videoCommentsController,
-                            isAuthenticated: false,
-                          ),
-                          SizedBox(height: 8),
-
-                          if (video.allowComments == 1)
-                            VideoCommentsWidget(
-                              videoId: widget.videoId ?? '',
-                              userId: _frontUserId ?? '',
-                              userImage: _frontUserImage ?? '',
-                              isAuthenticated: true,
-                            ),
-
-                          InkWell(
-                            onTap: () {
-                              if (widget.videoId.isNotEmpty) {
-                                _handleShare(widget.videoId);
-                              }
-                            },
-                            child: Column(
-                              children: [
-                                SizedBox(
-                                  height: 20.h,
-
-                                  width: 20.h,
-                                  child: SvgPicture.asset(
-                                    "assets/icons/share.svg",
-                                    fit: BoxFit.fill,
-                                    color: Colors.white,
-                                  ),
-                                ),
-                                Text(
-                                  "share".tr,
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 10.sp,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          SizedBox(height: 8),
-                          if (_frontUserId != video.frontUserId)
-                            Column(
-                              children: [
-                                InkWell(
-                                  onTap: () {
-                                    if (widget.videoId.isNotEmpty) {
-                                      showMoreOptions(
-                                        context,
-                                        widget.videoId,
-                                        _frontUserId ?? '',
-                                      );
-                                    }
-                                  },
-                                  child: SizedBox(
-                                    height: 20.h,
-                                    width: 20.h,
-                                    child: SvgPicture.asset(
-                                      "assets/icons/more.svg",
-                                      fit: BoxFit.fill,
-                                      color: Colors.white,
-                                    ),
-                                  ),
-                                ),
-                                Text(
-                                  "more".tr,
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 10.sp,
-                                  ),
-                                ),
-                              ],
-                            ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          );
-        }),
+              ],
+            );
+          }),
+        ),
       ),
     );
   }
@@ -614,7 +621,10 @@ class _SingleVideoVisitState extends State<SingleVisitVideo>
                     trailing: Icon(Icons.delete, color: Colors.redAccent),
                     title: Text(
                       'delete_video'.tr,
-                      style: TextStyle(color: Colors.redAccent, fontSize: 14.sp),
+                      style: TextStyle(
+                        color: Colors.redAccent,
+                        fontSize: 14.sp,
+                      ),
                     ),
                     onTap: () async {
                       Navigator.pop(bottomSheetContext);
@@ -645,7 +655,7 @@ class _SingleVideoVisitState extends State<SingleVisitVideo>
                     Get.to(() => ReportContentView(videoId: videoId));
                   },
                 ),
-          
+
                 // ListTile(
                 //   leading: Icon(Icons.headphones, color: ColorUtils.grey),
                 //   trailing: Text(
@@ -678,7 +688,6 @@ class _SingleVideoVisitState extends State<SingleVisitVideo>
                 //     Navigator.pop(context);
                 //   },
                 // ),
-          
               ],
             ),
           ),
