@@ -642,6 +642,74 @@ class _SingleVideoScreenState extends State<SingleVideoScreen>
                                 isAuthenticated: isAuthenticated,
                               ),
                               SizedBox(height: 8),
+                              SizedBox(
+                                height: 20.h,
+                                width: 20.h,
+                                child: SvgPicture.asset(
+                                  "assets/icons/eye.svg",
+                                  fit: BoxFit.fill,
+                                  color: Colors.white,
+                                ),
+                              ),
+                              SizedBox(width: 4),
+                              StreamBuilder<
+                                  DocumentSnapshot
+                              >(
+                                stream:
+                                FirebaseFirestore
+                                    .instance
+                                    .collection(
+                                  'videos',
+                                )
+                                    .doc(widget.videoId)
+                                    .snapshots(),
+                                builder: (context,
+                                    snapshot,) {
+
+                                  if (!snapshot.hasData ||
+                                      !snapshot
+                                          .data!
+                                          .exists) {
+                                    return Text(
+                                      "0",
+                                      style: TextStyle(
+                                        color:
+                                        Colors.white,
+                                      ),
+                                    );
+                                  }
+                                  final data =
+                                      snapshot.data!
+                                          .data()
+                                      as Map<
+                                          String,
+                                          dynamic
+                                      >? ??
+                                          {};
+                                  List<dynamic> views =
+                                      data['views'] ?? [];
+                                  int viewCount =
+                                      views
+                                          .length; // Count views from array length
+                                  String
+                                  formattedViewCount =
+                                  viewCount > 1000
+                                      ? '${(viewCount / 1000)
+                                      .toStringAsFixed(1)}K'
+                                      : viewCount
+                                      .toString();
+
+                                  return Text(
+                                    formattedViewCount,
+                                    style:TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 10.sp,
+                                    ),
+                                  );
+                                },
+                              ),
+
+                              SizedBox(height: 8),
 
                               // Comments Section (Extracted into a separate widget)
                               if (widget.allowComments == 1)

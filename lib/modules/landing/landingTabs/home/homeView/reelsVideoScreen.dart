@@ -20,6 +20,7 @@ import 'package:cookster/modules/landing/landingTabs/reportContent/reportContent
 import 'package:cookster/modules/search/searchView/searchView.dart';
 import 'package:cookster/modules/visitProfile/visitProfileView/visitProfileView.dart';
 import 'package:device_info_plus/device_info_plus.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -516,6 +517,35 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                                 videoUrl:
                                     '${Common.videoUrl}/${videoDetail.video}',
                                 autoPlay: true,
+                                onTap: () async {
+                                  // Get current user details
+                                  var currentUserDetails =
+                                      profileController
+                                          .simpleUserDetails
+                                          .value
+                                          ?.user;
+                                  var currentUser =
+                                      professionalProfileController
+                                          .userDetails
+                                          .value
+                                          ?.user;
+                                  String userId =
+                                      currentUserDetails?.id ?? currentUser?.id;
+
+                                  if (userId.isNotEmpty && isAuthenticated) {
+                                    final String videoId = videoDetail.id!;
+                                    HapticFeedback.lightImpact();
+
+                                    // Call the same like function used in the like button
+                                    await videoCommentsController
+                                        .toggleVideoLike(
+                                          videoId.toString(),
+                                          userId.toString(),
+                                        );
+                                  } else if (!isAuthenticated) {
+                                    Get.toNamed(AppRoutes.signIn);
+                                  }
+                                },
                               ),
                               VideoDescriptionWidget(
                                 title: videoDetail.title,
@@ -1060,6 +1090,52 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                                     fontSize: 10.sp,
                                   ),
                                 ),
+                              ),
+                              SizedBox(
+                                height: 20.h,
+                                width: 20.h,
+                                child: SvgPicture.asset(
+                                  "assets/icons/eye.svg",
+                                  fit: BoxFit.fill,
+                                  color: Colors.white,
+                                ),
+                              ),
+                              SizedBox(width: 4),
+                              StreamBuilder<DocumentSnapshot>(
+                                stream:
+                                    FirebaseFirestore.instance
+                                        .collection('videos')
+                                        .doc(videoDetail.id)
+                                        .snapshots(),
+                                builder: (context, snapshot) {
+                                  if (!snapshot.hasData ||
+                                      !snapshot.data!.exists) {
+                                    return Text(
+                                      "0",
+                                      style: TextStyle(color: Colors.white),
+                                    );
+                                  }
+                                  final data =
+                                      snapshot.data!.data()
+                                          as Map<String, dynamic>? ??
+                                      {};
+                                  List<dynamic> views = data['views'] ?? [];
+                                  int viewCount =
+                                      views
+                                          .length; // Count views from array length
+                                  String formattedViewCount =
+                                      viewCount > 1000
+                                          ? '${(viewCount / 1000).toStringAsFixed(1)}K'
+                                          : viewCount.toString();
+
+                                  return Text(
+                                    formattedViewCount,
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 10.sp,
+                                    ),
+                                  );
+                                },
                               ),
                               // Comment Button
                               if (videoDetail.allowComments == 1) ...[
