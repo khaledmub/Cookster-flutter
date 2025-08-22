@@ -9,7 +9,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cookster/appUtils/apiEndPoints.dart';
 import 'package:cookster/appUtils/colorUtils.dart';
 import 'package:cookster/loaders/pulseLoader.dart';
-import 'package:cookster/modules/singleVideoView/singleVideoController.dart';
 import 'package:cookster/modules/singleVideoVisit/singleVideoController/singleVisitVideoController.dart';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:flutter/material.dart';
@@ -25,11 +24,10 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:video_player/video_player.dart';
 import '../../services/apiClient.dart';
 import '../landing/landingTabs/home/homeController/addCommentControllr.dart';
-import '../landing/landingTabs/home/homeView/reelsVideoScreen.dart';
 import '../landing/landingTabs/reportContent/reportContentView/reportContentView.dart';
 import '../landing/landingView/landingView.dart';
 import '../promoteVideo/promoteVideoController/promoteVideoController.dart';
-import '../singleVideoView/singleVideoView.dart' hide VideoDescriptionWidget;
+import '../singleVideoView/singleVideoView.dart';
 
 class SingleVisitVideo extends StatefulWidget {
   final String videoId; // Required URL parameter
@@ -430,10 +428,13 @@ class _SingleVideoVisitState extends State<SingleVisitVideo>
                   ),
                 ),
 
-                VideoDescriptionWidget(
-                  title: video.title,
-                  description: video.description,
-                  tags: video.tags,
+                Positioned(
+                  bottom: Get.height * 0.1,
+                  child: VideoDescriptionWidget(
+                    title: video.title,
+                    description: video.description,
+                    tags: video.tags,
+                  ),
                 ),
                 Positioned(
                   right: 10,
@@ -693,253 +694,6 @@ class _SingleVideoVisitState extends State<SingleVisitVideo>
           ),
         );
       },
-    );
-  }
-}
-
-// Reused from SingleVideoScreen
-class EnhancedSeekBar extends StatefulWidget {
-  final VideoPlayerController controller;
-  final Color primaryColor;
-  final Color backgroundColor;
-
-  const EnhancedSeekBar({
-    required this.controller,
-    this.primaryColor = ColorUtils.primaryColor,
-    this.backgroundColor = ColorUtils.darkBrown,
-  });
-
-  @override
-  _EnhancedSeekBarState createState() => _EnhancedSeekBarState();
-}
-
-class _EnhancedSeekBarState extends State<EnhancedSeekBar>
-    with SingleTickerProviderStateMixin {
-  double _progress = 0.0;
-  double _bufferedProgress = 0.0;
-  bool _isDragging = false;
-  Timer? _updateTimer;
-  late AnimationController _animationController;
-  String _tooltipText = "0:00";
-
-  @override
-  void initState() {
-    super.initState();
-    _animationController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 200),
-    );
-    _updateTimer = Timer.periodic(Duration(milliseconds: 100), (_) {
-      _updateProgressFromVideo();
-    });
-  }
-
-  @override
-  void dispose() {
-    _updateTimer?.cancel();
-    _animationController.dispose();
-    super.dispose();
-  }
-
-  void _updateProgressFromVideo() {
-    if (!_isDragging && widget.controller.value.isInitialized && mounted) {
-      final duration = widget.controller.value.duration.inMilliseconds;
-      if (duration > 0) {
-        final currentPosition = widget.controller.value.position.inMilliseconds;
-        double maxBufferedEnd = 0.0;
-        if (widget.controller.value.buffered.isNotEmpty) {
-          maxBufferedEnd = widget.controller.value.buffered
-              .map((range) => range.end.inMilliseconds / duration)
-              .reduce((max, buffered) => max > buffered ? max : buffered);
-        }
-        setState(() {
-          _progress = currentPosition / duration;
-          _bufferedProgress = maxBufferedEnd;
-          _tooltipText = _formatDuration(
-            Duration(milliseconds: currentPosition),
-          );
-        });
-      }
-    }
-  }
-
-  void _updateProgress(double newProgress) {
-    final clampedProgress = newProgress.clamp(0.0, 1.0);
-    setState(() {
-      _progress = clampedProgress;
-      _tooltipText = _formatDuration(
-        widget.controller.value.duration * clampedProgress,
-      );
-    });
-    final newPosition = widget.controller.value.duration * clampedProgress;
-    widget.controller.seekTo(newPosition);
-  }
-
-  String _formatDuration(Duration duration) {
-    String twoDigits(int n) => n.toString().padLeft(2, "0");
-    final minutes = twoDigits(duration.inMinutes.remainder(60));
-    final seconds = twoDigits(duration.inSeconds.remainder(60));
-    return "$minutes:$seconds";
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    log("SingleVisitVideo key: ${widget.key}");
-
-    return SizedBox(
-      width: Get.width,
-      height: 60,
-      child: GestureDetector(
-        behavior: HitTestBehavior.translucent,
-        onHorizontalDragStart: (_) {
-          setState(() => _isDragging = true);
-          _animationController.forward();
-          // if (widget.controller.is) {
-          //   widget.controller.pause();
-          // }
-        },
-        onHorizontalDragEnd: (_) {
-          setState(() => _isDragging = false);
-          _animationController.reverse();
-          // if (widget.controller.isInitialized) {
-          //   widget.controller.play();
-          // }
-        },
-        onHorizontalDragUpdate: (details) {
-          final box = context.findRenderObject() as RenderBox;
-          final localPosition = box.globalToLocal(details.globalPosition);
-          _updateProgress(localPosition.dx! / box.size.width);
-        },
-        onTapDown: (details) {
-          final box = context.findRenderObject() as RenderBox;
-          final localPosition = box.globalToLocal(details.globalPosition);
-          _updateProgress(localPosition.dx! / box.size.width);
-        },
-        child: Center(
-          child: Container(
-            width: Get.width,
-            height: 30,
-            color: Colors.transparent,
-            child: Stack(
-              clipBehavior: Clip.none,
-              alignment: Alignment.center,
-              children: [
-                Align(
-                  alignment: Alignment.center,
-                  child: Container(
-                    width: Get.width,
-                    height: _isDragging ? 12 : 8,
-                    decoration: BoxDecoration(
-                      color: widget.backgroundColor.withOpacity(0.3),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                  ),
-                ),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 200),
-                    height: _isDragging ? 12 : 8,
-                    width: Get.width * _bufferedProgress,
-                    decoration: BoxDecoration(
-                      color: widget.backgroundColor.withOpacity(0.6),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                  ),
-                ),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 200),
-                    height: _isDragging ? 12 : 8,
-                    width: Get.width * _progress,
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          widget.primaryColor.withOpacity(0.7),
-                          widget.primaryColor,
-                        ],
-                      ),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                  ),
-                ),
-                Positioned(
-                  left: (Get.width * _progress),
-                  top: 15,
-                  child: AnimatedBuilder(
-                    animation: _animationController,
-                    builder: (context, child) {
-                      final thumbSize =
-                          16.0 + (_animationController.value * 12);
-                      return Transform.translate(
-                        offset: Offset(-thumbSize / 2, -thumbSize / 2),
-                        child: Container(
-                          width: thumbSize,
-                          height: thumbSize,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: widget.primaryColor,
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.3),
-                                blurRadius: 6,
-                                offset: const Offset(0, 2),
-                              ),
-                            ],
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                ),
-                if (_isDragging)
-                  Positioned(
-                    left: (Get.width * _progress),
-                    top: -15,
-                    child: AnimatedBuilder(
-                      animation: _animationController,
-                      builder: (context, child) {
-                        return Transform.translate(
-                          offset: Offset(-20, 0),
-                          child: AnimatedOpacity(
-                            opacity: _animationController.value,
-                            duration: const Duration(milliseconds: 200),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                                vertical: 6,
-                              ),
-                              decoration: BoxDecoration(
-                                color: Colors.black87,
-                                borderRadius: BorderRadius.circular(6),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withOpacity(0.2),
-                                    blurRadius: 4,
-                                    offset: const Offset(0, 2),
-                                  ),
-                                ],
-                              ),
-                              child: Text(
-                                _tooltipText,
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-              ],
-            ),
-          ),
-        ),
-      ),
     );
   }
 }
