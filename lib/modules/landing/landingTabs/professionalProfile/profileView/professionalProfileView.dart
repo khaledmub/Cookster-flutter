@@ -388,12 +388,65 @@ class _ProfessionalProfileViewState extends State<ProfessionalProfileView>
                           ],
                         ),
                       ),
-                      Text(
-                        "@${userDetails!.name}",
-                        style: TextStyle(
-                          color: ColorUtils.darkBrown,
-                          fontSize: 16.sp,
-                          fontWeight: FontWeight.w700,
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            /// LEFT SIDE → country
+                            if ((userDetails!.countryName ?? '').isNotEmpty)
+                              Expanded(
+                                flex: 2, // give limited space
+                                child: Text(
+                                  userDetails.countryName!,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    color: ColorUtils.darkBrown,
+                                    fontSize: 12.sp,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              )
+                            else
+                              const Spacer(flex: 2),
+
+                            /// CENTER → name
+                            Expanded(
+                              flex: 3,
+                              child: Center(
+                                child: Text(
+                                  "@${userDetails.name}",
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    color: ColorUtils.darkBrown,
+                                    fontSize: 16.sp,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ),
+                            ),
+
+                            /// RIGHT SIDE → city
+                            if ((userDetails.cityName ?? '').isNotEmpty)
+                              Expanded(
+                                flex: 2,
+                                child: Text(
+                                  userDetails.cityName!,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  textAlign: TextAlign.end,
+                                  style: TextStyle(
+                                    color: ColorUtils.darkBrown,
+                                    fontSize: 12.sp,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              )
+                            else
+                              const Spacer(flex: 2),
+                          ],
                         ),
                       ),
                       Obx(

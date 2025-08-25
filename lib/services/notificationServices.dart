@@ -9,7 +9,7 @@ import 'package:http/http.dart' as http;
 
 // Global instance for notifications
 final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
-FlutterLocalNotificationsPlugin();
+    FlutterLocalNotificationsPlugin();
 
 // This function handles background messages
 @pragma('vm:entry-point')
@@ -33,7 +33,8 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 void handleForegroundMessages() {
   FirebaseMessaging.onMessage.listen((RemoteMessage message) async {
     print(
-        "Foreground message received: ${message.data}"); // Print the entire data payload
+      "Foreground message received: ${message.data}",
+    ); // Print the entire data payload
     print("Notification details:");
     print("Title: ${message.notification?.title}");
     print("Body: ${message.notification?.body}");
@@ -62,7 +63,10 @@ void handleForegroundMessages() {
 
 // Function to show notification with network image and small icon in collapsed view
 Future<void> _showNetworkImageNotification(
-    String? title, String? body, String imageUrl) async {
+  String? title,
+  String? body,
+  String imageUrl,
+) async {
   if (imageUrl.isEmpty) {
     print('Invalid image URL: $imageUrl');
     return;
@@ -74,13 +78,15 @@ Future<void> _showNetworkImageNotification(
 
     // Fetch the large image for the expanded notification style
     final ByteData largeImageBytes = await _networkImageToByteData(imageUrl);
-    final String base64LargeImage =
-    base64Encode(largeImageBytes.buffer.asUint8List());
+    final String base64LargeImage = base64Encode(
+      largeImageBytes.buffer.asUint8List(),
+    );
 
     // Use the same image for the small icon (or replace with another URL if needed)
     final ByteData smallIconBytes = await _networkImageToByteData(imageUrl);
-    final String base64SmallIcon =
-    base64Encode(smallIconBytes.buffer.asUint8List());
+    final String base64SmallIcon = base64Encode(
+      smallIconBytes.buffer.asUint8List(),
+    );
 
     final bigPictureStyleInformation = BigPictureStyleInformation(
       ByteArrayAndroidBitmap.fromBase64String(base64LargeImage),
@@ -95,8 +101,8 @@ Future<void> _showNetworkImageNotification(
       'Big Picture Channel',
       channelDescription: 'Channel for showing big picture notifications',
       icon: '@mipmap/ic_launcher',
-      largeIcon: ByteArrayAndroidBitmap.fromBase64String(
-          base64SmallIcon), // Set small icon here for collapsed view
+      largeIcon: ByteArrayAndroidBitmap.fromBase64String(base64SmallIcon),
+      // Set small icon here for collapsed view
       styleInformation: bigPictureStyleInformation,
       importance: Importance.high,
       priority: Priority.high,
@@ -160,10 +166,11 @@ Future<void> setupNotifications() async {
 
   // Initialize local notifications
   const AndroidInitializationSettings initializationSettingsAndroid =
-  AndroidInitializationSettings('@mipmap/ic_launcher');
+      AndroidInitializationSettings('@mipmap/ic_launcher');
 
-  const InitializationSettings initializationSettings =
-  InitializationSettings(android: initializationSettingsAndroid);
+  const InitializationSettings initializationSettings = InitializationSettings(
+    android: initializationSettingsAndroid,
+  );
 
   await flutterLocalNotificationsPlugin.initialize(
     initializationSettings,

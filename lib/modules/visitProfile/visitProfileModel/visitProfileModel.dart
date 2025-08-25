@@ -86,8 +86,10 @@ class User {
   dynamic image;
   dynamic coverImage;
   dynamic country;
+  dynamic countryName;
   dynamic state;
   dynamic city;
+  dynamic cityName;
   dynamic uuid;
   dynamic entity;
   dynamic currentSubscriptionId;
@@ -127,8 +129,10 @@ class User {
     image = json['image'] as dynamic;
     coverImage = json['cover_image'];
     country = json['country'] as dynamic;
+    countryName = json['country_name'] as dynamic;
     state = json['state'] as dynamic;
     city = json['city'] as dynamic;
+    cityName = json['city_name'] as dynamic;
     uuid = json['uuid'] as dynamic;
     entity = json['entity'] as dynamic;
     currentSubscriptionId = json['current_subscription_id'] as dynamic;
@@ -149,8 +153,10 @@ class User {
     data['image'] = image;
     data['cover_image'] = coverImage;
     data['country'] = country;
+    data['country_name'] = countryName;
     data['state'] = state;
     data['city'] = city;
+    data['city_name'] = cityName;
     data['uuid'] = uuid;
     data['entity'] = entity;
     data['current_subscription_id'] = currentSubscriptionId;

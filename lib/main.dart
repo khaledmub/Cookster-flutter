@@ -61,8 +61,15 @@ void main() async {
 
   FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
 
-  NotificationSettings settings =
-      await FirebaseMessaging.instance.requestPermission();
+  NotificationSettings settings = await FirebaseMessaging.instance
+      .requestPermission(
+        badge: true,
+        alert: true,
+        announcement: true,
+        carPlay: true,
+        criticalAlert: true,
+        sound: true,
+      );
   if (settings.authorizationStatus == AuthorizationStatus.authorized) {
   } else if (settings.authorizationStatus == AuthorizationStatus.provisional) {
   } else {}

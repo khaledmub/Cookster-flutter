@@ -143,7 +143,9 @@ class User {
   dynamic id;
   dynamic systemId;
   dynamic country;
+  dynamic countryName;
   dynamic city;
+  dynamic cityName;
   dynamic name;
   dynamic email;
   dynamic phone;
@@ -163,6 +165,8 @@ class User {
     this.email,
     this.phone,
     this.country,
+    this.countryName,
+    this.cityName,
     this.city,
     this.dob,
     this.image,
@@ -179,6 +183,8 @@ class User {
     email = json['email'];
     phone = json['phone'];
     country = json['country'];
+    countryName = json['country_name'];
+    cityName = json['city_name'];
     city = json['city'];
     dob = json['dob'];
     image = json['image'];
@@ -198,7 +204,9 @@ class User {
     data['phone'] = this.phone;
     data['dob'] = this.dob;
     data['country'] = this.country;
+    data['country_name'] = this.countryName;
     data['city'] = this.city;
+    data['city_name'] = this.cityName;
     data['cover_image'] = this.coverImage;
     data['image'] = this.image;
     data['entity'] = this.entity;
