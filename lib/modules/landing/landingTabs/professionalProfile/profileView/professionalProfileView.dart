@@ -397,15 +397,30 @@ class _ProfessionalProfileViewState extends State<ProfessionalProfileView>
                             if ((userDetails!.countryName ?? '').isNotEmpty)
                               Expanded(
                                 flex: 2, // give limited space
-                                child: Text(
-                                  userDetails.countryName!,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    color: ColorUtils.darkBrown,
-                                    fontSize: 12.sp,
-                                    fontWeight: FontWeight.w700,
-                                  ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.center,
+                                  children: [
+                                    Text(
+                                      "country".tr,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        color: ColorUtils.darkBrown,
+                                        fontSize: 10.sp,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                    Text(
+                                      userDetails.countryName!,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        color: ColorUtils.darkBrown,
+                                        fontSize: 12.sp,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               )
                             else
@@ -432,16 +447,31 @@ class _ProfessionalProfileViewState extends State<ProfessionalProfileView>
                             if ((userDetails.cityName ?? '').isNotEmpty)
                               Expanded(
                                 flex: 2,
-                                child: Text(
-                                  userDetails.cityName!,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  textAlign: TextAlign.end,
-                                  style: TextStyle(
-                                    color: ColorUtils.darkBrown,
-                                    fontSize: 12.sp,
-                                    fontWeight: FontWeight.w700,
-                                  ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.center,
+                                  children: [
+                                    Text(
+                                      "city".tr,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        color: ColorUtils.darkBrown,
+                                        fontSize: 10.sp,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                    Text(
+                                      userDetails.cityName!,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      textAlign: TextAlign.end,
+                                      style: TextStyle(
+                                        color: ColorUtils.darkBrown,
+                                        fontSize: 12.sp,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               )
                             else
