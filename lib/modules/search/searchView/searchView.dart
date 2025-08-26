@@ -94,7 +94,7 @@ class _SearchViewState extends State<SearchView>
       searchController.hasSearched.value = false;
       searchController.isLoading.value = false;
       searchController.recentSearches.clear();
-      searchController.type.value = 0;
+      searchController.type.value = 6;
       searchController.selectedType.value = 0;
     });
   }
@@ -278,8 +278,10 @@ class _SearchViewState extends State<SearchView>
                   Obx(() {
                     if (searchController.selectedType.value == 1) {
                       return Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceAround,
+                        // mainAxisAlignment: MainAxisAlignment.spaceAround,
                         children: [
+                          SizedBox(width: 16),
+
                           CustomTabButtonSearch(
                             label: "General",
                             typeValue: 1,
@@ -288,6 +290,7 @@ class _SearchViewState extends State<SearchView>
                               searchController.type.value = 1; // General Search
                             },
                           ),
+                          SizedBox(width: 16),
                           CustomTabButtonSearch(
                             label: "business",
                             typeValue: 2,
@@ -301,8 +304,9 @@ class _SearchViewState extends State<SearchView>
                       );
                     } else if (searchController.selectedType.value == 2) {
                       return Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceAround,
                         children: [
+                          SizedBox(width: 16),
+
                           CustomTabButtonSearch(
                             label: "food",
                             typeValue: 4,
@@ -311,6 +315,8 @@ class _SearchViewState extends State<SearchView>
                               searchController.type.value = 4; // Top Rated
                             },
                           ),
+                          SizedBox(width: 16),
+
                           CustomTabButtonSearch(
                             label: "business",
                             typeValue: 5,

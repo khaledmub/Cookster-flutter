@@ -22,10 +22,10 @@ class CustomTabButtonSearch extends StatelessWidget {
     required this.selectedType,
     required this.onTap,
     this.size = 25,
-    this.selectedBackgroundColor = ColorUtils.secondaryColor, // Light yellow (selected)
-    this.unselectedBackgroundColor = Colors.grey, // Grey (unselected)
+    this.selectedBackgroundColor = ColorUtils.darkBrown, // Light yellow (selected)
+    this.unselectedBackgroundColor = ColorUtils.secondaryColor, // Grey (unselected)
     this.selectedBorderColor = ColorUtils.primaryColor, // Darker yellow (selected)
-    this.unselectedBorderColor = ColorUtils.grey, // Grey (unselected)
+    this.unselectedBorderColor = ColorUtils.secondaryColor, // Grey (unselected)
   });
 
   @override
@@ -40,20 +40,20 @@ class CustomTabButtonSearch extends StatelessWidget {
               ? selectedBackgroundColor
               : unselectedBackgroundColor,
           borderRadius: BorderRadius.circular(50.r),
-          border: Border.all(
-            color: selectedType.value == typeValue
-                ? selectedBorderColor
-                : unselectedBorderColor,
-            width: 1.5.w,
-          ),
+          // border: Border.all(
+          //   color: selectedType.value == typeValue
+          //       ? selectedBorderColor
+          //       : unselectedBorderColor,
+          //   width: 1.5.w,
+          // ),
         ),
         child: Center(
           child: Text(
             label.tr,
             style: TextStyle(
               color: selectedType.value == typeValue
-                  ? Colors.black // Text color when selected
-                  : Colors.white, // Text color when unselected
+                  ? Colors.white // Text color when selected
+                  : Colors.black, // Text color when unselected
               fontWeight: selectedType.value == typeValue
                   ? FontWeight.w500
                   : FontWeight.normal,

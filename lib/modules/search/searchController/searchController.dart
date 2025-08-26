@@ -17,7 +17,7 @@ class UserSearchController extends GetxController {
   var isLoading = false.obs;
   var isCityLoading = false.obs;
   var searchResult = SearchResult().obs;
-  var type = 0.obs;
+  var type = 6.obs;
   var selectedType = 0.obs;
   var hasSearched = false.obs;
   var currentCity = "".obs;
