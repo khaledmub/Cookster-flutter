@@ -1023,4 +1023,6 @@ const Map<String, String> ar = {
   "total_likes": "إجمالي الإعجابات",
   "likes_message": "%s تلقى إجمالي %s إعجابات عبر جميع الفيديوهات",
   "liked\_videos": "المنشورات المعجب بها",
+  "users" : "المستخدمون",
+  "food" : "طعام"
 };

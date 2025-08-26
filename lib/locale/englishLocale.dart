@@ -1091,4 +1091,6 @@ const Map<String, String> en = {
       "{username} received a total\nof {likeCount} likes across all videos",
   "likes_message": "%s received a total of %s likes across all videos",
   "liked_videos": "Liked Posts",
+  "users" : "Users",
+  "food" : "Food"
 };

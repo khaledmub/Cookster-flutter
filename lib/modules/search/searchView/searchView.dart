@@ -22,6 +22,7 @@ import '../../landing/landingController/landingController.dart';
 import '../../landing/landingTabs/add/videoAddController/videoAddController.dart';
 import '../../landing/landingTabs/home/homeController/homeController.dart';
 import '../b2bUsersList/b2bUsersList.dart';
+import '../custom_tab_button_search/custom_tab_button_search.dart';
 import '../searchModel/b2bCategoryList.dart';
 import '../searchModel/b2bList.dart';
 import '../searchModel/searchModel.dart';
@@ -93,7 +94,8 @@ class _SearchViewState extends State<SearchView>
       searchController.hasSearched.value = false;
       searchController.isLoading.value = false;
       searchController.recentSearches.clear();
-      searchController.type.value = 1;
+      searchController.type.value = 0;
+      searchController.selectedType.value = 0;
     });
   }
 
@@ -141,7 +143,7 @@ class _SearchViewState extends State<SearchView>
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: PreferredSize(
-        preferredSize: Size.fromHeight(183.h),
+        preferredSize: Size.fromHeight(195.h),
         child: Column(
           children: [
             Container(
@@ -226,15 +228,24 @@ class _SearchViewState extends State<SearchView>
                     child: TabBar(
                       onTap: (index) {
                         if (index == 0) {
-                          searchController.type.value = 1; // General Search
+                          searchController.selectedType.value =
+                              0; // Users Search
                         } else if (index == 1) {
-                          searchController.type.value = 2; // Business Accounts
+                          searchController.selectedType.value =
+                              1; // General Selected
+                          searchController.type.value = 1; // General Selected
                         } else if (index == 2) {
+                          searchController.selectedType.value = 2; // Top Rated
+
                           searchController.type.value = 4; // Top Rated
                         } else if (index == 3) {
+                          searchController.selectedType.value = 0; // Top Rated
+
                           searchController.type.value = 5;
                           searchController.fetchB2BCategories();
                         } else if (_searchController.text.length >= 3) {
+                          searchController.selectedType.value = 0; // Top Rated
+
                           searchController.fetchSearchResults(
                             _searchController.text,
                             isGeneral: widget.isGeneral,
@@ -256,15 +267,69 @@ class _SearchViewState extends State<SearchView>
                       padding: EdgeInsets.zero,
                       labelPadding: EdgeInsets.zero,
                       tabs: [
-                        Tab(text: "General Search".tr),
-                        Tab(text: "business".tr),
+                        Tab(text: "users".tr),
+                        Tab(text: "food".tr),
                         Tab(text: "Top Rated".tr),
                         Tab(text: "b2b".tr),
                       ],
                     ),
                   ),
+                  SizedBox(height: 8),
+                  Obx(() {
+                    if (searchController.selectedType.value == 1) {
+                      return Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceAround,
+                        children: [
+                          CustomTabButtonSearch(
+                            label: "General",
+                            typeValue: 1,
+                            selectedType: searchController.type,
+                            onTap: () {
+                              searchController.type.value = 1; // General Search
+                            },
+                          ),
+                          CustomTabButtonSearch(
+                            label: "business",
+                            typeValue: 2,
+                            selectedType: searchController.type,
+                            onTap: () {
+                              searchController.type.value =
+                                  2; // Business Accounts
+                            },
+                          ),
+                        ],
+                      );
+                    } else if (searchController.selectedType.value == 2) {
+                      return Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceAround,
+                        children: [
+                          CustomTabButtonSearch(
+                            label: "food",
+                            typeValue: 4,
+                            selectedType: searchController.type,
+                            onTap: () {
+                              searchController.type.value = 4; // Top Rated
+                            },
+                          ),
+                          CustomTabButtonSearch(
+                            label: "business",
+                            typeValue: 5,
+                            selectedType: searchController.type,
+                            onTap: () {
+                              searchController.type.value =
+                                  5; // Business Accounts
+                            },
+                          ),
+                        ],
+                      );
+                    } else {
+                      return const SizedBox.shrink(); // Return an empty widget if condition is false
+                    }
+                  }),
+                  SizedBox(height: 8),
+
                   Padding(
-                    padding: const EdgeInsets.all(16.0),
+                    padding: const EdgeInsets.symmetric(horizontal: 16.0),
                     child: TextField(
                       controller: _searchController,
                       onTapOutside: (event) {
@@ -341,597 +406,619 @@ class _SearchViewState extends State<SearchView>
                       ),
                     ),
                   ),
+                  SizedBox(height: 8),
                 ],
               ),
             ),
           ],
         ),
       ),
-      body: Obx(() {
-        var videosList = searchController.searchResult.value.videos;
-        var chefsList = searchController.searchResult.value.chefAccounts;
-        var businessList = searchController.searchResult.value.businessAccounts;
+      body: Padding(
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.of(context).viewPadding.bottom + 20,
+        ),
+        child: Obx(() {
+          var videosList = searchController.searchResult.value.videos;
+          var chefsList = searchController.searchResult.value.chefAccounts;
+          var businessList =
+              searchController.searchResult.value.businessAccounts;
 
-        bool hasNoResults =
-            searchController.hasSearched.value &&
-            (videosList == null || videosList.isEmpty) &&
-            (chefsList == null || chefsList.isEmpty) &&
-            (businessList == null || businessList.isEmpty);
+          bool hasNoResults =
+              searchController.hasSearched.value &&
+              (videosList == null || videosList.isEmpty) &&
+              (chefsList == null || chefsList.isEmpty) &&
+              (businessList == null || businessList.isEmpty);
 
-        bool hasNotSearchedYet = !searchController.hasSearched.value;
+          bool hasNotSearchedYet = !searchController.hasSearched.value;
 
-        if (searchController.type.value == 5) {
-          return Obx(() {
-            var categories =
-                searchController.filteredB2bCategories.value.businessTypes;
+          if (searchController.type.value == 5) {
+            return Obx(() {
+              var categories =
+                  searchController.filteredB2bCategories.value.businessTypes;
 
-            if (searchController.isLoading.value) {
-              return Center(
-                child: PulseLogoLoader(
-                  logoPath: "assets/images/appIcon.png",
-                  size: 80,
-                ),
-              );
-            } else if (categories == null) {
-              return _buildNoResultsFound();
-            } else {
-              return SingleChildScrollView(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16.0,
-                    vertical: 16,
+              if (searchController.isLoading.value) {
+                return Center(
+                  child: PulseLogoLoader(
+                    logoPath: "assets/images/appIcon.png",
+                    size: 80,
                   ),
-                  child: GridView.count(
-                    crossAxisCount: 2,
-                    shrinkWrap: true,
-                    physics: NeverScrollableScrollPhysics(),
-                    mainAxisSpacing: 12,
-                    crossAxisSpacing: 12,
-                    childAspectRatio: 3,
-                    children:
-                        categories.values?.asMap().entries.map((entry) {
-                          int index = entry.key;
-                          var value = entry.value;
-
-                          return InkWell(
-                            onTap: () async {
-                              bool isAuthenticated =
-                                  await _isUserAuthenticated();
-                              if (isAuthenticated) {
-                                Get.to(
-                                  B2bUsersList(
-                                    categoryId: value.id.toString(),
-                                    categoryName: value.name.toString(),
-                                    country:
-                                        searchController.currentCountry.value,
-                                    city: searchController.currentCity.value,
-                                  ),
-                                );
-                              } else {
-                                Get.toNamed(AppRoutes.signIn);
-                              }
-                            },
-                            child: Container(
-                              padding: EdgeInsets.all(12),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(color: Colors.grey[200]!),
-                              ),
-                              child: Row(
-                                children: [
-                                  // Index number badge
-                                  Text(
-                                    '${index + 1}.', // Show 1-based index
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                  SizedBox(width: 8),
-                                  Expanded(
-                                    child: Text(
-                                      value.name ?? "Unknown",
-                                      style: TextStyle(
-                                        fontSize: 12.sp,
-                                        fontWeight: FontWeight.w600,
-                                        color: Colors.black87,
-                                      ),
-                                      maxLines: 2,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ),
-                                  Icon(Icons.chevron_right),
-                                ],
-                              ),
-                            ),
-                          );
-                        }).toList() ??
-                        [],
-                  ),
-                ),
-              );
-            }
-          });
-        } else if (searchController.isLoading.value) {
-          return Center(
-            child: PulseLogoLoader(
-              logoPath: "assets/images/appIcon.png",
-              size: 80,
-            ),
-          );
-        } else if (hasNotSearchedYet && widget.tag == null) {
-          return _buildInitialState();
-        } else if (hasNoResults) {
-          return _buildNoResultsFound();
-        } else {
-          return SingleChildScrollView(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Obx(
-                  () =>
-                      searchController.recentSearches.isNotEmpty
-                          ? Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              SizedBox(height: 8),
-                              Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 16.0,
-                                ),
-                                child: Row(
-                                  children: [
-                                    Text(
-                                      "recent_searches".tr,
-                                      style: TextStyle(
-                                        fontSize: 16.sp,
-                                        fontWeight: FontWeight.w700,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              Padding(
-                                padding: EdgeInsets.only(left: 16, right: 16),
-                                child: Wrap(
-                                  crossAxisAlignment: WrapCrossAlignment.start,
-                                  spacing: 8.0,
-                                  children:
-                                      searchController.recentSearches.map((
-                                        search,
-                                      ) {
-                                        return InkWell(
-                                          onTap: () {
-                                            _searchController.text = search;
-                                            searchController.fetchSearchResults(
-                                              isGeneral: widget.isGeneral,
-                                              search,
-                                            );
-                                          },
-                                          child: Chip(
-                                            label: Text(search),
-                                            onDeleted: () {
-                                              searchController
-                                                  .removeSearchQuery(search);
-                                            },
-                                            backgroundColor: Colors.grey[200],
-                                            labelStyle: TextStyle(
-                                              color: Colors.black,
-                                            ),
-                                            deleteIcon: Icon(
-                                              Icons.close,
-                                              size: 18,
-                                            ),
-                                            shape: RoundedRectangleBorder(
-                                              borderRadius:
-                                                  BorderRadius.circular(20),
-                                            ),
-                                          ),
-                                        );
-                                      }).toList(),
-                                ),
-                              ),
-                            ],
-                          )
-                          : SizedBox(),
-                ),
-                if (videosList != null && videosList.isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        SizedBox(height: 16),
-                        Text(
-                          "Discover".tr,
-                          style: TextStyle(
-                            fontSize: 16.sp,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                        SizedBox(height: 8.h),
-                        GridView.builder(
-                          shrinkWrap: true,
-                          physics: NeverScrollableScrollPhysics(),
-                          gridDelegate:
-                              SliverGridDelegateWithFixedCrossAxisCount(
-                                crossAxisCount: 2,
-                                crossAxisSpacing: 10,
-                                mainAxisSpacing: 10,
-                                childAspectRatio: 1 / 1.2,
-                              ),
-                          itemCount: videosList.length,
-                          itemBuilder: (context, index) {
-                            var video = videosList[index];
-                            return InkWell(
-                              onTap: () async {
-                                bool isAuthenticated =
-                                    await _isUserAuthenticated();
-                                Get.to(
-                                  SingleVideoScreen(
-                                    followers: video.followersCount.toString(),
-                                    frondUserId: video.frontUserId,
-                                    userImage: video.userImage,
-                                    videoId: video.id,
-                                    videoUrl: video.video,
-                                    title: video.title,
-                                    image: video.image,
-                                    allowComments: video.allowComments,
-                                    description: video.description,
-                                    tags: video.tags,
-                                    userName: video.userName,
-                                    createdAt: video.createdAt,
-                                    contactEmail: video.contactEmail,
-                                    contactPhone: video.contactPhone,
-                                    latitude: video.latitude,
-                                    longitude: video.longitude,
-                                    takeOrder: video.takeOrder.toString(),
-                                    website: video.website,
-                                    isImage: video.isImage.toString(),
-                                  ),
-                                );
-                              },
-
-                              child: ClipRRect(
-                                borderRadius: BorderRadius.circular(10),
-                                child: Stack(
-                                  children: [
-                                    ClipRRect(
-                                      borderRadius: BorderRadius.circular(10),
-                                      child: CachedNetworkImage(
-                                        imageUrl:
-                                            video.image != null
-                                                ? '${Common.videoUrl}/${video.image!}'
-                                                : '',
-                                        // Empty string if image is null
-                                        fit: BoxFit.cover,
-                                        width: double.infinity,
-                                        height: double.infinity,
-                                        placeholder:
-                                            (context, url) => const Center(
-                                              child: Icon(
-                                                Icons.image,
-                                                size: 50,
-                                                color: Colors.grey,
-                                              ),
-                                            ),
-                                        errorWidget:
-                                            (context, url, error) =>
-                                                const Center(
-                                                  child: Icon(
-                                                    Icons.broken_image,
-                                                    size: 50,
-                                                    color: Colors.grey,
-                                                  ),
-                                                ),
-                                      ),
-                                    ),
-                                    Positioned.fill(
-                                      child: Container(
-                                        decoration: BoxDecoration(
-                                          gradient: LinearGradient(
-                                            begin: Alignment.topCenter,
-                                            end: Alignment.bottomCenter,
-                                            colors: [
-                                              Colors.transparent,
-                                              Colors.black.withOpacity(0.7),
-                                            ],
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                    Positioned(
-                                      bottom: 10,
-                                      left: 10,
-                                      child: Row(
-                                        children: [
-                                          Icon(
-                                            CupertinoIcons.heart_fill,
-                                            color: Colors.white,
-                                            size: 14.sp,
-                                          ),
-                                          SizedBox(width: 4),
-                                          StreamBuilder<DocumentSnapshot>(
-                                            stream:
-                                                FirebaseFirestore.instance
-                                                    .collection('videos')
-                                                    .doc(video.id)
-                                                    .snapshots(),
-                                            builder: (context, snapshot) {
-                                              if (!snapshot.hasData ||
-                                                  !snapshot.data!.exists) {
-                                                return Text(
-                                                  "0",
-                                                  style: TextStyle(
-                                                    color: Colors.white,
-                                                  ),
-                                                );
-                                              }
-                                              final data =
-                                                  snapshot.data!.data()
-                                                      as Map<
-                                                        String,
-                                                        dynamic
-                                                      >? ??
-                                                  {};
-                                              List<dynamic> likes =
-                                                  data['likes'] ?? [];
-                                              int likeCount = likes.length;
-                                              String formattedLikeCount =
-                                                  likeCount > 1000
-                                                      ? '${(likeCount / 1000).toStringAsFixed(1)}K'
-                                                      : likeCount.toString();
-                                              return Text(
-                                                formattedLikeCount,
-                                                style: TextStyle(
-                                                  color: Colors.white,
-                                                  fontSize: 10.sp,
-                                                ),
-                                              );
-                                            },
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            );
-                          },
-                        ),
-                      ],
+                );
+              } else if (categories == null) {
+                return _buildNoResultsFound();
+              } else {
+                return SingleChildScrollView(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16.0,
+                      vertical: 16,
                     ),
-                  ),
-                if (chefsList != null && chefsList.isNotEmpty)
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                        child: Text(
-                          "Top Rated".tr,
-                          style: TextStyle(
-                            fontSize: 16.sp,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ),
-                      SizedBox(height: 8.h),
-                      SizedBox(
-                        height: Get.height * 0.17,
-                        child: ListView.builder(
-                          scrollDirection: Axis.horizontal,
-                          itemCount: chefsList.length,
-                          itemBuilder: (context, index) {
-                            var chef = chefsList[index];
-                            return InkWell(
-                              onTap: () async {
-                                bool isAuthenticated =
-                                    await _isUserAuthenticated();
-                                if (isAuthenticated) {
-                                  Get.to(VisitProfileView(userId: chef.id!));
-                                } else {
-                                  // Navigate to sign in page
-                                  Get.toNamed(
-                                    AppRoutes.signIn,
-                                  ); // Make sure you have this route defined
-                                }
-                              },
-                              child: Container(
-                                margin: EdgeInsets.only(left: 16),
-                                child: Stack(
-                                  alignment: Alignment.bottomCenter,
-                                  children: [
-                                    ClipRRect(
-                                      borderRadius: BorderRadius.circular(10),
-                                      child: CachedNetworkImage(
-                                        imageUrl:
-                                            chef.image != null &&
-                                                    chef.image!.isNotEmpty
-                                                ? '${Common.profileImage}/${chef.image!}'
-                                                : "",
-                                        width: Get.height * 0.17,
-                                        height: Get.height * 0.4,
-                                        fit: BoxFit.cover,
-                                        errorWidget:
-                                            (context, url, error) => Container(
-                                              color: ColorUtils.primaryColor,
-                                              child: Image.asset(
-                                                'assets/images/appIcon.png',
-                                                width: 100,
-                                                height: 100,
-                                                fit: BoxFit.cover,
-                                              ),
-                                            ),
-                                        placeholder:
-                                            (context, url) => Container(
-                                              width: 100,
-                                              height: 100,
-                                              color: Colors.grey[300],
-                                              child: Center(
-                                                child:
-                                                    CircularProgressIndicator(
-                                                      strokeWidth: 2,
-                                                      color: Colors.grey[700],
-                                                    ),
-                                              ),
-                                            ),
-                                      ),
-                                    ),
-                                    Positioned(
-                                      bottom: 0,
-                                      left: 0,
-                                      right: 0,
-                                      child: Container(
-                                        padding: EdgeInsets.symmetric(
-                                          horizontal: 8,
-                                          vertical: 5,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          borderRadius: BorderRadius.only(
-                                            bottomLeft: Radius.circular(10),
-                                            bottomRight: Radius.circular(10),
-                                          ),
-                                          color: Colors.black.withOpacity(0.6),
-                                        ),
-                                        child: Text(
-                                          chef.name ?? "Unknown Chef",
-                                          style: TextStyle(
-                                            color: Colors.white,
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            );
-                          },
-                        ),
-                      ),
-                    ],
-                  ),
-                if (businessList != null && businessList.isNotEmpty)
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                        child: Text(
-                          "Business Accounts".tr,
-                          style: TextStyle(
-                            fontSize: 16.sp,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ),
-                      SizedBox(height: 8.h),
-                      SizedBox(
-                        height: Get.height * 0.17,
-                        child: ListView.builder(
-                          scrollDirection: Axis.horizontal,
-                          itemCount: businessList.length,
-                          itemBuilder: (context, index) {
-                            var business = businessList[index];
+                    child: GridView.count(
+                      crossAxisCount: 2,
+                      shrinkWrap: true,
+                      physics: NeverScrollableScrollPhysics(),
+                      mainAxisSpacing: 12,
+                      crossAxisSpacing: 12,
+                      childAspectRatio: 3,
+                      children:
+                          categories.values?.asMap().entries.map((entry) {
+                            int index = entry.key;
+                            var value = entry.value;
+
                             return InkWell(
                               onTap: () async {
                                 bool isAuthenticated =
                                     await _isUserAuthenticated();
                                 if (isAuthenticated) {
                                   Get.to(
-                                    VisitProfileView(userId: business.id!),
+                                    B2bUsersList(
+                                      categoryId: value.id.toString(),
+                                      categoryName: value.name.toString(),
+                                      country:
+                                          searchController.currentCountry.value,
+                                      city: searchController.currentCity.value,
+                                    ),
                                   );
                                 } else {
-                                  // Navigate to sign in page
-                                  Get.toNamed(
-                                    AppRoutes.signIn,
-                                  ); // Make sure you have this route defined
+                                  Get.toNamed(AppRoutes.signIn);
                                 }
                               },
                               child: Container(
-                                margin: EdgeInsets.only(left: 16),
-                                child: Stack(
-                                  alignment: Alignment.bottomCenter,
+                                padding: EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(color: Colors.grey[200]!),
+                                ),
+                                child: Row(
                                   children: [
-                                    ClipRRect(
-                                      borderRadius: BorderRadius.circular(10),
-                                      child: CachedNetworkImage(
-                                        imageUrl:
-                                            business.image != null &&
-                                                    business.image!.isNotEmpty
-                                                ? '${Common.profileImage}/${business.image!}'
-                                                : "",
-                                        width: Get.height * 0.17,
-                                        height: Get.height * 0.4,
-                                        fit: BoxFit.cover,
-                                        errorWidget:
-                                            (context, url, error) => Container(
-                                              color: ColorUtils.primaryColor,
-                                              child: Image.asset(
-                                                'assets/images/appIcon.png',
-                                                width: 100,
-                                                height: 100,
-                                                fit: BoxFit.cover,
-                                              ),
-                                            ),
-                                        placeholder:
-                                            (context, url) => Container(
-                                              width: 100,
-                                              height: 100,
-                                              color: Colors.grey[300],
-                                              child: Center(
-                                                child:
-                                                    CircularProgressIndicator(
-                                                      strokeWidth: 2,
-                                                      color: Colors.grey[700],
-                                                    ),
-                                              ),
-                                            ),
+                                    // Index number badge
+                                    Text(
+                                      '${index + 1}.', // Show 1-based index
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.w500,
                                       ),
                                     ),
-                                    Positioned(
-                                      bottom: 0,
-                                      left: 0,
-                                      right: 0,
-                                      child: Container(
-                                        padding: EdgeInsets.symmetric(
-                                          horizontal: 8,
-                                          vertical: 5,
+                                    SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        value.name ?? "Unknown",
+                                        style: TextStyle(
+                                          fontSize: 12.sp,
+                                          fontWeight: FontWeight.w600,
+                                          color: Colors.black87,
                                         ),
-                                        decoration: BoxDecoration(
-                                          borderRadius: BorderRadius.only(
-                                            bottomLeft: Radius.circular(10),
-                                            bottomRight: Radius.circular(10),
-                                          ),
-                                          color: Colors.black.withOpacity(0.6),
-                                        ),
-                                        child: Text(
-                                          business.name ?? "Unknown Business",
-                                          style: TextStyle(
-                                            color: Colors.white,
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                        ),
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
                                       ),
                                     ),
+                                    Icon(Icons.chevron_right),
                                   ],
                                 ),
                               ),
                             );
-                          },
-                        ),
-                      ),
-                      SizedBox(height: 16),
-                    ],
+                          }).toList() ??
+                          [],
+                    ),
                   ),
-              ],
-            ),
-          );
-        }
-      }),
+                );
+              }
+            });
+          } else if (searchController.isLoading.value) {
+            return Center(
+              child: PulseLogoLoader(
+                logoPath: "assets/images/appIcon.png",
+                size: 80,
+              ),
+            );
+          } else if (hasNotSearchedYet && widget.tag == null) {
+            return _buildInitialState();
+          } else if (hasNoResults) {
+            return _buildNoResultsFound();
+          } else {
+            return SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Obx(
+                    () =>
+                        searchController.recentSearches.isNotEmpty
+                            ? Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                SizedBox(height: 8),
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 16.0,
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Text(
+                                        "recent_searches".tr,
+                                        style: TextStyle(
+                                          fontSize: 16.sp,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                Padding(
+                                  padding: EdgeInsets.only(left: 16, right: 16),
+                                  child: Wrap(
+                                    crossAxisAlignment:
+                                        WrapCrossAlignment.start,
+                                    spacing: 8.0,
+                                    children:
+                                        searchController.recentSearches.map((
+                                          search,
+                                        ) {
+                                          return InkWell(
+                                            onTap: () {
+                                              _searchController.text = search;
+                                              searchController
+                                                  .fetchSearchResults(
+                                                    isGeneral: widget.isGeneral,
+                                                    search,
+                                                  );
+                                            },
+                                            child: Chip(
+                                              label: Text(search),
+                                              onDeleted: () {
+                                                searchController
+                                                    .removeSearchQuery(search);
+                                              },
+                                              backgroundColor: Colors.grey[200],
+                                              labelStyle: TextStyle(
+                                                color: Colors.black,
+                                              ),
+                                              deleteIcon: Icon(
+                                                Icons.close,
+                                                size: 18,
+                                              ),
+                                              shape: RoundedRectangleBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(20),
+                                              ),
+                                            ),
+                                          );
+                                        }).toList(),
+                                  ),
+                                ),
+                              ],
+                            )
+                            : SizedBox(),
+                  ),
+                  if (videosList != null && videosList.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          SizedBox(height: 16),
+                          Text(
+                            "Discover".tr,
+                            style: TextStyle(
+                              fontSize: 16.sp,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          SizedBox(height: 8.h),
+                          GridView.builder(
+                            shrinkWrap: true,
+                            physics: NeverScrollableScrollPhysics(),
+                            gridDelegate:
+                                SliverGridDelegateWithFixedCrossAxisCount(
+                                  crossAxisCount: 2,
+                                  crossAxisSpacing: 10,
+                                  mainAxisSpacing: 10,
+                                  childAspectRatio: 1 / 1.2,
+                                ),
+                            itemCount: videosList.length,
+                            itemBuilder: (context, index) {
+                              var video = videosList[index];
+                              return InkWell(
+                                onTap: () async {
+                                  bool isAuthenticated =
+                                      await _isUserAuthenticated();
+                                  Get.to(
+                                    SingleVideoScreen(
+                                      followers:
+                                          video.followersCount.toString(),
+                                      frondUserId: video.frontUserId,
+                                      userImage: video.userImage,
+                                      videoId: video.id,
+                                      videoUrl: video.video,
+                                      title: video.title,
+                                      image: video.image,
+                                      allowComments: video.allowComments,
+                                      description: video.description,
+                                      tags: video.tags,
+                                      userName: video.userName,
+                                      createdAt: video.createdAt,
+                                      contactEmail: video.contactEmail,
+                                      contactPhone: video.contactPhone,
+                                      latitude: video.latitude,
+                                      longitude: video.longitude,
+                                      takeOrder: video.takeOrder.toString(),
+                                      website: video.website,
+                                      isImage: video.isImage.toString(),
+                                    ),
+                                  );
+                                },
+
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(10),
+                                  child: Stack(
+                                    children: [
+                                      ClipRRect(
+                                        borderRadius: BorderRadius.circular(10),
+                                        child: CachedNetworkImage(
+                                          imageUrl:
+                                              video.image != null
+                                                  ? '${Common.videoUrl}/${video.image!}'
+                                                  : '',
+                                          // Empty string if image is null
+                                          fit: BoxFit.cover,
+                                          width: double.infinity,
+                                          height: double.infinity,
+                                          placeholder:
+                                              (context, url) => const Center(
+                                                child: Icon(
+                                                  Icons.image,
+                                                  size: 50,
+                                                  color: Colors.grey,
+                                                ),
+                                              ),
+                                          errorWidget:
+                                              (context, url, error) =>
+                                                  const Center(
+                                                    child: Icon(
+                                                      Icons.broken_image,
+                                                      size: 50,
+                                                      color: Colors.grey,
+                                                    ),
+                                                  ),
+                                        ),
+                                      ),
+                                      Positioned.fill(
+                                        child: Container(
+                                          decoration: BoxDecoration(
+                                            gradient: LinearGradient(
+                                              begin: Alignment.topCenter,
+                                              end: Alignment.bottomCenter,
+                                              colors: [
+                                                Colors.transparent,
+                                                Colors.black.withOpacity(0.7),
+                                              ],
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                      Positioned(
+                                        bottom: 10,
+                                        left: 10,
+                                        child: Row(
+                                          children: [
+                                            Icon(
+                                              CupertinoIcons.heart_fill,
+                                              color: Colors.white,
+                                              size: 14.sp,
+                                            ),
+                                            SizedBox(width: 4),
+                                            StreamBuilder<DocumentSnapshot>(
+                                              stream:
+                                                  FirebaseFirestore.instance
+                                                      .collection('videos')
+                                                      .doc(video.id)
+                                                      .snapshots(),
+                                              builder: (context, snapshot) {
+                                                if (!snapshot.hasData ||
+                                                    !snapshot.data!.exists) {
+                                                  return Text(
+                                                    "0",
+                                                    style: TextStyle(
+                                                      color: Colors.white,
+                                                    ),
+                                                  );
+                                                }
+                                                final data =
+                                                    snapshot.data!.data()
+                                                        as Map<
+                                                          String,
+                                                          dynamic
+                                                        >? ??
+                                                    {};
+                                                List<dynamic> likes =
+                                                    data['likes'] ?? [];
+                                                int likeCount = likes.length;
+                                                String formattedLikeCount =
+                                                    likeCount > 1000
+                                                        ? '${(likeCount / 1000).toStringAsFixed(1)}K'
+                                                        : likeCount.toString();
+                                                return Text(
+                                                  formattedLikeCount,
+                                                  style: TextStyle(
+                                                    color: Colors.white,
+                                                    fontSize: 10.sp,
+                                                  ),
+                                                );
+                                              },
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                  if (chefsList != null && chefsList.isNotEmpty)
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                          child: Text(
+                            "Top Rated".tr,
+                            style: TextStyle(
+                              fontSize: 16.sp,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                        SizedBox(height: 8.h),
+                        SizedBox(
+                          height: Get.height * 0.17,
+                          child: ListView.builder(
+                            scrollDirection: Axis.horizontal,
+                            itemCount: chefsList.length,
+                            itemBuilder: (context, index) {
+                              var chef = chefsList[index];
+                              return InkWell(
+                                onTap: () async {
+                                  bool isAuthenticated =
+                                      await _isUserAuthenticated();
+                                  if (isAuthenticated) {
+                                    Get.to(VisitProfileView(userId: chef.id!));
+                                  } else {
+                                    // Navigate to sign in page
+                                    Get.toNamed(
+                                      AppRoutes.signIn,
+                                    ); // Make sure you have this route defined
+                                  }
+                                },
+                                child: Container(
+                                  margin: EdgeInsets.only(left: 16),
+                                  child: Stack(
+                                    alignment: Alignment.bottomCenter,
+                                    children: [
+                                      ClipRRect(
+                                        borderRadius: BorderRadius.circular(10),
+                                        child: CachedNetworkImage(
+                                          imageUrl:
+                                              chef.image != null &&
+                                                      chef.image!.isNotEmpty
+                                                  ? '${Common.profileImage}/${chef.image!}'
+                                                  : "",
+                                          width: Get.height * 0.17,
+                                          height: Get.height * 0.4,
+                                          fit: BoxFit.cover,
+                                          errorWidget:
+                                              (
+                                                context,
+                                                url,
+                                                error,
+                                              ) => Container(
+                                                color: ColorUtils.primaryColor,
+                                                child: Image.asset(
+                                                  'assets/images/appIcon.png',
+                                                  width: 100,
+                                                  height: 100,
+                                                  fit: BoxFit.cover,
+                                                ),
+                                              ),
+                                          placeholder:
+                                              (context, url) => Container(
+                                                width: 100,
+                                                height: 100,
+                                                color: Colors.grey[300],
+                                                child: Center(
+                                                  child:
+                                                      CircularProgressIndicator(
+                                                        strokeWidth: 2,
+                                                        color: Colors.grey[700],
+                                                      ),
+                                                ),
+                                              ),
+                                        ),
+                                      ),
+                                      Positioned(
+                                        bottom: 0,
+                                        left: 0,
+                                        right: 0,
+                                        child: Container(
+                                          padding: EdgeInsets.symmetric(
+                                            horizontal: 8,
+                                            vertical: 5,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            borderRadius: BorderRadius.only(
+                                              bottomLeft: Radius.circular(10),
+                                              bottomRight: Radius.circular(10),
+                                            ),
+                                            color: Colors.black.withOpacity(
+                                              0.6,
+                                            ),
+                                          ),
+                                          child: Text(
+                                            chef.name ?? "Unknown Chef",
+                                            style: TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                  if (businessList != null && businessList.isNotEmpty)
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                          child: Text(
+                            "Business Accounts".tr,
+                            style: TextStyle(
+                              fontSize: 16.sp,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                        SizedBox(height: 8.h),
+                        SizedBox(
+                          height: Get.height * 0.17,
+                          child: ListView.builder(
+                            scrollDirection: Axis.horizontal,
+                            itemCount: businessList.length,
+                            itemBuilder: (context, index) {
+                              var business = businessList[index];
+                              return InkWell(
+                                onTap: () async {
+                                  bool isAuthenticated =
+                                      await _isUserAuthenticated();
+                                  if (isAuthenticated) {
+                                    Get.to(
+                                      VisitProfileView(userId: business.id!),
+                                    );
+                                  } else {
+                                    // Navigate to sign in page
+                                    Get.toNamed(
+                                      AppRoutes.signIn,
+                                    ); // Make sure you have this route defined
+                                  }
+                                },
+                                child: Container(
+                                  margin: EdgeInsets.only(left: 16),
+                                  child: Stack(
+                                    alignment: Alignment.bottomCenter,
+                                    children: [
+                                      ClipRRect(
+                                        borderRadius: BorderRadius.circular(10),
+                                        child: CachedNetworkImage(
+                                          imageUrl:
+                                              business.image != null &&
+                                                      business.image!.isNotEmpty
+                                                  ? '${Common.profileImage}/${business.image!}'
+                                                  : "",
+                                          width: Get.height * 0.17,
+                                          height: Get.height * 0.4,
+                                          fit: BoxFit.cover,
+                                          errorWidget:
+                                              (
+                                                context,
+                                                url,
+                                                error,
+                                              ) => Container(
+                                                color: ColorUtils.primaryColor,
+                                                child: Image.asset(
+                                                  'assets/images/appIcon.png',
+                                                  width: 100,
+                                                  height: 100,
+                                                  fit: BoxFit.cover,
+                                                ),
+                                              ),
+                                          placeholder:
+                                              (context, url) => Container(
+                                                width: 100,
+                                                height: 100,
+                                                color: Colors.grey[300],
+                                                child: Center(
+                                                  child:
+                                                      CircularProgressIndicator(
+                                                        strokeWidth: 2,
+                                                        color: Colors.grey[700],
+                                                      ),
+                                                ),
+                                              ),
+                                        ),
+                                      ),
+                                      Positioned(
+                                        bottom: 0,
+                                        left: 0,
+                                        right: 0,
+                                        child: Container(
+                                          padding: EdgeInsets.symmetric(
+                                            horizontal: 8,
+                                            vertical: 5,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            borderRadius: BorderRadius.only(
+                                              bottomLeft: Radius.circular(10),
+                                              bottomRight: Radius.circular(10),
+                                            ),
+                                            color: Colors.black.withOpacity(
+                                              0.6,
+                                            ),
+                                          ),
+                                          child: Text(
+                                            business.name ?? "Unknown Business",
+                                            style: TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                        SizedBox(height: 16),
+                      ],
+                    ),
+                ],
+              ),
+            );
+          }
+        }),
+      ),
     );
   }
 

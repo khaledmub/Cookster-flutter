@@ -17,7 +17,8 @@ class UserSearchController extends GetxController {
   var isLoading = false.obs;
   var isCityLoading = false.obs;
   var searchResult = SearchResult().obs;
-  var type = 1.obs;
+  var type = 0.obs;
+  var selectedType = 0.obs;
   var hasSearched = false.obs;
   var currentCity = "".obs;
   var currentCityId = "".obs;
@@ -163,7 +164,7 @@ class UserSearchController extends GetxController {
               homeController.longitude.value; // Use .value to get the raw value
 
           // Add city and country only if currentCityId is not null or empty
-          if (currentCityId.value != null && currentCityId.value.isNotEmpty) {
+          if (currentCityId.value.isNotEmpty) {
             requestBody['city'] = currentCityId.value;
             requestBody['country'] = finalCountry;
           }
