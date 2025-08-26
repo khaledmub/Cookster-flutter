@@ -231,7 +231,6 @@ class _SearchViewState extends State<SearchView>
                           searchController.selectedType.value =
                               0; // Users Search
                           searchController.type.value = 6;
-
                         } else if (index == 1) {
                           searchController.selectedType.value =
                               1; // General Selected
@@ -824,25 +823,33 @@ class _SearchViewState extends State<SearchView>
                                   ],
                                 ),
                                 child: ListTile(
-                                  leading: chef.image != null && chef.image!.isNotEmpty
-                                      ? CircleAvatar(
-                                    backgroundImage: CachedNetworkImageProvider(
-                                      chef.image!.contains('http')
-                                          ? chef.image!
-                                          : '${Common.profileImage}/${chef.image!}',
-                                    ),
-                                    radius: 25,
-                                    onBackgroundImageError: (exception, stackTrace) {
-                                      print("Image load error: $exception");
-                                    },
-                                  )
-                                      : const CircleAvatar(
-                                    child: Icon(
-                                      Icons.person,
-                                      color: Colors.white,
-                                    ),
-                                    radius: 25,
-                                  ),
+                                  leading:
+                                      chef.image != null &&
+                                              chef.image!.isNotEmpty
+                                          ? CircleAvatar(
+                                            backgroundImage:
+                                                CachedNetworkImageProvider(
+                                                  chef.image!.contains('http')
+                                                      ? chef.image!
+                                                      : '${Common.profileImage}/${chef.image!}',
+                                                ),
+                                            radius: 25,
+                                            onBackgroundImageError: (
+                                              exception,
+                                              stackTrace,
+                                            ) {
+                                              print(
+                                                "Image load error: $exception",
+                                              );
+                                            },
+                                          )
+                                          : const CircleAvatar(
+                                            child: Icon(
+                                              Icons.person,
+                                              color: Colors.white,
+                                            ),
+                                            radius: 25,
+                                          ),
                                   title: Text(
                                     chef.name ?? "Unknown Business",
                                     style: const TextStyle(
@@ -851,7 +858,8 @@ class _SearchViewState extends State<SearchView>
                                     ),
                                   ),
                                   subtitle: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
                                       if (chef.email != null &&
                                           chef.email!.isNotEmpty)
@@ -862,20 +870,25 @@ class _SearchViewState extends State<SearchView>
                                     ],
                                   ),
                                   onTap: () async {
-                                    bool isAuthenticated = await _isUserAuthenticated();
+                                    bool isAuthenticated =
+                                        await _isUserAuthenticated();
                                     if (isAuthenticated) {
                                       Get.to(
                                         VisitProfileView(userId: chef.id!),
                                       );
                                     } else {
                                       // Navigate to sign in page
-                                      Get.toNamed(AppRoutes.signIn); // Make sure you have this route defined
+                                      Get.toNamed(
+                                        AppRoutes.signIn,
+                                      ); // Make sure you have this route defined
                                     }
                                   },
-                                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 5),
+                                  contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 5,
+                                  ),
                                 ),
                               );
-
                             },
                           ),
                         ),
@@ -900,7 +913,9 @@ class _SearchViewState extends State<SearchView>
                           height: Get.height * 0.5,
 
                           child: ListView.builder(
-                            padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16.0,
+                            ),
                             itemCount: businessList.length,
                             itemBuilder: (context, index) {
                               var business = businessList[index];
@@ -922,25 +937,35 @@ class _SearchViewState extends State<SearchView>
                                   ],
                                 ),
                                 child: ListTile(
-                                  leading: business.image != null && business.image!.isNotEmpty
-                                      ? CircleAvatar(
-                                    backgroundImage: CachedNetworkImageProvider(
-                                      business.image!.contains('http')
-                                          ? business.image!
-                                          : '${Common.profileImage}/${business.image!}',
-                                    ),
-                                    radius: 25,
-                                    onBackgroundImageError: (exception, stackTrace) {
-                                      print("Image load error: $exception");
-                                    },
-                                  )
-                                      : const CircleAvatar(
-                                    child: Icon(
-                                      Icons.person,
-                                      color: Colors.white,
-                                    ),
-                                    radius: 25,
-                                  ),
+                                  leading:
+                                      business.image != null &&
+                                              business.image!.isNotEmpty
+                                          ? CircleAvatar(
+                                            backgroundImage:
+                                                CachedNetworkImageProvider(
+                                                  business.image!.contains(
+                                                        'http',
+                                                      )
+                                                      ? business.image!
+                                                      : '${Common.profileImage}/${business.image!}',
+                                                ),
+                                            radius: 25,
+                                            onBackgroundImageError: (
+                                              exception,
+                                              stackTrace,
+                                            ) {
+                                              print(
+                                                "Image load error: $exception",
+                                              );
+                                            },
+                                          )
+                                          : const CircleAvatar(
+                                            child: Icon(
+                                              Icons.person,
+                                              color: Colors.white,
+                                            ),
+                                            radius: 25,
+                                          ),
                                   title: Text(
                                     business.name ?? "Unknown Business",
                                     style: const TextStyle(
@@ -949,7 +974,8 @@ class _SearchViewState extends State<SearchView>
                                     ),
                                   ),
                                   subtitle: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
                                       if (business.email != null &&
                                           business.email!.isNotEmpty)
@@ -960,17 +986,23 @@ class _SearchViewState extends State<SearchView>
                                     ],
                                   ),
                                   onTap: () async {
-                                    bool isAuthenticated = await _isUserAuthenticated();
+                                    bool isAuthenticated =
+                                        await _isUserAuthenticated();
                                     if (isAuthenticated) {
                                       Get.to(
                                         VisitProfileView(userId: business.id!),
                                       );
                                     } else {
                                       // Navigate to sign in page
-                                      Get.toNamed(AppRoutes.signIn); // Make sure you have this route defined
+                                      Get.toNamed(
+                                        AppRoutes.signIn,
+                                      ); // Make sure you have this route defined
                                     }
                                   },
-                                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 5),
+                                  contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 5,
+                                  ),
                                 ),
                               );
                             },
