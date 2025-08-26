@@ -143,7 +143,7 @@ class _SearchViewState extends State<SearchView>
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: PreferredSize(
-        preferredSize: Size.fromHeight(195.h),
+        preferredSize: Size.fromHeight(250),
         child: Column(
           children: [
             Container(
