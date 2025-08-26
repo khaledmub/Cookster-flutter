@@ -34,30 +34,31 @@ class CustomTabButtonSearch extends StatelessWidget {
       onTap: onTap,
       child: Container(
         height: size.h,
-        width: 100.h, // Adjusted width for text
         decoration: BoxDecoration(
-          color: selectedType.value == typeValue
-              ? selectedBackgroundColor
-              : unselectedBackgroundColor,
-          borderRadius: BorderRadius.circular(50.r),
-          // border: Border.all(
-          //   color: selectedType.value == typeValue
-          //       ? selectedBorderColor
-          //       : unselectedBorderColor,
-          //   width: 1.5.w,
-          // ),
+          // color: selectedType.value == typeValue
+          //     ? selectedBackgroundColor
+          //     : unselectedBackgroundColor,
+          // borderRadius: BorderRadius.circular(50.r),
+          border: selectedType.value == typeValue
+              ? Border(
+            bottom: BorderSide(
+              color: ColorUtils.darkBrown, // Match border color to text color
+              width: 1.5, // Thickness of the underline
+            ),
+          )
+              : null, // No border when unselected
         ),
         child: Center(
           child: Text(
             label.tr,
             style: TextStyle(
               color: selectedType.value == typeValue
-                  ? Colors.white // Text color when selected
-                  : Colors.black, // Text color when unselected
+                  ? ColorUtils.darkBrown // Text color when selected
+                  : ColorUtils.darkBrown, // Text color when unselected
               fontWeight: selectedType.value == typeValue
-                  ? FontWeight.w500
-                  : FontWeight.normal,
-              fontSize: 14.sp,
+                  ? FontWeight.w700
+                  : FontWeight.w500,
+              fontSize: 12.sp,
             ),
           ),
         ),

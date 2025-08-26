@@ -281,7 +281,7 @@ class _SearchViewState extends State<SearchView>
                       return Row(
                         // mainAxisAlignment: MainAxisAlignment.spaceAround,
                         children: [
-                          SizedBox(width: 16),
+                          SizedBox(width: 32),
 
                           CustomTabButtonSearch(
                             label: "General",
@@ -306,7 +306,7 @@ class _SearchViewState extends State<SearchView>
                     } else if (searchController.selectedType.value == 2) {
                       return Row(
                         children: [
-                          SizedBox(width: 16),
+                          SizedBox(width: 32),
 
                           CustomTabButtonSearch(
                             label: "food",
