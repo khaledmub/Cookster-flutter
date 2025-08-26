@@ -230,6 +230,8 @@ class _SearchViewState extends State<SearchView>
                         if (index == 0) {
                           searchController.selectedType.value =
                               0; // Users Search
+                          searchController.type.value = 6;
+
                         } else if (index == 1) {
                           searchController.selectedType.value =
                               1; // General Selected
@@ -319,11 +321,11 @@ class _SearchViewState extends State<SearchView>
 
                           CustomTabButtonSearch(
                             label: "business",
-                            typeValue: 5,
+                            typeValue: 7,
                             selectedType: searchController.type,
                             onTap: () {
                               searchController.type.value =
-                                  5; // Business Accounts
+                                  7; // Business Accounts
                             },
                           ),
                         ],
@@ -789,7 +791,7 @@ class _SearchViewState extends State<SearchView>
                         Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 16.0),
                           child: Text(
-                            "Top Rated".tr,
+                            "users".tr,
                             style: TextStyle(
                               fontSize: 16.sp,
                               fontWeight: FontWeight.w700,
@@ -798,102 +800,82 @@ class _SearchViewState extends State<SearchView>
                         ),
                         SizedBox(height: 8.h),
                         SizedBox(
-                          height: Get.height * 0.17,
+                          height: Get.height * 0.5,
                           child: ListView.builder(
-                            scrollDirection: Axis.horizontal,
+                            padding: EdgeInsets.symmetric(horizontal: 16),
                             itemCount: chefsList.length,
                             itemBuilder: (context, index) {
                               var chef = chefsList[index];
-                              return InkWell(
-                                onTap: () async {
-                                  bool isAuthenticated =
-                                      await _isUserAuthenticated();
-                                  if (isAuthenticated) {
-                                    Get.to(VisitProfileView(userId: chef.id!));
-                                  } else {
-                                    // Navigate to sign in page
-                                    Get.toNamed(
-                                      AppRoutes.signIn,
-                                    ); // Make sure you have this route defined
-                                  }
-                                },
-                                child: Container(
-                                  margin: EdgeInsets.only(left: 16),
-                                  child: Stack(
-                                    alignment: Alignment.bottomCenter,
+                              return Container(
+                                margin: const EdgeInsets.symmetric(vertical: 8),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  border: Border.all(
+                                    color: Colors.grey.shade300,
+                                    width: 1,
+                                  ),
+                                  borderRadius: BorderRadius.circular(12),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.grey.withOpacity(0.1),
+                                      blurRadius: 6,
+                                      offset: const Offset(0, 2),
+                                    ),
+                                  ],
+                                ),
+                                child: ListTile(
+                                  leading: chef.image != null && chef.image!.isNotEmpty
+                                      ? CircleAvatar(
+                                    backgroundImage: CachedNetworkImageProvider(
+                                      chef.image!.contains('http')
+                                          ? chef.image!
+                                          : '${Common.profileImage}/${chef.image!}',
+                                    ),
+                                    radius: 25,
+                                    onBackgroundImageError: (exception, stackTrace) {
+                                      print("Image load error: $exception");
+                                    },
+                                  )
+                                      : const CircleAvatar(
+                                    child: Icon(
+                                      Icons.person,
+                                      color: Colors.white,
+                                    ),
+                                    radius: 25,
+                                  ),
+                                  title: Text(
+                                    chef.name ?? "Unknown Business",
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 16,
+                                    ),
+                                  ),
+                                  subtitle: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
-                                      ClipRRect(
-                                        borderRadius: BorderRadius.circular(10),
-                                        child: CachedNetworkImage(
-                                          imageUrl:
-                                              chef.image != null &&
-                                                      chef.image!.isNotEmpty
-                                                  ? '${Common.profileImage}/${chef.image!}'
-                                                  : "",
-                                          width: Get.height * 0.17,
-                                          height: Get.height * 0.4,
-                                          fit: BoxFit.cover,
-                                          errorWidget:
-                                              (
-                                                context,
-                                                url,
-                                                error,
-                                              ) => Container(
-                                                color: ColorUtils.primaryColor,
-                                                child: Image.asset(
-                                                  'assets/images/appIcon.png',
-                                                  width: 100,
-                                                  height: 100,
-                                                  fit: BoxFit.cover,
-                                                ),
-                                              ),
-                                          placeholder:
-                                              (context, url) => Container(
-                                                width: 100,
-                                                height: 100,
-                                                color: Colors.grey[300],
-                                                child: Center(
-                                                  child:
-                                                      CircularProgressIndicator(
-                                                        strokeWidth: 2,
-                                                        color: Colors.grey[700],
-                                                      ),
-                                                ),
-                                              ),
-                                        ),
-                                      ),
-                                      Positioned(
-                                        bottom: 0,
-                                        left: 0,
-                                        right: 0,
-                                        child: Container(
-                                          padding: EdgeInsets.symmetric(
-                                            horizontal: 8,
-                                            vertical: 5,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            borderRadius: BorderRadius.only(
-                                              bottomLeft: Radius.circular(10),
-                                              bottomRight: Radius.circular(10),
-                                            ),
-                                            color: Colors.black.withOpacity(
-                                              0.6,
-                                            ),
-                                          ),
-                                          child: Text(
-                                            chef.name ?? "Unknown Chef",
-                                            style: TextStyle(
-                                              color: Colors.white,
-                                              fontSize: 12,
-                                              fontWeight: FontWeight.bold,
-                                            ),
-                                          ),
-                                        ),
-                                      ),
+                                      if (chef.email != null &&
+                                          chef.email!.isNotEmpty)
+                                        Text("${chef.email}"),
+                                      if (chef.phone != null &&
+                                          chef.phone!.isNotEmpty)
+                                        Text("${chef.phone}"),
                                     ],
                                   ),
+                                  onTap: () async {
+                                    bool isAuthenticated = await _isUserAuthenticated();
+                                    if (isAuthenticated) {
+                                      Get.to(
+                                        VisitProfileView(userId: chef.id!),
+                                      );
+                                    } else {
+                                      // Navigate to sign in page
+                                      Get.toNamed(AppRoutes.signIn); // Make sure you have this route defined
+                                    }
+                                  },
+                                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 5),
                                 ),
                               );
+
                             },
                           ),
                         ),
@@ -915,102 +897,80 @@ class _SearchViewState extends State<SearchView>
                         ),
                         SizedBox(height: 8.h),
                         SizedBox(
-                          height: Get.height * 0.17,
+                          height: Get.height * 0.5,
+
                           child: ListView.builder(
-                            scrollDirection: Axis.horizontal,
+                            padding: const EdgeInsets.symmetric(horizontal: 16.0),
                             itemCount: businessList.length,
                             itemBuilder: (context, index) {
                               var business = businessList[index];
-                              return InkWell(
-                                onTap: () async {
-                                  bool isAuthenticated =
-                                      await _isUserAuthenticated();
-                                  if (isAuthenticated) {
-                                    Get.to(
-                                      VisitProfileView(userId: business.id!),
-                                    );
-                                  } else {
-                                    // Navigate to sign in page
-                                    Get.toNamed(
-                                      AppRoutes.signIn,
-                                    ); // Make sure you have this route defined
-                                  }
-                                },
-                                child: Container(
-                                  margin: EdgeInsets.only(left: 16),
-                                  child: Stack(
-                                    alignment: Alignment.bottomCenter,
+                              return Container(
+                                margin: const EdgeInsets.symmetric(vertical: 8),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  border: Border.all(
+                                    color: Colors.grey.shade300,
+                                    width: 1,
+                                  ),
+                                  borderRadius: BorderRadius.circular(12),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.grey.withOpacity(0.1),
+                                      blurRadius: 6,
+                                      offset: const Offset(0, 2),
+                                    ),
+                                  ],
+                                ),
+                                child: ListTile(
+                                  leading: business.image != null && business.image!.isNotEmpty
+                                      ? CircleAvatar(
+                                    backgroundImage: CachedNetworkImageProvider(
+                                      business.image!.contains('http')
+                                          ? business.image!
+                                          : '${Common.profileImage}/${business.image!}',
+                                    ),
+                                    radius: 25,
+                                    onBackgroundImageError: (exception, stackTrace) {
+                                      print("Image load error: $exception");
+                                    },
+                                  )
+                                      : const CircleAvatar(
+                                    child: Icon(
+                                      Icons.person,
+                                      color: Colors.white,
+                                    ),
+                                    radius: 25,
+                                  ),
+                                  title: Text(
+                                    business.name ?? "Unknown Business",
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 16,
+                                    ),
+                                  ),
+                                  subtitle: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
-                                      ClipRRect(
-                                        borderRadius: BorderRadius.circular(10),
-                                        child: CachedNetworkImage(
-                                          imageUrl:
-                                              business.image != null &&
-                                                      business.image!.isNotEmpty
-                                                  ? '${Common.profileImage}/${business.image!}'
-                                                  : "",
-                                          width: Get.height * 0.17,
-                                          height: Get.height * 0.4,
-                                          fit: BoxFit.cover,
-                                          errorWidget:
-                                              (
-                                                context,
-                                                url,
-                                                error,
-                                              ) => Container(
-                                                color: ColorUtils.primaryColor,
-                                                child: Image.asset(
-                                                  'assets/images/appIcon.png',
-                                                  width: 100,
-                                                  height: 100,
-                                                  fit: BoxFit.cover,
-                                                ),
-                                              ),
-                                          placeholder:
-                                              (context, url) => Container(
-                                                width: 100,
-                                                height: 100,
-                                                color: Colors.grey[300],
-                                                child: Center(
-                                                  child:
-                                                      CircularProgressIndicator(
-                                                        strokeWidth: 2,
-                                                        color: Colors.grey[700],
-                                                      ),
-                                                ),
-                                              ),
-                                        ),
-                                      ),
-                                      Positioned(
-                                        bottom: 0,
-                                        left: 0,
-                                        right: 0,
-                                        child: Container(
-                                          padding: EdgeInsets.symmetric(
-                                            horizontal: 8,
-                                            vertical: 5,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            borderRadius: BorderRadius.only(
-                                              bottomLeft: Radius.circular(10),
-                                              bottomRight: Radius.circular(10),
-                                            ),
-                                            color: Colors.black.withOpacity(
-                                              0.6,
-                                            ),
-                                          ),
-                                          child: Text(
-                                            business.name ?? "Unknown Business",
-                                            style: TextStyle(
-                                              color: Colors.white,
-                                              fontSize: 12,
-                                              fontWeight: FontWeight.bold,
-                                            ),
-                                          ),
-                                        ),
-                                      ),
+                                      if (business.email != null &&
+                                          business.email!.isNotEmpty)
+                                        Text("${business.email}"),
+                                      if (business.phone != null &&
+                                          business.phone!.isNotEmpty)
+                                        Text("${business.phone}"),
                                     ],
                                   ),
+                                  onTap: () async {
+                                    bool isAuthenticated = await _isUserAuthenticated();
+                                    if (isAuthenticated) {
+                                      Get.to(
+                                        VisitProfileView(userId: business.id!),
+                                      );
+                                    } else {
+                                      // Navigate to sign in page
+                                      Get.toNamed(AppRoutes.signIn); // Make sure you have this route defined
+                                    }
+                                  },
+                                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 5),
                                 ),
                               );
                             },

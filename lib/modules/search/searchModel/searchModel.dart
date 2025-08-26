@@ -25,9 +25,9 @@ class SearchResult {
         businessAccounts!.add(new BusinessAccounts.fromJson(v));
       });
     }
-    if (json['chef_accounts'] != null) {
+    if (json['users'] != null) {
       chefAccounts = <ChefAccounts>[];
-      json['chef_accounts'].forEach((v) {
+      json['users'].forEach((v) {
         chefAccounts!.add(new ChefAccounts.fromJson(v));
       });
     }
@@ -44,7 +44,7 @@ class SearchResult {
           this.businessAccounts!.map((v) => v.toJson()).toList();
     }
     if (this.chefAccounts != null) {
-      data['chef_accounts'] =
+      data['users'] =
           this.chefAccounts!.map((v) => v.toJson()).toList();
     }
     return data;
