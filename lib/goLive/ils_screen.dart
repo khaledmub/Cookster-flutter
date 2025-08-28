@@ -6,7 +6,6 @@ import 'package:get/get.dart';
 import 'package:videosdk/videosdk.dart';
 import 'api_call.dart';
 import 'ils_view.dart';
-import 'join_screen.dart';
 import 'dart:async';
 
 class ILSScreen extends StatefulWidget {

@@ -277,7 +277,7 @@ class _CustomTextFieldState extends State<CustomTextField> {
 
 class DynamicStyledText extends StatelessWidget {
   final String text;
-  final Set<MaterialState> states; // To simulate MaterialState conditions
+  final Set<WidgetState> states; // To simulate MaterialState conditions
 
   const DynamicStyledText({
     super.key,
@@ -298,22 +298,22 @@ class DynamicStyledText extends StatelessWidget {
         );
 
     // Resolve TextStyle based on states
-    if (states.contains(MaterialState.disabled)) {
+    if (states.contains(WidgetState.disabled)) {
       return baseStyle.copyWith(color: theme.colorScheme.onSurface.withOpacity(0.38));
     }
-    if (states.contains(MaterialState.error)) {
-      if (states.contains(MaterialState.focused)) {
+    if (states.contains(WidgetState.error)) {
+      if (states.contains(WidgetState.focused)) {
         return baseStyle.copyWith(color: theme.colorScheme.error);
       }
-      if (states.contains(MaterialState.hovered)) {
+      if (states.contains(WidgetState.hovered)) {
         return baseStyle.copyWith(color: theme.colorScheme.onErrorContainer);
       }
       return baseStyle.copyWith(color: theme.colorScheme.error);
     }
-    if (states.contains(MaterialState.focused)) {
+    if (states.contains(WidgetState.focused)) {
       return baseStyle.copyWith(color: theme.colorScheme.primary);
     }
-    if (states.contains(MaterialState.hovered)) {
+    if (states.contains(WidgetState.hovered)) {
       return baseStyle.copyWith(color: theme.colorScheme.onSurfaceVariant);
     }
     return baseStyle.copyWith(color: theme.colorScheme.onSurfaceVariant);

@@ -22,7 +22,6 @@ import '../../../../../services/apiClient.dart';
 import '../../../../../services/urway_response_config.dart';
 import '../../../../promoteVideo/promoteVideoModel/promoteVideoModel.dart';
 import '../../profile/profileControlller/profileController.dart';
-import '../videoUploadSettingsModel/videoUploadSettingsModel.dart';
 
 enum VisibilityOption { public, onlyFollowers, private }
 

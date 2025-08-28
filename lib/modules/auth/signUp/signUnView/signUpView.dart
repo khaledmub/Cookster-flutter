@@ -3,7 +3,6 @@ import 'package:cookster/modules/auth/signUp/registrationSettingsModel/registrat
 import 'package:cookster/modules/auth/signUp/signUpController/cityController.dart';
 import 'package:cookster/modules/auth/signUp/signUpController/signUpController.dart';
 import 'package:dropdown_flutter/custom_dropdown.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -13,7 +12,6 @@ import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import '../../../../appRoutes/appRoutes.dart';
 import '../../../../appUtils/appUtils.dart';
 import '../../../../appUtils/colorUtils.dart';
 import '../../../../loaders/pulseLoader.dart';

@@ -5,8 +5,7 @@ import 'package:get/get.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../initLanguageSelection/initLanguageView.dart';
-import '../../onBoarding/onBoardingController/onBoardingController.dart';
-import '../../selectLanguage/selectController/selectLanguageController.dart'; // Import LanguageController
+// Import LanguageController
 
 class SplashView extends StatefulWidget {
   const SplashView({super.key});

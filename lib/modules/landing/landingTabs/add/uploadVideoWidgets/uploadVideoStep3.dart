@@ -114,7 +114,7 @@ class uploadVideoStep3 extends StatelessWidget {
           children: [
             Obx(
               () => Radio<VisibilityOption>(
-                fillColor: MaterialStateColor.resolveWith(
+                fillColor: WidgetStateColor.resolveWith(
                   (states) => ColorUtils.primaryColor,
                 ),
                 activeColor: Colors.yellow.shade700,
@@ -165,7 +165,7 @@ class uploadVideoStep3 extends StatelessWidget {
           ),
           Switch(
             value: value,
-            activeColor: Colors.yellow.shade700,
+            activeThumbColor: Colors.yellow.shade700,
             onChanged: onChanged,
           ),
         ],

@@ -1,10 +1,8 @@
 import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cookster/appUtils/apiEndPoints.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:http/http.dart' as http;
 import '../../../../../services/apiClient.dart';
 import '../blockedUsersModel/blockedUsersModel.dart';
 
@@ -78,19 +76,17 @@ class BlockedUsersController extends GetxController {
         final apiMessage = responseBody['message'] ?? 'User unblocked';
         // final currentUserId = FirebaseAuth.instance.currentUser?.uid;
         // Update Firestore to remove the user from blockedBy array
-        if (currentUserId != null) {
-          final chatId = _getChatId(currentUserId, targetUserId);
-          await FirebaseFirestore.instance
-              .collection('chats')
-              .doc(chatId)
-              .update({
-                'blockedBy': FieldValue.arrayRemove([currentUserId]),
-              });
-          print(
-            '✅ Updated Firestore: User $targetUserId unblocked in chat $chatId',
-          );
-        }
-
+        final chatId = _getChatId(currentUserId, targetUserId);
+        await FirebaseFirestore.instance
+            .collection('chats')
+            .doc(chatId)
+            .update({
+              'blockedBy': FieldValue.arrayRemove([currentUserId]),
+            });
+        print(
+          '✅ Updated Firestore: User $targetUserId unblocked in chat $chatId',
+        );
+      
         // Remove the unblocked user from both lists
         blockedUsersList.removeWhere((user) => user.id == targetUserId);
         filteredBlockedUsersList.removeWhere((user) => user.id == targetUserId);

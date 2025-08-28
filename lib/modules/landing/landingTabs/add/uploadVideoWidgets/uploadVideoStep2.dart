@@ -325,7 +325,7 @@ class _UploadVideoStep2State extends State<UploadVideoStep2> {
                                 ),
                                 Obx(() {
                                   return Switch(
-                                    activeColor: Colors.yellow.shade700,
+                                    activeThumbColor: Colors.yellow.shade700,
                                     value: videoAddController.acceptOrder.value,
                                     onChanged: (value) {
                                       videoAddController.toggleSwitch();

@@ -17,7 +17,7 @@ if (keystorePropertiesFile.exists()) {
 
 android {
     namespace = "com.cookster.cooksterapp"
-    compileSdk = 35 // Updated for AGP 8.7+
+    compileSdk = 36 // Updated for AGP 8.7+
     ndkVersion = "29.0.13113456"
 
     compileOptions {
@@ -92,10 +92,12 @@ dependencies {
     implementation(platform("com.google.firebase:firebase-bom:33.5.1")) // Updated
     implementation("com.google.firebase:firebase-analytics")
     implementation("com.google.android.exoplayer:exoplayer:2.19.1")
+    implementation("com.google.android.exoplayer:exoplayer-ui:2.19.1")
     implementation("androidx.camera:camera-core:1.4.0") // Updated
     implementation("androidx.camera:camera-camera2:1.4.0") // Updated
     implementation("androidx.camera:camera-lifecycle:1.4.0") // Updated
     implementation("androidx.camera:camera-video:1.4.0") // Updated
     implementation("androidx.core:core:1.15.0") // Updated
     implementation("androidx.core:core-ktx:1.15.0") // Updated
+    implementation("androidx.multidex:multidex:2.0.1")
 }

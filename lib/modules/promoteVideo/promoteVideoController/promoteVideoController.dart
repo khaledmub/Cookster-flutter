@@ -2,7 +2,6 @@ import 'dart:convert';
 import 'package:cookster/appUtils/apiEndPoints.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:urwaypayment/urwaypayment.dart';
 import '../../../services/apiClient.dart';

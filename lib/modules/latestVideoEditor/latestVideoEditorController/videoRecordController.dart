@@ -2,7 +2,6 @@ import 'dart:io';
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:video_compress/video_compress.dart';
 
 import '../../../basicVideoEditor/basicVideoEditor.dart'; // Add this dependency
 

@@ -3,7 +3,6 @@ import 'package:cookster/modules/landing/landingView/landingView.dart';
 import 'package:cookster/modules/search/searchView/searchView.dart';
 import 'package:cookster/modules/selectLanguage/selectLanguageView/selectLanguageView.dart';
 import 'package:cookster/modules/splash/splashView/splashVIew.dart';
-import 'package:cookster/noInterNet.dart';
 import 'package:get/get.dart';
 import '../modules/auth/packages/packageView/packageView.dart';
 import '../modules/auth/signUp/signUnView/signUpView.dart';

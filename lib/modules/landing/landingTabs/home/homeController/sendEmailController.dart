@@ -3,7 +3,6 @@ import 'package:awesome_dialog/awesome_dialog.dart';
 import 'package:cookster/appUtils/apiEndPoints.dart';
 import 'package:get/get.dart';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 
 import '../../../../../services/apiClient.dart';
 

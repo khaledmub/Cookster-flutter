@@ -3,7 +3,6 @@ import 'package:get/get.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:videosdk/videosdk.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '../appRoutes/appRoutes.dart';
 import '../appUtils/apiEndPoints.dart';
 import '../appUtils/colorUtils.dart';
 import 'api_call.dart';

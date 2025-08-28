@@ -567,7 +567,7 @@ class HomeController extends GetxController with WidgetsBindingObserver {
         requestPayload['longitude'] = longitude.value; // Use .value to get the raw value
 
         // Add city and country only if currentCityId is not null or empty
-        if (currentCityId.value != null && currentCityId.value.isNotEmpty) {
+        if (currentCityId.value.isNotEmpty) {
           requestPayload['city'] = currentCityId.value; // Use .value for RxString
           requestPayload['country'] = selectedCountry;
         }

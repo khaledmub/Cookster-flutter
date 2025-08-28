@@ -13,7 +13,6 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:get/get.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:connectivity_plus/connectivity_plus.dart';
 import 'appRoutes/appRoutes.dart';
 import 'locale/localizationServices.dart';
 import 'modules/landing/landingController/landingController.dart';

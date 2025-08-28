@@ -3,7 +3,6 @@ import 'dart:io';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cookster/appUtils/apiEndPoints.dart';
-import 'package:cookster/modules/viewReview/viewReviewView/viewReviewView.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -22,7 +21,6 @@ import '../../../../popup_like/popup_like_dialog.dart';
 import '../../../../promoteVideo/promoteVideoController/promoteVideoController.dart';
 import '../../../../promoteVideo/promoteVideoView/promoteVideoView.dart';
 import '../../../../singleVideoView/singleVideoView.dart';
-import '../../../../user_like_screen/user_like_screen.dart';
 import '../../add/editVideo/editVideoView.dart';
 import '../../packagePopupDialog/packagePopupDialog.dart';
 import '../../packagePopupDialog/statisticsPopup.dart';
@@ -490,7 +488,7 @@ class _ProfessionalProfileViewState extends State<ProfessionalProfileView>
                             Transform.scale(
                               scale: 0.8,
                               child: Switch(
-                                activeColor: ColorUtils.primaryColor,
+                                activeThumbColor: ColorUtils.primaryColor,
                                 value: profileController.isB2B.value,
                                 // Bind switch to isB2B value
                                 onChanged:
@@ -646,7 +644,7 @@ class _ProfessionalProfileViewState extends State<ProfessionalProfileView>
                                 professionalAdditionalData!
                                     .latitude!
                                     .isNotEmpty &&
-                                professionalAdditionalData!
+                                professionalAdditionalData
                                     .longitude!
                                     .isNotEmpty)
                               IconButtonWidget(

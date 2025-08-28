@@ -8,14 +8,10 @@ import 'package:chewie/chewie.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cookster/appUtils/apiEndPoints.dart';
 import 'package:cookster/appUtils/colorUtils.dart';
-import 'package:cookster/modules/landing/landingTabs/home/homeView/hashTagReels.dart';
-import 'package:cookster/modules/landing/landingView/landingView.dart';
 import 'package:cookster/modules/search/searchView/searchView.dart';
-import 'package:cookster/modules/singleVideoView/singleVideoController.dart';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_svg/svg.dart';
 import 'package:get/get.dart';
@@ -23,11 +19,9 @@ import 'package:http/http.dart' as http;
 import 'package:like_button/like_button.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'package:video_player/video_player.dart';
 
 import '../../appRoutes/appRoutes.dart';
-import '../../loaders/pulseLoader.dart';
 import '../../services/apiClient.dart';
 import '../landing/landingTabs/home/homeController/addCommentControllr.dart';
 import '../landing/landingTabs/home/homeController/saveController.dart';
@@ -1563,6 +1557,7 @@ class _VideoLikesWidgetState extends State<VideoLikesWidget> {
                 } else {
                   Get.toNamed(AppRoutes.signIn);
                 }
+                return null;
               },
             ),
             SizedBox(height: 2),

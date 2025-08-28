@@ -694,7 +694,7 @@ class _EditVideoViewState extends State<EditVideoView> {
                                             ),
                                             Obx(() {
                                               return Switch(
-                                                activeColor:
+                                                activeThumbColor:
                                                     Colors.yellow.shade700,
                                                 value:
                                                     controller
@@ -1099,7 +1099,7 @@ class _EditVideoViewState extends State<EditVideoView> {
           children: [
             Obx(
               () => Radio<VisibilityOption>(
-                fillColor: MaterialStateColor.resolveWith(
+                fillColor: WidgetStateColor.resolveWith(
                   (states) => ColorUtils.primaryColor,
                 ),
                 activeColor: Colors.yellow.shade700,
@@ -1145,7 +1145,7 @@ class _EditVideoViewState extends State<EditVideoView> {
         ),
         Switch(
           value: value,
-          activeColor: Colors.yellow.shade700,
+          activeThumbColor: Colors.yellow.shade700,
           onChanged: onChanged,
         ),
       ],

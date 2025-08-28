@@ -624,7 +624,7 @@ class _ViewReviewsState extends State<ViewReviews> {
                           Switch(
                             value: isToggled,
                             onChanged: (value) => onToggle(),
-                            activeColor: ColorUtils.primaryColor,
+                            activeThumbColor: ColorUtils.primaryColor,
                           ),
                       ],
                     ),

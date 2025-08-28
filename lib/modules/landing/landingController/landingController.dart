@@ -1,13 +1,11 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:awesome_dialog/awesome_dialog.dart';
-import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:update_available/update_available.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../appUtils/apiEndPoints.dart';
 import '../../../services/apiClient.dart';
-import '../../../services/appConfig/app_config_service.dart';
 import '../landingTabs/add/videoUploadSettingsModel/videoUploadSettingsModel.dart';
 
 class NavBarController extends GetxController {

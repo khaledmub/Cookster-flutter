@@ -25,8 +25,7 @@ void showPackageDialog(BuildContext context, {required List<dynamic>? videos}) {
   final dateFormat = DateFormat('d MMMM, yyyy');
 
   // Format dates or show 'N/A' if null
-  final startDate =
-      video.startDate.toString();
+  final startDate = video.startDate.toString();
   final endDate = video.endDate.toString();
 
   showGeneralDialog(
@@ -342,7 +341,8 @@ class _AnimatedDialog extends StatelessWidget {
                       _DetailTile(
                         valueColor: Colors.red,
                         label: 'end_date'.tr,
-                        value: formatDate(endDate), // Format the date here
+                        value: formatDate(endDate),
+                        // Format the date here
                         valueIcon: Icons.calendar_today_outlined,
                         valueIconSize: 16,
                       ),
@@ -402,9 +402,9 @@ class _DetailTile extends StatelessWidget {
     this.valueIcon,
     this.valueIconSize = 18,
     this.isBold = false,
-    this.onTap,
     this.showViewButton = false, // Default to false
     this.onViewTap,
+    this.onTap,
   });
 
   @override

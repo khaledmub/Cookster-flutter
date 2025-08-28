@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:developer';
 import 'dart:io';
 import 'dart:ui';
 import 'package:awesome_dialog/awesome_dialog.dart';
@@ -16,11 +15,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_svg/svg.dart';
 import 'package:get/get.dart';
-import 'package:get/get_connect/http/src/response/response.dart' as http;
-import 'package:http/src/response.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:share_plus/share_plus.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'package:video_player/video_player.dart';
 import '../../services/apiClient.dart';
 import '../landing/landingTabs/home/homeController/addCommentControllr.dart';

@@ -341,6 +341,7 @@ class _ChangePlanViewState extends State<ChangePlanView> {
       ).showSnackBar(SnackBar(content: Text("payment_cancelled".tr)));
       return {'success': false};
     }
+    return null;
   }
 
   Widget _buildPackageCard(dynamic package) {

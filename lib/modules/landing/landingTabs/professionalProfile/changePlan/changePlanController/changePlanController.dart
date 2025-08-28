@@ -2,7 +2,6 @@ import 'dart:convert';
 import 'package:cookster/modules/landing/landingView/landingView.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:http/http.dart' as http;
 import 'package:cookster/appUtils/apiEndPoints.dart';
 import '../../../../../../services/apiClient.dart';
 import '../../profileControlller/professionalProfileController.dart';

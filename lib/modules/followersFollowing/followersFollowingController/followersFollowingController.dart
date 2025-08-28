@@ -1,7 +1,6 @@
 import 'dart:convert';
 import 'package:cookster/appUtils/apiEndPoints.dart';
 import 'package:get/get.dart';
-import 'package:http/http.dart' as http;
 import '../../../services/apiClient.dart';
 import '../followersListModel/followersListModel.dart';
 
