@@ -24,7 +24,7 @@ class SignUpController extends GetxController {
   var registrationSettings = RegistrationSettings().obs;
   var packagesList = PackagesList().obs;
   final TextEditingController locationController = TextEditingController();
-  final GoogleSignIn _googleSignIn = GoogleSignIn(scopes: ['email', 'profile']);
+  // final GoogleSignIn _googleSignIn = GoogleSignIn(scopes: ['email', 'profile']);
   var siteSettings = Rxn<SiteSettings>();
 
   var isPasswordVisible = true.obs;
@@ -88,36 +88,36 @@ class SignUpController extends GetxController {
     cityError.value = '';
   }
 
-  Future<void> signUpWithGoogle() async {
-    isLoading.value = true;
-    try {
-      await _googleSignIn.signOut();
-      final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
-      if (googleUser == null) {
-        isLoading.value = false;
-        return;
-      }
-      final GoogleSignInAuthentication googleAuth =
-          await googleUser.authentication;
-      final credential = GoogleAuthProvider.credential(
-        accessToken: googleAuth.accessToken,
-        idToken: googleAuth.idToken,
-      );
-      final UserCredential userCredential = await FirebaseAuth.instance
-          .signInWithCredential(credential);
-      final String email = userCredential.user?.email ?? '';
-      emailController.text = email;
-      final String name = userCredential.user?.displayName ?? '';
-      nameController.text = name;
-    } catch (error) {
-      print('Google sign-in error: $error');
-      ScaffoldMessenger.of(
-        Get.context!,
-      ).showSnackBar(SnackBar(content: Text("google_signin_failed".tr)));
-    } finally {
-      isLoading.value = false;
-    }
-  }
+  // Future<void> signUpWithGoogle() async {
+  //   isLoading.value = true;
+  //   try {
+  //     await _googleSignIn.signOut();
+  //     final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
+  //     if (googleUser == null) {
+  //       isLoading.value = false;
+  //       return;
+  //     }
+  //     final GoogleSignInAuthentication googleAuth =
+  //         await googleUser.authentication;
+  //     final credential = GoogleAuthProvider.credential(
+  //       accessToken: googleAuth.accessToken,
+  //       idToken: googleAuth.idToken,
+  //     );
+  //     final UserCredential userCredential = await FirebaseAuth.instance
+  //         .signInWithCredential(credential);
+  //     final String email = userCredential.user?.email ?? '';
+  //     emailController.text = email;
+  //     final String name = userCredential.user?.displayName ?? '';
+  //     nameController.text = name;
+  //   } catch (error) {
+  //     print('Google sign-in error: $error');
+  //     ScaffoldMessenger.of(
+  //       Get.context!,
+  //     ).showSnackBar(SnackBar(content: Text("google_signin_failed".tr)));
+  //   } finally {
+  //     isLoading.value = false;
+  //   }
+  // }
 
   String? locationValidator(String? value) {
     if (value == null || value.trim().isEmpty) {

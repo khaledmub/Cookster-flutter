@@ -17,7 +17,7 @@ if (keystorePropertiesFile.exists()) {
 
 android {
     namespace = "com.cookster.cooksterapp"
-    compileSdk = flutter.compileSdkVersion
+    compileSdk = 35 // Updated for AGP 8.7+
     ndkVersion = "29.0.13113456"
 
     compileOptions {
@@ -33,10 +33,20 @@ android {
     defaultConfig {
         applicationId = "com.cookster.cooksterapp"
         minSdk = 24
-        targetSdk = flutter.targetSdkVersion
+        targetSdk = 35
         versionCode = flutter.versionCode
         versionName = flutter.versionName
         multiDexEnabled = true
+
+        ndk {
+            abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64")
+        }
+    }
+
+    packaging {
+        jniLibs {
+            useLegacyPackaging = false
+        }
     }
 
     signingConfigs {
@@ -58,6 +68,18 @@ android {
             )
         }
     }
+
+    bundle {
+        language {
+            enableSplit = false
+        }
+        density {
+            enableSplit = false
+        }
+        abi {
+            enableSplit = true
+        }
+    }
 }
 
 flutter {
@@ -67,7 +89,13 @@ flutter {
 dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
     implementation("androidx.multidex:multidex:2.0.1")
-    implementation(platform("com.google.firebase:firebase-bom:33.0.0"))
+    implementation(platform("com.google.firebase:firebase-bom:33.5.1")) // Updated
     implementation("com.google.firebase:firebase-analytics")
     implementation("com.google.android.exoplayer:exoplayer:2.19.1")
+    implementation("androidx.camera:camera-core:1.4.0") // Updated
+    implementation("androidx.camera:camera-camera2:1.4.0") // Updated
+    implementation("androidx.camera:camera-lifecycle:1.4.0") // Updated
+    implementation("androidx.camera:camera-video:1.4.0") // Updated
+    implementation("androidx.core:core:1.15.0") // Updated
+    implementation("androidx.core:core-ktx:1.15.0") // Updated
 }
