@@ -18,6 +18,9 @@ import 'locale/localizationServices.dart';
 import 'modules/landing/landingController/landingController.dart';
 import 'modules/singleVideoVisit/singleVideoVisit.dart';
 
+// Import firebase_options.dart if it exists
+// import 'firebase_options.dart';
+
 final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
     FlutterLocalNotificationsPlugin();
 
@@ -52,32 +55,29 @@ Future<void> requestLocationPermission() async {
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await initializeNotifications();
-  await Firebase.initializeApp();
 
-  await requestNotificationPermission();
-  await requestLocationPermission();
+  try {
+    // Initialize Firebase with proper error handling
+    await Firebase.initializeApp(
+      // If you have firebase_options.dart, uncomment the line below:
+      // options: DefaultFirebaseOptions.currentPlatform,
+    );
 
-  FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+    // Only setup Firebase Messaging if Firebase initialization succeeds
+    await setupFirebaseMessaging();
+  } catch (e) {
+    print('Firebase initialization error: $e');
+    // Continue app execution even if Firebase fails
+    // You might want to disable Firebase-dependent features
+  }
 
-  NotificationSettings settings = await FirebaseMessaging.instance
-      .requestPermission(
-        badge: true,
-        alert: true,
-        announcement: true,
-        carPlay: true,
-        criticalAlert: true,
-        sound: true,
-      );
-  if (settings.authorizationStatus == AuthorizationStatus.authorized) {
-  } else if (settings.authorizationStatus == AuthorizationStatus.provisional) {
-  } else {}
-
-  SystemChrome.setPreferredOrientations([
+  // Set preferred orientations
+  await SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
     DeviceOrientation.portraitDown,
   ]);
 
+  // Initialize SharedPreferences
   SharedPreferences prefs = await SharedPreferences.getInstance();
   String? savedLang = prefs.getString('selectedLanguage');
 
@@ -86,15 +86,39 @@ void main() async {
           ? LocalizationService.arabic
           : LocalizationService.english;
 
-  // List<ConnectivityResult> connectivityResult =
-  //     await Connectivity().checkConnectivity();
-  // bool hasInternet = connectivityResult != ConnectivityResult.none;
-
   runApp(MyApp(initialLocale: initialLocale, hasInternet: true));
 }
 
 Future<void> setupFirebaseMessaging() async {
-  setupNotifications();
+  try {
+    // Request permissions
+    NotificationSettings settings = await FirebaseMessaging.instance
+        .requestPermission(
+          badge: true,
+          alert: true,
+          announcement: true,
+          carPlay: true,
+          criticalAlert: true,
+          sound: true,
+        );
+
+    if (settings.authorizationStatus == AuthorizationStatus.authorized) {
+      print('Firebase Messaging authorized');
+    } else if (settings.authorizationStatus ==
+        AuthorizationStatus.provisional) {
+      print('Firebase Messaging provisional authorization');
+    } else {
+      print('Firebase Messaging not authorized');
+    }
+
+    // Set up background message handler
+    FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+
+    // Setup notifications
+    await setupNotifications();
+  } catch (e) {
+    print('Firebase Messaging setup error: $e');
+  }
 }
 
 class MyApp extends StatefulWidget {
@@ -112,24 +136,24 @@ class MyApp extends StatefulWidget {
 }
 
 class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
-  // Remove the navigator key completely - GetX handles navigation
   late final AppLinks _appLinks;
   bool _handlingDeepLink = false;
   bool _wasOnNoInternetScreen = false;
   String? _lastRouteBeforeNoInternet;
   String? _pendingDeepLinkRoute;
 
-  // bool _initialRouteSet = false;
-
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    setupNotifications();
+
+    // Request permissions
+    requestNotificationPermission();
+    requestLocationPermission();
 
     _wasOnNoInternetScreen = !widget.hasInternet;
-    // _initialRouteSet = true;
     _appLinks = AppLinks();
+
     // Handle initial deep link when the app is launched
     _handleInitialDeepLink();
 
@@ -144,8 +168,6 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         print('Error in uriLinkStream: $err');
       },
     );
-
-    // _listenForConnectivity();
   }
 
   @override
@@ -160,21 +182,13 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
 
     switch (state) {
       case AppLifecycleState.resumed:
-        // App came to foreground - clear badge
         print('App resumed - clearing notification badge');
         clearNotificationBadge();
         break;
       case AppLifecycleState.inactive:
-        // App is inactive
-        break;
       case AppLifecycleState.paused:
-        // App is paused
-        break;
       case AppLifecycleState.detached:
-        // App is detached
-        break;
       case AppLifecycleState.hidden:
-        // App is hidden
         break;
     }
   }
@@ -193,26 +207,22 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
 
   /// Handle deep link navigation
   void _handleDeepLink(String link) {
-    if (_handlingDeepLink)
-      return; // Prevent multiple simultaneous deep link handling
+    if (_handlingDeepLink) return;
     _handlingDeepLink = true;
 
     try {
-      // Example: Parse the deep link (e.g., https://cookster.org/video/123)
       final uri = Uri.parse(link);
       if (uri.host == 'cookster.org') {
         final videoId = uri.queryParameters['id'];
-        if (widget.hasInternet) {
-          // Navigate immediately if internet is available
+        if (widget.hasInternet && videoId != null) {
           if (Get.currentRoute != '/SingleVisitVideo') {
-            // Get.to(
-            //   () => SingleVisitVideo(videoId: videoId!),
-            //   arguments: videoId,
-            //   preventDuplicates: true,
-            // );
+            Get.to(
+              () => SingleVisitVideo(videoId: videoId),
+              arguments: videoId,
+              preventDuplicates: true,
+            );
           }
         } else {
-          // Store pending deep link if no internet
           _pendingDeepLinkRoute = videoId;
           Get.offAllNamed(AppRoutes.noInternet);
         }
@@ -223,27 +233,6 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       _handlingDeepLink = false;
     }
   }
-
-  /// Listen for Internet Connectivity Changes
-  // void _listenForConnectivity() {
-  //   Connectivity().onConnectivityChanged.listen((
-  //     List<ConnectivityResult> results,
-  //   ) {
-  //     bool hasInternet = results.any(
-  //       (result) => result != ConnectivityResult.none,
-  //     );
-  //
-  //     if (!_handlingDeepLink) {
-  //       if (hasInternet) {
-  //         print("✅ Internet is connected");
-  //         _handleInternetRestored();
-  //       } else {
-  //         print("🚫 No internet connection");
-  //         _handleInternetLost();
-  //       }
-  //     }
-  //   });
-  // }
 
   /// Handle Internet Connection Restored
   void _handleInternetRestored() {
@@ -259,7 +248,6 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       }
       _wasOnNoInternetScreen = false;
 
-      // Handle pending deep link if exists
       if (_pendingDeepLinkRoute != null) {
         Future.delayed(const Duration(milliseconds: 500), () {
           if (Get.currentRoute != '/SingleVisitVideo') {
@@ -274,22 +262,6 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       }
     }
   }
-
-  /// Handle Internet Connection Lost
-  // void _handleInternetLost() {
-  //   String? currentRoute = Get.currentRoute;
-  //   if (currentRoute != AppRoutes.noInternet &&
-  //       currentRoute != AppRoutes.splash) {
-  //     _lastRouteBeforeNoInternet = currentRoute;
-  //   }
-  //
-  //   _wasOnNoInternetScreen = true;
-  //
-  //   Get.offAllNamed(
-  //     AppRoutes.noInternet,
-  //     arguments: {'savedRoute': _lastRouteBeforeNoInternet},
-  //   );
-  // }
 
   @override
   Widget build(BuildContext context) {
@@ -308,7 +280,6 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       builder: (context, child) {
         return GetMaterialApp(
           debugShowCheckedModeBanner: false,
-          // Remove navigatorKey - GetX manages its own navigation
           title: 'Cookster',
           translations: LocalizationService(),
           locale: widget.initialLocale,
@@ -337,7 +308,6 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
           ],
           initialRoute: AppRoutes.splash,
           getPages: AppRoutes.pages,
-
           builder: (context, child) {
             return MediaQuery(
               data: MediaQuery.of(
