@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 import 'package:cookster/appRoutes/appRoutes.dart';
@@ -23,94 +22,10 @@ class LogInController extends GetxController {
   String userName = '';
   var isObscure = true.obs;
   var isLoading = false.obs;
-  final List<String> scopes = ['email'];
-
   final GlobalKey<FormState> formKey = GlobalKey<FormState>();
 
-  @override
-  void onInit() {
-    super.onInit();
-    // Initialize GoogleSignIn
-    unawaited(
-      GoogleSignIn.instance
-          .initialize(clientId: null) // Set your clientId if needed
-          .then((_) {
-            // Optional: Set up authentication event listener
-            GoogleSignIn.instance.authenticationEvents.listen((event) {
-              // Handle authentication events if needed
-            });
-          }),
-    );
-  }
-
-  Future<void> signInWithGoogle() async {
-    isLoading.value = true;
-
-    try {
-      // Disconnect previous session to ensure fresh sign-in
-      await GoogleSignIn.instance.disconnect();
-
-      // Attempt to authenticate
-      final GoogleSignInAccount? googleUser =
-          await GoogleSignIn.instance.authenticate();
-
-      if (googleUser == null) {
-        isLoading.value = false;
-        return;
-      }
-
-      // Get authorization for scopes
-      final GoogleSignInClientAuthorization? authorization = await googleUser
-          .authorizationClient
-          .authorizationForScopes(scopes);
-
-      if (authorization == null) {
-        isLoading.value = false;
-        ScaffoldMessenger.of(
-          Get.context!,
-        ).showSnackBar(SnackBar(content: Text("google_signin_failed".tr)));
-        return;
-      }
-
-      // Get authentication tokens
-      final Map<String, String>? headers = await googleUser.authorizationClient
-          .authorizationHeaders(scopes);
-
-      if (headers == null) {
-        isLoading.value = false;
-        ScaffoldMessenger.of(
-          Get.context!,
-        ).showSnackBar(SnackBar(content: Text("google_signin_failed".tr)));
-        return;
-      }
-
-      // Assuming the headers contain the access token and id token
-      // Note: In practice, you might need to adjust this based on your Firebase setup
-      final credential = GoogleAuthProvider.credential(
-        accessToken: authorization.accessToken,
-        // idToken: authorization.accessToken,
-      );
-
-      // Sign in with Firebase
-      final UserCredential userCredential = await FirebaseAuth.instance
-          .signInWithCredential(credential);
-
-      final String email = userCredential.user?.email ?? '';
-      final String name = userCredential.user?.displayName ?? '';
-      emailController.text = email;
-      userName = name;
-
-      // Call your existing login function
-      await loginWithEmailUser();
-    } catch (error) {
-      print('Google sign-in error: $error');
-      ScaffoldMessenger.of(
-        Get.context!,
-      ).showSnackBar(SnackBar(content: Text("google_signin_failed".tr)));
-    } finally {
-      isLoading.value = false;
-    }
-  }
+  // Initialize GoogleSignIn with the scopes you need
+  final GoogleSignIn _googleSignIn = GoogleSignIn(scopes: ['email']);
 
   // Firestore instance
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -380,6 +295,46 @@ class LogInController extends GetxController {
     }
   }
 
+  Future<void> signInWithGoogle() async {
+    isLoading.value = true;
+
+    try {
+      await _googleSignIn.signOut();
+      final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
+
+      if (googleUser == null) {
+        isLoading.value = false;
+        return;
+      }
+
+      final GoogleSignInAuthentication googleAuth =
+          await googleUser.authentication;
+
+      final credential = GoogleAuthProvider.credential(
+        accessToken: googleAuth.accessToken,
+        idToken: googleAuth.idToken,
+      );
+
+      final UserCredential userCredential = await FirebaseAuth.instance
+          .signInWithCredential(credential);
+
+      final String email = userCredential.user?.email ?? '';
+      final String name = userCredential.user?.displayName ?? '';
+      emailController.text = email;
+      userName = name;
+
+      // Call loginWithEmailUser to handle API and Firestore update
+      await loginWithEmailUser();
+    } catch (error) {
+      print('Google sign-in error: $error');
+      ScaffoldMessenger.of(
+        Get.context!,
+      ).showSnackBar(SnackBar(content: Text("google_signin_failed".tr)));
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
   Future<void> signInWithFacebook() async {
     isLoading.value = true;
 
@@ -430,6 +385,8 @@ class LogInController extends GetxController {
   Future<void> logout() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     await prefs.remove('auth_token');
+
+    await _googleSignIn.signOut();
 
     Get.snackbar(
       'Logged Out',

@@ -213,13 +213,13 @@ class _LandingState extends State<Landing> {
                           fileType.endsWith('.png') ||
                           fileType.endsWith('.webp')) {
                         await Get.to(
-                          () => ImageEditScreen(imagePath: pickedFile.path),
+                              () => ImageEditScreen(imagePath: pickedFile.path),
                         );
                       } else if (fileType.endsWith('.mp4') ||
                           fileType.endsWith('.avi') ||
                           fileType.endsWith('.mov')) {
                         await Get.to(
-                          () =>
+                              () =>
                               VideoTextEditor(videoFile: File(pickedFile.path)),
                         );
                       } else {
@@ -322,12 +322,13 @@ class _LandingState extends State<Landing> {
           WidgetsBinding.instance.addPostFrameCallback((_) {
             isAuthenticated
                 ? Get.to(
-                  () => SingleVisitVideo(
+                  () =>
+                  SingleVisitVideo(
                     videoId: videoId,
                     key: UniqueKey(), // ✅ Important
                   ),
-                  arguments: videoId,
-                )
+              arguments: videoId,
+            )
                 : Get.to(AppRoutes.signIn);
           });
         }
@@ -344,12 +345,13 @@ class _LandingState extends State<Landing> {
           log('Stream deep link with video ID: $videoId');
           isAuthenticated
               ? Get.to(
-                () => SingleVisitVideo(
+                () =>
+                SingleVisitVideo(
                   key: UniqueKey(), // ✅ Important
                   videoId: videoId,
                 ),
-                arguments: videoId,
-              )
+            arguments: videoId,
+          )
               : Get.toNamed(AppRoutes.signIn);
         } else {
           log('Invalid or missing video ID');
@@ -428,9 +430,9 @@ class _LandingState extends State<Landing> {
           height: 60.h,
           decoration: BoxDecoration(
             color:
-                navBarController.selectedIndex.value == 0
-                    ? Colors.black
-                    : Colors.white,
+            navBarController.selectedIndex.value == 0
+                ? Colors.black
+                : Colors.white,
             border: Border(
               top: BorderSide(color: Colors.grey.withOpacity(0.2), width: 0.5),
             ),
@@ -501,9 +503,9 @@ class _LandingState extends State<Landing> {
             padding: EdgeInsets.symmetric(horizontal: 16, vertical: 6),
             decoration: BoxDecoration(
               color:
-                  isSelected
-                      ? ColorUtils.primaryColor.withOpacity(0.3)
-                      : Colors.transparent,
+              isSelected
+                  ? ColorUtils.primaryColor.withOpacity(0.3)
+                  : Colors.transparent,
               borderRadius: BorderRadius.circular(20),
             ),
             child: SvgPicture.asset(
@@ -583,10 +585,10 @@ class _LandingState extends State<Landing> {
     if (professionalProfileController.userDetails.value != null &&
         professionalProfileController.userDetails.value!.subscription != null &&
         professionalProfileController
-                .userDetails
-                .value!
-                .subscription!
-                .endDate !=
+            .userDetails
+            .value!
+            .subscription!
+            .endDate !=
             null) {
       try {
         DateTime endDate = DateTime.parse(
