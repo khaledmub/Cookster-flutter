@@ -132,7 +132,7 @@ const Map<String, String> ar = {
   "type_label": "النوع",
   "video_type_error": "يرجى اختيار نوع الفيديو",
   "select_video_type": "اختر نوع الفيديو",
-  "tag_label": "الوسم",
+  "tag_label": "الهاشتاق",
   "enter_tag_here": "أدخل الوسم هنا",
   "tag_error": "يرجى إضافة وسم واحد على الأقل",
   "tag_limit_error": "يُسمح بـ 5 وسوم فقط.",

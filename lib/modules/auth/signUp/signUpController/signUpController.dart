@@ -537,6 +537,23 @@ class SignUpController extends GetxController {
     }
   }
 
+  // Future<void> subscribeUserToTopics(String entity) async {
+  //   FirebaseMessaging messaging = FirebaseMessaging.instance;
+  //
+  //   try {
+  //     // Fixed topic
+  //     await messaging.subscribeToTopic("cookster");
+  //     print("✅ Subscribed to cookster");
+  //
+  //     // Dynamic topic based on entity
+  //     String topicName = "type_$entity";
+  //     await messaging.subscribeToTopic(topicName);
+  //     print("✅ Subscribed to $topicName");
+  //   } catch (e) {
+  //     print("❌ Error subscribing to topics: $e");
+  //   }
+  // }
+
   Future<void> submitForm({
     String? packageId,
     Map<String, dynamic>? paymentParams,
@@ -568,7 +585,7 @@ class SignUpController extends GetxController {
         if (packageId != null) "package_id": packageId,
 
       // Add payment parameters for profile ID 2
-      if (selectedProfileId.value == 2 &&  paymentParams != null) ...{
+      if (selectedProfileId.value == 2 && paymentParams != null) ...{
         "PaymentId": paymentParams["PaymentId"]?.toString() ?? "",
         "TranId": paymentParams["TranId"]?.toString() ?? "",
         "ECI": paymentParams["ECI"]?.toString() ?? "",
@@ -630,6 +647,8 @@ class SignUpController extends GetxController {
               "updated_at": user['updated_at'],
               "uuid": deviceToken,
             });
+
+        // await subscribeUserToTopics(user['entity'].toString());
 
         clearForm();
         showSuccessDialog();

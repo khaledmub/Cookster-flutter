@@ -145,6 +145,7 @@ class LogInController extends GetxController {
     String? deviceToken,
   ) async {
     try {
+      print("This is the device token: ${deviceToken}");
       await _firestore.collection('users').doc(user['id']).set({
         "uuid": deviceToken, // Add UUID to Firestore
       }, SetOptions(merge: true)); // Merge to avoid overwriting other fields
@@ -153,6 +154,23 @@ class LogInController extends GetxController {
       print('Error updating Firestore: $e');
     }
   }
+
+  // Future<void> subscribeUserToTopics(String entity) async {
+  //   FirebaseMessaging messaging = FirebaseMessaging.instance;
+  //
+  //   try {
+  //     // Fixed topic
+  //     await messaging.subscribeToTopic("cookster");
+  //     print("✅ Subscribed to cookster");
+  //
+  //     // Dynamic topic based on entity
+  //     String topicName = "type_$entity";
+  //     await messaging.subscribeToTopic(topicName);
+  //     print("✅ Subscribed to $topicName");
+  //   } catch (e) {
+  //     print("❌ Error subscribing to topics: $e");
+  //   }
+  // }
 
   Future<void> loginUser() async {
     isLoading.value = true;
@@ -188,6 +206,8 @@ class LogInController extends GetxController {
         print(
           "PRINTING THE ID: ${user['entity']} AND THE TOKEN: ${deviceToken}",
         );
+
+        // await subscribeUserToTopics(user['entity'].toString());
 
         // Update Firestore with user data and UUID
         await _updateFirestoreUser(user, deviceToken);
@@ -250,6 +270,8 @@ class LogInController extends GetxController {
           'entity_details',
           jsonEncode(user['entity_details']),
         );
+
+        // await subscribeUserToTopics(user['entity'].toString());
 
         // Update Firestore with user data and UUID
         await _updateFirestoreUser(user, deviceToken);

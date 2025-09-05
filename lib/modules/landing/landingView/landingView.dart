@@ -9,6 +9,7 @@ import 'package:cookster/modules/landing/landingTabs/notification/notificationVi
 import 'package:cookster/modules/landing/landingTabs/professionalProfile/changePlan/changePlanView/changePlanView.dart';
 import 'package:cookster/modules/landing/landingTabs/profile/profileControlller/profileController.dart';
 import 'package:cookster/modules/landing/landingTabs/profile/profileView/profileView.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -68,11 +69,31 @@ class _LandingState extends State<Landing> {
     bool isAuthenticated = await _isUserAuthenticated();
     if (isAuthenticated) {
       int entity = await getEntity();
+
+      subscribeUserToTopics(entity.toString());
+
       if (entity == 2) {
         await professionalProfileController.getUserDetails();
       } else {
         await profileController.getUserDetails();
       }
+    }
+  }
+
+  Future<void> subscribeUserToTopics(String entity) async {
+    FirebaseMessaging messaging = FirebaseMessaging.instance;
+
+    try {
+      // Fixed topic
+      await messaging.subscribeToTopic("cookster");
+      print("✅ Subscribed to cookster");
+
+      // Dynamic topic based on entity
+      String topicName = "type_$entity";
+      await messaging.subscribeToTopic(topicName);
+      print("✅ Subscribed to $topicName");
+    } catch (e) {
+      print("❌ Error subscribing to topics: $e");
     }
   }
 
