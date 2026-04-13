@@ -3,33 +3,39 @@ name: Android Release
 on:
   push:
     tags:
-      - 'v*'
+      - "v*"
 
 permissions:
   contents: read
 
 env:
-  FLUTTER_VERSION: '3.29.3'
-  JAVA_VERSION: '17'
+  FLUTTER_VERSION: "3.29.3"
+  JAVA_VERSION: "17"
 
 jobs:
   build-and-deploy:
-    name: Build AAB & Upload to Play Internal
+    name: Build AAB and Upload to Play Internal
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
     steps:
-      # ── Checkout ──────────────────────────────────────────────
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # ── Extract version from tag ──────────────────────────────
-      - name: Parse version from tag
+      - name: Validate and parse release tag
         id: version
+        shell: bash
         run: |
-          TAG="${GITHUB_REF#refs/tags/v}"
-          VERSION_NAME="${TAG%%+*}"
-          BUILD_NUMBER="${TAG##*+}"
+          RAW_TAG="${GITHUB_REF#refs/tags/}"
+          if [[ ! "$RAW_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+\+[0-9]+$ ]]; then
+            echo "Invalid tag format: $RAW_TAG"
+            echo "Expected format: vMAJOR.MINOR.PATCH+BUILD (example: v1.0.7+92)"
+            exit 1
+          fi
+
+          TAG_NO_V="${RAW_TAG#v}"
+          VERSION_NAME="${TAG_NO_V%%+*}"
+          BUILD_NUMBER="${TAG_NO_V##*+}"
           echo "version_name=$VERSION_NAME" >> "$GITHUB_OUTPUT"
           echo "build_number=$BUILD_NUMBER" >> "$GITHUB_OUTPUT"
           echo "Releasing version $VERSION_NAME build $BUILD_NUMBER"
@@ -37,17 +43,14 @@ jobs:
       - name: Update pubspec.yaml version
         run: |
           sed -i "s/^version: .*/version: ${{ steps.version.outputs.version_name }}+${{ steps.version.outputs.build_number }}/" pubspec.yaml
-          echo "Updated pubspec.yaml:"
-          grep '^version:' pubspec.yaml
+          rg "^version:" pubspec.yaml
 
-      # ── Java ──────────────────────────────────────────────────
       - name: Set up Java
         uses: actions/setup-java@v4
         with:
-          distribution: 'temurin'
+          distribution: "temurin"
           java-version: ${{ env.JAVA_VERSION }}
 
-      # ── Flutter ───────────────────────────────────────────────
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
@@ -58,14 +61,12 @@ jobs:
       - name: Get dependencies
         run: flutter pub get
 
-      # ── Android Signing ───────────────────────────────────────
-      - name: Decode keystore
+      - name: Decode Android keystore
+        shell: bash
         run: |
           echo "${{ secrets.ANDROID_KEYSTORE_B64 }}" | base64 --decode > "$RUNNER_TEMP/upload-keystore.jks"
-          echo "Keystore decoded to $RUNNER_TEMP/upload-keystore.jks"
-        shell: bash
+          ls -lh "$RUNNER_TEMP/upload-keystore.jks"
 
-      # ── Build AAB ─────────────────────────────────────────────
       - name: Build release AAB
         env:
           CI_KEYSTORE_PATH: ${{ runner.temp }}/upload-keystore.jks
@@ -74,16 +75,14 @@ jobs:
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: flutter build appbundle --release
 
-      # ── Upload artifact for reference ─────────────────────────
       - name: Upload AAB artifact
         uses: actions/upload-artifact@v4
         with:
-          name: app-release-${{ steps.version.outputs.build_number }}
+          name: android-aab-${{ steps.version.outputs.version_name }}-${{ steps.version.outputs.build_number }}
           path: build/app/outputs/bundle/release/app-release.aab
-          retention-days: 90
+          retention-days: 30
 
-      # ── Deploy to Google Play Internal Track ──────────────────
-      - name: Upload to Google Play (Internal)
+      - name: Upload to Google Play Internal track
         uses: r0adkll/upload-google-play@v1
         with:
           serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
