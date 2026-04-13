@@ -58,13 +58,13 @@ packages:
     source: hosted
     version: "1.0.4"
   apple_pay_flutter:
-    dependency: transitive
+    dependency: "direct overridden"
     description:
       name: apple_pay_flutter
-      sha256: "3d35ca94615da53a282b135e24cbb2a34e6f96a8386d9e3b52988a771608740e"
+      sha256: e8012a5708d70a6d70689417ad2857bfb60f2ba7ab4dd8c40d20321e5c6233dd
       url: "https://pub.dev"
     source: hosted
-    version: "1.0.3"
+    version: "1.0.4"
   archive:
     dependency: transitive
     description:

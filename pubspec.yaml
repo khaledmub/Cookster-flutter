@@ -98,6 +98,7 @@ dependencies:
 
 dependency_overrides:
   device_info_plus: ^10.1.0
+  apple_pay_flutter: ^1.0.4
 
 
 dev_dependencies:
