@@ -121,30 +121,19 @@ jobs:
           PROFILE_UUID: ${{ steps.signing.outputs.profile_uuid }}
         run: |
           # Generate ExportOptions.plist
-          cat > ios/ExportOptions.plist << PLISTEOF
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-  <key>method</key>
-  <string>app-store</string>
-  <key>teamID</key>
-  <string>${TEAM_ID}</string>
-  <key>signingStyle</key>
-  <string>manual</string>
-  <key>provisioningProfiles</key>
-  <dict>
-    <key>com.cookster.cooksterapp</key>
-    <string>${PROFILE_NAME}</string>
-  </dict>
-  <key>uploadBitcode</key>
-  <false/>
-  <key>uploadSymbols</key>
-  <true/>
-</dict>
-</plist>
-PLISTEOF
-
+          python3 -c "
+          import plistlib, sys
+          pl = {
+            'method': 'app-store',
+            'teamID': '$TEAM_ID',
+            'signingStyle': 'manual',
+            'provisioningProfiles': {'com.cookster.cooksterapp': '$PROFILE_NAME'},
+            'uploadBitcode': False,
+            'uploadSymbols': True,
+          }
+          with open('ios/ExportOptions.plist', 'wb') as f:
+            plistlib.dump(pl, f)
+          "
           cat ios/ExportOptions.plist
 
           # Build Flutter without code signing first
