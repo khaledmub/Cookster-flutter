@@ -4,7 +4,7 @@ description: "Cookster"
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 
-version: 1.0.51+56
+version: 1.0.51+91
 
 environment:
   sdk: ^3.7.0
@@ -69,7 +69,7 @@ dependencies:
   video_compress: ^3.1.4
   camera: ^0.11.1
   easy_video_editor: ^0.0.4
-  pro_image_editor: ^9.2.0
+  pro_image_editor: ^12.2.0
   flutter_local_notifications: ^19.0.0
   photo_manager: ^3.6.4
   pinput: ^5.0.1
@@ -93,6 +93,7 @@ dependencies:
   location: ^8.0.1
   update_available: ^3.2.0+1
   focus_detector_v2: ^3.1.0+1
+  rive: ^0.14.5
 
 
 dependency_overrides:

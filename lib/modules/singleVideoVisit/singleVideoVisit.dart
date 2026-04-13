@@ -159,7 +159,7 @@ class _SingleVideoVisitState extends State<SingleVisitVideo>
 
     _hasInitializedPlayer = true;
 
-    final videoUrl = '${Common.videoUrl}/${video!.video}';
+    final videoUrl = video!.videoUrl?.isNotEmpty == true ? video!.videoUrl! : '${Common.videoUrl}/${video!.video}';
     print("PRINTING VIDEO URL: $videoUrl");
 
     try {

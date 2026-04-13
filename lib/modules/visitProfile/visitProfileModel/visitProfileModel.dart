@@ -302,6 +302,7 @@ class Videos {
   dynamic location;
   dynamic image;
   dynamic video;
+  dynamic videoUrl;
   dynamic country;
   dynamic city;
   dynamic averageRating;
@@ -330,6 +331,7 @@ class Videos {
     this.location,
     this.image,
     this.video,
+    this.videoUrl,
     this.country,
     this.city,
     this.averageRating,
@@ -359,6 +361,7 @@ class Videos {
     location = json['location'] as dynamic;
     image = json['image'] as dynamic;
     video = json['video'] as dynamic;
+    videoUrl = json['video_url'] as dynamic;
     country = json['country'] as dynamic;
     city = json['city'] as dynamic;
     averageRating = json['average_rating'] as dynamic;
@@ -389,6 +392,7 @@ class Videos {
     data['location'] = location;
     data['image'] = image;
     data['video'] = video;
+    data['video_url'] = videoUrl;
     data['country'] = country;
     data['city'] = city;
     data['average_rating'] = averageRating;

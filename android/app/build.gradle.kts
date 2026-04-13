@@ -10,7 +10,7 @@ plugins {
 }
 
 val keystoreProperties = Properties()
-val keystorePropertiesFile = rootProject.file("key.properties")
+val keystorePropertiesFile = rootProject.file("../keyStoreDetails/key.properties")
 if (keystorePropertiesFile.exists()) {
     keystoreProperties.load(FileInputStream(keystorePropertiesFile))
 }
@@ -18,7 +18,7 @@ if (keystorePropertiesFile.exists()) {
 android {
     namespace = "com.cookster.cooksterapp"
     compileSdk = 36 // Updated for AGP 8.7+
-    ndkVersion = "29.0.13113456"
+    ndkVersion = "27.0.12077973"
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
@@ -38,9 +38,6 @@ android {
         versionName = flutter.versionName
         multiDexEnabled = true
 
-        ndk {
-            abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64")
-        }
     }
 
     packaging {
@@ -69,17 +66,6 @@ android {
         }
     }
 
-    bundle {
-        language {
-            enableSplit = false
-        }
-        density {
-            enableSplit = false
-        }
-        abi {
-            enableSplit = true
-        }
-    }
 }
 
 flutter {

@@ -166,8 +166,8 @@ class HashtagController extends GetxController {
 
     while (attempts < retryCount) {
       try {
-        final videoUrl =
-            '${Common.videoUrl}/${videoFeed.value.videos![index].video}';
+        final v = videoFeed.value.videos![index];
+        final videoUrl = v.videoUrl?.isNotEmpty == true ? v.videoUrl! : '${Common.videoUrl}/${v.video}';
         print(
           "Attempt $attempts: Initializing video at index $index with URL: $videoUrl",
         );
@@ -271,8 +271,8 @@ class HashtagController extends GetxController {
 
     while (attempts < retryCount) {
       try {
-        final videoUrl =
-            '${Common.videoUrl}/${videoFeed.value.videos![index].video}';
+        final v = videoFeed.value.videos![index];
+        final videoUrl = v.videoUrl?.isNotEmpty == true ? v.videoUrl! : '${Common.videoUrl}/${v.video}';
         print(
           "Attempt $attempts: Recreating video at index $index with URL: $videoUrl",
         );

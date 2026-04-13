@@ -41,6 +41,7 @@ class WallVideos {
   String? location;
   String? image;
   String? video;
+  String? videoUrl;
   int? state;
   int? status;
   String? createdAt;
@@ -74,6 +75,7 @@ class WallVideos {
     this.location,
     this.image,
     this.video,
+    this.videoUrl,
     this.state,
     this.status,
     this.createdAt,
@@ -108,6 +110,7 @@ class WallVideos {
     location = json['location'];
     image = json['image'];
     video = json['video'];
+    videoUrl = json['video_url'];
     state = json['state'];
     status = json['status'];
     createdAt = json['created_at'];
@@ -142,6 +145,7 @@ class WallVideos {
     data['location'] = this.location;
     data['image'] = this.image;
     data['video'] = this.video;
+    data['video_url'] = this.videoUrl;
     data['state'] = this.state;
     data['status'] = this.status;
     data['created_at'] = this.createdAt;

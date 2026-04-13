@@ -46,8 +46,8 @@ class VideoReelController extends GetxController with WidgetsBindingObserver {
       return;
     }
 
-    final videoUrl =
-        '${Common.videoUrl}/${homeController.videoFeed.value.videos![index].video}';
+    final v = homeController.videoFeed.value.videos![index];
+    final videoUrl = v.videoUrl?.isNotEmpty == true ? v.videoUrl! : '${Common.videoUrl}/${v.video}';
 
     // Check if the controller is already in the cache
     if (_videoCache.containsKey(videoUrl)) {

@@ -66,6 +66,7 @@ class Videos {
   dynamic location;
   dynamic image;
   dynamic video;
+  dynamic videoUrl;
   dynamic state;
   dynamic status;
   dynamic createdAt;
@@ -98,6 +99,7 @@ class Videos {
     this.location,
     this.image,
     this.video,
+    this.videoUrl,
     this.state,
     this.status,
     this.createdAt,
@@ -130,6 +132,7 @@ class Videos {
     location = json['location'];
     image = json['image'];
     video = json['video'];
+    videoUrl = json['video_url'];
     state = json['state'];
     status = json['status'];
     createdAt = json['created_at'];
@@ -163,6 +166,7 @@ class Videos {
     data['location'] = this.location;
     data['image'] = this.image;
     data['video'] = this.video;
+    data['video_url'] = this.videoUrl;
     data['state'] = this.state;
     data['status'] = this.status;
     data['created_at'] = this.createdAt;

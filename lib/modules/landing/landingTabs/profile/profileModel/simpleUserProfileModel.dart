@@ -410,6 +410,7 @@ class UserVideos {
   dynamic location;
   dynamic image;
   dynamic video;
+  dynamic videoUrl;
   dynamic country;
   dynamic city;
   dynamic status;
@@ -444,6 +445,7 @@ class UserVideos {
     this.location,
     this.image,
     this.video,
+    this.videoUrl,
     this.country,
     this.city,
     this.status,
@@ -478,6 +480,7 @@ class UserVideos {
     location = json['location'];
     image = json['image'];
     video = json['video'];
+    videoUrl = json['video_url'];
     country = json['country'];
     city = json['city'];
     status = json['status'];
@@ -513,6 +516,7 @@ class UserVideos {
     data['location'] = this.location;
     data['image'] = this.image;
     data['video'] = this.video;
+    data['video_url'] = this.videoUrl;
     data['country'] = this.country;
     data['city'] = this.city;
     data['status'] = this.status;

@@ -488,6 +488,7 @@ class ProfessionalVideos {
   dynamic location;
   dynamic image;
   dynamic video;
+  dynamic videoUrl;
   dynamic state;
   dynamic status;
   dynamic createdAt;
@@ -523,6 +524,7 @@ class ProfessionalVideos {
     this.location,
     this.image,
     this.video,
+    this.videoUrl,
     this.state,
     this.status,
     this.createdAt,
@@ -557,6 +559,7 @@ class ProfessionalVideos {
     location = json['location'];
     image = json['image'];
     video = json['video'];
+    videoUrl = json['video_url'];
     state = json['state'];
     status = json['status'];
     createdAt = json['created_at'];

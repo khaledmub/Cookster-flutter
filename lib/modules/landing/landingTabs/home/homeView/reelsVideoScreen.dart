@@ -512,7 +512,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                                 thumbnailUrl:
                                     '${Common.videoUrl}/${videoDetail.image}',
                                 videoUrl:
-                                    '${Common.videoUrl}/${videoDetail.video}',
+                                    videoDetail.videoUrl?.isNotEmpty == true ? videoDetail.videoUrl! : '${Common.videoUrl}/${videoDetail.video}',
                                 autoPlay: true,
                                 onTap: () async {
                                   // Get current user details

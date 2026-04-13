@@ -207,7 +207,9 @@ class _SingleVideoScreenState extends State<SingleVideoScreen>
   }
 
   Future<void> _initializePlayer() async {
-    final videoUrl = '${Common.videoUrl}/${widget.videoUrl}';
+    final String videoUrl = (widget.videoUrl != null && widget.videoUrl!.startsWith('http')) 
+        ? widget.videoUrl! 
+        : '${Common.videoUrl}/${widget.videoUrl}';
     print("PRINTING VIDEO URL: ${videoUrl}");
 
     try {

@@ -43,3 +43,28 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Local Android build outputs and reports
+/android/build/
+/android/build_log.txt
+/android/build/reports/
+
+# Flutter/Android release artifacts
+*.apk
+*.aab
+*.ap_
+*.sha1
+
+# Local signing/config secrets
+/keyStoreDetails/*.jks
+/keyStoreDetails/*.keystore
+/keyStoreDetails/*.p12
+/keyStoreDetails/*.pem
+/keyStoreDetails/key.properties
+
+# Local environment/config files
+.env
+.env.*
+
+# Cursor/IDE runtime files
+.cursor/
