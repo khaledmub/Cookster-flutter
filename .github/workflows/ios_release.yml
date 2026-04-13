@@ -113,21 +113,36 @@ jobs:
           echo "=== Installed profiles ==="
           ls -la "$HOME/Library/MobileDevice/Provisioning Profiles/"
 
-      - name: Configure signing and build IPA
+      - name: Pre-build native setup
+        run: dart run rive_native:setup --platform ios
+
+      - name: Configure signing
         shell: bash
         env:
           TEAM_ID: ${{ steps.signing.outputs.team_id }}
           PROFILE_NAME: ${{ steps.signing.outputs.profile_name }}
           PROFILE_UUID: ${{ steps.signing.outputs.profile_uuid }}
         run: |
+          # Inject manual signing into Release.xcconfig
+          {
+            echo ""
+            echo "CODE_SIGN_STYLE=Manual"
+            echo "CODE_SIGN_IDENTITY=Apple Distribution"
+            echo "DEVELOPMENT_TEAM=${TEAM_ID}"
+            echo "PROVISIONING_PROFILE_SPECIFIER=${PROFILE_NAME}"
+            echo "PROVISIONING_PROFILE=${PROFILE_UUID}"
+          } >> ios/Flutter/Release.xcconfig
+
+          cat ios/Flutter/Release.xcconfig
+
           # Generate ExportOptions.plist
           python3 -c "
-          import plistlib, sys
+          import plistlib
           pl = {
             'method': 'app-store',
-            'teamID': '$TEAM_ID',
+            'teamID': '${TEAM_ID}',
             'signingStyle': 'manual',
-            'provisioningProfiles': {'com.cookster.cooksterapp': '$PROFILE_NAME'},
+            'provisioningProfiles': {'com.cookster.cooksterapp': '${PROFILE_NAME}'},
             'uploadBitcode': False,
             'uploadSymbols': True,
           }
@@ -136,30 +151,8 @@ jobs:
           "
           cat ios/ExportOptions.plist
 
-          # Build Flutter without code signing first
-          flutter build ios --release --no-codesign
-
-          # Archive with xcodebuild, passing signing as CLI args (highest precedence)
-          xcodebuild -workspace ios/Runner.xcworkspace \
-            -scheme Runner \
-            -configuration Release \
-            -sdk iphoneos \
-            -destination 'generic/platform=iOS' \
-            -archivePath "$RUNNER_TEMP/Runner.xcarchive" \
-            archive \
-            CODE_SIGN_STYLE=Manual \
-            CODE_SIGN_IDENTITY="Apple Distribution" \
-            DEVELOPMENT_TEAM="$TEAM_ID" \
-            PROVISIONING_PROFILE="$PROFILE_UUID" \
-            PROVISIONING_PROFILE_SPECIFIER="$PROFILE_NAME" \
-            CODE_SIGN_INJECT_BASE_ENTITLEMENTS=NO
-
-          # Export IPA from the archive
-          xcodebuild -exportArchive \
-            -archivePath "$RUNNER_TEMP/Runner.xcarchive" \
-            -exportOptionsPlist ios/ExportOptions.plist \
-            -exportPath build/ios/ipa \
-            -allowProvisioningUpdates
+      - name: Build iOS IPA
+        run: flutter build ipa --release --export-options-plist=ios/ExportOptions.plist
 
       - name: Upload IPA artifact
         uses: actions/upload-artifact@v4
