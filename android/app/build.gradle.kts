@@ -15,9 +15,14 @@ if (keystorePropertiesFile.exists()) {
     keystoreProperties.load(FileInputStream(keystorePropertiesFile))
 }
 
+val ciKeystore   = System.getenv("CI_KEYSTORE_PATH")
+val ciAlias      = System.getenv("ANDROID_KEY_ALIAS")
+val ciKeyPass    = System.getenv("ANDROID_KEY_PASSWORD")
+val ciStorePass  = System.getenv("ANDROID_KEYSTORE_PASSWORD")
+
 android {
     namespace = "com.cookster.cooksterapp"
-    compileSdk = 36 // Updated for AGP 8.7+
+    compileSdk = 36
     ndkVersion = "27.0.12077973"
 
     compileOptions {
@@ -37,7 +42,6 @@ android {
         versionCode = flutter.versionCode
         versionName = flutter.versionName
         multiDexEnabled = true
-
     }
 
     packaging {
@@ -48,10 +52,17 @@ android {
 
     signingConfigs {
         create("release") {
-            keyAlias = keystoreProperties["keyAlias"] as String?
-            keyPassword = keystoreProperties["keyPassword"] as String?
-            storeFile = keystoreProperties["storeFile"]?.let { path -> file(path) }
-            storePassword = keystoreProperties["storePassword"] as String?
+            if (ciKeystore != null) {
+                storeFile = file(ciKeystore)
+                storePassword = ciStorePass
+                keyAlias = ciAlias
+                keyPassword = ciKeyPass
+            } else {
+                keyAlias = keystoreProperties["keyAlias"] as String?
+                keyPassword = keystoreProperties["keyPassword"] as String?
+                storeFile = keystoreProperties["storeFile"]?.let { path -> file(path) }
+                storePassword = keystoreProperties["storePassword"] as String?
+            }
         }
     }
 

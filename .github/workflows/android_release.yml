@@ -1,0 +1,93 @@
+name: Android Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+
+env:
+  FLUTTER_VERSION: '3.29.3'
+  JAVA_VERSION: '17'
+
+jobs:
+  build-and-deploy:
+    name: Build AAB & Upload to Play Internal
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      # ── Checkout ──────────────────────────────────────────────
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ── Extract version from tag ──────────────────────────────
+      - name: Parse version from tag
+        id: version
+        run: |
+          TAG="${GITHUB_REF#refs/tags/v}"
+          VERSION_NAME="${TAG%%+*}"
+          BUILD_NUMBER="${TAG##*+}"
+          echo "version_name=$VERSION_NAME" >> "$GITHUB_OUTPUT"
+          echo "build_number=$BUILD_NUMBER" >> "$GITHUB_OUTPUT"
+          echo "Releasing version $VERSION_NAME build $BUILD_NUMBER"
+
+      - name: Update pubspec.yaml version
+        run: |
+          sed -i "s/^version: .*/version: ${{ steps.version.outputs.version_name }}+${{ steps.version.outputs.build_number }}/" pubspec.yaml
+          echo "Updated pubspec.yaml:"
+          grep '^version:' pubspec.yaml
+
+      # ── Java ──────────────────────────────────────────────────
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: ${{ env.JAVA_VERSION }}
+
+      # ── Flutter ───────────────────────────────────────────────
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      # ── Android Signing ───────────────────────────────────────
+      - name: Decode keystore
+        run: |
+          echo "${{ secrets.ANDROID_KEYSTORE_B64 }}" | base64 --decode > "$RUNNER_TEMP/upload-keystore.jks"
+          echo "Keystore decoded to $RUNNER_TEMP/upload-keystore.jks"
+        shell: bash
+
+      # ── Build AAB ─────────────────────────────────────────────
+      - name: Build release AAB
+        env:
+          CI_KEYSTORE_PATH: ${{ runner.temp }}/upload-keystore.jks
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: flutter build appbundle --release
+
+      # ── Upload artifact for reference ─────────────────────────
+      - name: Upload AAB artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release-${{ steps.version.outputs.build_number }}
+          path: build/app/outputs/bundle/release/app-release.aab
+          retention-days: 90
+
+      # ── Deploy to Google Play Internal Track ──────────────────
+      - name: Upload to Google Play (Internal)
+        uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: com.cookster.cooksterapp
+          releaseFiles: build/app/outputs/bundle/release/app-release.aab
+          track: internal
+          status: completed

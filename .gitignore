@@ -60,7 +60,9 @@ app.*.map.json
 /keyStoreDetails/*.keystore
 /keyStoreDetails/*.p12
 /keyStoreDetails/*.pem
+/keyStoreDetails/*.txt
 /keyStoreDetails/key.properties
+**/service-account*.json
 
 # Local environment/config files
 .env
