@@ -10,12 +10,12 @@ permissions:
 
 env:
   FLUTTER_VERSION: "3.41.6"
-  XCODE_VERSION: "16.0"
+  XCODE_VERSION: "latest-stable"
 
 jobs:
   build-and-upload-testflight:
     name: Build IPA and Upload to TestFlight
-    runs-on: macos-14
+    runs-on: macos-15
     timeout-minutes: 60
 
     steps:
