@@ -113,32 +113,14 @@ jobs:
           echo "=== Installed profiles ==="
           ls -la "$HOME/Library/MobileDevice/Provisioning Profiles/"
 
-      - name: Force manual signing in Xcode project
+      - name: Configure signing and build IPA
         shell: bash
         env:
           TEAM_ID: ${{ steps.signing.outputs.team_id }}
           PROFILE_NAME: ${{ steps.signing.outputs.profile_name }}
           PROFILE_UUID: ${{ steps.signing.outputs.profile_uuid }}
         run: |
-          # 1. Patch project.pbxproj: switch from Automatic to Manual signing
-          PBXPROJ="ios/Runner.xcodeproj/project.pbxproj"
-          sed -i '' 's/ProvisioningStyle = Automatic/ProvisioningStyle = Manual/g' "$PBXPROJ"
-          sed -i '' 's/CODE_SIGN_IDENTITY = "Apple Development"/CODE_SIGN_IDENTITY = "Apple Distribution"/g' "$PBXPROJ"
-          sed -i '' 's/CODE_SIGN_IDENTITY = "iPhone Developer"/CODE_SIGN_IDENTITY = "Apple Distribution"/g' "$PBXPROJ"
-          sed -i '' "s/DEVELOPMENT_TEAM = \"\"/DEVELOPMENT_TEAM = \"${TEAM_ID}\"/g" "$PBXPROJ"
-          sed -i '' "s/DEVELOPMENT_TEAM = .*;/DEVELOPMENT_TEAM = ${TEAM_ID};/g" "$PBXPROJ"
-
-          # 2. Inject signing overrides into Release.xcconfig
-          {
-            echo ""
-            echo "CODE_SIGN_STYLE=Manual"
-            echo "CODE_SIGN_IDENTITY=Apple Distribution"
-            echo "DEVELOPMENT_TEAM=${TEAM_ID}"
-            echo "PROVISIONING_PROFILE_SPECIFIER=${PROFILE_NAME}"
-            echo "PROVISIONING_PROFILE=${PROFILE_UUID}"
-          } >> ios/Flutter/Release.xcconfig
-
-          # 3. Generate ExportOptions.plist (no leading whitespace)
+          # Generate ExportOptions.plist
           cat > ios/ExportOptions.plist << PLISTEOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -163,15 +145,32 @@ jobs:
 </plist>
 PLISTEOF
 
-          echo "=== Release.xcconfig ==="
-          cat ios/Flutter/Release.xcconfig
-          echo "=== ExportOptions.plist ==="
           cat ios/ExportOptions.plist
-          echo "=== project.pbxproj signing lines ==="
-          grep -i "provisioning\|CODE_SIGN\|DEVELOPMENT_TEAM\|ProvisioningStyle" "$PBXPROJ" | head -30
 
-      - name: Build iOS IPA
-        run: flutter build ipa --release --export-options-plist=ios/ExportOptions.plist
+          # Build Flutter without code signing first
+          flutter build ios --release --no-codesign
+
+          # Archive with xcodebuild, passing signing as CLI args (highest precedence)
+          xcodebuild -workspace ios/Runner.xcworkspace \
+            -scheme Runner \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$RUNNER_TEMP/Runner.xcarchive" \
+            archive \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY="Apple Distribution" \
+            DEVELOPMENT_TEAM="$TEAM_ID" \
+            PROVISIONING_PROFILE="$PROFILE_UUID" \
+            PROVISIONING_PROFILE_SPECIFIER="$PROFILE_NAME" \
+            CODE_SIGN_INJECT_BASE_ENTITLEMENTS=NO
+
+          # Export IPA from the archive
+          xcodebuild -exportArchive \
+            -archivePath "$RUNNER_TEMP/Runner.xcarchive" \
+            -exportOptionsPlist ios/ExportOptions.plist \
+            -exportPath build/ios/ipa \
+            -allowProvisioningUpdates
 
       - name: Upload IPA artifact
         uses: actions/upload-artifact@v4
