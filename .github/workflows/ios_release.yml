@@ -69,6 +69,7 @@ jobs:
           echo "${{ secrets.APPSTORE_API_KEY_B64 }}" | base64 --decode > "$HOME/.appstoreconnect/private_keys/AuthKey_${{ secrets.APPSTORE_API_KEY_ID }}.p8"
 
       - name: Install certificate and provisioning profile
+        id: signing
         env:
           KEYCHAIN_PASSWORD: temp_keychain_password
           P12_PASSWORD: ${{ secrets.IOS_P12_PASSWORD }}
@@ -79,15 +80,52 @@ jobs:
           security unlock-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
           security set-keychain-settings -lut 21600 build.keychain
           security import "$RUNNER_TEMP/cert.p12" -k build.keychain -P "$P12_PASSWORD" -A -T /usr/bin/codesign -T /usr/bin/security
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" build.keychain
           security list-keychains -d user -s build.keychain login.keychain
 
+          PROFILE_UUID=$(/usr/libexec/PlistBuddy -c "Print UUID" /dev/stdin <<< "$(/usr/bin/security cms -D -i "$RUNNER_TEMP/profile.mobileprovision")")
+          TEAM_ID=$(/usr/libexec/PlistBuddy -c "Print :TeamIdentifier:0" /dev/stdin <<< "$(/usr/bin/security cms -D -i "$RUNNER_TEMP/profile.mobileprovision")")
+          PROFILE_NAME=$(/usr/libexec/PlistBuddy -c "Print Name" /dev/stdin <<< "$(/usr/bin/security cms -D -i "$RUNNER_TEMP/profile.mobileprovision")")
+
           mkdir -p "$HOME/Library/MobileDevice/Provisioning Profiles"
-          cp "$RUNNER_TEMP/profile.mobileprovision" "$HOME/Library/MobileDevice/Provisioning Profiles/"
+          cp "$RUNNER_TEMP/profile.mobileprovision" "$HOME/Library/MobileDevice/Provisioning Profiles/${PROFILE_UUID}.mobileprovision"
+
+          echo "profile_uuid=$PROFILE_UUID" >> "$GITHUB_OUTPUT"
+          echo "team_id=$TEAM_ID" >> "$GITHUB_OUTPUT"
+          echo "profile_name=$PROFILE_NAME" >> "$GITHUB_OUTPUT"
 
           security find-identity -v -p codesigning build.keychain
+          echo "Profile UUID: $PROFILE_UUID | Team: $TEAM_ID | Name: $PROFILE_NAME"
+
+      - name: Create ExportOptions.plist
+        shell: bash
+        run: |
+          cat > ios/ExportOptions.plist << PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+              <key>method</key>
+              <string>app-store</string>
+              <key>teamID</key>
+              <string>${{ steps.signing.outputs.team_id }}</string>
+              <key>signingStyle</key>
+              <string>manual</string>
+              <key>provisioningProfiles</key>
+              <dict>
+                  <key>com.cookster.cooksterapp</key>
+                  <string>${{ steps.signing.outputs.profile_name }}</string>
+              </dict>
+              <key>uploadBitcode</key>
+              <false/>
+              <key>uploadSymbols</key>
+              <true/>
+          </dict>
+          </plist>
+          PLIST
 
       - name: Build iOS IPA
-        run: flutter build ipa --release --export-method app-store
+        run: flutter build ipa --release --export-options-plist=ios/ExportOptions.plist
 
       - name: Upload IPA artifact
         uses: actions/upload-artifact@v4
