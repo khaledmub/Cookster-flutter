@@ -35,7 +35,7 @@ dependencies:
 #  provider:
   video_thumbnail: ^0.5.3
   path_provider: ^2.1.5
-  awesome_dialog: ^3.2.1
+  awesome_dialog: 3.2.1
   geocoding: ^3.0.0
   google_maps_flutter: ^2.10.1
   google_places_flutter: ^2.1.0
@@ -93,7 +93,6 @@ dependencies:
   location: ^8.0.1
   update_available: ^3.2.0+1
   focus_detector_v2: ^3.1.0+1
-  rive: ^0.14.5
 
 
 dependency_overrides:

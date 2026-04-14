@@ -70,9 +70,6 @@ jobs:
           echo "API_KEY_PATH=$API_KEY_DIR/AuthKey_${{ secrets.APPSTORE_API_KEY_ID }}.p8" >> "$GITHUB_ENV"
           ls -la "$API_KEY_DIR/"
 
-      - name: Pre-build native setup
-        run: dart run rive_native:setup --platform ios
-
       - name: Generate ExportOptions.plist
         shell: bash
         run: |
