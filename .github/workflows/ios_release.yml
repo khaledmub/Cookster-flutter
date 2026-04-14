@@ -60,14 +60,29 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
+      - name: Validate App Store Connect secrets
+        shell: bash
+        env:
+          APPSTORE_API_KEY_B64: ${{ secrets.APPSTORE_API_KEY_B64 }}
+          APPSTORE_API_KEY_ID: ${{ secrets.APPSTORE_API_KEY_ID }}
+          APPSTORE_API_ISSUER_ID: ${{ secrets.APPSTORE_API_ISSUER_ID }}
+        run: |
+          [ -n "$APPSTORE_API_KEY_B64" ] || { echo "Missing secret: APPSTORE_API_KEY_B64"; exit 1; }
+          [ -n "$APPSTORE_API_KEY_ID" ] || { echo "Missing secret: APPSTORE_API_KEY_ID"; exit 1; }
+          [ -n "$APPSTORE_API_ISSUER_ID" ] || { echo "Missing secret: APPSTORE_API_ISSUER_ID"; exit 1; }
+
       - name: Install App Store Connect API key
         shell: bash
+        env:
+          APPSTORE_API_KEY_B64: ${{ secrets.APPSTORE_API_KEY_B64 }}
+          APPSTORE_API_KEY_ID: ${{ secrets.APPSTORE_API_KEY_ID }}
         run: |
           API_KEY_DIR="$HOME/private_keys"
           mkdir -p "$API_KEY_DIR"
-          echo "${{ secrets.APPSTORE_API_KEY_B64 }}" | base64 --decode \
-            > "$API_KEY_DIR/AuthKey_${{ secrets.APPSTORE_API_KEY_ID }}.p8"
-          echo "API_KEY_PATH=$API_KEY_DIR/AuthKey_${{ secrets.APPSTORE_API_KEY_ID }}.p8" >> "$GITHUB_ENV"
+          echo "$APPSTORE_API_KEY_B64" | base64 --decode \
+            > "$API_KEY_DIR/AuthKey_${APPSTORE_API_KEY_ID}.p8"
+          test -s "$API_KEY_DIR/AuthKey_${APPSTORE_API_KEY_ID}.p8" || { echo "Decoded API key file is empty"; exit 1; }
+          echo "API_KEY_PATH=$API_KEY_DIR/AuthKey_${APPSTORE_API_KEY_ID}.p8" >> "$GITHUB_ENV"
           ls -la "$API_KEY_DIR/"
 
       - name: Generate ExportOptions.plist
