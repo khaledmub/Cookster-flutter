@@ -33,3 +33,12 @@
 -keep class androidx.media3.decoder.** { *; }
 -dontwarn androidx.media3.extractor.**
 -dontwarn androidx.media3.decoder.**
+
+# FFmpegKit - prevent R8/ProGuard from stripping JNI native classes
+-keep class com.antonkarpenko.ffmpegkit.** { *; }
+-dontwarn com.antonkarpenko.ffmpegkit.**
+-keepclasseswithmembernames class * {
+    native <methods>;
+}
+-keep class com.antonkarpenko.ffmpegkit.AbiDetect { *; }
+-keep class com.antonkarpenko.ffmpegkit.FFmpegKitConfig { *; }
