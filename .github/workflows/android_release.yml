@@ -45,10 +45,13 @@ jobs:
 
           TAG_NO_V="${RAW_TAG#v}"
           VERSION_NAME="${TAG_NO_V%%+*}"
-          BUILD_NUMBER="${TAG_NO_V##*+}"
+          REQUESTED_BUILD_NUMBER="${TAG_NO_V##*+}"
+          # Always use a unique CI-driven versionCode to avoid Play Console collisions.
+          # GITHUB_RUN_NUMBER is monotonically increasing per repository.
+          BUILD_NUMBER="$((GITHUB_RUN_NUMBER + 1000))"
           echo "version_name=$VERSION_NAME" >> "$GITHUB_OUTPUT"
           echo "build_number=$BUILD_NUMBER" >> "$GITHUB_OUTPUT"
-          echo "Releasing version $VERSION_NAME build $BUILD_NUMBER"
+          echo "Releasing version $VERSION_NAME build $BUILD_NUMBER (tag requested: $REQUESTED_BUILD_NUMBER)"
 
       - name: Update pubspec.yaml version
         run: |
