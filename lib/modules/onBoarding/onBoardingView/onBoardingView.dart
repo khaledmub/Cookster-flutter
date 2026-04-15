@@ -1,5 +1,6 @@
 import 'package:awesome_dialog/awesome_dialog.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:cookster/appRoutes/appRoutes.dart';
 import 'package:cookster/appUtils/appUtils.dart';
 import 'package:cookster/modules/onBoarding/onBoardingModel/onBoardingModel.dart';
 import 'package:flutter/material.dart';
@@ -33,13 +34,64 @@ class _OnBoardingState extends State<OnBoarding> {
     return Obx(() {
       final OnBoardingModel onboardingModel = controller.onboardingData.value;
 
-      // If data isn't loaded yet, show a simple loading state
-      if (onboardingModel.screens == null) {
+      // Show splash loader only while request is actively loading.
+      if (controller.isLoading.value) {
         return const Scaffold(
           body: Center(
             child: PulseLogoLoader(
               logoPath: "assets/images/appIcon.png",
               size: 80,
+            ),
+          ),
+        );
+      }
+
+      if (onboardingModel.screens == null || onboardingModel.screens!.isEmpty) {
+        return Scaffold(
+          backgroundColor: ColorUtils.secondaryColor,
+          body: SafeArea(
+            child: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const PulseLogoLoader(
+                      logoPath: "assets/images/appIcon.png",
+                      size: 70,
+                    ),
+                    SizedBox(height: 16.h),
+                    Text(
+                      "Failed to load onboarding data",
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 16.sp,
+                        fontWeight: FontWeight.w600,
+                        color: ColorUtils.darkBrown,
+                      ),
+                    ),
+                    SizedBox(height: 8.h),
+                    Text(
+                      "Please check your internet connection and try again.",
+                      textAlign: TextAlign.center,
+                      style: TextStyle(fontSize: 12.sp, color: Colors.black87),
+                    ),
+                    SizedBox(height: 20.h),
+                    AppButton(
+                      text: "Retry",
+                      onTap: () => controller.fetchOnboardingData(),
+                    ),
+                    SizedBox(height: 8.h),
+                    AppButton(
+                      text: "Continue".tr,
+                      onTap: () {
+                        controller.completeOnboarding();
+                        Get.offAllNamed(AppRoutes.signIn);
+                      },
+                    ),
+                  ],
+                ),
+              ),
             ),
           ),
         );

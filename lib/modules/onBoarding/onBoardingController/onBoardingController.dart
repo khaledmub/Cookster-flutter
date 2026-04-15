@@ -73,7 +73,9 @@ class OnboardingController extends GetxController {
       print(
         "Calling API: ${EndPoints.onBoarding}",
       ); // ✅ Step 2: API call started
-      var response = await ApiClient.getRequest('${EndPoints.onBoarding}');
+      var response = await ApiClient.getRequest(
+        '${EndPoints.onBoarding}',
+      ).timeout(const Duration(seconds: 12));
 
       print(
         "Response received with status: ${response.statusCode}",
@@ -86,6 +88,10 @@ class OnboardingController extends GetxController {
         ); // ✅ Step 4: JSON decoding
 
         onboardingData.value = OnBoardingModel.fromJson(jsonResponse);
+        if (onboardingData.value.screens == null ||
+            onboardingData.value.screens!.isEmpty) {
+          onboardingData.value = OnBoardingModel(status: false, screens: []);
+        }
         print(
           "Onboarding data successfully assigned",
         ); // ✅ Step 5: Model assigned
@@ -93,10 +99,12 @@ class OnboardingController extends GetxController {
         print(
           "Error: Failed to load onboarding data",
         ); // ✅ Step 6: Error handling
+        onboardingData.value = OnBoardingModel(status: false, screens: []);
         Get.snackbar("Error", "Failed to load onboarding data");
       }
     } catch (e) {
       print("Exception caught: $e"); // ✅ Step 7: Exception handling
+      onboardingData.value = OnBoardingModel(status: false, screens: []);
       Get.snackbar("Error", "Something went wrong");
     } finally {
       isLoading(false);
