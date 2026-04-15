@@ -4,6 +4,7 @@ import 'dart:io';
 import 'dart:ui';
 
 import 'package:awesome_dialog/awesome_dialog.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:chewie/chewie.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cookster/appUtils/apiEndPoints.dart';
@@ -92,6 +93,7 @@ class _SingleVideoScreenState extends State<SingleVideoScreen>
   bool _isInitializing = true;
   bool _isMuted = false;
   bool _showPlayPauseIcon = false;
+  bool _isImageMode = false;
   RxInt localFollowersCount = 0.obs;
 
   // static final CustomCacheManager _cacheManager = CustomCacheManager._();
@@ -207,8 +209,38 @@ class _SingleVideoScreenState extends State<SingleVideoScreen>
   }
 
   Future<void> _initializePlayer() async {
-    final String videoUrl = (widget.videoUrl != null && widget.videoUrl!.startsWith('http')) 
-        ? widget.videoUrl! 
+    if (widget.isImage == "1") {
+      if (mounted) {
+        setState(() {
+          _isImageMode = true;
+          _isInitializing = false;
+        });
+      }
+      return;
+    }
+
+    if (widget.videoUrl == null || widget.videoUrl!.isEmpty) {
+      if (mounted) {
+        setState(() {
+          _isInitializing = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'failed_to_load_video'.tr,
+              style: TextStyle(color: Colors.white),
+            ),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+            margin: EdgeInsets.only(bottom: 20.0, left: 10.0, right: 10.0),
+          ),
+        );
+      }
+      return;
+    }
+
+    final String videoUrl = widget.videoUrl!.startsWith('http')
+        ? widget.videoUrl!
         : '${Common.videoUrl}/${widget.videoUrl}';
     print("PRINTING VIDEO URL: ${videoUrl}");
 
@@ -221,10 +253,8 @@ class _SingleVideoScreenState extends State<SingleVideoScreen>
         ),
       );
 
-      // Initialize the video player
       await _videoPlayerController.initialize();
 
-      // Configure Chewie controller
       _chewieController = ChewieController(
         videoPlayerController: _videoPlayerController,
         autoPlay: true,
@@ -308,10 +338,11 @@ class _SingleVideoScreenState extends State<SingleVideoScreen>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    _pauseVideo();
-    _videoPlayerController.dispose();
-    _chewieController?.dispose();
-    // _clearCache(); // Clear cache when screen is disposed
+    if (!_isImageMode) {
+      _pauseVideo();
+      _videoPlayerController.dispose();
+      _chewieController?.dispose();
+    }
     super.dispose();
   }
 
@@ -357,13 +388,35 @@ class _SingleVideoScreenState extends State<SingleVideoScreen>
               Positioned.fill(
                 child: GestureDetector(
                   onTap: () {
-                    if (!_isInitializing) {
+                    if (!_isInitializing && !_isImageMode) {
                       _togglePlayPause();
                     }
                   },
-                  onDoubleTap: _toggleMute,
-                  child:
-                      _isInitializing
+                  onDoubleTap: _isImageMode ? null : _toggleMute,
+                  child: _isImageMode
+                      ? CachedNetworkImage(
+                          imageUrl: widget.videoUrl != null && widget.videoUrl!.startsWith('http')
+                              ? widget.videoUrl!
+                              : '${Common.videoUrl}/${widget.image}',
+                          fit: BoxFit.contain,
+                          placeholder: (context, url) => Center(
+                            child: CircularProgressIndicator(color: Colors.white),
+                          ),
+                          errorWidget: (context, url, error) => Center(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.broken_image, color: Colors.white, size: 48),
+                                SizedBox(height: 8),
+                                Text(
+                                  'failed_to_load_video'.tr,
+                                  style: TextStyle(color: Colors.white),
+                                ),
+                              ],
+                            ),
+                          ),
+                        )
+                      : _isInitializing
                           ? Center(
                             child: Image.network(
                               "${Common.videoUrl}/${widget.image}",
@@ -374,7 +427,7 @@ class _SingleVideoScreenState extends State<SingleVideoScreen>
                           : SizedBox.shrink(),
                 ),
               ),
-              if (widget.isImage == "0")
+              if (widget.isImage == "0" && !_isImageMode)
                 Positioned(
                   left: 16,
                   right: 16,

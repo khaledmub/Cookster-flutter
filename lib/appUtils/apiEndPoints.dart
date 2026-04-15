@@ -12,8 +12,8 @@ class Common {
   static String imageScreen = "${imageBaseUrl}screens";
   static String profileImage = "${imageBaseUrl}front_users";
   static String audioThumbnail = "${imageBaseUrl}audios";
-  static String videoUrl = "https://d280w26izdvlvt.cloudfront.net/videos";
-  static String audioUrl = "https://d280w26izdvlvt.cloudfront.net/audios";
+  static String videoUrl = "https://storage.googleapis.com/cookster-storage-v1/videos";
+  static String audioUrl = "https://storage.googleapis.com/cookster-storage-v1/audios";
 
   static String googleMapApiKey = "AIzaSyBxMeZhnLJfK4ax7_GOGDd00OS5-jBFc4M";
 }

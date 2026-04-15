@@ -4,6 +4,7 @@ on:
   push:
     tags:
       - "v*"
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -70,6 +71,21 @@ jobs:
       - name: Get dependencies
         run: flutter pub get
 
+      - name: Validate Android release secrets
+        shell: bash
+        env:
+          ANDROID_KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+        run: |
+          [[ -n "$ANDROID_KEYSTORE_B64" ]] || { echo "Missing required secret: ANDROID_KEYSTORE_B64"; exit 1; }
+          [[ -n "$ANDROID_KEYSTORE_PASSWORD" ]] || { echo "Missing required secret: ANDROID_KEYSTORE_PASSWORD"; exit 1; }
+          [[ -n "$ANDROID_KEY_ALIAS" ]] || { echo "Missing required secret: ANDROID_KEY_ALIAS"; exit 1; }
+          [[ -n "$ANDROID_KEY_PASSWORD" ]] || { echo "Missing required secret: ANDROID_KEY_PASSWORD"; exit 1; }
+          [[ -n "$PLAY_SERVICE_ACCOUNT_JSON" ]] || { echo "Missing required secret: PLAY_SERVICE_ACCOUNT_JSON"; exit 1; }
+
       - name: Decode Android keystore
         shell: bash
         run: |
@@ -84,11 +100,26 @@ jobs:
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: flutter build appbundle --release
 
+      - name: Build release APK
+        env:
+          CI_KEYSTORE_PATH: ${{ runner.temp }}/upload-keystore.jks
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: flutter build apk --release
+
       - name: Upload AAB artifact
         uses: actions/upload-artifact@v4
         with:
           name: android-aab-${{ steps.version.outputs.version_name }}-${{ steps.version.outputs.build_number }}
           path: build/app/outputs/bundle/release/app-release.aab
+          retention-days: 30
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-apk-${{ steps.version.outputs.version_name }}-${{ steps.version.outputs.build_number }}
+          path: build/app/outputs/flutter-apk/app-release.apk
           retention-days: 30
 
       - name: Upload to Google Play Internal track

@@ -757,15 +757,20 @@ class VideoAddController extends GetxController {
           isVideoUploading.value = false;
           isUploadSuccessful.value = false;
 
-          final responseData =
-              jsonDecode(response.body) as Map<String, dynamic>;
+          String errorMsg;
+          try {
+            final responseData =
+                jsonDecode(response.body) as Map<String, dynamic>;
+            errorMsg = responseData['message'] ?? 'Upload failed (${response.statusCode})';
+          } catch (_) {
+            errorMsg = 'Server error (${response.statusCode}). Please try again later.';
+          }
 
           AwesomeDialog(
             context: context,
             dialogType: DialogType.error,
             title: 'upload_failed_title'.tr,
-            desc: responseData['message'],
-            // Display only the message
+            desc: errorMsg,
             btnOkOnPress: () {},
           )..show();
         }
@@ -904,7 +909,7 @@ class VideoAddController extends GetxController {
 
         dialog.dismiss();
 
-        if (response.statusCode == 201) {
+        if (response.statusCode == 201 || response.statusCode == 200) {
           print("✅ Video uploaded successfully!");
           print("Response: ${response.body}");
           isVideoUploading.value = false;
@@ -915,39 +920,36 @@ class VideoAddController extends GetxController {
               content: Text("upload_success_message".tr),
               backgroundColor: Colors.green,
               behavior: SnackBarBehavior.floating,
-              // Optional: makes it appear at the bottom
               action: SnackBarAction(
                 label: "ok".tr,
-                // Using the translated title as the action label
                 textColor: Colors.white,
-                onPressed: () {
-                  // Optional: Add action functionality here
-                },
+                onPressed: () {},
               ),
             ),
           );
 
           resetController();
           Get.offAll(() => Landing(initialIndex: 3));
-
-          // Future.delayed(Duration(seconds: 2), () {
-          //   resetController();
-          //   Get.offAll(() => Landing(initialIndex: 3));
-          // });
         } else {
           print("❌ Failed to upload video. Status: ${response.statusCode}");
           print("Response: ${response.body}");
           isVideoUploading.value = false;
           isUploadSuccessful.value = false;
 
-          final responseData =
-              jsonDecode(response.body) as Map<String, dynamic>;
+          String errorMsg;
+          try {
+            final responseData =
+                jsonDecode(response.body) as Map<String, dynamic>;
+            errorMsg = responseData['message'] ?? 'Upload failed (${response.statusCode})';
+          } catch (_) {
+            errorMsg = 'Server error (${response.statusCode}). Please try again later.';
+          }
 
           AwesomeDialog(
             context: context,
             dialogType: DialogType.error,
             title: 'upload_failed_title'.tr,
-            desc: responseData['message'],
+            desc: errorMsg,
             btnOkOnPress: () {},
           )..show();
         }

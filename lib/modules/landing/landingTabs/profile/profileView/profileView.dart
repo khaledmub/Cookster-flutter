@@ -500,7 +500,9 @@ class _ProfileViewState extends State<ProfileView>
                                             video.frontUserId,
                                             userImage: video.userImage,
                                             videoId: video.id,
-                                            videoUrl: video.video,
+                                            videoUrl: video.videoUrl?.toString().isNotEmpty == true
+                                                ? video.videoUrl
+                                                : video.video,
                                             title: video.title,
                                             image: video.image,
                                             allowComments:
