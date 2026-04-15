@@ -6,6 +6,10 @@ on:
       - "v*"
   workflow_dispatch:
 
+concurrency:
+  group: android-release
+  cancel-in-progress: true
+
 permissions:
   contents: read
 

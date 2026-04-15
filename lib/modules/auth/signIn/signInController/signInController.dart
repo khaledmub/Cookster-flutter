@@ -24,8 +24,14 @@ class LogInController extends GetxController {
   var isLoading = false.obs;
   final GlobalKey<FormState> formKey = GlobalKey<FormState>();
 
-  // Initialize GoogleSignIn with the scopes you need
-  final GoogleSignIn _googleSignIn = GoogleSignIn(scopes: ['email']);
+  // Web client ID from Firebase project (google-services.json client_type: 3).
+  // Required in some release/Play builds to reliably get ID token.
+  static const String _googleServerClientId =
+      '588874074588-ls288jb68aq4dh7igmc5iqr60ogj1o74.apps.googleusercontent.com';
+  final GoogleSignIn _googleSignIn = GoogleSignIn(
+    scopes: ['email'],
+    serverClientId: _googleServerClientId,
+  );
 
   // Firestore instance
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -310,6 +316,14 @@ class LogInController extends GetxController {
       final GoogleSignInAuthentication googleAuth =
           await googleUser.authentication;
 
+      if (googleAuth.idToken == null || googleAuth.idToken!.isEmpty) {
+        throw FirebaseAuthException(
+          code: 'missing-id-token',
+          message:
+              'Google returned an empty ID token. Check OAuth client IDs and SHA fingerprints in Firebase.',
+        );
+      }
+
       final credential = GoogleAuthProvider.credential(
         accessToken: googleAuth.accessToken,
         idToken: googleAuth.idToken,
@@ -327,9 +341,21 @@ class LogInController extends GetxController {
       await loginWithEmailUser();
     } catch (error) {
       print('Google sign-in error: $error');
+      String message = "google_signin_failed".tr;
+      if (error is FirebaseAuthException) {
+        message = "Google sign-in failed (${error.code}). ${error.message ?? ''}";
+      } else if (error is Exception) {
+        message = error.toString();
+      }
       ScaffoldMessenger.of(
         Get.context!,
-      ).showSnackBar(SnackBar(content: Text("google_signin_failed".tr)));
+      ).showSnackBar(
+        SnackBar(
+          content: Text(message),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
     } finally {
       isLoading.value = false;
     }
