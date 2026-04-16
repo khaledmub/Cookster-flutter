@@ -737,42 +737,44 @@ class _ProfessionalProfileViewState extends State<ProfessionalProfileView>
                                 borderRadius: BorderRadius.circular(50.r),
                               ),
                               child: Row(
-                                mainAxisSize: MainAxisSize.min,
                                 mainAxisAlignment:
                                     MainAxisAlignment.spaceBetween,
                                 children: List.generate(videoTypes.length, (
                                   index,
                                 ) {
                                   bool isSelected = currentTabIndex == index;
-                                  return GestureDetector(
-                                    onTap: () {
-                                      _tabController!.animateTo(index);
-                                      setState(() {
-                                        currentTabIndex = index;
-                                      });
-                                    },
-                                    child: Container(
-                                      width: Get.width * 0.25,
-                                      padding: EdgeInsets.symmetric(
-                                        horizontal: 16,
-                                        vertical: 8,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color:
-                                            isSelected
-                                                ? ColorUtils.primaryColor
-                                                : Colors.transparent,
-                                        borderRadius: BorderRadius.circular(
-                                          50.r,
+                                  return Expanded(
+                                    child: GestureDetector(
+                                      onTap: () {
+                                        _tabController!.animateTo(index);
+                                        setState(() {
+                                          currentTabIndex = index;
+                                        });
+                                      },
+                                      child: Container(
+                                        padding: EdgeInsets.symmetric(
+                                          horizontal: 8,
+                                          vertical: 8,
                                         ),
-                                      ),
-                                      child: Center(
-                                        child: Text(
-                                          videoTypes[index].name ?? "Unknown",
-                                          style: TextStyle(
-                                            fontSize: 14.sp,
-                                            fontWeight: FontWeight.w500,
-                                            color: Colors.black,
+                                        decoration: BoxDecoration(
+                                          color:
+                                              isSelected
+                                                  ? ColorUtils.primaryColor
+                                                  : Colors.transparent,
+                                          borderRadius: BorderRadius.circular(
+                                            50.r,
+                                          ),
+                                        ),
+                                        child: Center(
+                                          child: Text(
+                                            videoTypes[index].name ?? "Unknown",
+                                            style: TextStyle(
+                                              fontSize: 13.sp,
+                                              fontWeight: FontWeight.w500,
+                                              color: Colors.black,
+                                            ),
+                                            overflow: TextOverflow.ellipsis,
+                                            maxLines: 1,
                                           ),
                                         ),
                                       ),

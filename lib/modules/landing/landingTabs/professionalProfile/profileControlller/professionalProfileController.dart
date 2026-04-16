@@ -698,20 +698,24 @@ class ProfessionalProfileController extends GetxController {
       var responseData = await response.stream.bytesToString();
 
       if (response.statusCode == 200) {
-        var data = jsonDecode(responseData);
-        print("API Response: $data"); // Debugging log
+        Map<String, dynamic> data;
+        try {
+          data = jsonDecode(responseData) as Map<String, dynamic>;
+        } catch (_) {
+          throw Exception('Server returned an invalid response. Please try again later.');
+        }
+        print("API Response: $data");
 
         String userId = data['user']['id'];
         String updatedName = data['user']['name'];
-        String? updatedImage = data['user']['image']; // Can be null
+        String? updatedImage = data['user']['image'];
         String successMessage =
             data['message'] ?? 'Profile updated successfully.';
 
-        // Update Firestore with new name & image
         await FirebaseFirestore.instance.collection('users').doc(userId).update(
           {
             'name': updatedName,
-            'image': updatedImage, // If null, Firestore keeps it null
+            'image': updatedImage,
           },
         );
         getUserDetails();
@@ -724,25 +728,30 @@ class ProfessionalProfileController extends GetxController {
           ),
         );
       } else {
-        var errorData = jsonDecode(responseData);
-        String errorMessage = "Profile update failed"; // Default error message
+        String errorMessage;
+        try {
+          var errorData = jsonDecode(responseData);
+          errorMessage = "Profile update failed";
 
-        if (errorData is Map<String, dynamic>) {
-          if (errorData.containsKey('message')) {
-            errorMessage = errorData['message'];
-          }
-          if (errorData.containsKey('errors')) {
-            var errors = errorData['errors'] as Map<String, dynamic>;
-            if (errors.isNotEmpty) {
-              String detailedErrors = errors.entries
-                  .map(
-                    (e) =>
-                        "${e.key.replaceAll('_', ' ').capitalizeFirst}: ${e.value.join(", ")}",
-                  )
-                  .join("\n");
-              errorMessage += "\n$detailedErrors";
+          if (errorData is Map<String, dynamic>) {
+            if (errorData.containsKey('message')) {
+              errorMessage = errorData['message'];
+            }
+            if (errorData.containsKey('errors')) {
+              var errors = errorData['errors'] as Map<String, dynamic>;
+              if (errors.isNotEmpty) {
+                String detailedErrors = errors.entries
+                    .map(
+                      (e) =>
+                          "${e.key.replaceAll('_', ' ').capitalizeFirst}: ${e.value.join(", ")}",
+                    )
+                    .join("\n");
+                errorMessage += "\n$detailedErrors";
+              }
             }
           }
+        } catch (_) {
+          errorMessage = 'Server error (${response.statusCode}). Please try again later.';
         }
 
         ScaffoldMessenger.of(Get.context!).showSnackBar(
@@ -815,22 +824,25 @@ class ProfessionalProfileController extends GetxController {
       var responseData = await response.stream.bytesToString();
 
       if (response.statusCode == 200) {
-        var data = jsonDecode(responseData);
-        print("API Response: $data"); // Debugging log
+        Map<String, dynamic> data;
+        try {
+          data = jsonDecode(responseData) as Map<String, dynamic>;
+        } catch (_) {
+          throw Exception('Server returned an invalid response. Please try again later.');
+        }
+        print("API Response: $data");
 
         String userId = data['user']['id'];
-        String? updatedCoverImage = data['user']['cover_image']; // Can be null
+        String? updatedCoverImage = data['user']['cover_image'];
         String successMessage =
             data['message'] ?? 'Profile updated successfully.';
-        // Update Firestore with new cover image
+
         await FirebaseFirestore.instance.collection('users').doc(userId).update(
           {
             'cover_image': updatedCoverImage,
-            // If null, Firestore keeps it null
           },
         );
 
-        // Assuming getUserDetails is defined elsewhere to refresh user data
         getUserDetails();
 
         ScaffoldMessenger.of(context).showSnackBar(
@@ -841,26 +853,30 @@ class ProfessionalProfileController extends GetxController {
           ),
         );
       } else {
-        var errorData = jsonDecode(responseData);
-        String errorMessage =
-            "Cover image update failed"; // Default error message
+        String errorMessage;
+        try {
+          var errorData = jsonDecode(responseData);
+          errorMessage = "Cover image update failed";
 
-        if (errorData is Map<String, dynamic>) {
-          if (errorData.containsKey('message')) {
-            errorMessage = errorData['message'];
-          }
-          if (errorData.containsKey('errors')) {
-            var errors = errorData['errors'] as Map<String, dynamic>;
-            if (errors.isNotEmpty) {
-              String detailedErrors = errors.entries
-                  .map(
-                    (e) =>
-                        "${e.key.replaceAll('_', ' ').capitalizeFirst}: ${e.value.join(", ")}",
-                  )
-                  .join("\n");
-              errorMessage += "\n$detailedErrors";
+          if (errorData is Map<String, dynamic>) {
+            if (errorData.containsKey('message')) {
+              errorMessage = errorData['message'];
+            }
+            if (errorData.containsKey('errors')) {
+              var errors = errorData['errors'] as Map<String, dynamic>;
+              if (errors.isNotEmpty) {
+                String detailedErrors = errors.entries
+                    .map(
+                      (e) =>
+                          "${e.key.replaceAll('_', ' ').capitalizeFirst}: ${e.value.join(", ")}",
+                    )
+                    .join("\n");
+                errorMessage += "\n$detailedErrors";
+              }
             }
           }
+        } catch (_) {
+          errorMessage = 'Server error (${response.statusCode}). Please try again later.';
         }
 
         ScaffoldMessenger.of(context).showSnackBar(

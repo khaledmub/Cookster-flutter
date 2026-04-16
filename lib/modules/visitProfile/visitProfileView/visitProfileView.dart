@@ -749,35 +749,37 @@ class _VisitProfileViewState extends State<VisitProfileView>
                             borderRadius: BorderRadius.circular(50.r),
                           ),
                           child: Row(
-                            mainAxisSize: MainAxisSize.min,
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: List.generate(videoTypes.length, (index) {
                               bool isSelected = _tabController!.index == index;
-                              return GestureDetector(
-                                onTap: () {
-                                  _tabController!.animateTo(index);
-                                  setState(() {});
-                                },
-                                child: Container(
-                                  width: Get.width * 0.25,
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 16,
-                                    vertical: 8,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color:
-                                        isSelected
-                                            ? ColorUtils.primaryColor
-                                            : Colors.transparent,
-                                    borderRadius: BorderRadius.circular(50.r),
-                                  ),
-                                  child: Center(
-                                    child: Text(
-                                      videoTypes[index].name ?? "Unknown",
-                                      style: TextStyle(
-                                        fontSize: 14.sp,
-                                        fontWeight: FontWeight.w500,
-                                        color: Colors.black,
+                              return Expanded(
+                                child: GestureDetector(
+                                  onTap: () {
+                                    _tabController!.animateTo(index);
+                                    setState(() {});
+                                  },
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 8,
+                                      vertical: 8,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color:
+                                          isSelected
+                                              ? ColorUtils.primaryColor
+                                              : Colors.transparent,
+                                      borderRadius: BorderRadius.circular(50.r),
+                                    ),
+                                    child: Center(
+                                      child: Text(
+                                        videoTypes[index].name ?? "Unknown",
+                                        style: TextStyle(
+                                          fontSize: 13.sp,
+                                          fontWeight: FontWeight.w500,
+                                          color: Colors.black,
+                                        ),
+                                        overflow: TextOverflow.ellipsis,
+                                        maxLines: 1,
                                       ),
                                     ),
                                   ),

@@ -1814,10 +1814,9 @@ class _SignVpViewState extends State<SignVpView> {
       child: Column(
         children: [
           Container(
-            width: 85.sp,
-            height: 40.sp,
-
-            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+            width: 90.sp,
+            height: 48.sp,
+            padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 14),
             decoration: BoxDecoration(
               color:
                   isSelected
@@ -1827,19 +1826,21 @@ class _SignVpViewState extends State<SignVpView> {
             ),
             child: SvgPicture.asset(
               iconPath,
-              height: 24.sp,
-              width: 24.sp,
+              height: 28.sp,
+              width: 28.sp,
               colorFilter: ColorFilter.mode(
                 isSelected ? Colors.black : Colors.grey,
                 BlendMode.srcIn,
               ),
             ),
           ),
+          SizedBox(height: 4),
           Text(
             label,
             style: TextStyle(
               color: isSelected ? ColorUtils.darkBrown : Colors.grey,
-              fontWeight: FontWeight.w500,
+              fontWeight: FontWeight.w600,
+              fontSize: 13.sp,
             ),
           ),
         ],

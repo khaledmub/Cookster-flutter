@@ -326,12 +326,18 @@ class _VideoPreviewScreenState extends State<VideoPreviewScreen> {
                                 ? SizedBox(width: 16)
                                 : SizedBox.shrink(),
                             Expanded(
-                              child: AppButton(
+                              child: Obx(() => AppButton(
                                 text:
-                                    videoAddController.currentStep.value < 3
-                                        ? "next_button".tr
-                                        : "upload_video_button".tr,
-                                onTap: () {
+                                    videoAddController.isCompressing.value
+                                        ? "compressing_video".tr
+                                        : videoAddController.isVideoUploading.value
+                                            ? "uploading_video_label".tr
+                                            : videoAddController.currentStep.value < 3
+                                                ? "next_button".tr
+                                                : "upload_video_button".tr,
+                                onTap: (videoAddController.isVideoUploading.value || videoAddController.isCompressing.value)
+                                    ? null
+                                    : () {
                                   if (videoAddController.currentStep.value ==
                                       1) {
                                     if (videoAddController
@@ -390,7 +396,7 @@ class _VideoPreviewScreenState extends State<VideoPreviewScreen> {
                                     );
                                   }
                                 },
-                              ),
+                              )),
                             ),
                           ],
                         ),

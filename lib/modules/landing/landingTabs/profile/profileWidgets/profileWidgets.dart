@@ -114,7 +114,7 @@ class CustomButtonWidget extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: ColorUtils.darkBrown),
@@ -123,16 +123,16 @@ class CustomButtonWidget extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           SvgPicture.asset(icon, height: 16, color: ColorUtils.darkBrown),
-          SizedBox(width: 8),
-          ConstrainedBox(
-            constraints: BoxConstraints(maxWidth: 100),
-            child: IntrinsicWidth(
-              child: Text(
-                label,
-                style: TextStyle(color: ColorUtils.darkBrown),
-                overflow: TextOverflow.ellipsis,
-                softWrap: false,
+          SizedBox(width: 6),
+          Flexible(
+            child: Text(
+              label,
+              style: TextStyle(
+                color: ColorUtils.darkBrown,
+                fontSize: 12.sp,
               ),
+              overflow: TextOverflow.ellipsis,
+              maxLines: 1,
             ),
           ),
         ],

@@ -532,10 +532,23 @@ class VideoAddController extends GetxController {
   }
 
   var isVideoUploading = false.obs;
+  var isCompressing = false.obs;
+
+  // Front-end cap to keep multipart request safely under backend/nginx limits.
+  // Backend guidance: nginx 300m, PHP upload_max_filesize 256M -> cap to ~250MB.
+  static const int _clientMaxVideoBytes = 250 * 1024 * 1024; // 250 MiB
+
+  Future<File> _compressVideoIfNeeded(File videoFile, BuildContext context) async {
+    // Per backend fix request: do not compress videos.
+    // We enforce the allowed size via _clientMaxVideoBytes in uploadVideo().
+    return videoFile;
+  }
 
   String errorMessage = "";
 
   Future<void> uploadVideo(File videoFile, BuildContext context) async {
+    if (isVideoUploading.value || isCompressing.value) return;
+
     if (selectedCountry.value.isEmpty && selectedCity.value.isEmpty) {
       errorMessage = "select_country_city_error".tr;
     } else if (selectedCountry.value.isEmpty) {
@@ -579,17 +592,6 @@ class VideoAddController extends GetxController {
         return;
       }
 
-      // Initiate payment for sponsored videos
-      final orderId = "PRO_${DateTime.now().millisecondsSinceEpoch}";
-      Map<String, dynamic>? paymentParams = await initiatePayment(
-        orderId,
-        context,
-      );
-      if (paymentParams == null) {
-        print("Payment failed, aborting video upload.");
-        return;
-      }
-
       if (!await videoFile.exists()) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -598,6 +600,33 @@ class VideoAddController extends GetxController {
             behavior: SnackBarBehavior.floating,
           ),
         );
+        return;
+      }
+
+      // Enforce client-side size cap before paying/uploading to avoid nginx 413.
+      if (isImage.value != "1") {
+        final videoSize = await videoFile.length();
+        print("Video size check: ${(videoSize / 1024 / 1024).toStringAsFixed(1)} MB");
+        if (videoSize > _clientMaxVideoBytes) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('video_too_large_error'.tr),
+              backgroundColor: Colors.red,
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+          return;
+        }
+      }
+
+      // Initiate payment for sponsored videos (only after size validation).
+      final orderId = "PRO_${DateTime.now().millisecondsSinceEpoch}";
+      Map<String, dynamic>? paymentParams = await initiatePayment(
+        orderId,
+        context,
+      );
+      if (paymentParams == null) {
+        print("Payment failed, aborting video upload.");
         return;
       }
 
@@ -611,7 +640,7 @@ class VideoAddController extends GetxController {
           video: videoFile.path,
           thumbnailPath: (await getTemporaryDirectory()).path,
           imageFormat: ImageFormat.JPEG,
-          quality: 75,
+          quality: 50,
         );
       } catch (e) {
         print("Error generating thumbnail: $e");
@@ -781,11 +810,19 @@ class VideoAddController extends GetxController {
 
         dialog.dismiss();
 
+        String userMsg = 'upload_error_generic'.tr;
+        final errStr = e.toString().toLowerCase();
+        if (errStr.contains('413') || errStr.contains('entity too large') || errStr.contains('connection reset')) {
+          userMsg = 'video_too_large_error'.tr;
+        } else if (errStr.contains('timeout') || errStr.contains('timed out')) {
+          userMsg = 'upload_timeout_error'.tr;
+        }
+
         AwesomeDialog(
           context: context,
           dialogType: DialogType.error,
-          title: 'error_title'.tr,
-          desc: 'An error occurred: $e',
+          title: 'upload_failed_title'.tr,
+          desc: userMsg,
           btnOkOnPress: () {},
         )..show();
       }
@@ -802,6 +839,22 @@ class VideoAddController extends GetxController {
         return;
       }
 
+      // Enforce client-side size cap before uploading to avoid nginx 413.
+      if (isImage.value != "1") {
+        final videoSize = await videoFile.length();
+        print("Video size check: ${(videoSize / 1024 / 1024).toStringAsFixed(1)} MB");
+        if (videoSize > _clientMaxVideoBytes) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('video_too_large_error'.tr),
+              backgroundColor: Colors.red,
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+          return;
+        }
+      }
+
       print("uploading_video_label".tr);
       isVideoUploading.value = true;
       isUploadSuccessful.value = false;
@@ -812,7 +865,7 @@ class VideoAddController extends GetxController {
           video: videoFile.path,
           thumbnailPath: (await getTemporaryDirectory()).path,
           imageFormat: ImageFormat.JPEG,
-          quality: 75,
+          quality: 50,
         );
       } catch (e) {
         print("Error generating thumbnail: $e");
@@ -960,11 +1013,19 @@ class VideoAddController extends GetxController {
 
         dialog.dismiss();
 
+        String userMsg = 'upload_error_generic'.tr;
+        final errStr = e.toString().toLowerCase();
+        if (errStr.contains('413') || errStr.contains('entity too large') || errStr.contains('connection reset')) {
+          userMsg = 'video_too_large_error'.tr;
+        } else if (errStr.contains('timeout') || errStr.contains('timed out')) {
+          userMsg = 'upload_timeout_error'.tr;
+        }
+
         AwesomeDialog(
           context: context,
           dialogType: DialogType.error,
-          title: 'error_title'.tr,
-          desc: 'An error occurred: $e',
+          title: 'upload_failed_title'.tr,
+          desc: userMsg,
           btnOkOnPress: () {},
         )..show();
       }
