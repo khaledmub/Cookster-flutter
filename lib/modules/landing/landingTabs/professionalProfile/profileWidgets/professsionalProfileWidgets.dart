@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_svg/svg.dart';
 import 'package:get/get.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 
 import '../../../tawkLiveChat/tawkLiveChat.dart';
 import '../../blockedUsers/blockedUsersView/blockedUsersView.dart';
@@ -123,32 +124,57 @@ class CustomButtonWidget extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: ColorUtils.darkBrown),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisSize: MainAxisSize.min,
         children: [
           SvgPicture.asset(icon, height: 16, color: ColorUtils.darkBrown),
-          SizedBox(width: 8),
-          ConstrainedBox(
-            constraints: BoxConstraints(maxWidth: 100),
-            child: IntrinsicWidth(
-              child: Text(
-                label,
-                style: TextStyle(color: ColorUtils.darkBrown),
-                overflow: TextOverflow.ellipsis,
-                softWrap: false,
-              ),
+          SizedBox(width: 6),
+          Flexible(
+            child: Text(
+              label,
+              style: TextStyle(color: ColorUtils.darkBrown, fontSize: 12.sp),
+              overflow: TextOverflow.ellipsis,
+              maxLines: 1,
             ),
           ),
-
         ],
       ),
     );
   }
+}
+
+void showProfileQrCodeDialog(String userEmail) {
+  final String profileUrl =
+      'https://cookster.org/profile?email=${Uri.encodeComponent(userEmail)}';
+  Get.dialog(
+    Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'Scan to open profile',
+              style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16.sp),
+            ),
+            const SizedBox(height: 12),
+            QrImageView(
+              data: profileUrl,
+              size: 220,
+              backgroundColor: Colors.white,
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
 }
 
 void showMoreOptionsProfile(

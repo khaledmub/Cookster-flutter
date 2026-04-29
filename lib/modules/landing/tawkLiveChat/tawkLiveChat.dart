@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_tawkto/flutter_tawk.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class LiveTawkChat extends StatelessWidget {
   final String userName;
@@ -28,18 +29,42 @@ class LiveTawkChat extends StatelessWidget {
         String _language = snapshot.data!.getString('language') ?? 'en';
         // Select chat link based on language
         String chatLink = _language.toLowerCase() == 'ar' ? arabicLink : engLink;
+        final sanitizedName = userName.trim();
+        final sanitizedEmail = userEmail.trim();
+        final hasValidEmail = RegExp(r'^[^@]+@[^@]+\.[^@]+$').hasMatch(
+          sanitizedEmail,
+        );
+        final TawkVisitor? visitor =
+            hasValidEmail && sanitizedName.isNotEmpty
+                ? TawkVisitor(name: sanitizedName, email: sanitizedEmail)
+                : null;
 
         return Scaffold(
           appBar: AppBar(
-            automaticallyImplyLeading: false,
+            automaticallyImplyLeading: true,
             surfaceTintColor: Colors.transparent,
             backgroundColor: Colors.white,
             centerTitle: true,
-            toolbarHeight: 0,
+            title: Text('Customer Support'),
+            actions: [
+              IconButton(
+                tooltip: 'Open in browser',
+                icon: const Icon(Icons.open_in_new),
+                onPressed: () async {
+                  final uri = Uri.parse(chatLink);
+                  if (await canLaunchUrl(uri)) {
+                    await launchUrl(
+                      uri,
+                      mode: LaunchMode.externalApplication,
+                    );
+                  }
+                },
+              ),
+            ],
           ),
           body: Tawk(
             directChatLink: chatLink,
-            visitor: TawkVisitor(name: userName, email: userEmail),
+            visitor: visitor,
             onLoad: () {
               print('Hello Tawk!');
             },

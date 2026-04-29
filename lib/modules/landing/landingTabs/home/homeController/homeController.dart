@@ -38,8 +38,10 @@ class HomeController extends GetxController with WidgetsBindingObserver {
   var wasPlaying = false.obs;
 
   Timer? _debounceTimer;
+  DateTime? _lastMemoryPressureCleanupAt;
 
-  final int maxConcurrentVideos = 0; // Reduced for buffer management
+  // Keep a small pool alive to avoid dispose/recreate thrash on swipe.
+  final int maxConcurrentVideos = 4;
   final int retentionRange = 5; // Retain controllers for ±3 indices
 
   // Custom cache manager for videos
@@ -158,6 +160,13 @@ class HomeController extends GetxController with WidgetsBindingObserver {
 
   @override
   void didHaveMemoryPressure() {
+    final now = DateTime.now();
+    if (_lastMemoryPressureCleanupAt != null &&
+        now.difference(_lastMemoryPressureCleanupAt!) <
+            const Duration(seconds: 3)) {
+      return;
+    }
+    _lastMemoryPressureCleanupAt = now;
     print("Memory pressure detected, cleaning up excess controllers");
     _cleanupUnusedControllers(currentIndex.value);
   }

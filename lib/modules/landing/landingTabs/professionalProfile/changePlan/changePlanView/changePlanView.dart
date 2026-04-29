@@ -254,9 +254,14 @@ class _ChangePlanViewState extends State<ChangePlanView> {
           );
 
       if (selectedPackage.amount != 0) {
+        // URWAY merchant in this app is configured for SAR flows.
+        const paymentCountry = "Saudi Arabia";
+        print(
+          "URWAY request => country: $paymentCountry, currency: SAR, amount: ${selectedPackage.amount}",
+        );
         String response = await Payment.makepaymentService(
           context: context,
-          country: "Qatar",
+          country: paymentCountry,
           action: "1",
           currency: "SAR",
           amt: selectedPackage.amount.toString(),

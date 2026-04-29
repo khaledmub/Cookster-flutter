@@ -2,6 +2,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cookster/appRoutes/appRoutes.dart';
 import 'package:cookster/appUtils/apiEndPoints.dart';
+import 'package:cookster/appUtils/feature_flags.dart';
 import 'package:cookster/modules/landing/landingTabs/profile/profileControlller/profileController.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
@@ -79,11 +80,14 @@ class _ProfileViewState extends State<ProfileView>
       // : profileController.userDetails.value?.user;
 
       final videoTypes = profileController.simpleUserDetails.value?.videoTypes;
+      final displayVideoTypes = _buildDisplayVideoTypes(videoTypes);
 
       if (_tabController == null &&
-          videoTypes != null &&
-          videoTypes.isNotEmpty) {
-        _tabController = TabController(length: videoTypes.length, vsync: this);
+          displayVideoTypes.isNotEmpty) {
+        _tabController = TabController(
+          length: displayVideoTypes.length,
+          vsync: this,
+        );
 
         _tabController!.addListener(() {
           if (_tabController!.indexIsChanging) {
@@ -92,6 +96,17 @@ class _ProfileViewState extends State<ProfileView>
             });
           }
         });
+      }
+      if (_tabController != null &&
+          _tabController!.length != displayVideoTypes.length &&
+          displayVideoTypes.isNotEmpty) {
+        final previousIndex = _tabController!.index;
+        _tabController!.dispose();
+        _tabController = TabController(
+          length: displayVideoTypes.length,
+          vsync: this,
+          initialIndex: previousIndex.clamp(0, displayVideoTypes.length - 1),
+        );
       }
 
       return RefreshIndicator(
@@ -244,7 +259,7 @@ class _ProfileViewState extends State<ProfileView>
                               )
                                   : CachedNetworkImage(
                                 imageUrl:
-                                '${Common.profileImage}/${userDetails.image!}',
+                                '${Common.profileImage}/${userDetails.image!}?v=${profileController.profileImageRefreshToken.value}',
                                 fit:
                                 BoxFit
                                     .cover, // Network image ko bhi adjust karne ke liye
@@ -363,6 +378,30 @@ class _ProfileViewState extends State<ProfileView>
                           ),
                         ),
                         SizedBox(width: 4),
+                        InkWell(
+                          onTap: () {
+                            showProfileQrCodeDialog(userDetails.email);
+                          },
+                          child: Container(
+                            padding: EdgeInsets.all(8),
+                            height: 40,
+                            width: 40,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: ColorUtils.darkBrown,
+                              ),
+                            ),
+                            child: Center(
+                              child: Icon(
+                                Icons.qr_code_rounded,
+                                color: ColorUtils.darkBrown,
+                                size: 20,
+                              ),
+                            ),
+                          ),
+                        ),
+                        SizedBox(width: 4),
 
                         InkWell(
                           onTap: () {
@@ -394,7 +433,7 @@ class _ProfileViewState extends State<ProfileView>
                     ),
                   ),
 
-                  if (videoTypes != null && videoTypes.isNotEmpty)
+                  if (displayVideoTypes.isNotEmpty)
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -413,7 +452,7 @@ class _ProfileViewState extends State<ProfileView>
                             mainAxisAlignment:
                             MainAxisAlignment.spaceBetween,
                             children: List.generate(
-                                videoTypes.length, (index,) {
+                                displayVideoTypes.length, (index,) {
                               bool isSelected =
                                   _tabController!.index == index;
                               return Expanded(
@@ -440,8 +479,15 @@ class _ProfileViewState extends State<ProfileView>
                                     ),
                                     child: Center(
                                       child: Text(
-                                        videoTypes[index].name ??
-                                            "Unknown",
+                                        ((displayVideoTypes[index].name ??
+                                                            "Unknown")
+                                                        .toString()
+                                                        .toLowerCase() ==
+                                                    'others'
+                                                ? 'Others'.tr
+                                                : (displayVideoTypes[index].name ??
+                                                    "Unknown")
+                                                    .toString()),
                                         style: TextStyle(
                                           fontSize: 13.sp,
                                           fontWeight: FontWeight.w500,
@@ -460,7 +506,7 @@ class _ProfileViewState extends State<ProfileView>
                         SizedBox(height: 16.h),
 
                         // Video List based on selected tab
-                        if (videoTypes.isNotEmpty)
+                        if (displayVideoTypes.isNotEmpty)
                           Padding(
                             padding: EdgeInsets.symmetric(
                               horizontal: 16,
@@ -472,7 +518,7 @@ class _ProfileViewState extends State<ProfileView>
                               8, // Vertical spacing between rows
                               children: () {
                                 final selectedVideoType =
-                                videoTypes[_tabController!.index];
+                                displayVideoTypes[_tabController!.index];
                                 if (selectedVideoType.videos == null ||
                                     selectedVideoType.videos!.isEmpty) {
                                   return [
@@ -823,6 +869,14 @@ class _ProfileViewState extends State<ProfileView>
                                               left: 0,
                                               child: InkWell(
                                                 onTap: () {
+                                                  if (kDisableVideoPromotionTemporarily) {
+                                                    ScaffoldMessenger.of(context).showSnackBar(
+                                                      const SnackBar(
+                                                        content: Text('Video promotion is temporarily unavailable.'),
+                                                      ),
+                                                    );
+                                                    return;
+                                                  }
                                                   showPackageDialog(
                                                     context,
                                                     videos: [video],
@@ -874,6 +928,20 @@ class _ProfileViewState extends State<ProfileView>
     });
   }
 
+  List<VideoTypes> _buildDisplayVideoTypes(List<VideoTypes>? sourceTypes) {
+    final existing = List<VideoTypes>.from(sourceTypes ?? <VideoTypes>[]);
+    final hasOthers = existing.any(
+      (type) => (type.name ?? '').toLowerCase() == 'others',
+    );
+    if (hasOthers) {
+      return existing;
+    }
+    existing.add(
+      VideoTypes(name: 'Others', videos: <UserVideos>[]),
+    );
+    return existing;
+  }
+
   void showMoreOptions(BuildContext context,
       String videoId,
       String userId,
@@ -901,7 +969,8 @@ class _ProfileViewState extends State<ProfileView>
                   ),
                 ),
 
-                if (video.sponsorType == null)
+                if (video.sponsorType == null &&
+                    !kDisableVideoPromotionTemporarily)
                   ListTile(
                     leading: Icon(Icons.campaign_rounded),
                     trailing: Icon(Icons.chevron_right_rounded),

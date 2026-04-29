@@ -100,10 +100,10 @@ class _OnBoardingState extends State<OnBoarding> {
       final List<Map<String, String>> onboardingData =
           onboardingModel.screens!.map((screen) {
             return {
-              "title": screen.title ?? "",
+              "title": (screen.title ?? "").trim(),
               "sub_title": screen.subTitle ?? "",
-              "short_description": screen.shortDescription ?? "",
-              "image": screen.image ?? "",
+              "short_description": (screen.shortDescription ?? "").trim(),
+              "image": (screen.image ?? "").trim(),
             };
           }).toList();
 
@@ -196,46 +196,28 @@ class _OnBoardingState extends State<OnBoarding> {
                           controller.currentPage.value = index;
                         },
                         itemBuilder: (context, index) {
+                          final imageName = onboardingData[index]["image"] ?? "";
+                          final hasRemoteImage = imageName.isNotEmpty;
                           return Container(
                             margin: EdgeInsets.only(bottom: Get.height * 0.35),
-                            child: CachedNetworkImage(
-                              imageUrl:
-                                  '${Common.imageScreen}/${onboardingData[index]["image"]}',
-                              fit: BoxFit.cover,
-                              placeholder:
-                                  (context, url) => const Center(
-                                    child: CircularProgressIndicator(),
+                            child: hasRemoteImage
+                                ? CachedNetworkImage(
+                                    imageUrl: '${Common.imageScreen}/$imageName',
+                                    fit: BoxFit.cover,
+                                    placeholder:
+                                        (context, url) => const Center(
+                                          child: CircularProgressIndicator(),
+                                        ),
+                                    errorWidget:
+                                        (context, url, error) => Image.asset(
+                                          "assets/images/splashBackground.png",
+                                          fit: BoxFit.cover,
+                                        ),
+                                  )
+                                : Image.asset(
+                                    "assets/images/splashBackground.png",
+                                    fit: BoxFit.cover,
                                   ),
-                              errorWidget:
-                                  (context, url, error) =>
-                                      const Icon(Icons.error),
-                              imageBuilder: (context, imageProvider) {
-                                final stream = imageProvider.resolve(
-                                  ImageConfiguration.empty,
-                                );
-                                stream.addListener(
-                                  ImageStreamListener((
-                                    imageInfo,
-                                    synchronousCall,
-                                  ) {
-                                    if (synchronousCall) {
-                                      debugPrint(
-                                        "Image loaded from cache: ${onboardingData[index]["image"]}",
-                                      );
-                                    } else {
-                                      debugPrint(
-                                        "Image fetched from network: ${onboardingData[index]["image"]}",
-                                      );
-                                    }
-                                  }),
-                                );
-
-                                return Image(
-                                  image: imageProvider,
-                                  fit: BoxFit.cover,
-                                );
-                              },
-                            ),
                           );
                         },
                       ),
@@ -293,7 +275,9 @@ class _OnBoardingState extends State<OnBoarding> {
                         return Column(
                           children: [
                             Text(
-                              onboardingData[index]["title"]!,
+                              onboardingData[index]["title"]!.isNotEmpty
+                                  ? onboardingData[index]["title"]!
+                                  : "Cookster",
                               textAlign: TextAlign.center,
                               style: TextStyle(
                                 fontSize: isRtl ? 40.sp : 50.sp,
@@ -304,7 +288,9 @@ class _OnBoardingState extends State<OnBoarding> {
                             ),
                             SizedBox(height: 8.h),
                             Text(
-                              onboardingData[index]["short_description"]!,
+                              onboardingData[index]["short_description"]!.isNotEmpty
+                                  ? onboardingData[index]["short_description"]!
+                                  : "Welcome to Cookster",
                               textAlign: TextAlign.center,
                               style: TextStyle(
                                 fontSize: 12.sp,

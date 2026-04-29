@@ -11,14 +11,17 @@ import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
 import 'package:get/get.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../../../appRoutes/appRoutes.dart';
 import '../../../../services/apiClient.dart';
 import '../../../landing/landingView/landingView.dart';
 import '../../../promoteVideo/promoteVideoModel/promoteVideoModel.dart';
-import '../../packages/packageView/packageView.dart';
 import '../registrationSettingsModel/packagesModel.dart';
 import '../registrationSettingsModel/registrationModel.dart';
 
 class SignUpController extends GetxController {
+  // TEMP: bypass subscription packages/payment flow until URWAY issue is fixed.
+  static const bool bypassPackagesFlowTemporarily = true;
+
   var isLoading = false.obs;
   var registrationSettings = RegistrationSettings().obs;
   var packagesList = PackagesList().obs;
@@ -174,6 +177,9 @@ class SignUpController extends GetxController {
   void setProfile(String type, int id) {
     selectedProfile.value = type;
     selectedProfileId.value = id;
+    if (id != 1 && accountType.value.isEmpty) {
+      accountType.value = id.toString();
+    }
     print('Updated selectedProfileId: ${selectedProfileId.value}');
     print('Updated selectedProfile: ${selectedProfile.value}');
   }
@@ -267,13 +273,15 @@ class SignUpController extends GetxController {
   }
 
   String? validateName(String? value) {
-    if (value == null || value.isEmpty) {
+    final normalized = value?.trim() ?? '';
+    if (normalized.isEmpty) {
       return 'name_required_error'.tr;
     }
-    if (value.length < 3) {
+    if (normalized.length < 3) {
       return 'name_length_error'.tr;
     }
-    if (!RegExp(r'^[A-Za-z0-9\s]+$').hasMatch(value)) {
+    // Allow Arabic + English letters, numbers and spaces.
+    if (!RegExp(r'^[A-Za-z\u0600-\u06FF0-9\s]+$').hasMatch(normalized)) {
       return 'name_format_error'.tr;
     }
     return null;
@@ -324,15 +332,15 @@ class SignUpController extends GetxController {
       );
     }
 
-    // if (validateCountry() != null) {
-    //   isValid = false;
-    //   print('Step 7: Country validation failed, isValid set to $isValid');
-    // }
-    //
-    // if (validateCity() != null) {
-    //   isValid = false;
-    //   print('Step 8: City validation failed, isValid set to $isValid');
-    // }
+    if (validateCountry() != null) {
+      isValid = false;
+      print('Step 7: Country validation failed, isValid set to $isValid');
+    }
+
+    if (validateCity() != null) {
+      isValid = false;
+      print('Step 8: City validation failed, isValid set to $isValid');
+    }
 
     if (validateName(nameController.text) != null) {
       // nameError.value = validateName(nameController.text)!;
@@ -343,7 +351,10 @@ class SignUpController extends GetxController {
     }
 
     if (validateEmail(emailController.text) != null) {
-      // emailError $*print('Step 10: Email validation failed for "${emailController.text}", isValid set to $isValid');
+      isValid = false;
+      print(
+        'Step 10: Email validation failed for "${emailController.text}", isValid set to $isValid',
+      );
     }
 
     if (validatePassword(passwordController.text) != null) {
@@ -425,18 +436,24 @@ class SignUpController extends GetxController {
       if (selectedProfileId.value != 1) "phone": phoneController.text,
       "name": nameController.text,
       "password": passwordController.text,
-      // "dob": dobController.text,
-      // "country": selectCountryId.value,
-      // "city": selectedCityId.value,
-      "business_type": businessType.value,
-      "contact_phone": contactPhoneController.text,
-      "contact_email": contactEmailController.text,
-      "website": websiteController.text,
-      "location": locationController.text,
-      "latitude": latitude.value,
-      "longitude": longitude.value,
+      "dob": dobController.text,
+      "country": selectCountryId.value,
+      "city": selectedCityId.value,
+      if (selectedProfileId.value == 2) "business_type": businessType.value,
+      if (selectedProfileId.value == 2)
+        "contact_phone": contactPhoneController.text,
+      if (selectedProfileId.value == 2)
+        "contact_email": contactEmailController.text,
+      if (selectedProfileId.value == 2) "website": websiteController.text,
+      if (selectedProfileId.value == 2) "location": locationController.text,
+      if (selectedProfileId.value == 2) "latitude": latitude.value,
+      if (selectedProfileId.value == 2) "longitude": longitude.value,
       'uuid': await FirebaseMessaging.instance.getToken(),
-      'type_of_account': accountType.value,
+      if (selectedProfileId.value != 1)
+        'type_of_account':
+            accountType.value.isNotEmpty
+                ? accountType.value
+                : selectedProfileId.value.toString(),
     };
 
     print('Step 21: Prepared request body: $requestBody');
@@ -501,6 +518,9 @@ class SignUpController extends GetxController {
                   break;
                 case 'city':
                   cityError.value = errorMsg;
+                  break;
+                case 'type_of_account':
+                  accountTypeError.value = errorMsg;
                   break;
               }
             }
@@ -597,7 +617,11 @@ class SignUpController extends GetxController {
         "PaymentType": paymentParams["PaymentType"]?.toString() ?? "",
       },
 
-      if (selectedProfileId.value == 8) "type_of_account": accountType.value,
+      if (selectedProfileId.value != 1)
+        "type_of_account":
+            accountType.value.isNotEmpty
+                ? accountType.value
+                : selectedProfileId.value.toString(),
     };
 
     print(requestBody);
@@ -614,44 +638,17 @@ class SignUpController extends GetxController {
       log(response.body);
 
       if (response.statusCode == 201 && data['status'] == true) {
-        String token = data['token'];
         Map<String, dynamic> user = data['user'];
 
-        SharedPreferences prefs = await SharedPreferences.getInstance();
-
-        print(user['entity']);
-        await prefs.setString('auth_token', token);
-        await prefs.setInt('entity', user['entity']);
-        await prefs.setString('user_id', user['id']);
-        await prefs.setString('user_image', user['image'] ?? '');
-        print('Saving entity_details: ${user['entity_details']}');
-        await prefs.setString(
-          'entity_details',
-          jsonEncode(user['entity_details']),
+        // Navigate to OTP verification screen
+        Get.toNamed(
+          AppRoutes.signUpOtp,
+          arguments: {
+            'user': user,
+            'email': emailController.text,
+            'deviceToken': deviceToken,
+          },
         );
-
-        await FirebaseFirestore.instance
-            .collection('users')
-            .doc(user['id'])
-            .set({
-              "id": user['id'],
-              "system_id": user['system_id'],
-              "name": user['name'],
-              "email": user['email'],
-              "phone": user['phone'],
-              "dob": user['dob'],
-              "image": user['image'],
-              "entity": user['entity'],
-              "status": user['status'],
-              "created_at": user['created_at'],
-              "updated_at": user['updated_at'],
-              "uuid": deviceToken,
-            });
-
-        // await subscribeUserToTopics(user['entity'].toString());
-
-        clearForm();
-        showSuccessDialog();
       } else {
         if (data['errors'] != null) {
           Map<String, dynamic> errors = data['errors'];
@@ -692,6 +689,9 @@ class SignUpController extends GetxController {
                 case 'city':
                   cityError.value = errorMsg;
                   break;
+                case 'type_of_account':
+                  accountTypeError.value = errorMsg;
+                  break;
               }
             }
           });
@@ -730,11 +730,11 @@ class SignUpController extends GetxController {
     if (!isValid) {
       return;
     }
-    if (isSubscriptionRequired == 0) {
+    if (bypassPackagesFlowTemporarily) {
       await submitForm();
-    } else {
-      Get.to(() => PackagesScreen());
+      return;
     }
+    await submitForm();
   }
 
   void clearForm() {
@@ -799,6 +799,23 @@ class SignUpController extends GetxController {
       if (response.statusCode == 200) {
         var data = jsonDecode(response.body);
         registrationSettings.value = RegistrationSettings.fromJson(data);
+        final entities = registrationSettings.value.entities ?? <Entities>[];
+        Entities? businessEntity;
+        for (final entity in entities) {
+          if ((entity.name ?? '').toLowerCase() == 'business') {
+            businessEntity = entity;
+            break;
+          }
+        }
+        if (businessEntity != null) {
+          selectedProfileId.value = businessEntity.id ?? selectedProfileId.value;
+          isSubscriptionRequired.value =
+              businessEntity.isSubscriptionRequired ?? isSubscriptionRequired.value;
+          selectedProfile.value = businessEntity.name ?? selectedProfile.value;
+          if (selectedProfileId.value != 1 && accountType.value.isEmpty) {
+            accountType.value = selectedProfileId.value.toString();
+          }
+        }
       } else {
         ScaffoldMessenger.of(Get.context!).showSnackBar(
           SnackBar(

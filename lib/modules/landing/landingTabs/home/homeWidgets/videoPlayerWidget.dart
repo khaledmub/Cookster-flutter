@@ -3,8 +3,12 @@ import 'dart:math';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:chewie/chewie.dart';
 import 'package:cookster/appUtils/colorUtils.dart';
+import 'package:cookster/core/video/video_analytics_tracker.dart';
+import 'package:cookster/core/video/video_player_pool.dart';
+import 'package:cookster/core/video/video_source_resolver.dart';
 import 'package:flutter/material.dart';
 import 'package:focus_detector_v2/focus_detector_v2.dart';
+import 'package:shimmer/shimmer.dart';
 import 'package:video_player/video_player.dart';
 
 class VideoPlayerWidget extends StatefulWidget {
@@ -13,6 +17,9 @@ class VideoPlayerWidget extends StatefulWidget {
   final bool autoPlay;
   final dynamic isImage;
   final VoidCallback? onTap; // Added onTap parameter
+  final String? videoId;
+  final String? hlsUrl;
+  final ValueChanged<VideoPlayerController>? onVideoControllerReady;
 
   const VideoPlayerWidget({
     Key? key,
@@ -21,6 +28,9 @@ class VideoPlayerWidget extends StatefulWidget {
     required this.isImage,
     this.autoPlay = true,
     this.onTap, // Added onTap parameter
+    this.videoId,
+    this.hlsUrl,
+    this.onVideoControllerReady,
   }) : super(key: key);
 
   @override
@@ -30,10 +40,15 @@ class VideoPlayerWidget extends StatefulWidget {
 class _VideoPlayerWidgetState extends State<VideoPlayerWidget>
     with TickerProviderStateMixin {
   late VideoPlayerController _videoPlayerController;
+  final VideoPlayerPool _pool = VideoPlayerPool.instance;
+  final VideoSourceResolver _resolver = const VideoSourceResolver();
+  final VideoAnalyticsTracker _analyticsTracker = VideoAnalyticsTracker();
   ChewieController? _chewieController;
   bool _isInitialized = false;
   bool _showIcon = false;
   bool _isDisposed = false; // Track disposal state
+  String? _pooledKey;
+  double _videoAspectRatio = 9 / 16;
 
   // Heart animation variables
   late AnimationController _heartAnimationController;
@@ -102,14 +117,38 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget>
   }
 
   Future<void> _initializeVideoPlayer() async {
-    _videoPlayerController = VideoPlayerController.network(widget.videoUrl);
     try {
-      await _videoPlayerController.initialize();
+      final candidates = _resolver.resolveCandidates(
+        hlsUrl: widget.hlsUrl,
+        mp4Url: widget.videoUrl,
+      );
+      if (candidates.isEmpty) {
+        return;
+      }
+      final source = candidates.first;
+      _pooledKey = widget.videoId ?? widget.videoUrl;
+      final pooled = await _pool.acquire(
+        key: _pooledKey!,
+        sourceUrl: source.url,
+        autoPlay: false,
+      );
+      if (!mounted || _isDisposed) {
+        if (_pooledKey != null) {
+          await _pool.release(_pooledKey!);
+        }
+        return;
+      }
+      _videoPlayerController = pooled.controller;
+      final value = _videoPlayerController.value;
+      if (value.isInitialized && value.aspectRatio > 0) {
+        _videoAspectRatio = value.aspectRatio;
+      }
       if (mounted) {
         setState(() {
           _chewieController = ChewieController(
             isLive: true,
             videoPlayerController: _videoPlayerController,
+            aspectRatio: _videoAspectRatio,
             autoPlay: widget.autoPlay,
             looping: true,
             allowFullScreen: true,
@@ -125,6 +164,14 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget>
           );
           _isInitialized = true;
         });
+        widget.onVideoControllerReady?.call(_videoPlayerController);
+        _analyticsTracker.attach(
+          videoId: widget.videoId ?? widget.videoUrl,
+          controller: _videoPlayerController,
+        );
+        if (widget.autoPlay && _pooledKey != null) {
+          await _pool.setActive(_pooledKey!);
+        }
       }
     } catch (e) {
       print('Error initializing video: $e');
@@ -141,7 +188,12 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget>
         if (_chewieController!.isPlaying) {
           _chewieController!.pause();
         } else {
-          _chewieController!.play();
+          final pooledKey = _pooledKey;
+          if (pooledKey != null) {
+            _pool.setActive(pooledKey);
+          } else {
+            _chewieController!.play();
+          }
         }
       });
       Future.delayed(const Duration(seconds: 1), () {
@@ -169,11 +221,30 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget>
   }
 
   @override
+  void didUpdateWidget(covariant VideoPlayerWidget oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!_isInitialized || _isDisposed) return;
+    final pooledKey = _pooledKey;
+    if (pooledKey == null) return;
+
+    if (widget.autoPlay && !oldWidget.autoPlay) {
+      _pool.setActive(pooledKey);
+    } else if (!widget.autoPlay && oldWidget.autoPlay) {
+      _pool.pause(pooledKey);
+      _videoPlayerController.setVolume(0.0);
+    }
+  }
+
+  @override
   void dispose() {
     _isDisposed = true; // Set disposal flag
+    _analyticsTracker.markSkippedIfNeeded();
     _chewieController?.pause(); // Pause before disposing
     _chewieController?.dispose();
-    _videoPlayerController.dispose();
+    final pooledKey = _pooledKey;
+    if (pooledKey != null) {
+      _pool.release(pooledKey);
+    }
     _heartAnimationController.dispose();
     super.dispose();
   }
@@ -189,7 +260,6 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget>
             !_isDisposed &&
             mounted) {
           _chewieController!.pause();
-          print('Focus Lost: Video paused.');
         }
       },
       onFocusGained: () {
@@ -198,38 +268,48 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget>
             !_isDisposed &&
             mounted) {
           if (widget.autoPlay) {
-            _chewieController!.play();
-            print('Focus Gained: Video playing.');
+            final pooledKey = _pooledKey;
+            if (pooledKey != null) {
+              _pool.setActive(pooledKey);
+            } else {
+              _chewieController!.play();
+            }
           }
         }
       },
-      onVisibilityLost: () {
-        print('Visibility Lost.');
-      },
-      onVisibilityGained: () {
-        print('Visibility Gained.');
-      },
-      onForegroundLost: () {
-        print('Foreground Lost.');
-      },
-      onForegroundGained: () {
-        print('Foreground Gained.');
-      },
+      onVisibilityLost: () {},
+      onVisibilityGained: () {},
+      onForegroundLost: () {},
+      onForegroundGained: () {},
       child: Stack(
         alignment: Alignment.center,
         children: [
           GestureDetector(
             onDoubleTapDown: _onDoubleTap,
             onTap: _togglePlayPause,
-            child: _isInitialized && _chewieController != null
-                ? Chewie(controller: _chewieController!)
-                : Container(
-              color: Colors.black,
-              child: Center(
-                child: CachedNetworkImage(
-                  imageUrl: widget.thumbnailUrl,
-                ),
-              ),
+            child: AspectRatio(
+              aspectRatio: _videoAspectRatio,
+              child: _isInitialized && _chewieController != null
+                  ? RepaintBoundary(
+                      child: Chewie(controller: _chewieController!),
+                    )
+                  : Shimmer.fromColors(
+                      baseColor: Colors.grey.shade800,
+                      highlightColor: Colors.grey.shade600,
+                      child: Container(
+                        color: Colors.black,
+                        width: double.infinity,
+                        height: double.infinity,
+                        child: Center(
+                          child: CachedNetworkImage(
+                            imageUrl: widget.thumbnailUrl,
+                            fit: BoxFit.cover,
+                            width: double.infinity,
+                            height: double.infinity,
+                          ),
+                        ),
+                      ),
+                    ),
             ),
           ),
 
@@ -273,7 +353,7 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget>
               ),
             ),
 
-          // Video Progress Slider
+          // Lightweight progress indicator to reduce rebuild lag.
           if (_isInitialized &&
               _chewieController != null &&
               widget.isImage == 0)
@@ -281,75 +361,20 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget>
               bottom: 0,
               left: 0,
               right: 0,
-              child: StatefulBuilder(
-                builder: (context, setState) {
-                  return StreamBuilder<Duration>(
-                    stream: _isDisposed
-                        ? null
-                        : Stream.periodic(
-                      const Duration(milliseconds: 200),
-                          (_) => _chewieController!
-                          .videoPlayerController.value.position,
-                    ),
-                    builder: (context, snapshot) {
-                      if (_isDisposed ||
-                          !_isInitialized ||
-                          _chewieController == null) {
-                        return Slider(
-                          value: 0,
-                          max: 1,
-                          onChanged: null,
-                          thumbColor: ColorUtils.primaryColor,
-                          activeColor: ColorUtils.primaryColor,
-                          inactiveColor: Colors.grey,
-                        );
-                      }
-                      final position = snapshot.data ?? Duration.zero;
-                      final duration = _chewieController!
-                          .videoPlayerController.value.duration ??
-                          Duration.zero;
-                      final isInitialized = _chewieController!
-                          .videoPlayerController.value.isInitialized;
-
-                      if (!isInitialized || duration == Duration.zero) {
-                        return Slider(
-                          value: 0,
-                          max: 1,
-                          onChanged: null,
-                          thumbColor: ColorUtils.primaryColor,
-                          activeColor: ColorUtils.primaryColor,
-                          inactiveColor: Colors.grey,
-                        );
-                      }
-
-                      return SliderTheme(
-                        data: SliderThemeData(
-                          thumbShape: const RoundSliderThumbShape(
-                            enabledThumbRadius: 6.0,
-                          ),
-                          overlayShape: const RoundSliderOverlayShape(
-                            overlayRadius: 0,
-                          ),
-                          trackHeight: 2,
-                        ),
-                        child: Slider(
-                          value: position.inSeconds.toDouble(),
-                          max: duration.inSeconds.toDouble(),
-                          onChanged: (value) {
-                            if (!_isDisposed && mounted) {
-                              _chewieController!.seekTo(
-                                Duration(seconds: value.toInt()),
-                              );
-                            }
-                          },
-                          thumbColor: ColorUtils.primaryColor,
-                          activeColor: ColorUtils.primaryColor,
-                          inactiveColor: Colors.grey,
-                        ),
-                      );
-                    },
-                  );
-                },
+              child: ClipRRect(
+                borderRadius: const BorderRadius.vertical(
+                  bottom: Radius.circular(2),
+                ),
+                child: VideoProgressIndicator(
+                  _chewieController!.videoPlayerController,
+                  allowScrubbing: true,
+                  padding: EdgeInsets.zero,
+                  colors: VideoProgressColors(
+                    playedColor: ColorUtils.primaryColor,
+                    bufferedColor: Colors.grey.shade500,
+                    backgroundColor: Colors.grey.shade800,
+                  ),
+                ),
               ),
             ),
         ],

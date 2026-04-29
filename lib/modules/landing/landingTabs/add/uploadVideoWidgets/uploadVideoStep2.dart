@@ -77,6 +77,18 @@ class _UploadVideoStep2State extends State<UploadVideoStep2> {
           }).toList();
     }
 
+    // TEMP: Ensure "Others" appears in publish type list even when backend
+    // hasn't provided a dedicated type yet.
+    final String othersLabel = "Others".tr;
+    final hasOthers = videoTypeNames.any(
+      (name) => name.trim().toLowerCase() == 'others' || name.trim() == 'أخرى',
+    );
+    if (!hasOthers && videoTypeMap.isNotEmpty) {
+      // Temporary fallback mapping until backend adds a real "Others" type id.
+      videoTypeMap[othersLabel] = videoTypeMap.values.first;
+      videoTypeNames.add(othersLabel);
+    }
+
     String? currentSelectedType;
     if (videoAddController.videoType.value.isNotEmpty) {
       int? currentTypeId = int.tryParse(videoAddController.videoType.value);

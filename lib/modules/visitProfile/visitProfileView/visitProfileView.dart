@@ -2,6 +2,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cookster/appUtils/appUtils.dart';
 import 'package:cookster/modules/landing/landingTabs/home/homeController/homeController.dart';
+import 'package:cookster/modules/visitProfile/visitProfileModel/visitProfileModel.dart';
 import 'package:cookster/modules/visitProfile/visitProfileController/visitProfileController.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
@@ -114,6 +115,18 @@ class _VisitProfileViewState extends State<VisitProfileView>
   }
 
   bool _followerChanged = false; // Track if follow status changed
+
+  List<VideoTypes> _buildDisplayVideoTypes(List<VideoTypes>? sourceTypes) {
+    final existing = List<VideoTypes>.from(sourceTypes ?? <VideoTypes>[]);
+    final hasOthers = existing.any(
+      (type) => (type.name ?? '').toLowerCase() == 'others',
+    );
+    if (hasOthers) {
+      return existing;
+    }
+    existing.add(VideoTypes(name: 'Others', videos: <Videos>[]));
+    return existing;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -284,6 +297,7 @@ class _VisitProfileViewState extends State<VisitProfileView>
                   ?.getFirstAdditionalData();
           final videoTypes =
               visitProfileController.visitProfile.value?.videoTypes;
+          final displayVideoTypes = _buildDisplayVideoTypes(videoTypes);
 
           if (userDetails == null) {
             return Center(
@@ -292,11 +306,9 @@ class _VisitProfileViewState extends State<VisitProfileView>
           }
 
           // Initialize TabController when data is loaded
-          if (_tabController == null &&
-              videoTypes != null &&
-              videoTypes.isNotEmpty) {
+          if (_tabController == null && displayVideoTypes.isNotEmpty) {
             _tabController = TabController(
-              length: videoTypes.length,
+              length: displayVideoTypes.length,
               vsync: this,
             );
 
@@ -307,6 +319,17 @@ class _VisitProfileViewState extends State<VisitProfileView>
                 });
               }
             });
+          }
+          if (_tabController != null &&
+              _tabController!.length != displayVideoTypes.length &&
+              displayVideoTypes.isNotEmpty) {
+            final previousIndex = _tabController!.index;
+            _tabController!.dispose();
+            _tabController = TabController(
+              length: displayVideoTypes.length,
+              vsync: this,
+              initialIndex: previousIndex.clamp(0, displayVideoTypes.length - 1),
+            );
           }
 
           return RefreshIndicator(
@@ -736,7 +759,7 @@ class _VisitProfileViewState extends State<VisitProfileView>
                     }),
                   SizedBox(height: 16.h),
 
-                  if (videoTypes != null && videoTypes.isNotEmpty)
+                  if (displayVideoTypes.isNotEmpty)
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -750,7 +773,7 @@ class _VisitProfileViewState extends State<VisitProfileView>
                           ),
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: List.generate(videoTypes.length, (index) {
+                            children: List.generate(displayVideoTypes.length, (index) {
                               bool isSelected = _tabController!.index == index;
                               return Expanded(
                                 child: GestureDetector(
@@ -772,7 +795,15 @@ class _VisitProfileViewState extends State<VisitProfileView>
                                     ),
                                     child: Center(
                                       child: Text(
-                                        videoTypes[index].name ?? "Unknown",
+                                        ((displayVideoTypes[index].name ??
+                                                            "Unknown")
+                                                        .toString()
+                                                        .toLowerCase() ==
+                                                    'others'
+                                                ? 'Others'.tr
+                                                : (displayVideoTypes[index].name ??
+                                                    "Unknown")
+                                                    .toString()),
                                         style: TextStyle(
                                           fontSize: 13.sp,
                                           fontWeight: FontWeight.w500,
@@ -790,7 +821,7 @@ class _VisitProfileViewState extends State<VisitProfileView>
                         ),
                         SizedBox(height: 16.h),
 
-                        if (videoTypes.isNotEmpty)
+                        if (displayVideoTypes.isNotEmpty)
                           Padding(
                             padding: const EdgeInsets.symmetric(horizontal: 16),
                             child: Wrap(
@@ -798,7 +829,7 @@ class _VisitProfileViewState extends State<VisitProfileView>
                               runSpacing: 8,
                               children: () {
                                 final selectedVideoType =
-                                    videoTypes[_tabController!.index];
+                                    displayVideoTypes[_tabController!.index];
                                 if (selectedVideoType.videos == null ||
                                     selectedVideoType.videos!.isEmpty) {
                                   return [
@@ -1124,12 +1155,25 @@ class _VisitProfileViewState extends State<VisitProfileView>
 
   Future<void> _launchMaps(double? latitude, double? longitude) async {
     if (latitude != null && longitude != null) {
-      final Uri mapsUri = Uri.parse('geo:$latitude,$longitude');
-      if (await canLaunchUrl(mapsUri)) {
-        await launchUrl(mapsUri, mode: LaunchMode.externalApplication);
-      } else {
-        debugPrint('Could not launch maps');
+      final Uri geoUri = Uri.parse('geo:$latitude,$longitude?q=$latitude,$longitude');
+      final Uri webMapsUri = Uri.parse(
+        'https://www.google.com/maps/search/?api=1&query=$latitude,$longitude',
+      );
+
+      if (await canLaunchUrl(geoUri)) {
+        await launchUrl(geoUri, mode: LaunchMode.externalApplication);
+        return;
       }
+
+      if (await canLaunchUrl(webMapsUri)) {
+        await launchUrl(webMapsUri, mode: LaunchMode.externalApplication);
+        return;
+      }
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not open location')),
+      );
     }
   }
 }

@@ -2,6 +2,7 @@ import 'package:cookster/appUtils/apiEndPoints.dart';
 import 'package:cookster/loaders/pulseLoader.dart';
 import 'package:cookster/modules/visitProfile/visitProfileView/visitProfileView.dart';
 import 'package:custom_info_window/custom_info_window.dart';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
@@ -52,12 +53,13 @@ class NearestBusinessScreen extends StatelessWidget {
                 GoogleMapWithBusinessImages(controller: controller),
 
                 InkWell(
-                  onTap: () {
-                    controller.getCurrentLocation();
+                  onTap: () async {
+                    await controller.refreshLocation();
+                    controller.fetchNearestBusinesses();
                   },
                   child: Container(
-                    margin: EdgeInsets.symmetric(horizontal: 16, vertical: 50),
-                    padding: EdgeInsets.all(16),
+                    margin: const EdgeInsets.only(top: 100, left: 16, right: 16),
+                    padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
                       boxShadow: [
                         BoxShadow(
@@ -268,6 +270,8 @@ class _GoogleMapWithBusinessImagesState
   Map<MarkerId, Marker> markers = {};
   BitmapDescriptor? customIcon = BitmapDescriptor.defaultMarker;
   final _customInfoWindowController = CustomInfoWindowController();
+  LatLng? _lastCenteredLocation;
+  String _lastMarkersSignature = '';
 
   Future<void> _loadCustomMarker() async {
     try {
@@ -308,6 +312,7 @@ class _GoogleMapWithBusinessImagesState
       return Stack(
         children: [
           GoogleMap(
+            padding: const EdgeInsets.only(top: 100),
             onMapCreated: (controller) {
               mapController = controller;
               _customInfoWindowController.googleMapController = controller;
@@ -328,11 +333,30 @@ class _GoogleMapWithBusinessImagesState
               zoom: 15.0, // Reduced initial zoom for a more reasonable default
             ),
             markers: Set<Marker>.of(markers.values),
-            myLocationEnabled: false,
-            myLocationButtonEnabled: true,
+            myLocationEnabled: true,
+            myLocationButtonEnabled: false,
             zoomControlsEnabled: false,
             mapToolbarEnabled: false,
             compassEnabled: true,
+          ),
+          Positioned(
+            right: 16,
+            bottom: 210,
+            child: FloatingActionButton(
+              heroTag: 'nearBusinessMyLocation',
+              mini: true,
+              backgroundColor: ColorUtils.primaryColor,
+              onPressed: () {
+                final lat = widget.controller.latitude.value;
+                final lng = widget.controller.longitude.value;
+                if (lat != 0.0 && lng != 0.0 && mapController != null) {
+                  mapController!.animateCamera(
+                    CameraUpdate.newLatLngZoom(LatLng(lat, lng), 15),
+                  );
+                }
+              },
+              child: const Icon(Icons.my_location, color: Colors.white),
+            ),
           ),
           CustomInfoWindow(
             controller: _customInfoWindowController,
@@ -373,7 +397,45 @@ class _GoogleMapWithBusinessImagesState
       }
     }
 
-    if (markers.length > 1) _autoAdjustZoom();
+    if (widget.controller.latitude.value != 0.0 &&
+        widget.controller.longitude.value != 0.0) {
+      final currentLatLng = LatLng(
+        widget.controller.latitude.value,
+        widget.controller.longitude.value,
+      );
+      const userMarkerId = MarkerId('current_location');
+      markers[userMarkerId] = Marker(
+        markerId: userMarkerId,
+        position: currentLatLng,
+        zIndex: 2,
+        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure),
+      );
+
+      // Recenter only first time or after explicit refresh, not on every rebuild.
+      if (mapController != null && _lastCenteredLocation == null) {
+        mapController!.animateCamera(
+          CameraUpdate.newLatLngZoom(currentLatLng, 15),
+        );
+        _lastCenteredLocation = currentLatLng;
+      }
+    }
+
+    final signature = _buildMarkersSignature();
+    if (signature != _lastMarkersSignature) {
+      _lastMarkersSignature = signature;
+      _autoAdjustZoom();
+    }
+  }
+
+  String _buildMarkersSignature() {
+    final values = markers.values.toList()
+      ..sort((a, b) => a.markerId.value.compareTo(b.markerId.value));
+    return values
+        .map(
+          (m) =>
+              '${m.markerId.value}:${m.position.latitude.toStringAsFixed(5)},${m.position.longitude.toStringAsFixed(5)}',
+        )
+        .join('|');
   }
 
   Widget _buildCustomInfoWindow(Accounts account) {
@@ -493,17 +555,19 @@ class _GoogleMapWithBusinessImagesState
   }
 
   void _autoAdjustZoom() {
-    if (mapController == null || markers.length <= 1) return;
+    if (mapController == null || markers.isEmpty) return;
 
     LatLngBounds bounds = _getBounds();
     // Increase padding to zoom out more
     mapController?.animateCamera(
-      CameraUpdate.newLatLngBounds(bounds, Get.width * 0.25), // Dynamic padding
+      CameraUpdate.newLatLngBounds(bounds, Get.width * 0.15), // Dynamic padding
     );
   }
 
   LatLngBounds _getBounds() {
     double minLat = 90.0, maxLat = -90.0, minLng = 180.0, maxLng = -180.0;
+    
+    // Include all markers
     for (var marker in markers.values) {
       final lat = marker.position.latitude;
       final lng = marker.position.longitude;
@@ -512,6 +576,32 @@ class _GoogleMapWithBusinessImagesState
       minLng = lng < minLng ? lng : minLng;
       maxLng = lng > maxLng ? lng : maxLng;
     }
+
+    // Include the search radius bounds around user location
+    final userLat = widget.controller.latitude.value;
+    final userLng = widget.controller.longitude.value;
+    final radiusKm = widget.controller.radius.value;
+
+    if (userLat != 0.0 && userLng != 0.0 && radiusKm > 0) {
+      // 1 degree latitude is approx 111 km
+      final latOffset = radiusKm / 111.0;
+      
+      var cosLat = math.cos(userLat * math.pi / 180.0).abs();
+      if (cosLat < 0.01) cosLat = 0.01;
+      // 1 degree longitude is approx 111 km * cos(latitude)
+      final lngOffset = radiusKm / (111.0 * cosLat);
+
+      final rMinLat = userLat - latOffset;
+      final rMaxLat = userLat + latOffset;
+      final rMinLng = userLng - lngOffset;
+      final rMaxLng = userLng + lngOffset;
+
+      minLat = rMinLat < minLat ? rMinLat : minLat;
+      maxLat = rMaxLat > maxLat ? rMaxLat : maxLat;
+      minLng = rMinLng < minLng ? rMinLng : minLng;
+      maxLng = rMaxLng > maxLng ? rMaxLng : maxLng;
+    }
+
     // Add a small buffer to bounds to prevent overly tight zoom
     const buffer = 0.0005; // Adjust buffer as needed (in degrees)
     return LatLngBounds(

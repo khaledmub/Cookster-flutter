@@ -18,6 +18,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:get/get.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:cookster/core/video/video_player_pool.dart';
 
 import '../../../appRoutes/appRoutes.dart';
 import '../../../appUtils/colorUtils.dart';
@@ -402,7 +403,7 @@ class _LandingState extends State<Landing> {
         },
         child: Scaffold(
           resizeToAvoidBottomInset: false,
-          bottomNavigationBar: SafeArea(child: _buildBottomNavBar(context)),
+          bottomNavigationBar: _buildBottomNavBar(context),
           body: FutureBuilder<List<Widget>>(
             future: _screens(context),
             builder: (context, snapshot) {
@@ -422,17 +423,17 @@ class _LandingState extends State<Landing> {
   }
 
   Widget _buildBottomNavBar(BuildContext context) {
+    final bottomInset = MediaQuery.of(context).padding.bottom;
+
     return ClipRect(
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 10.0, sigmaY: 10.0),
         child: Container(
           width: Get.width,
-          height: 60.h,
+          height: 60.h + bottomInset,
+          padding: EdgeInsets.only(bottom: bottomInset),
           decoration: BoxDecoration(
-            color:
-            navBarController.selectedIndex.value == 0
-                ? Colors.black
-                : Colors.white,
+            color: Colors.black,
             border: Border(
               top: BorderSide(color: Colors.grey.withOpacity(0.2), width: 0.5),
             ),
@@ -532,23 +533,18 @@ class _LandingState extends State<Landing> {
   }
 
   void _performTabNavigation(int index) {
+    if (index != 0) {
+      VideoPlayerPool.instance.pauseAll();
+    }
     navBarController.changeTab(index);
   }
 
   Color _getIconColor(bool isSelected, bool isHomeTab) {
-    if (isHomeTab) {
-      return isSelected ? ColorUtils.primaryColor : Colors.white;
-    } else {
-      return isSelected ? ColorUtils.primaryColor : ColorUtils.grey;
-    }
+    return isSelected ? ColorUtils.primaryColor : Colors.white;
   }
 
   Color _getTextColor(bool isSelected, bool isHomeTab) {
-    if (isHomeTab) {
-      return Colors.white;
-    } else {
-      return isSelected ? ColorUtils.primaryColor : ColorUtils.grey;
-    }
+    return isSelected ? ColorUtils.primaryColor : Colors.white;
   }
 
   Widget _buildAddButton(BuildContext context) {

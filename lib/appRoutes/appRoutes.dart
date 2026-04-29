@@ -8,6 +8,7 @@ import '../modules/auth/packages/packageView/packageView.dart';
 import '../modules/auth/signUp/signUnView/signUpView.dart';
 import '../modules/landing/landingTabs/profile/editProfile/editProfileView/editProfileView.dart';
 import '../modules/onBoarding/onBoardingView/onBoardingView.dart';
+import '../modules/auth/signUp/signUpOtpView/signUpOtpView.dart';
 
 class AppRoutes {
   static const String home = '/';
@@ -15,6 +16,7 @@ class AppRoutes {
   static const String onBoarding = '/onboarding';
   static const String signIn = '/signIn';
   static const String signUp = '/signUp';
+  static const String signUpOtp = '/signUpOtp';
   static const String selectLanguage = '/selectLanguage';
   static const String landing = '/landing';
   static const String editProfile = '/editProfile';
@@ -30,6 +32,7 @@ class AppRoutes {
     GetPage(name: landing, page: () => Landing()),
     GetPage(name: selectLanguage, page: () => SelectLanguageView()),
     GetPage(name: signUp, page: () => SignVpView()),
+    GetPage(name: signUpOtp, page: () => SignUpOtpView()),
     GetPage(name: signIn, page: () => const SignInView()),
     GetPage(name: splash, page: () => const SplashView()),
     GetPage(name: onBoarding, page: () => OnBoarding()),

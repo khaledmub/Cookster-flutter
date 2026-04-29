@@ -11,6 +11,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:get/get.dart';
 import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -537,6 +538,46 @@ class VideoAddController extends GetxController {
   // Front-end cap to keep multipart request safely under backend/nginx limits.
   // Backend guidance: nginx 300m, PHP upload_max_filesize 256M -> cap to ~250MB.
   static const int _clientMaxVideoBytes = 250 * 1024 * 1024; // 250 MiB
+  static const Set<String> _supportedVideoExtensions = {
+    'mp4',
+    'mov',
+    'm4v',
+    '3gp',
+    'mkv',
+    'avi',
+    'webm',
+    'mpeg',
+    'mpg',
+  };
+
+  MediaType _resolveVideoMediaType(String filePath) {
+    final extension = filePath.split('.').last.toLowerCase();
+    switch (extension) {
+      case 'mov':
+        return MediaType('video', 'quicktime');
+      case 'm4v':
+        return MediaType('video', 'x-m4v');
+      case '3gp':
+        return MediaType('video', '3gpp');
+      case 'mkv':
+        return MediaType('video', 'x-matroska');
+      case 'avi':
+        return MediaType('video', 'x-msvideo');
+      case 'webm':
+        return MediaType('video', 'webm');
+      case 'mpeg':
+      case 'mpg':
+        return MediaType('video', 'mpeg');
+      case 'mp4':
+      default:
+        return MediaType('video', 'mp4');
+    }
+  }
+
+  bool _isSupportedVideoFormat(File videoFile) {
+    final extension = videoFile.path.split('.').last.toLowerCase();
+    return _supportedVideoExtensions.contains(extension);
+  }
 
   Future<File> _compressVideoIfNeeded(File videoFile, BuildContext context) async {
     // Per backend fix request: do not compress videos.
@@ -548,29 +589,43 @@ class VideoAddController extends GetxController {
 
   Future<void> uploadVideo(File videoFile, BuildContext context) async {
     if (isVideoUploading.value || isCompressing.value) return;
-
-    if (selectedCountry.value.isEmpty && selectedCity.value.isEmpty) {
-      errorMessage = "select_country_city_error".tr;
-    } else if (selectedCountry.value.isEmpty) {
-      errorMessage = "select_country_error".tr;
-    } else if (selectedCity.value.isEmpty) {
-      errorMessage = "select_city_error".tr;
-    }
-
-    if (selectedCountry.value.isEmpty || selectedCity.value.isEmpty) {
+    if (!_isSupportedVideoFormat(videoFile)) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(errorMessage),
+        const SnackBar(
+          content: Text(
+            'Unsupported video format. Please use MP4, MOV, MKV, AVI, WEBM, M4V, 3GP, MPEG, or MPG.',
+          ),
           backgroundColor: Colors.red,
           behavior: SnackBarBehavior.floating,
         ),
       );
       return;
     }
-    print("Hello I am there");
+
+    final bool isSponsored = entityDetails.value['is_sponsored'] == 1;
+    if (!isSponsored) {
+      if (selectedCountry.value.isEmpty && selectedCity.value.isEmpty) {
+        errorMessage = "select_country_city_error".tr;
+      } else if (selectedCountry.value.isEmpty) {
+        errorMessage = "select_country_error".tr;
+      } else if (selectedCity.value.isEmpty) {
+        errorMessage = "select_city_error".tr;
+      }
+
+      if (selectedCountry.value.isEmpty || selectedCity.value.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(errorMessage),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        return;
+      }
+    }
 
     // Additional validation for sponsored videos
-    if (entityDetails.value['is_sponsored'] == 1) {
+    if (isSponsored) {
       String? errorMessage;
 
       if (selectedVideoType.value.isEmpty) {
@@ -745,6 +800,7 @@ class VideoAddController extends GetxController {
         streamWithProgress,
         videoLength,
         filename: videoFile.path.split('/').last,
+        contentType: _resolveVideoMediaType(videoFile.path),
       );
 
       request.files.add(videoMultipartFile);
@@ -947,6 +1003,7 @@ class VideoAddController extends GetxController {
         streamWithProgress,
         videoLength,
         filename: videoFile.path.split('/').last,
+        contentType: _resolveVideoMediaType(videoFile.path),
       );
 
       request.files.add(videoMultipartFile);

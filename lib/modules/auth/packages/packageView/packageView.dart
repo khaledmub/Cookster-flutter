@@ -24,6 +24,12 @@ class _PackagesScreenState extends State<PackagesScreen> {
       CarouselSliderController();
   int _currentIndex = 0;
 
+  String _resolvePaymentCountry() {
+    // Keep this fixed to avoid localized country values (Arabic names, etc.)
+    // that URWAY may reject for merchant profile validation.
+    return "Saudi Arabia";
+  }
+
   @override
   void initState() {
     super.initState();
@@ -67,44 +73,61 @@ class _PackagesScreenState extends State<PackagesScreen> {
                     ),
                   ),
                   SizedBox(height: 20.h),
-                  ShaderMask(
-                    shaderCallback: (Rect rect) {
-                      return LinearGradient(
-                        begin: Alignment.centerLeft,
-                        end: Alignment.centerRight,
-                        colors: [
-                          Colors.transparent,
-                          Colors.white,
-                          Colors.white,
-                          Colors.transparent,
-                        ],
-                        stops: [0.0, 0.1, 0.9, 1.0],
-                      ).createShader(rect);
-                    },
-                    blendMode: BlendMode.dstIn,
-                    child: CarouselSlider(
-                      carouselController: _carouselController,
-                      options: CarouselOptions(
-                        height: 320.h,
-                        enlargeCenterPage: true,
-                        enableInfiniteScroll: false,
-                        autoPlay: false,
-                        viewportFraction: 0.75,
-                        initialPage: _currentIndex,
-                        onPageChanged: (index, reason) {
-                          setState(() {
-                            _currentIndex = index;
-                            // Update selected package when carousel changes
-                            signUpController.selectPackage(packages[index].id!);
-                          });
-                        },
+                  if (signUpController.isSettingsLoading.value)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 40),
+                      child: CircularProgressIndicator(),
+                    )
+                  else if (packages.isEmpty)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 40),
+                      child: Text(
+                        'No packages available',
+                        style: TextStyle(
+                          fontSize: 16.sp,
+                          color: ColorUtils.darkBrown,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
-                      items:
-                          packages
-                              .map((package) => _buildPackageCard(package))
-                              .toList(),
+                    )
+                  else
+                    ShaderMask(
+                      shaderCallback: (Rect rect) {
+                        return const LinearGradient(
+                          begin: Alignment.centerLeft,
+                          end: Alignment.centerRight,
+                          colors: [
+                            Colors.transparent,
+                            Colors.white,
+                            Colors.white,
+                            Colors.transparent,
+                          ],
+                          stops: [0.0, 0.1, 0.9, 1.0],
+                        ).createShader(rect);
+                      },
+                      blendMode: BlendMode.dstIn,
+                      child: CarouselSlider(
+                        carouselController: _carouselController,
+                        options: CarouselOptions(
+                          height: 320.h,
+                          enlargeCenterPage: true,
+                          enableInfiniteScroll: false,
+                          autoPlay: false,
+                          viewportFraction: 0.75,
+                          initialPage: _currentIndex,
+                          onPageChanged: (index, reason) {
+                            setState(() {
+                              _currentIndex = index;
+                              signUpController.selectPackage(packages[index].id!);
+                            });
+                          },
+                        ),
+                        items:
+                            packages
+                                .map((package) => _buildPackageCard(package))
+                                .toList(),
+                      ),
                     ),
-                  ),
                   SizedBox(height: 12.h),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -136,6 +159,10 @@ class _PackagesScreenState extends State<PackagesScreen> {
                       // Added payment loading state
                       text: "activate_now".tr,
                       onTap: () async {
+                        if (packages.isEmpty) {
+                          Get.snackbar("error".tr, "No packages available");
+                          return;
+                        }
                         if (signUpController
                             .selectedPackageId
                             .value
@@ -198,7 +225,7 @@ class _PackagesScreenState extends State<PackagesScreen> {
                     shape: BoxShape.circle,
                   ),
                   child: Center(
-                    child: Icon(
+                  child: Icon(
                       Directionality.of(context) == dir.TextDirection.rtl
                           ? Icons.arrow_forward
                           : Icons.arrow_back,
@@ -239,13 +266,18 @@ class _PackagesScreenState extends State<PackagesScreen> {
           );
 
       if (selectedPackage.amount != 0) {
+        final paymentCountry = _resolvePaymentCountry();
+        final customerEmail = signUpController.emailController.text.trim();
+        print(
+          "URWAY request => country: $paymentCountry, currency: SAR, amount: ${selectedPackage.amount}, email: $customerEmail",
+        );
         String response = await Payment.makepaymentService(
           context: context,
-          country: "Qatar",
+          country: paymentCountry,
           action: "1",
           currency: "SAR",
           amt: selectedPackage.amount.toString(),
-          customerEmail: "",
+          customerEmail: customerEmail,
           trackid: orderId,
           udf1: "",
           udf2: "",
@@ -310,7 +342,7 @@ class _PackagesScreenState extends State<PackagesScreen> {
           throw Exception("Invalid response format: $response");
         }
       } else {
-        return {'success': true};
+        return {'success': true, 'paymentParams': null};
       }
     } catch (e) {
       print("PRINTING ERROR: $e");

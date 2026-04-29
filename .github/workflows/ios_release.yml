@@ -70,6 +70,11 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
+      # giphy_get → rive → rive_native: the pod runs this during Xcode if no marker exists,
+      # which often fails inside the Xcode script phase (PATH/network). Pre-fetch binaries here.
+      - name: Rive Native iOS setup
+        run: dart run rive_native:setup --verbose --platform ios
+
       - name: Validate App Store Connect secrets
         shell: bash
         env:

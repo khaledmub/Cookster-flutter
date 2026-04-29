@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cookster/appUtils/apiEndPoints.dart';
+import 'package:cookster/appUtils/feature_flags.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -58,6 +59,13 @@ class _ProfessionalProfileViewState extends State<ProfessionalProfileView>
   File? _selectedImage;
   bool _isEditMode = true;
 
+  String? _buildCoverImageUrl(String? coverImage) {
+    if (coverImage == null || coverImage.isEmpty) return null;
+    final raw = coverImage.trim();
+    final base = raw.startsWith('http') ? raw : '${Common.profileImage}/$raw';
+    return '$base?v=${profileController.coverImageRefreshToken.value}';
+  }
+
   Future<void> _pickImage() async {
     final picker = ImagePicker();
     final pickedFile = await picker.pickImage(source: ImageSource.gallery);
@@ -107,6 +115,7 @@ class _ProfessionalProfileViewState extends State<ProfessionalProfileView>
     return Obx(() {
       final userDetails = profileController.userDetails.value?.user;
       final videoTypes = profileController.userDetails.value?.videoTypes;
+      final displayVideoTypes = _buildDisplayVideoTypes(videoTypes);
       final subscribed = profileController.userDetails.value?.subscription;
       // if (userDetails?.id != null) {
       //   profileController.checkReceivedLikes(userDetails!.id.toString());
@@ -122,15 +131,27 @@ class _ProfessionalProfileViewState extends State<ProfessionalProfileView>
               : true;
 
       // Initialize TabController only once
-      if (_tabController == null &&
-          videoTypes != null &&
-          videoTypes.isNotEmpty) {
-        _tabController = TabController(length: videoTypes.length, vsync: this);
+      if (_tabController == null && displayVideoTypes.isNotEmpty) {
+        _tabController = TabController(
+          length: displayVideoTypes.length,
+          vsync: this,
+        );
         _tabController!.addListener(() {
           if (!_tabController!.indexIsChanging) {
             currentTabIndex = _tabController!.index;
           }
         });
+      }
+      if (_tabController != null &&
+          _tabController!.length != displayVideoTypes.length &&
+          displayVideoTypes.isNotEmpty) {
+        final previousIndex = _tabController!.index;
+        _tabController!.dispose();
+        _tabController = TabController(
+          length: displayVideoTypes.length,
+          vsync: this,
+          initialIndex: previousIndex.clamp(0, displayVideoTypes.length - 1),
+        );
       }
 
       return RefreshIndicator(
@@ -319,14 +340,15 @@ class _ProfessionalProfileViewState extends State<ProfessionalProfileView>
                                 image: DecorationImage(
                                   fit: BoxFit.cover,
                                   image:
-                                      _selectedImage != null
-                                          ? FileImage(_selectedImage!)
-                                          : (userDetails!.coverImage != null &&
+                                      (userDetails!.coverImage != null &&
                                               userDetails
                                                   .coverImage!
                                                   .isNotEmpty)
                                           ? CachedNetworkImageProvider(
-                                            '${Common.profileImage}/${userDetails.coverImage!}',
+                                            _buildCoverImageUrl(
+                                                  userDetails.coverImage,
+                                                ) ??
+                                                '${Common.profileImage}/${userDetails.coverImage!}',
                                           )
                                           : const AssetImage(
                                                 'assets/images/placeholder.jpg',
@@ -343,11 +365,27 @@ class _ProfessionalProfileViewState extends State<ProfessionalProfileView>
                                       if (_isEditMode) {
                                         _pickImage();
                                       } else {
-                                        profileController.updateCoverImage(
-                                          coverImage: _selectedImage!,
-                                          context: context,
-                                        );
-                                        _isEditMode = true;
+                                        final pendingCover = _selectedImage;
+                                        if (pendingCover == null) {
+                                          setState(() {
+                                            _isEditMode = true;
+                                          });
+                                          return;
+                                        }
+                                        profileController
+                                            .updateCoverImage(
+                                              coverImage: pendingCover,
+                                              context: context,
+                                            )
+                                            .then((isSuccess) {
+                                              if (!mounted) return;
+                                              if (isSuccess) {
+                                                setState(() {
+                                                  _selectedImage = null;
+                                                  _isEditMode = true;
+                                                });
+                                              }
+                                            });
                                       }
                                     },
                                     child: Container(
@@ -378,7 +416,7 @@ class _ProfessionalProfileViewState extends State<ProfessionalProfileView>
                                         profileController.isB2B.value,
 
                                     imageUrl:
-                                        '${Common.profileImage}/${userDetails!.image}',
+                                        '${Common.profileImage}/${userDetails!.image}?v=${profileController.profileImageRefreshToken.value}',
                                   ),
                                 ),
                               ),
@@ -668,32 +706,63 @@ class _ProfessionalProfileViewState extends State<ProfessionalProfileView>
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             Expanded(
-                              child: InkWell(
-                                onTap: () {
-                                  Get.to(SavedVideosView());
-                                },
-                                child: CustomButtonWidget(
-                                  icon: "assets/icons/bookmark.svg",
-                                  label: "Saved Reels".tr,
+                              child: FittedBox(
+                                fit: BoxFit.scaleDown,
+                                alignment: Alignment.centerLeft,
+                                child: InkWell(
+                                  onTap: () {
+                                    Get.to(SavedVideosView());
+                                  },
+                                  child: CustomButtonWidget(
+                                    icon: "assets/icons/bookmark.svg",
+                                    label: "Saved Reels".tr,
+                                  ),
                                 ),
                               ),
                             ),
-                            SizedBox(width: 4),
+                            const SizedBox(width: 6),
                             Expanded(
-                              child: InkWell(
-                                onTap: () {
-                                  Get.to(
-                                    LikedVideosScreen(userId: userDetails.id),
-                                  );
-                                },
-                                child: CustomButtonWidget(
-                                  icon: "assets/icons/heart.svg",
-                                  label: "liked_videos".tr,
+                              child: FittedBox(
+                                fit: BoxFit.scaleDown,
+                                alignment: Alignment.centerRight,
+                                child: InkWell(
+                                  onTap: () {
+                                    Get.to(
+                                      LikedVideosScreen(userId: userDetails.id),
+                                    );
+                                  },
+                                  child: CustomButtonWidget(
+                                    icon: "assets/icons/heart.svg",
+                                    label: "liked_videos".tr,
+                                  ),
                                 ),
                               ),
                             ),
-                            SizedBox(width: 4),
-
+                            const SizedBox(width: 6),
+                            InkWell(
+                              onTap: () {
+                                showProfileQrCodeDialog(userDetails.email);
+                              },
+                              child: Container(
+                                padding: EdgeInsets.all(8),
+                                height: 40,
+                                width: 40,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  border: Border.all(
+                                    color: ColorUtils.darkBrown,
+                                  ),
+                                ),
+                                child: Center(
+                                  child: Icon(
+                                    Icons.qr_code_rounded,
+                                    color: ColorUtils.darkBrown,
+                                    size: 20,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 6),
                             InkWell(
                               onTap: () {
                                 showMoreOptionsProfile(
@@ -724,7 +793,7 @@ class _ProfessionalProfileViewState extends State<ProfessionalProfileView>
                         ),
                       ),
 
-                      if (videoTypes != null && videoTypes.isNotEmpty)
+                      if (displayVideoTypes.isNotEmpty)
                         Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
@@ -739,7 +808,7 @@ class _ProfessionalProfileViewState extends State<ProfessionalProfileView>
                               child: Row(
                                 mainAxisAlignment:
                                     MainAxisAlignment.spaceBetween,
-                                children: List.generate(videoTypes.length, (
+                                children: List.generate(displayVideoTypes.length, (
                                   index,
                                 ) {
                                   bool isSelected = currentTabIndex == index;
@@ -767,7 +836,15 @@ class _ProfessionalProfileViewState extends State<ProfessionalProfileView>
                                         ),
                                         child: Center(
                                           child: Text(
-                                            videoTypes[index].name ?? "Unknown",
+                                            ((displayVideoTypes[index].name ??
+                                                            "Unknown")
+                                                        .toString()
+                                                        .toLowerCase() ==
+                                                    'others'
+                                                ? 'Others'.tr
+                                                : (displayVideoTypes[index].name ??
+                                                    "Unknown")
+                                                    .toString()),
                                             style: TextStyle(
                                               fontSize: 13.sp,
                                               fontWeight: FontWeight.w500,
@@ -784,7 +861,7 @@ class _ProfessionalProfileViewState extends State<ProfessionalProfileView>
                               ),
                             ),
                             SizedBox(height: 16.h),
-                            if (videoTypes.isNotEmpty)
+                            if (displayVideoTypes.isNotEmpty)
                               Padding(
                                 padding: EdgeInsets.symmetric(horizontal: 16),
                                 child: Wrap(
@@ -792,7 +869,7 @@ class _ProfessionalProfileViewState extends State<ProfessionalProfileView>
                                   runSpacing: 8,
                                   children: () {
                                     final selectedVideoType =
-                                        videoTypes[currentTabIndex];
+                                        displayVideoTypes[currentTabIndex];
                                     if (selectedVideoType.videos == null ||
                                         selectedVideoType.videos!.isEmpty) {
                                       return [
@@ -1125,6 +1202,14 @@ class _ProfessionalProfileViewState extends State<ProfessionalProfileView>
                                                   left: 0,
                                                   child: InkWell(
                                                     onTap: () {
+                                                      if (kDisableVideoPromotionTemporarily) {
+                                                        ScaffoldMessenger.of(context).showSnackBar(
+                                                          const SnackBar(
+                                                            content: Text('Video promotion is temporarily unavailable.'),
+                                                          ),
+                                                        );
+                                                        return;
+                                                      }
                                                       showPackageDialog(
                                                         context,
                                                         videos: [video],
@@ -1201,7 +1286,8 @@ class _ProfessionalProfileViewState extends State<ProfessionalProfileView>
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
-                if (video.sponsorType == null)
+                if (video.sponsorType == null &&
+                    !kDisableVideoPromotionTemporarily)
                   ListTile(
                     leading: Icon(Icons.campaign_rounded),
                     trailing: Icon(Icons.chevron_right_rounded),
@@ -1313,12 +1399,38 @@ class _ProfessionalProfileViewState extends State<ProfessionalProfileView>
 
   Future<void> _launchMaps(double? latitude, double? longitude) async {
     if (latitude != null && longitude != null) {
-      final Uri mapsUri = Uri.parse('geo:$latitude,$longitude');
-      if (await canLaunchUrl(mapsUri)) {
-        await launchUrl(mapsUri, mode: LaunchMode.externalApplication);
-      } else {
-        debugPrint('Could not launch maps');
+      final Uri geoUri = Uri.parse('geo:$latitude,$longitude?q=$latitude,$longitude');
+      final Uri webMapsUri = Uri.parse(
+        'https://www.google.com/maps/search/?api=1&query=$latitude,$longitude',
+      );
+
+      if (await canLaunchUrl(geoUri)) {
+        await launchUrl(geoUri, mode: LaunchMode.externalApplication);
+        return;
       }
+
+      if (await canLaunchUrl(webMapsUri)) {
+        await launchUrl(webMapsUri, mode: LaunchMode.externalApplication);
+        return;
+      }
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not open location')),
+      );
     }
+  }
+
+  List<VideoTypes> _buildDisplayVideoTypes(List<VideoTypes>? sourceTypes) {
+    final existing = List<VideoTypes>.from(sourceTypes ?? <VideoTypes>[]);
+    final hasOthers = existing.any(
+      (type) => (type.name ?? '').toLowerCase() == 'others',
+    );
+    if (!hasOthers) {
+      existing.add(
+        VideoTypes(name: 'Others', videos: <ProfessionalVideos>[]),
+      );
+    }
+    return existing;
   }
 }

@@ -24,6 +24,7 @@ const Map<String, String> en = {
   "select your location": "Select your location",
   "add your personal info": "Add your personal info",
   "select_your_account_type": "Select your account type",
+  "Others": "Others",
   "password_limit":
       "Your Password should contain at least 8 characters, including numbers or digits and 1 upper case letter",
   "or sign up with": "or sign up with",
@@ -305,6 +306,7 @@ const Map<String, String> en = {
   "search_followers_following": "Search followers and following",
   "enter_email": "Enter your email to receive an OTP for password reset.",
   "otp_sent": "OTP sent to your email. Enter it below to reset your password.",
+  "signup_otp_sent": "OTP sent to your email. Enter it below to verify your account.",
   "enter_new_password": "Enter your new password.",
   "reset_password": "Reset Password",
   "verify_otp": "Verify OTP",

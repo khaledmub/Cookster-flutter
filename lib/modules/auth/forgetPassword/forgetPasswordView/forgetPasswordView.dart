@@ -303,22 +303,42 @@ class _ForgetPasswordViewState extends State<ForgetPasswordView> {
       decoration: defaultPinTheme.decoration?.copyWith(color: Colors.white),
     );
 
-    return Pinput(
-      length: 5,
-      defaultPinTheme: defaultPinTheme,
-      focusedPinTheme: focusedPinTheme,
-      submittedPinTheme: submittedPinTheme,
-      controller: controller.otpController,
-      focusNode: _otpFocusNodes[0],
-      keyboardType: TextInputType.number,
-      onChanged: (value) {
-        controller.otpValue.value = value;
-      },
-      onCompleted: (pin) {
-        if (!controller.isLoading.value) {
-          controller.verifyOtp();
-        }
-      },
+    return Column(
+      children: [
+        Pinput(
+          length: 5,
+          defaultPinTheme: defaultPinTheme,
+          focusedPinTheme: focusedPinTheme,
+          submittedPinTheme: submittedPinTheme,
+          controller: controller.otpController,
+          focusNode: _otpFocusNodes[0],
+          keyboardType: TextInputType.number,
+          onChanged: (value) {
+            controller.otpValue.value = value;
+          },
+          onCompleted: (pin) {
+            if (!controller.isLoading.value) {
+              controller.verifyOtp();
+            }
+          },
+        ),
+        SizedBox(height: 10.h),
+        TextButton(
+          onPressed: controller.isLoading.value
+              ? null
+              : () async {
+                  await controller.verifyEmail();
+                },
+          child: Text(
+            "Resend OTP to ${controller.lastRequestedEmail}",
+            style: TextStyle(
+              color: ColorUtils.darkBrown,
+              fontSize: 13.sp,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ),
+      ],
     );
   }
 

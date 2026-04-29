@@ -32,6 +32,7 @@ class ForgotPasswordController extends GetxController {
   String? _userId; // Store user_id from verifyEmail response
   int? _medium; // Store medium from verifyEmail response
   String? _token; // Store token from verifyOtp response
+  String? _lastRequestedEmail;
 
   String? validateEmail(String? value) {
     if (value == null || value.isEmpty) return 'email_required_error'.tr;
@@ -66,39 +67,75 @@ class ForgotPasswordController extends GetxController {
     isLoading.value = true;
     final endpoint =
         EndPoints.verifyEmail; // e.g., 'forgot_password/verify_email'
+    final email = emailController.text.trim();
+    _lastRequestedEmail = email;
 
     try {
-      final response = await ApiClient.postRequest(endpoint, {
-        'email': emailController.text.trim(),
-      });
+      // Some backend deployments expect medium=1 for email while others accept
+      // medium=2; we try both before failing.
+      Future<bool> tryVerifyWithMedium(int medium) async {
+        final response = await ApiClient.postRequest(endpoint, {
+          'email': email,
+          'medium': medium,
+        });
+        final data = jsonDecode(response.body);
+        print("Verify Email Response (medium=$medium): $data");
 
-      final data = jsonDecode(response.body);
-      print("Verify Email Response: $data");
+        if (response.statusCode == 200 && data['status'] == true) {
+          // Store user_id and medium for OTP verification
+          _userId =
+              data['user']?['id']?.toString() ??
+              data['user_id']?.toString() ??
+              data['id']?.toString();
+          _medium =
+              data['medium'] is int
+                  ? data['medium']
+                  : int.tryParse('${data['medium'] ?? medium}') ?? medium;
 
-      if (response.statusCode == 200 && data['status'] == true) {
-        // Store user_id and medium for OTP verification
-        _userId = data['user']['id'];
-        _medium = data['medium'];
+          if (_userId == null || _userId!.isEmpty) {
+            ScaffoldMessenger.of(Get.context!).showSnackBar(
+              SnackBar(
+                content: Text(
+                  data['message'] ??
+                      'Could not start reset flow. Please try again.',
+                ),
+                backgroundColor: Colors.red,
+                behavior: SnackBarBehavior.floating,
+              ),
+            );
+            return false;
+          }
 
-        isOtpSent.value = true; // Indicate OTP has been sent
-        ScaffoldMessenger.of(Get.context!).showSnackBar(
-          SnackBar(
-            content: Text(data['message'] ?? 'OTP sent to your email'),
-            backgroundColor: Colors.green,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-        return true; // OTP is sent by backend, proceed to OTP input
-      } else {
-        ScaffoldMessenger.of(Get.context!).showSnackBar(
-          SnackBar(
-            content: Text(data['message'] ?? 'Email not found'),
-            backgroundColor: Colors.red,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
+          isOtpSent.value = true; // Indicate OTP has been sent
+          ScaffoldMessenger.of(Get.context!).showSnackBar(
+            SnackBar(
+              content: Text(
+                data['message'] ??
+                    'OTP sent to $email. Please check inbox/spam.',
+              ),
+              backgroundColor: Colors.green,
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+          return true; // OTP is sent by backend, proceed to OTP input
+        }
         return false;
       }
+
+      final sentWithEmailMedium = await tryVerifyWithMedium(1);
+      if (sentWithEmailMedium) return true;
+
+      final sentWithAltMedium = await tryVerifyWithMedium(2);
+      if (sentWithAltMedium) return true;
+
+      ScaffoldMessenger.of(Get.context!).showSnackBar(
+        const SnackBar(
+          content: Text('Failed to send OTP. Please try again.'),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return false;
     } catch (e) {
       print("Error: $e");
       ScaffoldMessenger.of(Get.context!).showSnackBar(
@@ -113,6 +150,8 @@ class ForgotPasswordController extends GetxController {
       isLoading.value = false;
     }
   }
+
+  String get lastRequestedEmail => _lastRequestedEmail ?? emailController.text.trim();
 
   // Step 2: Verify OTP
   Future<bool> verifyOtp() async {

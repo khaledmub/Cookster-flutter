@@ -1,4 +1,5 @@
 import 'package:cookster/modules/landing/landingTabs/add/videoAddController/videoAddController.dart';
+import 'package:cookster/appUtils/feature_flags.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/material.dart' as dir;
 import 'package:get/get.dart';
@@ -355,6 +356,17 @@ class _AnimatedDialog extends StatelessWidget {
               width: double.infinity,
               child: ElevatedButton(
                 onPressed: () {
+                  if (kDisableVideoPromotionTemporarily) {
+                    Navigator.of(context).pop();
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text(
+                          'Video promotion is temporarily unavailable.',
+                        ),
+                      ),
+                    );
+                    return;
+                  }
                   Navigator.of(context).pop();
                   Get.to(() => PromoteVideoView(videos: videos));
                 },

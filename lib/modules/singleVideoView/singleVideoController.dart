@@ -296,9 +296,10 @@ class SingleVideoController extends GetxController with WidgetsBindingObserver {
     pauseVideo();
 
     try {
+      final String appUrl = "cookster://open.cookster.app/video?id=$videoId";
       final String webUrl = "https://cookster.org/web/visitSingleVideo?id=$videoId";
       final String shareMessage =
-          'Check out this amazing video on Cookster!\n$webUrl';
+          'Check out this amazing video on Cookster!\n$appUrl\n\nIf the app does not open, use this web link:\n$webUrl';
 
       await Share.share(shareMessage, subject: 'Cookster Video');
     } catch (e) {

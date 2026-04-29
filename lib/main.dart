@@ -1,10 +1,13 @@
 import 'dart:io';
+import 'dart:async';
+import 'dart:ui';
 
 import 'package:app_links/app_links.dart';
 import 'package:cookster/appUtils/colorUtils.dart';
 import 'package:cookster/services/flutterNotificationService.dart';
 import 'package:cookster/services/notificationServices.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -17,6 +20,8 @@ import 'appRoutes/appRoutes.dart';
 import 'locale/localizationServices.dart';
 import 'modules/landing/landingController/landingController.dart';
 import 'modules/singleVideoVisit/singleVideoVisit.dart';
+import 'services/feature_flags/remote_config_service.dart';
+import 'services/settings/settings_service.dart';
 
 // Import firebase_options.dart if it exists
 // import 'firebase_options.dart';
@@ -55,38 +60,43 @@ Future<void> requestLocationPermission() async {
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await runZonedGuarded(() async {
+    try {
+      await Firebase.initializeApp();
+      FlutterError.onError = FirebaseCrashlytics.instance.recordFlutterFatalError;
+      PlatformDispatcher.instance.onError = (error, stack) {
+        FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
+        return true;
+      };
+      await setupFirebaseMessaging();
+      await RemoteConfigService.instance.initialize();
+      await SettingsService.instance.load();
+      if (!SettingsService.instance.dataSaverEnabled.value &&
+          RemoteConfigService.instance.dataSaverDefault) {
+        await SettingsService.instance.setDataSaver(true);
+      }
+    } catch (e, stack) {
+      await FirebaseCrashlytics.instance.recordError(e, stack, fatal: false);
+      print('Firebase initialization error: $e');
+    }
 
-  try {
-    // Initialize Firebase with proper error handling
-    await Firebase.initializeApp(
-      // If you have firebase_options.dart, uncomment the line below:
-      // options: DefaultFirebaseOptions.currentPlatform,
-    );
+    await SystemChrome.setPreferredOrientations([
+      DeviceOrientation.portraitUp,
+      DeviceOrientation.portraitDown,
+    ]);
 
-    // Only setup Firebase Messaging if Firebase initialization succeeds
-    await setupFirebaseMessaging();
-  } catch (e) {
-    print('Firebase initialization error: $e');
-    // Continue app execution even if Firebase fails
-    // You might want to disable Firebase-dependent features
-  }
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    String? savedLang = prefs.getString('selectedLanguage');
 
-  // Set preferred orientations
-  await SystemChrome.setPreferredOrientations([
-    DeviceOrientation.portraitUp,
-    DeviceOrientation.portraitDown,
-  ]);
+    Locale initialLocale =
+        savedLang == "Arabic"
+            ? LocalizationService.arabic
+            : LocalizationService.english;
 
-  // Initialize SharedPreferences
-  SharedPreferences prefs = await SharedPreferences.getInstance();
-  String? savedLang = prefs.getString('selectedLanguage');
-
-  Locale initialLocale =
-      savedLang == "Arabic"
-          ? LocalizationService.arabic
-          : LocalizationService.english;
-
-  runApp(MyApp(initialLocale: initialLocale, hasInternet: true));
+    runApp(MyApp(initialLocale: initialLocale, hasInternet: true));
+  }, (error, stack) async {
+    await FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
+  });
 }
 
 Future<void> setupFirebaseMessaging() async {
@@ -212,17 +222,33 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
 
     try {
       final uri = Uri.parse(link);
-      if (uri.host == 'cookster.org') {
-        final videoId = uri.queryParameters['id'];
-        if (widget.hasInternet && videoId != null) {
+      final bool isCooksterDomain =
+          uri.host == 'cookster.org' || uri.host == 'www.cookster.org';
+      final bool isCooksterCustomScheme =
+          uri.scheme == 'cookster' && uri.host == 'open.cookster.app';
+
+      if (isCooksterDomain || isCooksterCustomScheme) {
+        String? videoId = uri.queryParameters['id'];
+        videoId ??= uri.queryParameters['videoId'];
+        videoId ??= uri.queryParameters['video_id'];
+        if ((videoId == null || videoId.isEmpty) && uri.pathSegments.isNotEmpty) {
+          final lastSegment = uri.pathSegments.last;
+          const reservedSegments = {'web', 'visitSingleVideo', 'video'};
+          if (!reservedSegments.contains(lastSegment)) {
+            videoId = lastSegment;
+          }
+        }
+
+        if (widget.hasInternet && videoId != null && videoId.isNotEmpty) {
+          final resolvedVideoId = videoId;
           if (Get.currentRoute != '/SingleVisitVideo') {
             Get.to(
-              () => SingleVisitVideo(videoId: videoId),
-              arguments: videoId,
+              () => SingleVisitVideo(videoId: resolvedVideoId),
+              arguments: resolvedVideoId,
               preventDuplicates: true,
             );
           }
-        } else {
+        } else if (videoId != null && videoId.isNotEmpty) {
           _pendingDeepLinkRoute = videoId;
           Get.offAllNamed(AppRoutes.noInternet);
         }

@@ -5,6 +5,7 @@ import 'dart:async';
 import 'dart:io';
 import 'package:video_player/video_player.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:file_picker/file_picker.dart';
 
 import 'basicVideoEditor/basicVideoEditor.dart';
 
@@ -101,12 +102,24 @@ class CameraControllerX extends GetxController {
 
   // Function to pick a video from the gallery
   Future<void> pickVideoFromGallery() async {
-    final ImagePicker picker = ImagePicker();
-    final XFile? video = await picker.pickVideo(source: ImageSource.gallery);
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: const [
+        'mp4',
+        'mov',
+        'm4v',
+        '3gp',
+        'mkv',
+        'avi',
+        'webm',
+        'mpeg',
+        'mpg',
+      ],
+    );
 
-    if (video != null) {
-      // Navigate to the playback screen with the selected video
-      Get.to(() => VideoTextEditor(videoFile: File(video.path)));
+    final pickedPath = result?.files.single.path;
+    if (pickedPath != null && pickedPath.isNotEmpty) {
+      Get.to(() => VideoTextEditor(videoFile: File(pickedPath)));
     }
   }
 

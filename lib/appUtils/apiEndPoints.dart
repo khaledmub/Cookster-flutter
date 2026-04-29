@@ -62,6 +62,8 @@ class EndPoints {
   static String registrationSettings = "registration_settings";
   static String packagesList = "packages/list";
   static String register = "register";
+  static String verifyRegistrationOtp = "verify_registration_otp";
+  static String resendRegistrationOtp = "resend_registration_otp";
   static String logout = "logout";
   static String login = "login";
   static String loginWithEmail = "login_with_email";

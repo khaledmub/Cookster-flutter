@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_svg/svg.dart';
 import 'package:get/get.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 
 import '../../../tawkLiveChat/tawkLiveChat.dart';
 import '../../blockedUsers/blockedUsersView/blockedUsersView.dart';
@@ -139,6 +140,34 @@ class CustomButtonWidget extends StatelessWidget {
       ),
     );
   }
+}
+
+void showProfileQrCodeDialog(String userEmail) {
+  final String profileUrl =
+      'https://cookster.org/profile?email=${Uri.encodeComponent(userEmail)}';
+  Get.dialog(
+    Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'Scan to open profile',
+              style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16.sp),
+            ),
+            const SizedBox(height: 12),
+            QrImageView(
+              data: profileUrl,
+              size: 220,
+              backgroundColor: Colors.white,
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
 }
 
 void showMoreOptionsProfile(

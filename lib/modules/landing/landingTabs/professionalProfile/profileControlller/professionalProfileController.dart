@@ -7,6 +7,7 @@ import 'package:cookster/appRoutes/appRoutes.dart';
 import 'package:cookster/appUtils/apiEndPoints.dart';
 import 'package:flutter/material.dart';
 import 'package:fluttertoast/fluttertoast.dart';
+import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:get/get.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -26,6 +27,8 @@ class ProfessionalProfileController extends GetxController {
   var isLoading = false.obs;
   var isProfileUpdating = false.obs;
   var selectedImage = Rxn<File>();
+  final profileImageRefreshToken = 0.obs;
+  final coverImageRefreshToken = 0.obs;
   var selectCountryId = "".obs;
   var selectedCityId = "".obs;
 
@@ -659,6 +662,8 @@ class ProfessionalProfileController extends GetxController {
       );
 
       request.headers['Authorization'] = 'Bearer $token';
+      request.headers['Accept'] = 'application/json';
+      request.headers['X-Requested-With'] = 'XMLHttpRequest';
       request.headers['Accept-Language'] =
           language; // Add Accept-Language header
 
@@ -718,6 +723,13 @@ class ProfessionalProfileController extends GetxController {
             'image': updatedImage,
           },
         );
+        if (updatedImage != null && updatedImage.isNotEmpty) {
+          await prefs.setString('user_image', updatedImage);
+          await DefaultCacheManager().removeFile(
+            '${Common.profileImage}/$updatedImage',
+          );
+          profileImageRefreshToken.value = DateTime.now().millisecondsSinceEpoch;
+        }
         getUserDetails();
         Get.back();
         ScaffoldMessenger.of(Get.context!).showSnackBar(
@@ -784,7 +796,7 @@ class ProfessionalProfileController extends GetxController {
     }
   }
 
-  Future<void> updateCoverImage({
+  Future<bool> updateCoverImage({
     required File coverImage,
     required BuildContext context,
   }) async {
@@ -799,7 +811,7 @@ class ProfessionalProfileController extends GetxController {
       if (token == null) {
         isProfileUpdating.value = false;
         Get.snackbar("Error", "User is not logged in.");
-        return;
+        return false;
       }
 
       var request = http.MultipartRequest(
@@ -808,16 +820,39 @@ class ProfessionalProfileController extends GetxController {
       );
 
       request.headers['Authorization'] = 'Bearer $token';
+      request.headers['Accept'] = 'application/json';
+      request.headers['X-Requested-With'] = 'XMLHttpRequest';
       request.headers['Accept-Language'] =
           language; // Add Accept-Language header
+
+      final filePath = coverImage.path;
+      final fileName = filePath.split('/').last;
+      final fileExists = await coverImage.exists();
+      final fileSize = fileExists ? await coverImage.length() : 0;
+      final fileExt = fileName.contains('.')
+          ? fileName.split('.').last.toLowerCase()
+          : 'jpg';
+      final imageSubtype = switch (fileExt) {
+        'png' => 'png',
+        'webp' => 'webp',
+        'gif' => 'gif',
+        _ => 'jpeg',
+      };
+
+      print('Cover Upload Debug -> path: $filePath');
+      print('Cover Upload Debug -> exists: $fileExists, size: $fileSize');
+      print('Cover Upload Debug -> filename: $fileName, subtype: $imageSubtype');
 
       // Add cover image file
       request.files.add(
         await http.MultipartFile.fromPath(
           'cover_image',
-          coverImage.path,
-          contentType: MediaType('image', 'jpeg'),
+          filePath,
+          contentType: MediaType('image', imageSubtype),
         ),
+      );
+      print(
+        'Cover Upload Debug -> multipart file keys: ${request.files.map((f) => f.field).toList()}',
       );
 
       var response = await request.send();
@@ -831,6 +866,18 @@ class ProfessionalProfileController extends GetxController {
           throw Exception('Server returned an invalid response. Please try again later.');
         }
         print("API Response: $data");
+        final uploadDebug = data['upload_debug'];
+        if (uploadDebug is Map<String, dynamic>) {
+          print(
+            'Cover Upload Debug -> received_file_keys: ${uploadDebug['received_file_keys']}',
+          );
+          print(
+            'Cover Upload Debug -> cover_image_received: ${uploadDebug['cover_image_received']}',
+          );
+        }
+        print(
+          "Cover Upload Debug -> user.cover_image: ${data['user']?['cover_image']}",
+        );
 
         String userId = data['user']['id'];
         String? updatedCoverImage = data['user']['cover_image'];
@@ -842,6 +889,10 @@ class ProfessionalProfileController extends GetxController {
             'cover_image': updatedCoverImage,
           },
         );
+        if (updatedCoverImage != null && updatedCoverImage.isNotEmpty) {
+          await prefs.setString('user_cover_image', updatedCoverImage);
+          coverImageRefreshToken.value = DateTime.now().millisecondsSinceEpoch;
+        }
 
         getUserDetails();
 
@@ -852,6 +903,7 @@ class ProfessionalProfileController extends GetxController {
             behavior: SnackBarBehavior.floating,
           ),
         );
+        return true;
       } else {
         String errorMessage;
         try {
@@ -888,6 +940,7 @@ class ProfessionalProfileController extends GetxController {
         );
 
         print("Cover image update failed: $responseData");
+        return false;
       }
     } catch (e) {
       print("Error updating cover image: $e");
@@ -904,6 +957,7 @@ class ProfessionalProfileController extends GetxController {
           duration: Duration(seconds: 2),
         ),
       );
+      return false;
     } finally {
       isProfileUpdating.value = false; // Stop updating
     }

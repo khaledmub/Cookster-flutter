@@ -30,6 +30,22 @@
           }
         },
         {
+          "client_id": "588874074588-bchjtldth8l4oojk1h1d79lfkvbeiuvv.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.cookster.cooksterapp",
+            "certificate_hash": "becdb2c46832fa80c666fe27dffc783eef87c73f"
+          }
+        },
+        {
+          "client_id": "588874074588-fgpq0o1nf00r3qghgn6uc4ssto0pg59o.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.cookster.cooksterapp",
+            "certificate_hash": "f3041a961903878cdca3a051ff361a899331f860"
+          }
+        },
+        {
           "client_id": "588874074588-otr7kght72hnkmb4rthv27me09h741up.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
@@ -51,7 +67,7 @@
         "appinvite_service": {
           "other_platform_oauth_client": [
             {
-              "client_id": "588874074588-ls288jb68aq4dh7igmc5iqr60ogj1o74.apps.googleusercontent.com",
+              "client_id": "588874074588-klat9noh07kbqcqq2f7rarchr6hjm877.apps.googleusercontent.com",
               "client_type": 3
             },
             {
@@ -103,7 +119,43 @@
         "appinvite_service": {
           "other_platform_oauth_client": [
             {
-              "client_id": "588874074588-ls288jb68aq4dh7igmc5iqr60ogj1o74.apps.googleusercontent.com",
+              "client_id": "588874074588-klat9noh07kbqcqq2f7rarchr6hjm877.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "588874074588-38pfu3soei0aigs26s2f9nluaq7q0gsq.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.cookster"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:588874074588:android:3e81ac00591281b764a719",
+        "android_client_info": {
+          "package_name": "com.example.videosdk_flutter"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "588874074588-ls288jb68aq4dh7igmc5iqr60ogj1o74.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCfQqWRSLWguPoH27MxWSMsmVZpHvpJcI4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "588874074588-klat9noh07kbqcqq2f7rarchr6hjm877.apps.googleusercontent.com",
               "client_type": 3
             },
             {

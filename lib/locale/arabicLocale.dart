@@ -24,6 +24,7 @@ const Map<String, String> ar = {
   "select your location": "اختر موقعك",
   "add your personal info": "أضف معلوماتك الشخصية",
   "select_your_account_type": "اختر نوع الحساب",
+  "Others": "أخرى",
   "password_limit":
       "يجب أن تحتوي كلمة المرور على 6 أحرف على الأقل، بما في ذلك أرقام وحرف كبير واحد على الأقل",
   "or sign up with": "أو سجل باستخدام",
@@ -299,6 +300,8 @@ const Map<String, String> ar = {
       "أدخل بريدك الإلكتروني لتلقي رمز OTP لإعادة تعيين كلمة المرور.",
   "otp_sent":
       "تم إرسال رمز OTP إلى بريدك الإلكتروني. أدخله أدناه لإعادة تعيين كلمة المرور.",
+  "signup_otp_sent":
+      "تم إرسال رمز OTP إلى بريدك الإلكتروني. أدخله أدناه لتأكيد حسابك.",
   "enter_new_password": "أدخل كلمة المرور الجديدة.",
   "reset_password": "إعادة تعيين كلمة المرور",
   "verify_otp": "التحقق من رمز OTP",

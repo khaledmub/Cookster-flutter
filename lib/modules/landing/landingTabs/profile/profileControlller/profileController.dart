@@ -7,8 +7,10 @@ import 'package:cookster/appRoutes/appRoutes.dart';
 import 'package:cookster/appUtils/apiEndPoints.dart';
 import 'package:flutter/material.dart';
 import 'package:fluttertoast/fluttertoast.dart';
+import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:get/get.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
@@ -34,6 +36,7 @@ class ProfileController extends GetxController {
   var isFollowersLoading = false.obs;
   var isFollowingLoading = false.obs;
   var selectedImage = Rxn<File>();
+  final profileImageRefreshToken = 0.obs;
   var countryId = -1.obs;
   var selectCountryId = "".obs;
   var selectedCityId = "".obs;
@@ -321,11 +324,49 @@ class ProfileController extends GetxController {
   }
 
   Future<File?> pickImage() async {
-    final pickedFile = await ImagePicker().pickImage(
-      source: ImageSource.gallery,
-    );
-    if (pickedFile != null) {
-      return File(pickedFile.path);
+    try {
+      PermissionStatus status;
+      if (Platform.isAndroid) {
+        // Android 13+ uses READ_MEDIA_IMAGES (Permission.photos).
+        // Older versions use storage permission.
+        final photosStatus = await Permission.photos.request();
+        if (photosStatus.isGranted || photosStatus.isLimited) {
+          status = photosStatus;
+        } else {
+          status = await Permission.storage.request();
+        }
+      } else {
+        status = await Permission.photos.request();
+      }
+
+      if (!status.isGranted && !status.isLimited) {
+        ScaffoldMessenger.of(Get.context!).showSnackBar(
+          const SnackBar(
+            content: Text('Please allow gallery access to select photos.'),
+            backgroundColor: Colors.redAccent,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        if (status.isPermanentlyDenied) {
+          await openAppSettings();
+        }
+        return null;
+      }
+
+      final pickedFile = await ImagePicker().pickImage(
+        source: ImageSource.gallery,
+      );
+      if (pickedFile != null) {
+        return File(pickedFile.path);
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(Get.context!).showSnackBar(
+        SnackBar(
+          content: Text('Unable to access photos: $e'),
+          backgroundColor: Colors.redAccent,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
     }
     return null;
   }
@@ -609,6 +650,8 @@ class ProfileController extends GetxController {
       );
 
       request.headers['Authorization'] = 'Bearer $token';
+      request.headers['Accept'] = 'application/json';
+      request.headers['X-Requested-With'] = 'XMLHttpRequest';
       request.headers['Accept-Language'] =
           language; // Add Accept-Language header
 
@@ -660,6 +703,14 @@ class ProfileController extends GetxController {
             'image': updatedImage,
           },
         );
+
+        if (updatedImage != null && updatedImage.isNotEmpty) {
+          await prefs.setString('user_image', updatedImage);
+          await DefaultCacheManager().removeFile(
+            '${Common.profileImage}/$updatedImage',
+          );
+          profileImageRefreshToken.value = DateTime.now().millisecondsSinceEpoch;
+        }
 
         getUserDetails();
 

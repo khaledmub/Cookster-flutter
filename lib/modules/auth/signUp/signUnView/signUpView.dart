@@ -110,6 +110,11 @@ class _SignVpViewState extends State<SignVpView> {
 
   final CityController cityController = Get.put(CityController());
 
+  bool _isChefLabel(String? name) {
+    final normalized = (name ?? '').trim().toLowerCase();
+    return normalized == 'chef' || normalized == 'الشيف';
+  }
+
   String getIconPath(int id) {
     switch (id) {
       case 1:
@@ -141,6 +146,14 @@ class _SignVpViewState extends State<SignVpView> {
               .whereType<String>()
               .toList() ??
           [];
+
+      // Keep Chef as a business subtype (temporary product requirement).
+      final chefDisplayName = _language == 'ar' ? 'الشيف' : 'Chef';
+      if (!businessTypeName.any(_isChefLabel) && businessType.isNotEmpty) {
+        final int fallbackBusinessTypeId = businessType.values.first;
+        businessType[chefDisplayName] = fallbackBusinessTypeId;
+        businessTypeName.add(chefDisplayName);
+      }
 
       Map<String, int> typeOfAccount = {};
       List<String> typeOfAccountName =
@@ -221,11 +234,11 @@ class _SignVpViewState extends State<SignVpView> {
                   ),
                 ),
 
-                SizedBox(
-                  height: Get.height,
-                  child: SingleChildScrollView(
-                    child: Stack(
-                      children: [
+                SingleChildScrollView(
+                  keyboardDismissBehavior:
+                      ScrollViewKeyboardDismissBehavior.onDrag,
+                  child: Stack(
+                    children: [
                         // Background Gradient
                         Form(
                           key: signUpController.formKey,
@@ -327,39 +340,39 @@ class _SignVpViewState extends State<SignVpView> {
                                       ),
                                       SizedBox(height: 10),
 
-                                      Obx(
-                                        () => Row(
-                                          mainAxisAlignment:
-                                              MainAxisAlignment.spaceBetween,
+                                      Obx(() {
+                                        final entities = signUpController
+                                                .registrationSettings
+                                                .value
+                                                .entities
+                                                ?.where(
+                                                  (entity) => !_isChefLabel(
+                                                    entity.name,
+                                                  ),
+                                                )
+                                                .toList() ??
+                                            [];
+                                        return Wrap(
+                                          alignment: WrapAlignment.center,
+                                          runAlignment: WrapAlignment.center,
+                                          spacing: 10.w,
+                                          runSpacing: 10.h,
                                           children:
-                                              signUpController
-                                                          .registrationSettings
-                                                          .value
-                                                          .entities !=
-                                                      null
-                                                  ? signUpController
-                                                      .registrationSettings
-                                                      .value
-                                                      .entities!
-                                                      .map(
-                                                        (entity) =>
-                                                            _buildProfileOption(
-                                                              type: entity,
-                                                              label:
-                                                                  entity
-                                                                      .name ??
-                                                                  '',
-                                                              iconPath:
-                                                                  getIconPath(
-                                                                    entity
-                                                                        .id!,
-                                                                  ),
-                                                            ),
-                                                      )
-                                                      .toList()
-                                                  : [],
-                                        ),
-                                      ),
+                                              entities
+                                                  .map(
+                                                    (entity) =>
+                                                        _buildProfileOption(
+                                                          type: entity,
+                                                          label:
+                                                              entity.name ?? '',
+                                                          iconPath: getIconPath(
+                                                            entity.id!,
+                                                          ),
+                                                        ),
+                                                  )
+                                                  .toList(),
+                                        );
+                                      }),
                                       SizedBox(height: 10),
 
                                       ///
@@ -1420,13 +1433,13 @@ class _SignVpViewState extends State<SignVpView> {
                                       if (signUpController
                                               .selectedProfileId
                                               .value ==
-                                          8)
+                                          2)
                                         Obx(
                                           () =>
                                               signUpController
                                                           .selectedProfileId
                                                           .value ==
-                                                      8
+                                                      2
                                                   ? Column(
                                                     crossAxisAlignment:
                                                         CrossAxisAlignment
@@ -1766,8 +1779,7 @@ class _SignVpViewState extends State<SignVpView> {
                             ],
                           ),
                         ),
-                      ],
-                    ),
+                    ],
                   ),
                 ),
                 cityController.isLoading.value
@@ -1812,9 +1824,10 @@ class _SignVpViewState extends State<SignVpView> {
         signUpController.setProfile(label, type.id!);
       },
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
           Container(
-            width: 90.sp,
+            width: 84.w,
             height: 48.sp,
             padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 14),
             decoration: BoxDecoration(
