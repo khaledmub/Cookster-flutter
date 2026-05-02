@@ -102,7 +102,7 @@ dependencies:
 dependency_overrides:
   device_info_plus: ^10.1.0
   apple_pay_flutter: ^1.0.4
-  # Transitive via giphy_get (etc.): newer prebuilt iOS binaries for Xcode 26+ linker compatibility.
+  # Transitive via awesome_dialog -> rive: match rive_native for iOS prebuilts.
   rive: ^0.14.6
   rive_native: ^0.1.6
 
