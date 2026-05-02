@@ -61,6 +61,13 @@ jobs:
         with:
           xcode-version: ${{ env.XCODE_VERSION }}
 
+      # Makes the selected toolchain obvious in logs; fails fast if the pin did not apply.
+      - name: Verify Xcode for this job
+        run: |
+          xcodebuild -version
+          echo "iphoneos SDK:" && xcrun --sdk iphoneos --show-sdk-version
+          echo "DEVELOPER_DIR=$DEVELOPER_DIR"
+
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
