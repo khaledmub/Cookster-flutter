@@ -78,16 +78,48 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
-      - name: Validate App Store Connect secrets
+      - name: Validate secrets
         shell: bash
         env:
           APPSTORE_API_KEY_B64: ${{ secrets.APPSTORE_API_KEY_B64 }}
           APPSTORE_API_KEY_ID: ${{ secrets.APPSTORE_API_KEY_ID }}
           APPSTORE_API_ISSUER_ID: ${{ secrets.APPSTORE_API_ISSUER_ID }}
+          IOS_DISTRIBUTION_CERT_B64: ${{ secrets.IOS_DISTRIBUTION_CERT_B64 }}
+          IOS_DISTRIBUTION_CERT_PASSWORD: ${{ secrets.IOS_DISTRIBUTION_CERT_PASSWORD }}
         run: |
-          [ -n "$APPSTORE_API_KEY_B64" ] || { echo "Missing secret: APPSTORE_API_KEY_B64"; exit 1; }
-          [ -n "$APPSTORE_API_KEY_ID" ] || { echo "Missing secret: APPSTORE_API_KEY_ID"; exit 1; }
-          [ -n "$APPSTORE_API_ISSUER_ID" ] || { echo "Missing secret: APPSTORE_API_ISSUER_ID"; exit 1; }
+          [ -n "$APPSTORE_API_KEY_B64" ]          || { echo "Missing: APPSTORE_API_KEY_B64"; exit 1; }
+          [ -n "$APPSTORE_API_KEY_ID" ]            || { echo "Missing: APPSTORE_API_KEY_ID"; exit 1; }
+          [ -n "$APPSTORE_API_ISSUER_ID" ]         || { echo "Missing: APPSTORE_API_ISSUER_ID"; exit 1; }
+          [ -n "$IOS_DISTRIBUTION_CERT_B64" ]      || { echo "Missing: IOS_DISTRIBUTION_CERT_B64"; exit 1; }
+          [ -n "$IOS_DISTRIBUTION_CERT_PASSWORD" ] || { echo "Missing: IOS_DISTRIBUTION_CERT_PASSWORD"; exit 1; }
+
+      - name: Install distribution certificate in keychain
+        shell: bash
+        env:
+          IOS_DISTRIBUTION_CERT_B64: ${{ secrets.IOS_DISTRIBUTION_CERT_B64 }}
+          IOS_DISTRIBUTION_CERT_PASSWORD: ${{ secrets.IOS_DISTRIBUTION_CERT_PASSWORD }}
+        run: |
+          CERT_PATH="$RUNNER_TEMP/distribution.p12"
+          KEYCHAIN_PATH="$RUNNER_TEMP/app-signing.keychain-db"
+          KEYCHAIN_PASSWORD="$(openssl rand -hex 16)"
+
+          echo "$IOS_DISTRIBUTION_CERT_B64" | base64 --decode > "$CERT_PATH"
+          test -s "$CERT_PATH" || { echo "Decoded .p12 is empty"; exit 1; }
+
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+          security import "$CERT_PATH" -P "$IOS_DISTRIBUTION_CERT_PASSWORD" \
+            -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+
+          security set-key-partition-list -S apple-tool:,apple: \
+            -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+          security list-keychains -d user -s "$KEYCHAIN_PATH" $(security list-keychains -d user | tr -d '"')
+
+          echo "KEYCHAIN_PATH=$KEYCHAIN_PATH" >> "$GITHUB_ENV"
+          echo "Certificate imported OK"
 
       - name: Install App Store Connect API key
         shell: bash
@@ -169,3 +201,7 @@ jobs:
             -t ios \
             --apiKey "$APPSTORE_API_KEY_ID" \
             --apiIssuer "$APPSTORE_API_ISSUER_ID"
+
+      - name: Clean up keychain
+        if: always()
+        run: security delete-keychain "$KEYCHAIN_PATH" 2>/dev/null || true
