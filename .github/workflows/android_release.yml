@@ -1,10 +1,14 @@
 name: Android Release
 
+# iOS-only tag releases for now: Android does not run on `v*` tags.
+# Re-enable tag triggers when Android Play signing/deploy is ready again.
 on:
-  push:
-    tags:
-      - "v*"
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Same format as git tags: vMAJOR.MINOR.PATCH+BUILD (version name used; Play versionCode still from CI)"
+        required: true
+        default: "v1.0.57+103"
 
 concurrency:
   group: android-release
@@ -40,7 +44,7 @@ jobs:
         id: version
         shell: bash
         run: |
-          RAW_TAG="${GITHUB_REF#refs/tags/}"
+          RAW_TAG="${{ github.event.inputs.release_tag }}"
           if [[ ! "$RAW_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+\+[0-9]+$ ]]; then
             echo "Invalid tag format: $RAW_TAG"
             echo "Expected format: vMAJOR.MINOR.PATCH+BUILD (example: v1.0.7+92)"
