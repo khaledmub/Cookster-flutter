@@ -4,7 +4,7 @@ description: "Cookster"
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 
-version: 1.0.54+100
+version: 1.0.55+101
 
 environment:
   sdk: ^3.7.0
@@ -102,6 +102,9 @@ dependencies:
 dependency_overrides:
   device_info_plus: ^10.1.0
   apple_pay_flutter: ^1.0.4
+  # Transitive via giphy_get (etc.): newer prebuilt iOS binaries for Xcode 26+ linker compatibility.
+  rive: ^0.14.6
+  rive_native: ^0.1.6
 
 
 dev_dependencies:
