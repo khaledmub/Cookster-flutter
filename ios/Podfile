@@ -28,9 +28,7 @@ require File.expand_path(File.join('packages', 'flutter_tools', 'bin', 'podhelpe
 flutter_ios_podfile_setup
 
 target 'Runner' do
-  # Rive (via awesome_dialog) ships static libs; :static can drop OTHER_LDFLAGS so symbols
-  # like _createRiveRenderer never reach the app link. Dynamic linkage fixes the linker.
-  use_frameworks! :linkage => :dynamic
+  use_frameworks! :linkage => :static
   flutter_install_all_ios_pods File.dirname(File.realpath(__FILE__))
   target 'RunnerTests' do
     inherit! :search_paths

@@ -1,0 +1,14 @@
+name: awesome_dialog
+description: >
+  Rive-free fork of awesome_dialog 3.3.0 (Material icon headers) for iOS builds
+  without rive_native. API matches pub.dev awesome_dialog 3.3.0.
+version: 3.3.0+1
+publish_to: "none"
+homepage: https://github.com/marcos930807/awesomeDialogs
+
+environment:
+  sdk: ">=3.0.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
