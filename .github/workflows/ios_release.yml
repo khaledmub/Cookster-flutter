@@ -16,7 +16,8 @@ permissions:
 
 env:
   FLUTTER_VERSION: "3.41.6"
-  XCODE_VERSION: "latest-stable"
+  # Pin to 16.4 (runner default). `latest-stable` can pick Xcode 26.x + iphoneos26 SDK and break Flutter/Pods.
+  XCODE_VERSION: "16.4"
 
 jobs:
   build-and-upload-testflight:
