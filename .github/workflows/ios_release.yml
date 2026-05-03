@@ -9,21 +9,29 @@ on:
       release_tag:
         description: "Release tag in format vMAJOR.MINOR.PATCH+BUILD"
         required: true
-        default: "v1.0.52+98"
+        default: "v1.0.61+107"
 
 permissions:
   contents: read
 
 env:
   FLUTTER_VERSION: "3.41.6"
-  # Pin to 16.4 (runner default). `latest-stable` can pick Xcode 26.x + iphoneos26 SDK and break Flutter/Pods.
   XCODE_VERSION: "16.4"
 
+# ──────────────────────────────────────────────────────────────────────────────
+# Job 1 — Build + Archive + Export IPA
+# Job 2 — Upload to TestFlight  (can re-run independently via workflow_dispatch)
+# ──────────────────────────────────────────────────────────────────────────────
 jobs:
-  build-and-upload-testflight:
-    name: Build IPA and Upload to TestFlight
+
+  # ── BUILD ──────────────────────────────────────────────────────────────────
+  build:
+    name: Build & Archive IPA
     runs-on: macos-15
     timeout-minutes: 60
+    outputs:
+      version_name: ${{ steps.version.outputs.version_name }}
+      build_number: ${{ steps.version.outputs.build_number }}
 
     steps:
       - name: Checkout repository
@@ -61,12 +69,10 @@ jobs:
         with:
           xcode-version: ${{ env.XCODE_VERSION }}
 
-      # Makes the selected toolchain obvious in logs; fails fast if the pin did not apply.
-      - name: Verify Xcode for this job
+      - name: Verify Xcode
         run: |
           xcodebuild -version
-          echo "iphoneos SDK:" && xcrun --sdk iphoneos --show-sdk-version
-          echo "DEVELOPER_DIR=$DEVELOPER_DIR"
+          xcrun --sdk iphoneos --show-sdk-version
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
@@ -78,6 +84,7 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
+      # ── Signing setup ────────────────────────────────────────────────────
       - name: Validate secrets
         shell: bash
         env:
@@ -95,7 +102,7 @@ jobs:
           [ -n "$IOS_DISTRIBUTION_CERT_PASSWORD" ] || { echo "Missing: IOS_DISTRIBUTION_CERT_PASSWORD"; exit 1; }
           [ -n "$IOS_PROVISION_PROFILE_B64" ]      || { echo "Missing: IOS_PROVISION_PROFILE_B64"; exit 1; }
 
-      - name: Install distribution certificate in keychain
+      - name: Install distribution certificate
         shell: bash
         env:
           IOS_DISTRIBUTION_CERT_B64: ${{ secrets.IOS_DISTRIBUTION_CERT_B64 }}
@@ -114,14 +121,12 @@ jobs:
 
           security import "$CERT_PATH" -P "$IOS_DISTRIBUTION_CERT_PASSWORD" \
             -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
-
           security set-key-partition-list -S apple-tool:,apple: \
             -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
-
-          security list-keychains -d user -s "$KEYCHAIN_PATH" $(security list-keychains -d user | tr -d '"')
+          security list-keychains -d user -s "$KEYCHAIN_PATH" \
+            $(security list-keychains -d user | tr -d '"')
 
           echo "KEYCHAIN_PATH=$KEYCHAIN_PATH" >> "$GITHUB_ENV"
-          echo "Certificate imported OK"
 
       - name: Install provisioning profile
         shell: bash
@@ -155,9 +160,39 @@ jobs:
           mkdir -p "$API_KEY_DIR"
           echo "$APPSTORE_API_KEY_B64" | base64 --decode \
             > "$API_KEY_DIR/AuthKey_${APPSTORE_API_KEY_ID}.p8"
-          test -s "$API_KEY_DIR/AuthKey_${APPSTORE_API_KEY_ID}.p8" || { echo "Decoded API key file is empty"; exit 1; }
+          test -s "$API_KEY_DIR/AuthKey_${APPSTORE_API_KEY_ID}.p8" || { echo "API key empty"; exit 1; }
           echo "API_KEY_PATH=$API_KEY_DIR/AuthKey_${APPSTORE_API_KEY_ID}.p8" >> "$GITHUB_ENV"
-          ls -la "$API_KEY_DIR/"
+
+      # ── Flutter build (no signing) ───────────────────────────────────────
+      - name: Build iOS (compile without signing)
+        run: flutter build ios --release --no-codesign
+
+      # ── Xcode archive (sign ONLY Runner target via xcodeproj settings) ──
+      - name: Set Runner-only manual signing in Xcode project
+        shell: bash
+        run: |
+          # Inject manual signing into Runner.xcodeproj build settings
+          # so we don't pass PROVISIONING_PROFILE_SPECIFIER on the xcodebuild
+          # command line (which would leak to all Pods targets).
+          ruby - <<'RUBY'
+          require 'xcodeproj'
+
+          project = Xcodeproj::Project.open('ios/Runner.xcodeproj')
+          runner_target = project.targets.find { |t| t.name == 'Runner' }
+          abort "Runner target not found" unless runner_target
+
+          runner_target.build_configurations.each do |config|
+            s = config.build_settings
+            s['CODE_SIGN_STYLE']                = 'Manual'
+            s['CODE_SIGN_IDENTITY']             = 'Apple Distribution'
+            s['DEVELOPMENT_TEAM']               = ENV['DEVELOPMENT_TEAM'] || 'C5K5D4A6G8'
+            s['PROVISIONING_PROFILE_SPECIFIER'] = ENV['PROVISIONING_PROFILE_NAME']
+            s['PROVISIONING_PROFILE']           = ENV['PROVISIONING_PROFILE_UUID']
+          end
+
+          project.save
+          puts "Runner target set to Manual signing"
+          RUBY
 
       - name: Generate ExportOptions.plist
         shell: bash
@@ -173,21 +208,14 @@ jobs:
               'com.cookster.cooksterapp': os.environ['PROVISIONING_PROFILE_NAME'],
             },
             'signingCertificate': 'Apple Distribution',
+            'teamID': 'C5K5D4A6G8',
           }
           with open('ios/ExportOptions.plist', 'wb') as f:
             plistlib.dump(pl, f)
           "
-          echo "=== ExportOptions.plist ==="
           cat ios/ExportOptions.plist
 
-      - name: Build iOS (compile without signing)
-        run: flutter build ios --release --no-codesign
-
-      - name: Archive and export IPA
-        shell: bash
-        env:
-          APPSTORE_API_KEY_ID: ${{ secrets.APPSTORE_API_KEY_ID }}
-          APPSTORE_API_ISSUER_ID: ${{ secrets.APPSTORE_API_ISSUER_ID }}
+      - name: Archive
         run: |
           xcodebuild -workspace ios/Runner.xcworkspace \
             -scheme Runner \
@@ -195,13 +223,14 @@ jobs:
             -sdk iphoneos \
             -destination 'generic/platform=iOS' \
             -archivePath "$RUNNER_TEMP/Runner.xcarchive" \
-            archive \
-            CODE_SIGN_STYLE=Manual \
-            CODE_SIGN_IDENTITY="Apple Distribution" \
-            PROVISIONING_PROFILE="$PROVISIONING_PROFILE_UUID" \
-            PROVISIONING_PROFILE_SPECIFIER="$PROVISIONING_PROFILE_NAME" \
-            DEVELOPMENT_TEAM=C5K5D4A6G8
+            archive
 
+      - name: Export IPA
+        shell: bash
+        env:
+          APPSTORE_API_KEY_ID: ${{ secrets.APPSTORE_API_KEY_ID }}
+          APPSTORE_API_ISSUER_ID: ${{ secrets.APPSTORE_API_ISSUER_ID }}
+        run: |
           xcodebuild -exportArchive \
             -archivePath "$RUNNER_TEMP/Runner.xcarchive" \
             -exportOptionsPlist ios/ExportOptions.plist \
@@ -218,19 +247,46 @@ jobs:
           path: build/ios/ipa/*.ipa
           retention-days: 30
 
+      - name: Clean up keychain
+        if: always()
+        run: security delete-keychain "$KEYCHAIN_PATH" 2>/dev/null || true
+
+  # ── UPLOAD TO TESTFLIGHT ───────────────────────────────────────────────────
+  upload-testflight:
+    name: Upload to TestFlight
+    needs: build
+    runs-on: macos-15
+    timeout-minutes: 15
+
+    steps:
+      - name: Download IPA artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ios-ipa-${{ needs.build.outputs.version_name }}-${{ needs.build.outputs.build_number }}
+          path: ipa
+
+      - name: Install App Store Connect API key
+        shell: bash
+        env:
+          APPSTORE_API_KEY_B64: ${{ secrets.APPSTORE_API_KEY_B64 }}
+          APPSTORE_API_KEY_ID: ${{ secrets.APPSTORE_API_KEY_ID }}
+        run: |
+          API_KEY_DIR="$HOME/private_keys"
+          mkdir -p "$API_KEY_DIR"
+          echo "$APPSTORE_API_KEY_B64" | base64 --decode \
+            > "$API_KEY_DIR/AuthKey_${APPSTORE_API_KEY_ID}.p8"
+          echo "API_KEY_PATH=$API_KEY_DIR/AuthKey_${APPSTORE_API_KEY_ID}.p8" >> "$GITHUB_ENV"
+
       - name: Upload to TestFlight
         env:
           APPSTORE_API_KEY_ID: ${{ secrets.APPSTORE_API_KEY_ID }}
           APPSTORE_API_ISSUER_ID: ${{ secrets.APPSTORE_API_ISSUER_ID }}
         shell: bash
         run: |
-          IPA_PATH="$(ls build/ios/ipa/*.ipa | head -n 1)"
+          IPA_PATH="$(ls ipa/*.ipa | head -n 1)"
+          echo "Uploading $IPA_PATH …"
           xcrun altool --upload-app \
             -f "$IPA_PATH" \
             -t ios \
             --apiKey "$APPSTORE_API_KEY_ID" \
             --apiIssuer "$APPSTORE_API_ISSUER_ID"
-
-      - name: Clean up keychain
-        if: always()
-        run: security delete-keychain "$KEYCHAIN_PATH" 2>/dev/null || true
