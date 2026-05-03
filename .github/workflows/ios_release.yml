@@ -167,33 +167,6 @@ jobs:
       - name: Build iOS (compile without signing)
         run: flutter build ios --release --no-codesign
 
-      # ── Xcode archive (sign ONLY Runner target via xcodeproj settings) ──
-      - name: Set Runner-only manual signing in Xcode project
-        shell: bash
-        run: |
-          # Inject manual signing into Runner.xcodeproj build settings
-          # so we don't pass PROVISIONING_PROFILE_SPECIFIER on the xcodebuild
-          # command line (which would leak to all Pods targets).
-          ruby - <<'RUBY'
-          require 'xcodeproj'
-
-          project = Xcodeproj::Project.open('ios/Runner.xcodeproj')
-          runner_target = project.targets.find { |t| t.name == 'Runner' }
-          abort "Runner target not found" unless runner_target
-
-          runner_target.build_configurations.each do |config|
-            s = config.build_settings
-            s['CODE_SIGN_STYLE']                = 'Manual'
-            s['CODE_SIGN_IDENTITY']             = 'Apple Distribution'
-            s['DEVELOPMENT_TEAM']               = ENV['DEVELOPMENT_TEAM'] || 'C5K5D4A6G8'
-            s['PROVISIONING_PROFILE_SPECIFIER'] = ENV['PROVISIONING_PROFILE_NAME']
-            s['PROVISIONING_PROFILE']           = ENV['PROVISIONING_PROFILE_UUID']
-          end
-
-          project.save
-          puts "Runner target set to Manual signing"
-          RUBY
-
       - name: Generate ExportOptions.plist
         shell: bash
         run: |
@@ -223,7 +196,10 @@ jobs:
             -sdk iphoneos \
             -destination 'generic/platform=iOS' \
             -archivePath "$RUNNER_TEMP/Runner.xcarchive" \
-            archive
+            archive \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY="Apple Distribution" \
+            DEVELOPMENT_TEAM=C5K5D4A6G8
 
       - name: Export IPA
         shell: bash
