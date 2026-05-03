@@ -26,7 +26,7 @@ jobs:
   build_ipa:
     name: Build, archive & export IPA
     runs-on: macos-15
-    timeout-minutes: 90
+    timeout-minutes: 120
     outputs:
       version_name: ${{ steps.version.outputs.version_name }}
       build_number: ${{ steps.version.outputs.build_number }}
@@ -75,8 +75,10 @@ jobs:
           channel: stable
           cache: true
 
-      - name: Install dependencies
-        run: flutter pub get
+      - name: Flutter Clean and Pub Get
+        run: |
+          flutter clean
+          flutter pub get
 
       - name: Validate secrets
         shell: bash
@@ -169,6 +171,12 @@ jobs:
           "
           cat ios/ExportOptions.plist
 
+      - name: Pod Repo Update and Install
+        run: |
+          cd ios
+          pod repo update
+          pod install --repo-update
+
       - name: Build iOS (compile without signing)
         run: flutter build ios --release --no-codesign
 
@@ -181,7 +189,7 @@ jobs:
             -sdk iphoneos \
             -destination 'generic/platform=iOS' \
             -archivePath "$RUNNER_TEMP/Runner.xcarchive" \
-            archive
+            clean archive
 
       - name: Export IPA
         shell: bash
