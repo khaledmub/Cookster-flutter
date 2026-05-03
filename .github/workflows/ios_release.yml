@@ -86,12 +86,14 @@ jobs:
           APPSTORE_API_ISSUER_ID: ${{ secrets.APPSTORE_API_ISSUER_ID }}
           IOS_DISTRIBUTION_CERT_B64: ${{ secrets.IOS_DISTRIBUTION_CERT_B64 }}
           IOS_DISTRIBUTION_CERT_PASSWORD: ${{ secrets.IOS_DISTRIBUTION_CERT_PASSWORD }}
+          IOS_PROVISION_PROFILE_B64: ${{ secrets.IOS_PROVISION_PROFILE_B64 }}
         run: |
           [ -n "$APPSTORE_API_KEY_B64" ]          || { echo "Missing: APPSTORE_API_KEY_B64"; exit 1; }
           [ -n "$APPSTORE_API_KEY_ID" ]            || { echo "Missing: APPSTORE_API_KEY_ID"; exit 1; }
           [ -n "$APPSTORE_API_ISSUER_ID" ]         || { echo "Missing: APPSTORE_API_ISSUER_ID"; exit 1; }
           [ -n "$IOS_DISTRIBUTION_CERT_B64" ]      || { echo "Missing: IOS_DISTRIBUTION_CERT_B64"; exit 1; }
           [ -n "$IOS_DISTRIBUTION_CERT_PASSWORD" ] || { echo "Missing: IOS_DISTRIBUTION_CERT_PASSWORD"; exit 1; }
+          [ -n "$IOS_PROVISION_PROFILE_B64" ]      || { echo "Missing: IOS_PROVISION_PROFILE_B64"; exit 1; }
 
       - name: Install distribution certificate in keychain
         shell: bash
@@ -121,6 +123,28 @@ jobs:
           echo "KEYCHAIN_PATH=$KEYCHAIN_PATH" >> "$GITHUB_ENV"
           echo "Certificate imported OK"
 
+      - name: Install provisioning profile
+        shell: bash
+        env:
+          IOS_PROVISION_PROFILE_B64: ${{ secrets.IOS_PROVISION_PROFILE_B64 }}
+        run: |
+          PROFILE_DIR="$HOME/Library/MobileDevice/Provisioning Profiles"
+          mkdir -p "$PROFILE_DIR"
+
+          echo "$IOS_PROVISION_PROFILE_B64" | base64 --decode > "$RUNNER_TEMP/profile.mobileprovision"
+          test -s "$RUNNER_TEMP/profile.mobileprovision" || { echo "Decoded profile is empty"; exit 1; }
+
+          PROFILE_UUID=$(/usr/libexec/PlistBuddy -c "Print UUID" /dev/stdin \
+            <<< "$(security cms -D -i "$RUNNER_TEMP/profile.mobileprovision")")
+          PROFILE_NAME=$(/usr/libexec/PlistBuddy -c "Print Name" /dev/stdin \
+            <<< "$(security cms -D -i "$RUNNER_TEMP/profile.mobileprovision")")
+
+          cp "$RUNNER_TEMP/profile.mobileprovision" "$PROFILE_DIR/$PROFILE_UUID.mobileprovision"
+
+          echo "PROVISIONING_PROFILE_UUID=$PROFILE_UUID" >> "$GITHUB_ENV"
+          echo "PROVISIONING_PROFILE_NAME=$PROFILE_NAME" >> "$GITHUB_ENV"
+          echo "Installed profile: $PROFILE_NAME ($PROFILE_UUID)"
+
       - name: Install App Store Connect API key
         shell: bash
         env:
@@ -139,12 +163,16 @@ jobs:
         shell: bash
         run: |
           python3 -c "
-          import plistlib
+          import plistlib, os
           pl = {
             'method': 'app-store',
-            'signingStyle': 'automatic',
+            'signingStyle': 'manual',
             'uploadBitcode': False,
             'uploadSymbols': True,
+            'provisioningProfiles': {
+              'com.cookster.cooksterapp': os.environ['PROVISIONING_PROFILE_NAME'],
+            },
+            'signingCertificate': 'Apple Distribution',
           }
           with open('ios/ExportOptions.plist', 'wb') as f:
             plistlib.dump(pl, f)
@@ -168,10 +196,11 @@ jobs:
             -destination 'generic/platform=iOS' \
             -archivePath "$RUNNER_TEMP/Runner.xcarchive" \
             archive \
-            -allowProvisioningUpdates \
-            -authenticationKeyPath "$API_KEY_PATH" \
-            -authenticationKeyID "$APPSTORE_API_KEY_ID" \
-            -authenticationKeyIssuerID "$APPSTORE_API_ISSUER_ID"
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY="Apple Distribution" \
+            PROVISIONING_PROFILE="$PROVISIONING_PROFILE_UUID" \
+            PROVISIONING_PROFILE_SPECIFIER="$PROVISIONING_PROFILE_NAME" \
+            DEVELOPMENT_TEAM=C5K5D4A6G8
 
           xcodebuild -exportArchive \
             -archivePath "$RUNNER_TEMP/Runner.xcarchive" \
