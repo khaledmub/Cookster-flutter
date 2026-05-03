@@ -9,7 +9,7 @@ on:
       release_tag:
         description: "Release tag in format vMAJOR.MINOR.PATCH+BUILD"
         required: true
-        default: "v1.1.18+119"
+        default: "v1.1.19+120"
 
 permissions:
   contents: read
