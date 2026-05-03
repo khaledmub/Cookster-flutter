@@ -228,7 +228,7 @@ jobs:
               'com.cookster.cooksterapp': os.environ['PROVISIONING_PROFILE_NAME'],
             },
             'signingCertificate': 'Apple Distribution',
-            'teamID': 'C5K5D4A6G8',
+            'teamID': 'Y3972XUW7F',
           }
           with open('ios/ExportOptions.plist', 'wb') as f:
             plistlib.dump(pl, f)
@@ -246,7 +246,7 @@ jobs:
             archive \
             CODE_SIGN_STYLE=Manual \
             CODE_SIGN_IDENTITY="Apple Distribution" \
-            DEVELOPMENT_TEAM=C5K5D4A6G8
+            DEVELOPMENT_TEAM=Y3972XUW7F
 
       - name: Export IPA
         shell: bash
