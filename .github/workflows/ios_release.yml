@@ -9,14 +9,15 @@ on:
       release_tag:
         description: "Release tag in format vMAJOR.MINOR.PATCH+BUILD"
         required: true
-        default: "v1.0.72+118"
+        default: "v1.1.18+119"
 
 permissions:
   contents: read
 
 env:
   FLUTTER_VERSION: "3.41.6"
-  XCODE_VERSION: "16.4"
+  # App Store Connect requires iOS 26 SDK (Xcode 26+) for upload; macos-15 + Xcode 16 is rejected.
+  XCODE_VERSION: "26.4.1"
 
 # One macOS job: flutter build + archive + export on the SAME runner.
 # Splitting compile/archive across runners breaks Pods (pub-cache symlinks,
@@ -25,7 +26,7 @@ jobs:
 
   build_ipa:
     name: Build, archive & export IPA
-    runs-on: macos-15
+    runs-on: macos-26
     timeout-minutes: 120
     outputs:
       version_name: ${{ steps.version.outputs.version_name }}
@@ -220,7 +221,7 @@ jobs:
   upload-testflight:
     name: Upload to TestFlight
     needs: build_ipa
-    runs-on: macos-15
+    runs-on: macos-26
     timeout-minutes: 15
 
     steps:
