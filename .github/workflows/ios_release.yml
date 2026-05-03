@@ -218,14 +218,14 @@ jobs:
         shell: bash
         run: |
           python3 -c "
-          import plistlib, os
+          import plistlib
           pl = {
             'method': 'app-store',
             'signingStyle': 'manual',
             'uploadBitcode': False,
             'uploadSymbols': True,
             'provisioningProfiles': {
-              'com.cookster.cooksterapp': os.environ['PROVISIONING_PROFILE_NAME'],
+              'com.cookster.cooksterapp': 'Cookster_AppStore_New',
             },
             'signingCertificate': 'Apple Distribution',
             'teamID': 'Y3972XUW7F',
@@ -235,6 +235,7 @@ jobs:
           "
           cat ios/ExportOptions.plist
 
+      # Explicit App Store profile (Runner). Pod targets strip these in Podfile post_install.
       - name: Archive
         run: |
           xcodebuild -workspace ios/Runner.xcworkspace \
@@ -246,6 +247,8 @@ jobs:
             archive \
             CODE_SIGN_STYLE=Manual \
             CODE_SIGN_IDENTITY="Apple Distribution" \
+            PROVISIONING_PROFILE=9913cd53-56af-4067-9fc6-35f62733733b \
+            PROVISIONING_PROFILE_SPECIFIER=Cookster_AppStore_New \
             DEVELOPMENT_TEAM=Y3972XUW7F
 
       - name: Export IPA
