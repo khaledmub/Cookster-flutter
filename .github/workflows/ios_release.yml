@@ -9,7 +9,7 @@ on:
       release_tag:
         description: "Release tag in format vMAJOR.MINOR.PATCH+BUILD"
         required: true
-        default: "v1.0.69+115"
+        default: "v1.0.71+117"
 
 permissions:
   contents: read
@@ -18,18 +18,15 @@ env:
   FLUTTER_VERSION: "3.41.6"
   XCODE_VERSION: "16.4"
 
-# ──────────────────────────────────────────────────────────────────────────────
-# compile  — flutter build ios --no-codesign + upload tarball (slow)
-# archive  — signing + xcodebuild archive + export IPA  → re-run THIS job alone
-#            after a failed archive/export without re-running compile
-# upload-testflight — altool upload
-# ──────────────────────────────────────────────────────────────────────────────
+# One macOS job: flutter build + archive + export on the SAME runner.
+# Splitting compile/archive across runners breaks Pods (pub-cache symlinks,
+# ffmpeg_kit / LocalPods header paths).
 jobs:
 
-  compile:
-    name: Compile iOS (no signing)
+  build_ipa:
+    name: Build, archive & export IPA
     runs-on: macos-15
-    timeout-minutes: 45
+    timeout-minutes: 90
     outputs:
       version_name: ${{ steps.version.outputs.version_name }}
       build_number: ${{ steps.version.outputs.build_number }}
@@ -79,82 +76,6 @@ jobs:
           cache: true
 
       - name: Install dependencies
-        run: flutter pub get
-
-      - name: Build iOS (compile without signing)
-        run: flutter build ios --release --no-codesign
-
-      - name: Pack build tree for archive job
-        shell: bash
-        run: |
-          set -euo pipefail
-          FILES=(
-            build/ios
-            ios/Pods
-            ios/Flutter
-            ios/Runner
-            ios/Runner.xcodeproj
-            ios/Runner.xcworkspace
-            ios/RunnerTests
-            ios/Podfile
-            ios/Podfile.lock
-            ios/LocalPods
-            pubspec.yaml
-            pubspec.lock
-          )
-          tar czf "$RUNNER_TEMP/ios-compile.tgz" "${FILES[@]}"
-          ls -lh "$RUNNER_TEMP/ios-compile.tgz"
-
-      - name: Upload compile artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: ios-compile-${{ steps.version.outputs.version_name }}-${{ steps.version.outputs.build_number }}
-          path: ${{ runner.temp }}/ios-compile.tgz
-          retention-days: 30
-
-  archive:
-    name: Sign, archive & export IPA
-    needs: compile
-    runs-on: macos-15
-    timeout-minutes: 45
-    outputs:
-      version_name: ${{ needs.compile.outputs.version_name }}
-      build_number: ${{ needs.compile.outputs.build_number }}
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Download compile artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: ios-compile-${{ needs.compile.outputs.version_name }}-${{ needs.compile.outputs.build_number }}
-          path: ${{ runner.temp }}/compile-download
-
-      - name: Restore compiled tree
-        shell: bash
-        run: |
-          tar xzf "$RUNNER_TEMP/compile-download/ios-compile.tgz" -C "$GITHUB_WORKSPACE"
-          test -d build/ios
-          test -d ios/Pods
-          # Tarball may contain symlinks pointing at the other runner's pub-cache — drop them.
-          rm -rf ios/.symlinks
-
-      - name: Select Xcode
-        uses: maxim-lobanov/setup-xcode@v1
-        with:
-          xcode-version: ${{ env.XCODE_VERSION }}
-
-      # Pods reference sources in ~/.pub-cache via symlinks.
-      # compile ran on a different runner, so we need pub-cache populated here too.
-      - name: Set up Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          flutter-version: ${{ env.FLUTTER_VERSION }}
-          channel: stable
-          cache: true
-
-      - name: Restore pub-cache (flutter pub get)
         run: flutter pub get
 
       - name: Validate secrets
@@ -248,9 +169,10 @@ jobs:
           "
           cat ios/ExportOptions.plist
 
-      # Do NOT pass CODE_SIGN_* / PROVISIONING_* / DEVELOPMENT_TEAM on the CLI — they apply to
-      # every workspace target and break Pods ("does not support provisioning profiles").
-      # Runner signing is set in ios/Runner.xcodeproj (Release/Profile) only.
+      - name: Build iOS (compile without signing)
+        run: flutter build ios --release --no-codesign
+
+      # Do not pass signing flags on CLI — they leak to Pods. Runner signing is in project.pbxproj.
       - name: Archive
         run: |
           xcodebuild -workspace ios/Runner.xcworkspace \
@@ -279,7 +201,7 @@ jobs:
       - name: Upload IPA artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ios-ipa-${{ needs.compile.outputs.version_name }}-${{ needs.compile.outputs.build_number }}
+          name: ios-ipa-${{ steps.version.outputs.version_name }}-${{ steps.version.outputs.build_number }}
           path: build/ios/ipa/*.ipa
           retention-days: 30
 
@@ -289,7 +211,7 @@ jobs:
 
   upload-testflight:
     name: Upload to TestFlight
-    needs: archive
+    needs: build_ipa
     runs-on: macos-15
     timeout-minutes: 15
 
@@ -297,7 +219,7 @@ jobs:
       - name: Download IPA artifact
         uses: actions/download-artifact@v4
         with:
-          name: ios-ipa-${{ needs.archive.outputs.version_name }}-${{ needs.archive.outputs.build_number }}
+          name: ios-ipa-${{ needs.build_ipa.outputs.version_name }}-${{ needs.build_ipa.outputs.build_number }}
           path: ipa
 
       - name: Install App Store Connect API key
