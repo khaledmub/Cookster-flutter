@@ -9,7 +9,7 @@ on:
       release_tag:
         description: "Release tag in format vMAJOR.MINOR.PATCH+BUILD"
         required: true
-        default: "v1.0.61+107"
+        default: "v1.0.63+109"
 
 permissions:
   contents: read
@@ -19,16 +19,17 @@ env:
   XCODE_VERSION: "16.4"
 
 # ──────────────────────────────────────────────────────────────────────────────
-# Job 1 — Build + Archive + Export IPA
-# Job 2 — Upload to TestFlight  (can re-run independently via workflow_dispatch)
+# compile  — flutter build ios --no-codesign + upload tarball (slow)
+# archive  — signing + xcodebuild archive + export IPA  → re-run THIS job alone
+#            after a failed archive/export without re-running compile
+# upload-testflight — altool upload
 # ──────────────────────────────────────────────────────────────────────────────
 jobs:
 
-  # ── BUILD ──────────────────────────────────────────────────────────────────
-  build:
-    name: Build & Archive IPA
+  compile:
+    name: Compile iOS (no signing)
     runs-on: macos-15
-    timeout-minutes: 60
+    timeout-minutes: 45
     outputs:
       version_name: ${{ steps.version.outputs.version_name }}
       build_number: ${{ steps.version.outputs.build_number }}
@@ -48,16 +49,14 @@ jobs:
           fi
           if [[ ! "$RAW_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+\+[0-9]+$ ]]; then
             echo "Invalid tag format: $RAW_TAG"
-            echo "Expected format: vMAJOR.MINOR.PATCH+BUILD (example: v1.0.7+92)"
             exit 1
           fi
-
           TAG_NO_V="${RAW_TAG#v}"
           VERSION_NAME="${TAG_NO_V%%+*}"
           BUILD_NUMBER="${TAG_NO_V##*+}"
           echo "version_name=$VERSION_NAME" >> "$GITHUB_OUTPUT"
           echo "build_number=$BUILD_NUMBER" >> "$GITHUB_OUTPUT"
-          echo "Releasing version $VERSION_NAME build $BUILD_NUMBER"
+          echo "Version $VERSION_NAME+$BUILD_NUMBER"
 
       - name: Update pubspec.yaml version
         run: |
@@ -70,9 +69,7 @@ jobs:
           xcode-version: ${{ env.XCODE_VERSION }}
 
       - name: Verify Xcode
-        run: |
-          xcodebuild -version
-          xcrun --sdk iphoneos --show-sdk-version
+        run: xcodebuild -version && xcrun --sdk iphoneos --show-sdk-version
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
@@ -84,7 +81,69 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
-      # ── Signing setup ────────────────────────────────────────────────────
+      - name: Build iOS (compile without signing)
+        run: flutter build ios --release --no-codesign
+
+      - name: Pack build tree for archive job
+        shell: bash
+        run: |
+          set -euo pipefail
+          FILES=(
+            build/ios
+            ios/Pods
+            ios/Flutter
+            ios/Runner
+            ios/Runner.xcodeproj
+            ios/Runner.xcworkspace
+            ios/RunnerTests
+            ios/Podfile
+            ios/Podfile.lock
+            ios/LocalPods
+            pubspec.yaml
+            pubspec.lock
+          )
+          [[ -d ios/.symlinks ]] && FILES+=(ios/.symlinks)
+          tar czf "$RUNNER_TEMP/ios-compile.tgz" "${FILES[@]}"
+          ls -lh "$RUNNER_TEMP/ios-compile.tgz"
+
+      - name: Upload compile artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-compile-${{ steps.version.outputs.version_name }}-${{ steps.version.outputs.build_number }}
+          path: ${{ runner.temp }}/ios-compile.tgz
+          retention-days: 30
+
+  archive:
+    name: Sign, archive & export IPA
+    needs: compile
+    runs-on: macos-15
+    timeout-minutes: 45
+    outputs:
+      version_name: ${{ needs.compile.outputs.version_name }}
+      build_number: ${{ needs.compile.outputs.build_number }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download compile artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ios-compile-${{ needs.compile.outputs.version_name }}-${{ needs.compile.outputs.build_number }}
+          path: ${{ runner.temp }}/compile-download
+
+      - name: Restore compiled tree
+        shell: bash
+        run: |
+          tar xzf "$RUNNER_TEMP/compile-download/ios-compile.tgz" -C "$GITHUB_WORKSPACE"
+          test -d build/ios
+          test -d ios/Pods
+
+      - name: Select Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: ${{ env.XCODE_VERSION }}
+
       - name: Validate secrets
         shell: bash
         env:
@@ -111,21 +170,17 @@ jobs:
           CERT_PATH="$RUNNER_TEMP/distribution.p12"
           KEYCHAIN_PATH="$RUNNER_TEMP/app-signing.keychain-db"
           KEYCHAIN_PASSWORD="$(openssl rand -hex 16)"
-
           echo "$IOS_DISTRIBUTION_CERT_B64" | base64 --decode > "$CERT_PATH"
           test -s "$CERT_PATH" || { echo "Decoded .p12 is empty"; exit 1; }
-
           security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
           security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
           security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
-
           security import "$CERT_PATH" -P "$IOS_DISTRIBUTION_CERT_PASSWORD" \
             -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
           security set-key-partition-list -S apple-tool:,apple: \
             -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
           security list-keychains -d user -s "$KEYCHAIN_PATH" \
             $(security list-keychains -d user | tr -d '"')
-
           echo "KEYCHAIN_PATH=$KEYCHAIN_PATH" >> "$GITHUB_ENV"
 
       - name: Install provisioning profile
@@ -135,17 +190,13 @@ jobs:
         run: |
           PROFILE_DIR="$HOME/Library/MobileDevice/Provisioning Profiles"
           mkdir -p "$PROFILE_DIR"
-
           echo "$IOS_PROVISION_PROFILE_B64" | base64 --decode > "$RUNNER_TEMP/profile.mobileprovision"
           test -s "$RUNNER_TEMP/profile.mobileprovision" || { echo "Decoded profile is empty"; exit 1; }
-
           PROFILE_UUID=$(/usr/libexec/PlistBuddy -c "Print UUID" /dev/stdin \
             <<< "$(security cms -D -i "$RUNNER_TEMP/profile.mobileprovision")")
           PROFILE_NAME=$(/usr/libexec/PlistBuddy -c "Print Name" /dev/stdin \
             <<< "$(security cms -D -i "$RUNNER_TEMP/profile.mobileprovision")")
-
           cp "$RUNNER_TEMP/profile.mobileprovision" "$PROFILE_DIR/$PROFILE_UUID.mobileprovision"
-
           echo "PROVISIONING_PROFILE_UUID=$PROFILE_UUID" >> "$GITHUB_ENV"
           echo "PROVISIONING_PROFILE_NAME=$PROFILE_NAME" >> "$GITHUB_ENV"
           echo "Installed profile: $PROFILE_NAME ($PROFILE_UUID)"
@@ -162,10 +213,6 @@ jobs:
             > "$API_KEY_DIR/AuthKey_${APPSTORE_API_KEY_ID}.p8"
           test -s "$API_KEY_DIR/AuthKey_${APPSTORE_API_KEY_ID}.p8" || { echo "API key empty"; exit 1; }
           echo "API_KEY_PATH=$API_KEY_DIR/AuthKey_${APPSTORE_API_KEY_ID}.p8" >> "$GITHUB_ENV"
-
-      # ── Flutter build (no signing) ───────────────────────────────────────
-      - name: Build iOS (compile without signing)
-        run: flutter build ios --release --no-codesign
 
       - name: Generate ExportOptions.plist
         shell: bash
@@ -219,7 +266,7 @@ jobs:
       - name: Upload IPA artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ios-ipa-${{ steps.version.outputs.version_name }}-${{ steps.version.outputs.build_number }}
+          name: ios-ipa-${{ needs.compile.outputs.version_name }}-${{ needs.compile.outputs.build_number }}
           path: build/ios/ipa/*.ipa
           retention-days: 30
 
@@ -227,10 +274,9 @@ jobs:
         if: always()
         run: security delete-keychain "$KEYCHAIN_PATH" 2>/dev/null || true
 
-  # ── UPLOAD TO TESTFLIGHT ───────────────────────────────────────────────────
   upload-testflight:
     name: Upload to TestFlight
-    needs: build
+    needs: archive
     runs-on: macos-15
     timeout-minutes: 15
 
@@ -238,7 +284,7 @@ jobs:
       - name: Download IPA artifact
         uses: actions/download-artifact@v4
         with:
-          name: ios-ipa-${{ needs.build.outputs.version_name }}-${{ needs.build.outputs.build_number }}
+          name: ios-ipa-${{ needs.archive.outputs.version_name }}-${{ needs.archive.outputs.build_number }}
           path: ipa
 
       - name: Install App Store Connect API key
