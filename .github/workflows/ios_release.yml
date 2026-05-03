@@ -9,7 +9,7 @@ on:
       release_tag:
         description: "Release tag in format vMAJOR.MINOR.PATCH+BUILD"
         required: true
-        default: "v1.0.63+109"
+        default: "v1.0.69+115"
 
 permissions:
   contents: read
@@ -102,7 +102,6 @@ jobs:
             pubspec.yaml
             pubspec.lock
           )
-          [[ -d ios/.symlinks ]] && FILES+=(ios/.symlinks)
           tar czf "$RUNNER_TEMP/ios-compile.tgz" "${FILES[@]}"
           ls -lh "$RUNNER_TEMP/ios-compile.tgz"
 
@@ -138,11 +137,25 @@ jobs:
           tar xzf "$RUNNER_TEMP/compile-download/ios-compile.tgz" -C "$GITHUB_WORKSPACE"
           test -d build/ios
           test -d ios/Pods
+          # Tarball may contain symlinks pointing at the other runner's pub-cache — drop them.
+          rm -rf ios/.symlinks
 
       - name: Select Xcode
         uses: maxim-lobanov/setup-xcode@v1
         with:
           xcode-version: ${{ env.XCODE_VERSION }}
+
+      # Pods reference sources in ~/.pub-cache via symlinks.
+      # compile ran on a different runner, so we need pub-cache populated here too.
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Restore pub-cache (flutter pub get)
+        run: flutter pub get
 
       - name: Validate secrets
         shell: bash
