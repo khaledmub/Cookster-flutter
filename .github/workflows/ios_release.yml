@@ -235,7 +235,9 @@ jobs:
           "
           cat ios/ExportOptions.plist
 
-      # Explicit App Store profile (Runner). Pod targets strip these in Podfile post_install.
+      # Do NOT pass CODE_SIGN_* / PROVISIONING_* / DEVELOPMENT_TEAM on the CLI — they apply to
+      # every workspace target and break Pods ("does not support provisioning profiles").
+      # Runner signing is set in ios/Runner.xcodeproj (Release/Profile) only.
       - name: Archive
         run: |
           xcodebuild -workspace ios/Runner.xcworkspace \
@@ -244,12 +246,7 @@ jobs:
             -sdk iphoneos \
             -destination 'generic/platform=iOS' \
             -archivePath "$RUNNER_TEMP/Runner.xcarchive" \
-            archive \
-            CODE_SIGN_STYLE=Manual \
-            CODE_SIGN_IDENTITY="Apple Distribution" \
-            PROVISIONING_PROFILE=9913cd53-56af-4067-9fc6-35f62733733b \
-            PROVISIONING_PROFILE_SPECIFIER=Cookster_AppStore_New \
-            DEVELOPMENT_TEAM=Y3972XUW7F
+            archive
 
       - name: Export IPA
         shell: bash
