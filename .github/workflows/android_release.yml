@@ -11,7 +11,7 @@ on:
       release_tag:
         description: "Same format as git tags: vMAJOR.MINOR.PATCH+BUILD (version name used; Play versionCode from CI run)"
         required: true
-        default: "v1.1.19+120"
+        default: "v1.1.20+121"
 
 concurrency:
   group: android-release

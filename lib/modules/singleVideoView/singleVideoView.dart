@@ -96,6 +96,22 @@ class _SingleVideoScreenState extends State<SingleVideoScreen>
   bool _isImageMode = false;
   RxInt localFollowersCount = 0.obs;
 
+  String? _resolveMediaUrl({String? primary, String? fallback}) {
+    final primaryValue = primary?.trim();
+    if (primaryValue != null && primaryValue.isNotEmpty) {
+      return primaryValue.startsWith('http')
+          ? primaryValue
+          : '${Common.videoUrl}/$primaryValue';
+    }
+    final fallbackValue = fallback?.trim();
+    if (fallbackValue != null && fallbackValue.isNotEmpty) {
+      return fallbackValue.startsWith('http')
+          ? fallbackValue
+          : '${Common.videoUrl}/$fallbackValue';
+    }
+    return null;
+  }
+
   // static final CustomCacheManager _cacheManager = CustomCacheManager._();
 
   @override
@@ -219,7 +235,12 @@ class _SingleVideoScreenState extends State<SingleVideoScreen>
       return;
     }
 
-    if (widget.videoUrl == null || widget.videoUrl!.isEmpty) {
+    final String? resolvedVideoUrl = _resolveMediaUrl(
+      primary: widget.videoUrl,
+      fallback: widget.image,
+    );
+
+    if (resolvedVideoUrl == null) {
       if (mounted) {
         setState(() {
           _isInitializing = false;
@@ -239,9 +260,7 @@ class _SingleVideoScreenState extends State<SingleVideoScreen>
       return;
     }
 
-    final String videoUrl = widget.videoUrl!.startsWith('http')
-        ? widget.videoUrl!
-        : '${Common.videoUrl}/${widget.videoUrl}';
+    final String videoUrl = resolvedVideoUrl;
     print("PRINTING VIDEO URL: ${videoUrl}");
 
     try {
@@ -394,28 +413,48 @@ class _SingleVideoScreenState extends State<SingleVideoScreen>
                   },
                   onDoubleTap: _isImageMode ? null : _toggleMute,
                   child: _isImageMode
-                      ? CachedNetworkImage(
-                          imageUrl: widget.videoUrl != null && widget.videoUrl!.startsWith('http')
-                              ? widget.videoUrl!
-                              : '${Common.videoUrl}/${widget.image}',
-                          fit: BoxFit.contain,
-                          placeholder: (context, url) => Center(
-                            child: CircularProgressIndicator(color: Colors.white),
-                          ),
-                          errorWidget: (context, url, error) => Center(
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(Icons.broken_image, color: Colors.white, size: 48),
-                                SizedBox(height: 8),
-                                Text(
-                                  'failed_to_load_video'.tr,
-                                  style: TextStyle(color: Colors.white),
-                                ),
-                              ],
+                      ? (() {
+                          final imageUrl = _resolveMediaUrl(
+                            // For image posts, API may still send videoUrl;
+                            // always prefer dedicated image field first.
+                            primary: widget.image,
+                            fallback: widget.videoUrl,
+                          );
+                          if (imageUrl == null) {
+                            return Center(
+                              child: Text(
+                                'failed_to_load_video'.tr,
+                                style: const TextStyle(color: Colors.white),
+                              ),
+                            );
+                          }
+                          return CachedNetworkImage(
+                            imageUrl: imageUrl,
+                            fit: BoxFit.contain,
+                            placeholder: (context, url) => const Center(
+                              child: CircularProgressIndicator(
+                                color: Colors.white,
+                              ),
                             ),
-                          ),
-                        )
+                            errorWidget: (context, url, error) => Center(
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(
+                                    Icons.broken_image,
+                                    color: Colors.white,
+                                    size: 48,
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    'failed_to_load_video'.tr,
+                                    style: const TextStyle(color: Colors.white),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        })()
                       : _isInitializing
                           ? Center(
                             child: Image.network(

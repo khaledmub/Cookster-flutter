@@ -872,8 +872,11 @@ class _VisitProfileViewState extends State<VisitProfileView>
                                             isImage: video.isImage.toString(),
                                           ),
                                         )!.then((result) async {
-                                          await visitProfileController
-                                              .fetchUserProfile(widget.userId);
+                                          if (result is Map &&
+                                              result['followerChanged'] == true) {
+                                            await visitProfileController
+                                                .fetchUserProfile(widget.userId);
+                                          }
                                         });
                                       },
                                       child: Stack(

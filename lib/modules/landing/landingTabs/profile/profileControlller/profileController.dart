@@ -598,6 +598,29 @@ class ProfileController extends GetxController {
     }
   }
 
+  /// Lightweight refresh: only re-counts likes from Firestore
+  /// without reloading the full profile (avoids UI flicker on back-navigation).
+  Future<void> refreshLikesOnly() async {
+    try {
+      if (videoIds.isEmpty) return;
+      int likesCount = 0;
+      for (var videoId in videoIds) {
+        var videoDoc = await FirebaseFirestore.instance
+            .collection('videos')
+            .doc(videoId)
+            .get();
+        if (videoDoc.exists) {
+          var data = videoDoc.data() as Map<String, dynamic>;
+          List<String> likes = List<String>.from(data['likes'] ?? []);
+          likesCount += likes.length;
+        }
+      }
+      totalLikes.value = likesCount;
+    } catch (e) {
+      print("Error refreshing likes: $e");
+    }
+  }
+
   String? validatePassword(String? password) {
     if (password == null || password.isEmpty) {
       return 'password_required_error'.tr;

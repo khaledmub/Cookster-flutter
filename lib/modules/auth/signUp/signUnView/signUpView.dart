@@ -861,6 +861,153 @@ class _SignVpViewState extends State<SignVpView> {
                                       ),
                                       SizedBox(height: 10),
 
+                                      // ── COMPANY TYPE (MOVED HERE) ──
+                                      if (signUpController
+                                              .selectedProfileId
+                                              .value ==
+                                          2)
+                                        Obx(
+                                          () =>
+                                              signUpController
+                                                          .selectedProfileId
+                                                          .value ==
+                                                      2
+                                                  ? Column(
+                                                    crossAxisAlignment:
+                                                        CrossAxisAlignment
+                                                            .start,
+                                                    children: [
+                                                      DropdownFlutter<
+                                                        String
+                                                      >.new(
+                                                        validator: (value) {
+                                                          if (value == null ||
+                                                              value.isEmpty) {
+                                                            signUpController
+                                                                    .accountTypeError
+                                                                    .value =
+                                                                'please_select_account_type'
+                                                                    .tr;
+                                                          }
+                                                          return null;
+                                                        },
+                                                        closedHeaderPadding:
+                                                            const EdgeInsets.symmetric(
+                                                              horizontal: 16,
+                                                              vertical: 16,
+                                                            ),
+                                                        decoration: CustomDropdownDecoration(
+                                                          hintStyle: TextStyle(
+                                                            color:
+                                                                Colors.black,
+                                                          ),
+                                                          prefixIcon: Padding(
+                                                            padding:
+                                                                const EdgeInsets.only(
+                                                                  right: 8.0,
+                                                                ),
+                                                            child: SvgPicture.asset(
+                                                              "assets/icons/business.svg",
+                                                            ),
+                                                          ),
+                                                          closedBorderRadius:
+                                                              BorderRadius.circular(
+                                                                8,
+                                                              ),
+                                                          expandedBorderRadius:
+                                                              BorderRadius.circular(
+                                                                8,
+                                                              ),
+                                                          closedFillColor:
+                                                              Colors
+                                                                  .transparent,
+                                                          closedBorder: Border.all(
+                                                            color:
+                                                                signUpController
+                                                                        .accountTypeError
+                                                                        .isNotEmpty
+                                                                    ? Colors
+                                                                        .red
+                                                                    : Color(
+                                                                      0xFFBDBDBD,
+                                                                    ).withOpacity(
+                                                                      0.3,
+                                                                    ),
+                                                          ),
+                                                          closedSuffixIcon:
+                                                              const Icon(
+                                                                Icons
+                                                                    .keyboard_arrow_down_rounded,
+                                                                size: 18,
+                                                              ),
+                                                        ),
+                                                        hintText:
+                                                            "select_account_type"
+                                                                .tr,
+                                                        items:
+                                                            typeOfAccountName,
+                                                        onChanged: (
+                                                          String?
+                                                          selectedValue,
+                                                        ) {
+                                                          if (selectedValue !=
+                                                              null) {
+                                                            int? selectedId =
+                                                                typeOfAccount[selectedValue]; // Get ID from map
+                                                            signUpController
+                                                                    .accountType
+                                                                    .value =
+                                                                selectedId
+                                                                    .toString();
+                                                            signUpController
+                                                                .accountTypeError
+                                                                .value = "";
+                                                            print(
+                                                              "Selected Account Type: $selectedId",
+                                                            );
+                                                          }
+                                                        },
+                                                      ),
+                                                      Obx(
+                                                        () =>
+                                                            signUpController
+                                                                    .accountTypeError
+                                                                    .value
+                                                                    .isNotEmpty
+                                                                ? Padding(
+                                                                  padding: EdgeInsets.only(
+                                                                    top: 4.h,
+                                                                    left:
+                                                                        isRtl
+                                                                            ? 8.w
+                                                                            : 8.w,
+                                                                    right:
+                                                                        isRtl
+                                                                            ? 8.w
+                                                                            : 8.w,
+                                                                  ),
+                                                                  child: Text(
+                                                                    signUpController
+                                                                        .accountTypeError
+                                                                        .value,
+                                                                    style: TextStyle(
+                                                                      color:
+                                                                          Theme.of(
+                                                                            context,
+                                                                          ).colorScheme.error,
+                                                                      fontSize:
+                                                                          13,
+                                                                    ),
+                                                                  ),
+                                                                )
+                                                                : SizedBox.shrink(),
+                                                      ),
+                                                    ],
+                                                  )
+                                                  : SizedBox.shrink(),
+                                        ),
+                                      SizedBox(height: 10),
+
                                       // Country Selection
                                       Column(
                                         crossAxisAlignment:
@@ -1425,172 +1572,7 @@ class _SignVpViewState extends State<SignVpView> {
                                             : SizedBox.shrink();
                                       }),
 
-                                      // if (signUpController
-                                      //         .selectedProfileId
-                                      //         .value ==
-                                      //     2)
-                                      //   SizedBox(height: 10),
-                                      if (signUpController
-                                              .selectedProfileId
-                                              .value ==
-                                          2)
-                                        Obx(
-                                          () =>
-                                              signUpController
-                                                          .selectedProfileId
-                                                          .value ==
-                                                      2
-                                                  ? Column(
-                                                    crossAxisAlignment:
-                                                        CrossAxisAlignment
-                                                            .start,
-                                                    children: [
-                                                      // Text(
-                                                      //   "select_account_type"
-                                                      //       .tr,
-                                                      //   style: TextStyle(
-                                                      //     color:
-                                                      //         ColorUtils
-                                                      //             .darkBrown,
-                                                      //     fontWeight:
-                                                      //         FontWeight.w500,
-                                                      //     fontSize: 16.sp,
-                                                      //   ),
-                                                      // ),
-                                                      // SizedBox(height: 10),
-                                                      // spacing fix
-                                                      DropdownFlutter<
-                                                        String
-                                                      >.new(
-                                                        validator: (value) {
-                                                          if (value == null ||
-                                                              value.isEmpty) {
-                                                            signUpController
-                                                                    .accountTypeError
-                                                                    .value =
-                                                                'please_select_account_type'
-                                                                    .tr;
-                                                          }
-                                                          return null;
-                                                        },
 
-                                                        closedHeaderPadding:
-                                                            const EdgeInsets.symmetric(
-                                                              horizontal: 16,
-                                                              vertical: 16,
-                                                            ),
-                                                        decoration: CustomDropdownDecoration(
-                                                          hintStyle: TextStyle(
-                                                            color:
-                                                                Colors.black,
-                                                          ),
-                                                          prefixIcon: Padding(
-                                                            padding:
-                                                                const EdgeInsets.only(
-                                                                  right: 8.0,
-                                                                ),
-                                                            child: SvgPicture.asset(
-                                                              "assets/icons/business.svg",
-                                                            ),
-                                                          ),
-                                                          closedBorderRadius:
-                                                              BorderRadius.circular(
-                                                                8,
-                                                              ),
-                                                          expandedBorderRadius:
-                                                              BorderRadius.circular(
-                                                                8,
-                                                              ),
-                                                          closedFillColor:
-                                                              Colors
-                                                                  .transparent,
-                                                          closedBorder: Border.all(
-                                                            color:
-                                                                signUpController
-                                                                        .accountTypeError
-                                                                        .isNotEmpty
-                                                                    ? Colors
-                                                                        .red
-                                                                    : Color(
-                                                                      0xFFBDBDBD,
-                                                                    ).withOpacity(
-                                                                      0.3,
-                                                                    ),
-                                                          ),
-                                                          closedSuffixIcon:
-                                                              const Icon(
-                                                                Icons
-                                                                    .keyboard_arrow_down_rounded,
-                                                                size: 18,
-                                                              ),
-                                                        ),
-                                                        hintText:
-                                                            "select_account_type"
-                                                                .tr,
-                                                        items:
-                                                            typeOfAccountName,
-                                                        onChanged: (
-                                                          String?
-                                                          selectedValue,
-                                                        ) {
-                                                          if (selectedValue !=
-                                                              null) {
-                                                            int? selectedId =
-                                                                typeOfAccount[selectedValue]; // Get ID from map
-                                                            signUpController
-                                                                    .accountType
-                                                                    .value =
-                                                                selectedId
-                                                                    .toString();
-                                                            signUpController
-                                                                .accountTypeError
-                                                                .value = "";
-                                                            print(
-                                                              "Selected Account Type: $selectedId",
-                                                            );
-                                                          }
-                                                        },
-                                                      ),
-
-                                                      Obx(
-                                                        () =>
-                                                            signUpController
-                                                                    .accountTypeError
-                                                                    .value
-                                                                    .isNotEmpty
-                                                                ? Padding(
-                                                                  padding: EdgeInsets.only(
-                                                                    top: 4.h,
-                                                                    left:
-                                                                        isRtl
-                                                                            ? 8.w
-                                                                            : 8.w,
-                                                                    right:
-                                                                        isRtl
-                                                                            ? 8.w
-                                                                            : 8.w,
-                                                                  ),
-                                                                  child: Text(
-                                                                    signUpController
-                                                                        .accountTypeError
-                                                                        .value,
-                                                                    style: TextStyle(
-                                                                      color:
-                                                                          Theme.of(
-                                                                            context,
-                                                                          ).colorScheme.error,
-                                                                      fontSize:
-                                                                          13,
-                                                                    ),
-                                                                  ),
-                                                                )
-                                                                : SizedBox.shrink(),
-                                                      ),
-                                                    ],
-                                                  )
-                                                  : SizedBox.shrink(),
-                                        ),
-                                      SizedBox(height: 10),
 
                                       Obx(() {
                                         return AppButton(

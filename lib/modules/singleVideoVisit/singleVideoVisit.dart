@@ -159,7 +159,16 @@ class _SingleVideoVisitState extends State<SingleVisitVideo>
 
     _hasInitializedPlayer = true;
 
-    final videoUrl = video!.videoUrl?.isNotEmpty == true ? video!.videoUrl! : '${Common.videoUrl}/${video!.video}';
+    if (video!.isImage.toString() == '1') {
+      if (mounted) {
+        setState(() {
+          _isInitializing = false;
+        });
+      }
+      return;
+    }
+
+    final videoUrl = video.videoUrl?.isNotEmpty == true ? video.videoUrl! : '${Common.videoUrl}/${video.video}';
     print("PRINTING VIDEO URL: $videoUrl");
 
     try {
@@ -312,7 +321,12 @@ class _SingleVideoVisitState extends State<SingleVisitVideo>
               );
             }
             if (singleVideoController.isLoading.value) {
-              return Image.network("${Common.videoUrl}/${video.image}");
+              return (video.image != null && video.image!.isNotEmpty)
+                  ? Image.network(
+                      "${Common.videoUrl}/${video.image}",
+                      errorBuilder: (context, error, stackTrace) => const SizedBox(),
+                    )
+                  : const SizedBox();
             }
 
             _trackVideoView(
@@ -328,11 +342,11 @@ class _SingleVideoVisitState extends State<SingleVisitVideo>
                 Positioned.fill(
                   child: GestureDetector(
                     onTap: () {
-                      if (!_isInitializing) {
+                      if (!_isInitializing && video.isImage.toString() != '1') {
                         _togglePlayPause();
                       }
                     },
-                    onDoubleTap: _toggleMute,
+                    onDoubleTap: video.isImage.toString() == '1' ? null : _toggleMute,
                     child:
                         _isInitializing
                             ? Center(
@@ -341,6 +355,23 @@ class _SingleVideoVisitState extends State<SingleVisitVideo>
                                 size: 80,
                               ),
                             )
+                            : video.isImage.toString() == '1'
+                            ? Container(
+                                color: Colors.black,
+                                width: double.infinity,
+                                height: double.infinity,
+                                child: Center(
+                                  child: Image.network(
+                                    (video.videoUrl?.isNotEmpty == true) 
+                                        ? video.videoUrl! 
+                                        : "${Common.videoUrl}/${video.video}",
+                                    fit: BoxFit.contain,
+                                    width: double.infinity,
+                                    height: double.infinity,
+                                    errorBuilder: (context, error, stackTrace) => const SizedBox(),
+                                  ),
+                                ),
+                              )
                             : _chewieController != null
                             ? Chewie(controller: _chewieController!)
                             : SizedBox.shrink(),
@@ -353,7 +384,7 @@ class _SingleVideoVisitState extends State<SingleVisitVideo>
                   child:
                       _isInitializing || _videoPlayerController == null
                           ? SizedBox.shrink()
-                          : video.isImage == 1
+                          : video.isImage.toString() == '1'
                           ? SizedBox.shrink()
                           : EnhancedSeekBar(
                             controller: _videoPlayerController!,

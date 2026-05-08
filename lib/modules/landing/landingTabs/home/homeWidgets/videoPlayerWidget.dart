@@ -284,6 +284,28 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget>
       child: Stack(
         alignment: Alignment.center,
         children: [
+          // ── Image post: show centred, full-screen ──────────────────────────
+          if (widget.isImage == 1)
+            GestureDetector(
+              onDoubleTapDown: _onDoubleTap,
+              onTap: _togglePlayPause,
+              child: Container(
+                color: Colors.black,
+                width: double.infinity,
+                height: double.infinity,
+                child: Center(
+                  child: CachedNetworkImage(
+                    imageUrl: widget.videoUrl,
+                    fit: BoxFit.contain,
+                    width: double.infinity,
+                    height: double.infinity,
+                    errorWidget: (context, url, error) => const SizedBox(),
+                  ),
+                ),
+              ),
+            )
+          else
+          // ── Video post ─────────────────────────────────────────────────────
           GestureDetector(
             onDoubleTapDown: _onDoubleTap,
             onTap: _togglePlayPause,
@@ -293,22 +315,32 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget>
                   ? RepaintBoundary(
                       child: Chewie(controller: _chewieController!),
                     )
-                  : Shimmer.fromColors(
-                      baseColor: Colors.grey.shade800,
-                      highlightColor: Colors.grey.shade600,
-                      child: Container(
-                        color: Colors.black,
-                        width: double.infinity,
-                        height: double.infinity,
-                        child: Center(
+                  : Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        Container(
+                          color: Colors.black,
                           child: CachedNetworkImage(
                             imageUrl: widget.thumbnailUrl,
                             fit: BoxFit.cover,
-                            width: double.infinity,
-                            height: double.infinity,
+                            errorWidget: (context, url, error) => const SizedBox(),
                           ),
                         ),
-                      ),
+                        Container(
+                          color: Colors.black.withOpacity(0.3),
+                          child: Center(
+                            child: SizedBox(
+                              width: 40,
+                              height: 40,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 3,
+                                valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
+                                backgroundColor: Colors.white.withOpacity(0.2),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
             ),
           ),

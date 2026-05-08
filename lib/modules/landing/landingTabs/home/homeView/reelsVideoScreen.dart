@@ -1685,53 +1685,20 @@ class _ReelsSkeletonLoader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Shimmer.fromColors(
-      baseColor: Colors.grey.shade900,
-      highlightColor: Colors.grey.shade700,
-      child: Stack(
-        children: [
-          Container(color: Colors.black),
-          Align(
-            alignment: Alignment.bottomLeft,
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(height: 16, width: 140, color: Colors.white),
-                  const SizedBox(height: 8),
-                  Container(height: 12, width: 220, color: Colors.white),
-                  const SizedBox(height: 6),
-                  Container(height: 12, width: 180, color: Colors.white),
-                ],
-              ),
-            ),
+    return Container(
+      color: Colors.black,
+      width: double.infinity,
+      height: double.infinity,
+      child: Center(
+        child: SizedBox(
+          width: 40,
+          height: 40,
+          child: CircularProgressIndicator(
+            strokeWidth: 3,
+            valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
+            backgroundColor: Colors.white.withOpacity(0.2),
           ),
-          Align(
-            alignment: Alignment.bottomRight,
-            child: Padding(
-              padding: const EdgeInsets.only(right: 16, bottom: 60),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: List.generate(
-                  4,
-                  (_) => Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    child: Container(
-                      width: 44,
-                      height: 44,
-                      decoration: const BoxDecoration(
-                        color: Colors.white,
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }

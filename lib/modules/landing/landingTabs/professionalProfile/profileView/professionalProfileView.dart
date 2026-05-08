@@ -915,8 +915,9 @@ class _ProfessionalProfileViewState extends State<ProfessionalProfileView>
                                                 userEmail: video.userEmail,
                                               ),
                                             )!.then((_) {
+                                              // Only refresh likes count, not the entire profile
                                               profileController
-                                                  .getUserDetails();
+                                                  .refreshLikesOnly();
                                             });
                                           },
                                           child: Stack(

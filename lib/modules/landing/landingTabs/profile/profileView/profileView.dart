@@ -566,8 +566,8 @@ class _ProfileViewState extends State<ProfileView>
                                                 .toString(),
                                           ),
                                         )!.then((_) {
-                                          profileController
-                                              .getUserDetails();
+                                          // Only refresh likes count, not the entire profile
+                                          profileController.refreshLikesOnly();
                                         });
                                       },
                                       child: Stack(
