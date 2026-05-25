@@ -8,9 +8,11 @@ import 'package:get/get.dart';
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../../appBindings/app_bindings.dart';
 import '../../../appUtils/colorUtils.dart';
 import '../addReview/addReviewView/addReviewView.dart';
 import '../viewReviewController/viewReviewController.dart';
+import 'package:cookster/core/media/media_url_resolver.dart';
 
 class ViewReviews extends StatefulWidget {
   final String professionalId;
@@ -378,8 +380,11 @@ class _ViewReviewsState extends State<ViewReviews> {
                               child: AppButton(
                                 onTap: () {
                                   Get.to(
-                                    AddReviewView(
+                                    () => AddReviewView(
                                       professionalId: widget.professionalId,
+                                    ),
+                                    binding: AddReviewBinding(
+                                      widget.professionalId,
                                     ),
                                   );
                                 },
@@ -575,7 +580,7 @@ class _ViewReviewsState extends State<ViewReviews> {
                   color: Colors.grey[200],
                 ),
                 child: CachedNetworkImage(
-                  imageUrl: '${Common.profileImage}/$avatarPath',
+                  imageUrl: MediaUrlResolver.profileImageUrl(avatarPath) ?? '',
                   imageBuilder:
                       (context, imageProvider) => Container(
                         decoration: BoxDecoration(

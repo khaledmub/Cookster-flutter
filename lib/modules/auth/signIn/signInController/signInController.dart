@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:math';
+import 'package:cookster/appBindings/app_bindings.dart';
 import 'package:cookster/appRoutes/appRoutes.dart';
 import 'package:cookster/appUtils/apiEndPoints.dart';
 import 'package:cookster/modules/landing/landingView/landingView.dart';
@@ -36,6 +37,18 @@ class LogInController extends GetxController {
   // Firestore instance
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
+  static String _userIdFromApi(dynamic id) => id?.toString() ?? '';
+
+  static int _entityFromApi(dynamic entity) {
+    if (entity is int) {
+      return entity;
+    }
+    if (entity is String) {
+      return int.tryParse(entity) ?? 0;
+    }
+    return 0;
+  }
+
   void togglePasswordVisibility() {
     isObscure.value = !isObscure.value;
   }
@@ -66,13 +79,13 @@ class LogInController extends GetxController {
     String? deviceToken,
   ) async {
     try {
-      print("This is the device token: ${deviceToken}");
-      await _firestore.collection('users').doc(user['id']).set({
+      debugPrint("This is the device token: ${deviceToken}");
+      await _firestore.collection('users').doc(_userIdFromApi(user['id'])).set({
         "uuid": deviceToken, // Add UUID to Firestore
       }, SetOptions(merge: true)); // Merge to avoid overwriting other fields
-      print('Firestore updated for user: ${user['id']}');
+      debugPrint('Firestore updated for user: ${user['id']}');
     } catch (e) {
-      print('Error updating Firestore: $e');
+      debugPrint('Error updating Firestore: $e');
     }
   }
 
@@ -82,14 +95,14 @@ class LogInController extends GetxController {
   //   try {
   //     // Fixed topic
   //     await messaging.subscribeToTopic("cookster");
-  //     print("✅ Subscribed to cookster");
+  //     debugPrint("✅ Subscribed to cookster");
   //
   //     // Dynamic topic based on entity
   //     String topicName = "type_$entity";
   //     await messaging.subscribeToTopic(topicName);
-  //     print("✅ Subscribed to $topicName");
+  //     debugPrint("✅ Subscribed to $topicName");
   //   } catch (e) {
-  //     print("❌ Error subscribing to topics: $e");
+  //     debugPrint("❌ Error subscribing to topics: $e");
   //   }
   // }
 
@@ -114,17 +127,21 @@ class LogInController extends GetxController {
 
         SharedPreferences prefs = await SharedPreferences.getInstance();
         await prefs.setString('auth_token', token);
-        await prefs.setInt('entity', user['entity']);
+        ApiClient.setAuthToken(token);
+        await prefs.setInt('entity', _entityFromApi(user['entity']));
 
-        await prefs.setString('user_id', user['id']);
-        await prefs.setString('user_image', user['image'] ?? '');
-        print('Saving entity_details: ${user['entity_details']}');
+        await prefs.setString('user_id', _userIdFromApi(user['id']));
+        await prefs.setString(
+          'user_image',
+          user['image']?.toString() ?? '',
+        );
+        debugPrint('Saving entity_details: ${user['entity_details']}');
         await prefs.setString(
           'entity_details',
           jsonEncode(user['entity_details']),
         );
 
-        print(
+        debugPrint(
           "PRINTING THE ID: ${user['entity']} AND THE TOKEN: ${deviceToken}",
         );
 
@@ -172,21 +189,25 @@ class LogInController extends GetxController {
         String token = data['token'];
         Map<String, dynamic> user = data['user'];
 
-        print("PRINTING THE ENTITY");
+        debugPrint("PRINTING THE ENTITY");
 
-        print(user['entity']);
+        debugPrint('${user['entity']}');
 
         SharedPreferences prefs = await SharedPreferences.getInstance();
         await prefs.setString('auth_token', token);
-        await prefs.setInt('entity', user['entity']);
-        await prefs.setString('user_id', user['id']);
-        await prefs.setString('user_image', user['image'] ?? '');
+        ApiClient.setAuthToken(token);
+        await prefs.setInt('entity', _entityFromApi(user['entity']));
+        await prefs.setString('user_id', _userIdFromApi(user['id']));
+        await prefs.setString(
+          'user_image',
+          user['image']?.toString() ?? '',
+        );
         // await prefs.setString(
         //   'entity_details',
         //   jsonEncode(user['entity_details']),
         // );
 
-        print('Saving entity_details: ${user['entity_details']}');
+        debugPrint('Saving entity_details: ${user['entity_details']}');
         await prefs.setString(
           'entity_details',
           jsonEncode(user['entity_details']),
@@ -197,9 +218,12 @@ class LogInController extends GetxController {
         // Update Firestore with user data and UUID
         await _updateFirestoreUser(user, deviceToken);
 
-        print("NAVIGATING TO THE USER");
+        debugPrint("NAVIGATING TO THE USER");
 
-        Get.offAll(Landing(initialIndex: 0));
+        Get.offAll(
+          () => Landing(initialIndex: 0),
+          binding: LandingBinding(),
+        );
       } else {
         Get.toNamed(
           AppRoutes.signUp,
@@ -214,10 +238,13 @@ class LogInController extends GetxController {
           ),
         );
       }
-    } catch (e) {
+    } catch (e, stack) {
+      debugPrint('loginWithEmailUser error: $e\n$stack');
       ScaffoldMessenger.of(Get.context!).showSnackBar(
         SnackBar(
-          content: Text('Something went wrong. Please try again.'),
+          content: Text(
+            'something_went_wrong'.tr,
+          ),
           backgroundColor: Colors.red,
           behavior: SnackBarBehavior.floating,
         ),
@@ -288,7 +315,7 @@ class LogInController extends GetxController {
       // Call loginWithEmailUser to handle API and Firestore update
       await loginWithEmailUser();
     } catch (error) {
-      print('Apple sign-in error: $error');
+      debugPrint('Apple sign-in error: $error');
       ScaffoldMessenger.of(Get.context!).showSnackBar(
         SnackBar(
           content: Text('apple_signin_failed'.tr),
@@ -339,19 +366,24 @@ class LogInController extends GetxController {
 
       // Call loginWithEmailUser to handle API and Firestore update
       await loginWithEmailUser();
-    } catch (error) {
-      print('Google sign-in error: $error');
-      String message = "google_signin_failed".tr;
-      if (error is FirebaseAuthException) {
-        message = "Google sign-in failed (${error.code}). ${error.message ?? ''}";
-      } else if (error is Exception) {
-        message = error.toString();
-      }
-      ScaffoldMessenger.of(
-        Get.context!,
-      ).showSnackBar(
+    } on FirebaseAuthException catch (error, stack) {
+      debugPrint('Google FirebaseAuth error: ${error.code} ${error.message}\n$stack');
+      ScaffoldMessenger.of(Get.context!).showSnackBar(
         SnackBar(
-          content: Text(message),
+          content: Text(
+            error.code == 'missing-id-token'
+                ? 'google_signin_failed'.tr
+                : 'Google: ${error.code}',
+          ),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } catch (error, stack) {
+      debugPrint('Google sign-in error: $error\n$stack');
+      ScaffoldMessenger.of(Get.context!).showSnackBar(
+        SnackBar(
+          content: Text('google_signin_failed'.tr),
           backgroundColor: Colors.red,
           behavior: SnackBarBehavior.floating,
         ),
@@ -394,7 +426,7 @@ class LogInController extends GetxController {
       // Call loginWithEmailUser to handle API and Firestore update
       await loginWithEmailUser();
     } catch (error) {
-      print('Facebook sign-in error: $error');
+      debugPrint('Facebook sign-in error: $error');
       ScaffoldMessenger.of(
         Get.context!,
       ).showSnackBar(SnackBar(content: Text("google_signin_failed".tr)));
@@ -411,6 +443,7 @@ class LogInController extends GetxController {
   Future<void> logout() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     await prefs.remove('auth_token');
+    ApiClient.setAuthToken(null);
 
     await _googleSignIn.signOut();
 

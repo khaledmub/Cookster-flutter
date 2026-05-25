@@ -1,24 +1,32 @@
+import 'package:cookster/core/media/media_url_resolver.dart';
+
+import 'videoFeedModel.dart';
+
 class SavedVideosModel {
   bool? status;
   List<SavedVideos>? videos;
+  FeedMeta? meta;
 
-  SavedVideosModel({this.status, this.videos});
+  SavedVideosModel({this.status, this.videos, this.meta});
 
   SavedVideosModel.fromJson(Map<String, dynamic> json) {
     status = json['status'];
     if (json['videos'] != null) {
       videos = <SavedVideos>[];
       json['videos'].forEach((v) {
-        videos!.add(new SavedVideos.fromJson(v));
+        videos!.add(SavedVideos.fromJson(v));
       });
+    }
+    if (json['meta'] != null) {
+      meta = FeedMeta.fromJson(json['meta'] as Map<String, dynamic>);
     }
   }
 
   Map<String, dynamic> toJson() {
-    final Map<String, dynamic> data = new Map<String, dynamic>();
-    data['status'] = this.status;
-    if (this.videos != null) {
-      data['videos'] = this.videos!.map((v) => v.toJson()).toList();
+    final Map<String, dynamic> data = <String, dynamic>{};
+    data['status'] = status;
+    if (videos != null) {
+      data['videos'] = videos!.map((v) => v.toJson()).toList();
     }
     return data;
   }
@@ -40,6 +48,8 @@ class SavedVideos {
   dynamic image;
   dynamic video;
   dynamic videoUrl;
+  dynamic thumbnailUrl;
+  dynamic imageUrl;
   dynamic state;
   dynamic status;
   dynamic createdAt;
@@ -92,6 +102,8 @@ class SavedVideos {
     image = json['image'];
     video = json['video'];
     videoUrl = json['video_url'];
+    thumbnailUrl = json['thumbnail_url'];
+    imageUrl = json['image_url'];
     state = json['state'];
     status = json['status'];
     createdAt = json['created_at'];
@@ -131,4 +143,17 @@ class SavedVideos {
     data['following_count'] = this.followingCount;
     return data;
   }
+}
+
+extension SavedVideosMedia on SavedVideos {
+  String? get resolvedThumbnailUrl => MediaUrlResolver.thumbnailUrl(
+        thumbnailUrl: thumbnailUrl?.toString(),
+        imageUrl: imageUrl?.toString(),
+        image: image?.toString(),
+      );
+
+  String? get resolvedPlaybackUrl => MediaUrlResolver.playbackUrl(
+        videoUrl: videoUrl?.toString(),
+        video: video?.toString(),
+      );
 }

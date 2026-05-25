@@ -1,18 +1,26 @@
+import 'package:cookster/core/media/media_url_resolver.dart';
+import 'package:cookster/modules/landing/landingTabs/home/homeModel/videoFeedModel.dart';
+
 class SearchResult {
   bool? status;
   List<Videos>? videos;
   List<BusinessAccounts>? businessAccounts;
   List<ChefAccounts>? chefAccounts;
+  FeedMeta? meta;
 
   SearchResult({
     this.status,
     this.videos,
     this.businessAccounts,
     this.chefAccounts,
+    this.meta,
   });
 
   SearchResult.fromJson(Map<String, dynamic> json) {
     status = json['status'];
+    if (json['meta'] != null) {
+      meta = FeedMeta.fromJson(json['meta'] as Map<String, dynamic>);
+    }
     if (json['videos'] != null) {
       videos = <Videos>[];
       json['videos'].forEach((v) {
@@ -67,6 +75,8 @@ class Videos {
   dynamic image;
   dynamic video;
   dynamic videoUrl;
+  dynamic thumbnailUrl;
+  dynamic imageUrl;
   dynamic state;
   dynamic status;
   dynamic createdAt;
@@ -83,6 +93,8 @@ class Videos {
   dynamic locationName;
   dynamic latitude;
   dynamic longitude;
+  dynamic likeCount;
+  dynamic viewCount;
 
   Videos({
     this.id,
@@ -133,13 +145,15 @@ class Videos {
     image = json['image'];
     video = json['video'];
     videoUrl = json['video_url'];
+    thumbnailUrl = json['thumbnail_url'];
+    imageUrl = json['image_url'];
     state = json['state'];
     status = json['status'];
     createdAt = json['created_at'];
     updatedAt = json['updated_at'];
     videoTypeName = json['video_type_name'];
     userName = json['user_name'];
-    userImage = json['user_image'];
+    userImage = json['user_image_url'] ?? json['user_image'];
     followersCount = json['followers_count'];
     followingCount = json['following_count'];
     contactEmail = json['contact_email'];
@@ -148,6 +162,8 @@ class Videos {
     locationName = json['location_name'];
     latitude = json['latitude'];
     isImage = json['is_image'];
+    likeCount = json['like_count'] ?? json['likes_count'] ?? json['likeCount'];
+    viewCount = json['view_count'] ?? json['views_count'] ?? json['viewCount'];
   }
 
   Map<String, dynamic> toJson() {
@@ -184,6 +200,19 @@ class Videos {
     data['is_image'] = this.isImage;
     return data;
   }
+}
+
+extension SearchVideosMedia on Videos {
+  String? get resolvedThumbnailUrl => MediaUrlResolver.thumbnailUrl(
+        thumbnailUrl: thumbnailUrl?.toString(),
+        imageUrl: imageUrl?.toString(),
+        image: image?.toString(),
+      );
+
+  String? get resolvedPlaybackUrl => MediaUrlResolver.playbackUrl(
+        videoUrl: videoUrl?.toString(),
+        video: video?.toString(),
+      );
 }
 
 class BusinessAccounts {

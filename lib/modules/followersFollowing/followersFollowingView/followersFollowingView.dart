@@ -1,3 +1,5 @@
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:cookster/core/widgets/grid_thumbnail_cache.dart';
 import 'package:cookster/modules/visitProfile/visitProfileView/visitProfileView.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -6,6 +8,7 @@ import '../../../appUtils/apiEndPoints.dart';
 import '../../../loaders/pulseLoader.dart';
 import '../followersFollowingController/followersFollowingController.dart';
 import '../followersListModel/followersListModel.dart';
+import 'package:cookster/core/media/media_url_resolver.dart';
 
 enum SocialTab { followers, following }
 
@@ -30,6 +33,8 @@ class _SocialListsScreenState extends State<SocialListsScreen>
   late TabController _tabController;
   final TextEditingController _searchController = TextEditingController();
   late final SocialListsController _controller;
+  Worker? _followersWorker;
+  Worker? _followingWorker;
 
   // Use RxList for reactive filtered lists
   final RxList<FFUser> _filteredFollowers = <FFUser>[].obs;
@@ -63,11 +68,11 @@ class _SocialListsScreenState extends State<SocialListsScreen>
     _searchController.addListener(_onSearchChanged);
 
     // Listen to controller updates reactively
-    ever(_controller.followers, (List<FFUser> followers) {
+    _followersWorker = ever(_controller.followers, (List<FFUser> followers) {
       _filteredFollowers.assignAll(followers);
       if (_isSearching.value) _onSearchChanged();
     });
-    ever(_controller.following, (List<FFUser> following) {
+    _followingWorker = ever(_controller.following, (List<FFUser> following) {
       _filteredFollowing.assignAll(following);
       if (_isSearching.value) _onSearchChanged();
     });
@@ -107,6 +112,8 @@ class _SocialListsScreenState extends State<SocialListsScreen>
 
   @override
   void dispose() {
+    _followersWorker?.dispose();
+    _followingWorker?.dispose();
     _tabController.dispose();
     _searchController.dispose();
     Get.delete<SocialListsController>(tag: widget.userId);
@@ -342,10 +349,13 @@ class _SocialListsScreenState extends State<SocialListsScreen>
                       child: ClipOval(
                         child:
                             user.image != null
-                                ? Image.network(
-                                  '${Common.profileImage}/${user.image!}',
+                                ? CachedNetworkImage(
+                                  imageUrl:
+                                      MediaUrlResolver.profileImageUrl(user.image!) ?? '',
                                   fit: BoxFit.cover,
-                                  errorBuilder: (context, error, stackTrace) {
+                                  memCacheWidth: gridThumbnailMemCacheSize(48),
+                                  memCacheHeight: gridThumbnailMemCacheSize(48),
+                                  errorWidget: (context, url, error) {
                                     return Container(
                                       color: Colors.grey[200],
                                       child: Icon(

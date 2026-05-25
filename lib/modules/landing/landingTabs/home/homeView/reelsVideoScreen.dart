@@ -6,8 +6,14 @@ import 'package:cookster/appRoutes/appRoutes.dart';
 import 'package:cookster/appUtils/apiEndPoints.dart';
 import 'package:cookster/appUtils/appUtils.dart';
 import 'package:cookster/goLive/join_screen.dart';
+import 'package:cookster/core/firestore/reel_video_stats.dart';
+import 'package:cookster/core/firestore/video_view_tracker.dart';
+import 'package:cookster/core/media/wall_video_media.dart';
+import 'package:cookster/core/widgets/grid_thumbnail_cache.dart';
+import 'package:cookster/core/video/media_kit_player_pool.dart';
+import 'package:cookster/core/video/reels_playback_coordinator.dart';
 import 'package:cookster/core/video/video_preload_manager.dart';
-import 'package:cookster/core/video/video_player_pool.dart';
+import 'package:cookster/core/video/video_preload_target.dart';
 import 'package:cookster/core/video/video_source_resolver.dart';
 import 'package:cookster/modules/landing/landingController/landingController.dart';
 import 'package:cookster/modules/landing/landingTabs/home/homeController/saveController.dart';
@@ -32,7 +38,6 @@ import 'package:get/get.dart';
 import 'package:pro_image_editor/core/platform/io/io_helper.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:shimmer/shimmer.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 import '../../../../../appUtils/colorUtils.dart';
 import '../../../../auth/signUp/signUpController/cityController.dart';
@@ -49,7 +54,8 @@ import '../homeController/homeController.dart';
 import '../homeWidgets/chatIconWithCounter.dart';
 import '../homeWidgets/contactNowDialog.dart';
 import '../homeWidgets/reviewSheet.dart';
-import '../homeWidgets/videoPlayerWidget.dart';
+import '../homeWidgets/reel_video_player.dart';
+import 'hashtagReelScreen.dart';
 
 class VideoReelScreen extends StatefulWidget {
   @override
@@ -77,22 +83,157 @@ class _VideoReelScreenState extends State<VideoReelScreen>
   final VideoSourceResolver _sourceResolver = const VideoSourceResolver();
   final ReelsSessionStore _sessionStore = ReelsSessionStore.instance;
   late final VideoPreloadManager _preloadManager;
+  late final ReelsPlaybackCoordinator _playbackCoordinator;
   String? _pendingRestoreVideoId;
   bool _sessionRestored = false;
   int? _pendingRestoreIndex;
 
-  Future<void> _activateVisibleVideoByIndex(int index) async {
+  Timer? _viewTrackDebounce;
+  Timer? _positionSaveThrottle;
+  final Set<String> _trackedVideoIds = {};
+  final ValueNotifier<int> _visibleIndexNotifier = ValueNotifier<int>(0);
+  WallVideos? _activePlayerVideo;
+  Worker? _feedRestoreWorker;
+  Worker? _reelsVisibilityWorker;
+  bool _pendingFeedTabPlayback = false;
+  int? _scrollTowardActualIndex;
+  final Map<String, int> _commentCounts = {};
+  late final PageController _pageController;
+  final GlobalKey<ReelVideoPlayerState> _reelPlayerKey =
+      GlobalKey<ReelVideoPlayerState>();
+
+  void _schedulePlayerForPage(int pageIndex) {
     final videos = controller.videoFeed.value.videos;
-    if (videos == null || videos.isEmpty) return;
-    final actualIndex = index.clamp(0, videos.length - 1);
-    final videoId = videos[actualIndex].id;
-    final videoUrl = videos[actualIndex].videoUrl;
-    final legacyVideo = videos[actualIndex].video;
-    final activeKey = (videoId != null && videoId.isNotEmpty)
-        ? videoId
-        : (videoUrl?.isNotEmpty == true ? videoUrl! : legacyVideo ?? '');
-    if (activeKey.isEmpty) return;
-    await VideoPlayerPool.instance.setActive(activeKey);
+    if (videos == null ||
+        videos.isEmpty ||
+        !controller.isReelsTabVisible.value) {
+      if (_activePlayerVideo != null && mounted) {
+        setState(() => _activePlayerVideo = null);
+      }
+      return;
+    }
+    final actualIndex = pageIndex % videos.length;
+    final video = videos[actualIndex];
+    if (video.id == null || video.id!.isEmpty) {
+      return;
+    }
+    if (_activePlayerVideo?.id == video.id) {
+      return;
+    }
+    setState(() {
+      _activePlayerVideo = video;
+    });
+  }
+
+  /// Switches عام / بالقرب / المتابعة and always rewinds to the first reel.
+  void _switchFeedTab(String newTabType) {
+    if (newTabType != 'General' &&
+        newTabType != 'Near Me' &&
+        newTabType != 'Following') {
+      return;
+    }
+    if (newTabType == controller.selectedType.value &&
+        (controller.videoFeed.value.videos?.isNotEmpty ?? false)) {
+      _finishFeedTabPlayback();
+      return;
+    }
+    _pendingFeedTabPlayback = true;
+    controller.prepareForFeedTabSwitch();
+    controller.setSelectedType(newTabType);
+    _visibleIndexNotifier.value = 0;
+    if (mounted) {
+      setState(() => _activePlayerVideo = null);
+    }
+    unawaited(
+      controller.fetchVideos(fromTabSwitch: true).whenComplete(() {
+        if (mounted && _pendingFeedTabPlayback) {
+          _finishFeedTabPlayback();
+        }
+      }),
+    );
+    _finishFeedTabPlayback();
+  }
+
+  void _finishFeedTabPlayback() {
+    if (!mounted || !controller.isReelsTabVisible.value) {
+      return;
+    }
+    final videos = controller.videoFeed.value.videos;
+    if (videos == null || videos.isEmpty) {
+      return;
+    }
+    _pendingFeedTabPlayback = false;
+    _visibleIndexNotifier.value = 0;
+    controller.visiblePageIndex.value = 0;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      if (_pageController.hasClients &&
+          (_pageController.page?.round() ?? 0) != 0) {
+        _pageController.jumpToPage(0);
+      }
+      _schedulePlayerForPage(0);
+      MediaKitPlayerPool.instance.setScreenWidth(
+        MediaQuery.sizeOf(context).width,
+      );
+      final firstId = videos[0].id;
+      if (firstId != null && firstId.isNotEmpty) {
+        unawaited(MediaKitPlayerPool.instance.prepareVisiblePlayback(firstId));
+      }
+      _playbackCoordinator.onPageSettled(0, context: context);
+      unawaited(_preloadManager.warmIndexNow(0, maxWaitMs: 1500));
+      unawaited(_reelPlayerKey.currentState?.syncAudibleIfNeeded());
+    });
+  }
+
+
+  Future<void> _onReelDoubleTapLike(WallVideos video) async {
+    var currentUserDetails =
+        profileController.simpleUserDetails.value?.user;
+    var currentUser =
+        professionalProfileController.userDetails.value?.user;
+    final String userId = currentUserDetails?.id ?? currentUser?.id ?? '';
+
+    if (userId.isNotEmpty && isAuthenticated) {
+      final String? likedVideoId = video.id;
+      if (likedVideoId == null) {
+        return;
+      }
+      HapticFeedback.lightImpact();
+      await videoCommentsController.toggleVideoLike(
+        likedVideoId,
+        userId,
+      );
+    } else if (!isAuthenticated) {
+      Get.toNamed(AppRoutes.signIn);
+    }
+  }
+
+  Widget _buildInlineReelPlayer(WallVideos video) {
+    return Positioned.fill(
+      child: ReelVideoPlayer(
+          key: _reelPlayerKey,
+          releaseOnDispose: false,
+          playerPoolKey: video.id,
+          videoId: video.id,
+          thumbnailUrl: video.resolvedReelPosterUrl ?? '',
+          posterFallbackUrl: video.resolvedReelPosterFallbackUrl,
+          blurThumbnailUrl: video.resolvedBlurThumbnailUrl,
+          videoUrl: video.resolvedPlaybackUrl ?? '',
+          hlsUrl: video.resolvedHlsUrl,
+          qualityMp4Urls:
+              video.isTranscodeReady ? video.qualityMp4Urls : const [],
+          onVideoCompleted: _onReelVideoCompleted,
+        ),
+    );
+  }
+
+  Widget _buildPagePoster(WallVideos videoDetail, {required bool isActiveReel}) {
+    if (isActiveReel) {
+      return const SizedBox.shrink();
+    }
+    return _buildReelPoster(videoDetail);
   }
 
   Future<bool> _isUserAuthenticated() async {
@@ -111,12 +252,22 @@ class _VideoReelScreenState extends State<VideoReelScreen>
         isAuthenticated = authStatus;
       });
     } catch (e) {
-      print('Error checking authentication: $e');
+      debugPrint('Error checking authentication: $e');
     }
   }
 
   String _language = 'en'; // Default to English
   String userIdFromStorage = ''; // Default to English
+  late String _labelShare;
+  late String _labelComment;
+  late String _labelFollow;
+
+  void _cacheStaticLabels() {
+    _labelShare = 'share'.tr;
+    _labelComment = 'comment'.tr;
+    _labelFollow = 'follow'.tr;
+  }
+
   // Load language from SharedPreferences
   Future<void> _loadLanguage() async {
     final prefs = await SharedPreferences.getInstance();
@@ -127,40 +278,256 @@ class _VideoReelScreenState extends State<VideoReelScreen>
     });
   }
 
-  late final PageController pageController;
-
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _visibleIndexNotifier.value = controller.visiblePageIndex.value;
+    _pageController = PageController(
+      initialPage: controller.visiblePageIndex.value,
+    );
+    _pageController.addListener(_onPageScrollOffset);
+    _feedRestoreWorker = ever(controller.videoFeed, (_) {
+      _applyPendingRestoreIfPossible();
+      if (_pendingFeedTabPlayback) {
+        _finishFeedTabPlayback();
+      }
+      _maybeBootstrapPreload();
+    });
     _loadLanguage();
+    _cacheStaticLabels();
     _checkAuthentication();
     SettingsService.instance.load();
-    WakelockPlus.enable();
-    pageController = PageController(initialPage: controller.currentIndex.value);
     _preloadManager = VideoPreloadManager(
-      sourceBuilder: (index) {
+      sourceBuilder: (index) => _preloadTargetForIndex(index),
+    );
+    _playbackCoordinator = ReelsPlaybackCoordinator(
+      preloadManager: _preloadManager,
+      targetForIndex: _preloadTargetForIndex,
+      thumbnailUrlForIndex: (index) {
         final videos = controller.videoFeed.value.videos;
-        if (videos == null || videos.isEmpty || index >= videos.length) {
-          return const [];
+        if (videos == null || index < 0 || index >= videos.length) {
+          return null;
         }
-        final video = videos[index];
-        return _sourceResolver.resolveCandidates(
-          hlsUrl: null,
-          mp4Url: video.videoUrl,
-          legacyPath: video.video,
+        return videos[index].resolvedReelPosterUrl;
+      },
+    );
+    _reelsVisibilityWorker = ever(controller.isReelsTabVisible, (visible) {
+      if (!visible) {
+        MediaKitPlayerPool.instance.pauseAllImmediate();
+        final key = _activePlayerVideo?.id;
+        if (key != null && key.isNotEmpty) {
+          unawaited(MediaKitPlayerPool.instance.release(key));
+        }
+        if (mounted) {
+          setState(() {
+            _activePlayerVideo = null;
+          });
+        }
+        return;
+      }
+      _schedulePlayerForPage(_visibleIndexNotifier.value);
+    });
+    _restoreSession();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      MediaKitPlayerPool.instance.setScreenWidth(
+        MediaQuery.sizeOf(context).width,
+      );
+      if (controller.isReelsTabVisible.value) {
+        final index = _visibleIndexNotifier.value;
+        _schedulePlayerForPage(index);
+        unawaited(_preloadManager.warmIndexNow(index, maxWaitMs: 1200));
+        _maybeBootstrapPreload();
+      }
+    });
+  }
+
+  void _maybeBootstrapPreload() {
+    final videos = controller.videoFeed.value.videos;
+    if (videos == null ||
+        videos.isEmpty ||
+        !controller.isReelsTabVisible.value) {
+      return;
+    }
+    _playbackCoordinator.bootstrapFromVisible(_visibleIndexNotifier.value);
+  }
+
+  void _onPageScrollOffset() {
+    if (!_pageController.hasClients || !mounted) {
+      return;
+    }
+    final videos = controller.videoFeed.value.videos;
+    if (videos == null || videos.isEmpty) {
+      return;
+    }
+    final length = videos.length;
+    final page = _pageController.page;
+    if (page == null) {
+      return;
+    }
+    final rounded = page.roundToDouble();
+    if ((page - rounded).abs() < 0.02) {
+      _scrollTowardActualIndex = null;
+      return;
+    }
+    final towardRaw = page > rounded ? page.ceil() : page.floor();
+    final toward = towardRaw % length;
+    if (_scrollTowardActualIndex == toward) {
+      return;
+    }
+    _scrollTowardActualIndex = toward;
+    _playbackCoordinator.onPageScrollToward(
+      fromActualIndex: _visibleIndexNotifier.value,
+      towardActualIndex: toward,
+      context: context,
+    );
+  }
+
+  bool _shouldListenFirestoreStats(int actualIndex) {
+    final length = controller.videoFeed.value.videos?.length ?? 0;
+    if (length == 0) {
+      return false;
+    }
+    final visibleActual = _visibleIndexNotifier.value % length;
+    return (actualIndex - visibleActual).abs() <= 1;
+  }
+
+  void _prefetchCommentCount(String videoId) {
+    if (_commentCounts.containsKey(videoId)) {
+      return;
+    }
+    FirebaseFirestore.instance
+        .collection('videos')
+        .doc(videoId)
+        .collection('comments')
+        .count()
+        .get()
+        .then((snap) {
+          if (mounted) {
+            setState(() => _commentCounts[videoId] = snap.count ?? 0);
+          }
+        })
+        .catchError((_) {});
+  }
+
+  Widget _buildReelPoster(WallVideos videoDetail) {
+    if (videoDetail.isImage == 1) {
+      return Container(
+        color: Colors.black,
+        width: double.infinity,
+        height: double.infinity,
+        child: Center(
+          child: CachedNetworkImage(
+            imageUrl: videoDetail.resolvedPlaybackUrl ?? '',
+            fit: BoxFit.contain,
+            width: double.infinity,
+            height: double.infinity,
+            errorWidget: (context, url, error) => const SizedBox(),
+          ),
+        ),
+      );
+    }
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final (memW, memH) = fullScreenPosterMemCacheSize(context);
+        return Stack(
+          fit: StackFit.expand,
+          children: [
+            Container(
+              color: Colors.black,
+              child: CachedNetworkImage(
+                imageUrl: videoDetail.resolvedReelPosterUrl ?? '',
+                fit: BoxFit.cover,
+                filterQuality: FilterQuality.medium,
+                memCacheWidth: memW,
+                memCacheHeight: memH,
+                errorWidget: (context, url, error) => const SizedBox(),
+              ),
+            ),
+          ],
         );
       },
     );
-    _restoreSession();
+  }
+
+  VideoPreloadTarget? _preloadTargetForIndex(int index) {
+    final videos = controller.videoFeed.value.videos;
+    if (videos == null || videos.isEmpty) {
+      return null;
+    }
+    final length = videos.length;
+    final actualIndex = ((index % length) + length) % length;
+    final video = videos[actualIndex];
+    final key = (video.id != null && video.id!.isNotEmpty)
+        ? video.id!
+        : (video.videoUrl?.isNotEmpty == true
+            ? video.videoUrl!
+            : video.video ?? '');
+    if (key.isEmpty) {
+      return null;
+    }
+    return VideoPreloadTarget(
+      key: key,
+      candidates: _sourceResolver.resolveForWallVideo(video),
+    );
+  }
+
+  void _schedulePageSideEffects(int actualIndex) {
+    unawaited(_reelPlayerKey.currentState?.syncAudibleIfNeeded());
+    final videos = controller.videoFeed.value.videos;
+    if (videos != null &&
+        controller.videoFeed.value.meta?.hasMore != false &&
+        actualIndex >= videos.length - 3) {
+      unawaited(controller.fetchMoreVideos());
+    }
+
+    final videoId = videos != null && actualIndex < videos.length
+        ? videos[actualIndex].id
+        : null;
+    if (videoId == null) {
+      return;
+    }
+
+    _positionSaveThrottle?.cancel();
+    _positionSaveThrottle = Timer(const Duration(milliseconds: 800), () {
+      unawaited(
+        _sessionStore.savePosition(videoId: videoId, index: actualIndex),
+      );
+    });
+
+    _viewTrackDebounce?.cancel();
+    _viewTrackDebounce = Timer(const Duration(seconds: 2), () {
+      if (_trackedVideoIds.contains(videoId)) {
+        return;
+      }
+      _trackedVideoIds.add(videoId);
+      unawaited(
+        _trackVideoView(
+          videoId,
+          userIdFromStorage.isNotEmpty ? userIdFromStorage : null,
+          isAuthenticated,
+        ),
+      );
+    });
+
+    _prefetchCommentCount(videoId);
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    // _swiperController.dispose();
-
+    _pageController.removeListener(_onPageScrollOffset);
+    _feedRestoreWorker?.dispose();
+    _reelsVisibilityWorker?.dispose();
+    _viewTrackDebounce?.cancel();
+    _positionSaveThrottle?.cancel();
+    _visibleIndexNotifier.dispose();
+    _playbackCoordinator.dispose();
+    _pageController.dispose();
     WakelockPlus.disable();
-    // Do not dispose controllers here to preserve state
     super.dispose();
   }
 
@@ -192,37 +559,36 @@ class _VideoReelScreenState extends State<VideoReelScreen>
     bool isAuthenticated,
   ) async {
     try {
-      final videoRef = FirebaseFirestore.instance
-          .collection('videos')
-          .doc(videoId);
-
-      if (isAuthenticated && userId != null) {
-        // Track view for authenticated user
-        await videoRef.set({
-          'views': FieldValue.arrayUnion([userId]),
-        }, SetOptions(merge: true));
-        print("PRINTING VIDEO ID: $videoId Printing USER ID: $userId");
-      } else {
-        // Track view for non-authenticated user using device ID
-        String deviceId = await _getDeviceId();
-        await videoRef.set({
-          'views': FieldValue.arrayUnion([deviceId]),
-        }, SetOptions(merge: true));
-        print("PRINTING VIDEO ID: $videoId Printing DEVICE ID: $deviceId");
-      }
+      await VideoViewTracker.trackUniqueView(
+        videoId: videoId,
+        userId: userId,
+        isAuthenticated: isAuthenticated,
+      );
     } catch (e) {
-      print('Error tracking video view: $e');
-      // Optionally handle the error (e.g., show a toast or log it)
+      debugPrint('Error tracking video view: $e');
     }
   }
 
-  final PageController _pageController = PageController();
-
   void _scrollToNext() {
+    if (!_pageController.hasClients) {
+      return;
+    }
     _pageController.nextPage(
       duration: const Duration(milliseconds: 300),
       curve: Curves.easeInOut,
     );
+  }
+
+  void _onReelVideoCompleted() {
+    if (!mounted || !controller.isReelsTabVisible.value) {
+      return;
+    }
+    Future<void>.delayed(const Duration(milliseconds: 400), () {
+      if (!mounted || !controller.isReelsTabVisible.value) {
+        return;
+      }
+      _scrollToNext();
+    });
   }
 
   void _scrollToPrevious() {
@@ -240,7 +606,11 @@ class _VideoReelScreenState extends State<VideoReelScreen>
   }
 
   void _applyPendingRestoreIfPossible() {
-    if (_sessionRestored || _pendingRestoreVideoId == null) {
+    if (_sessionRestored) {
+      return;
+    }
+    if (_pendingRestoreVideoId == null) {
+      _sessionRestored = true;
       return;
     }
     final videos = controller.videoFeed.value.videos;
@@ -255,19 +625,32 @@ class _VideoReelScreenState extends State<VideoReelScreen>
       _sessionRestored = true;
       return;
     }
+    _sessionRestored = true;
+    unawaited(_restoreToIndex(targetIndex));
+  }
+
+  Future<void> _restoreToIndex(int targetIndex) async {
+    await _preloadManager.warmIndexNow(targetIndex);
+    if (!mounted) {
+      return;
+    }
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) {
+      if (!mounted || !_pageController.hasClients) {
+        return;
+      }
+      if (_pageController.page?.round() != targetIndex) {
         _pageController.jumpToPage(targetIndex);
       }
+      _visibleIndexNotifier.value = targetIndex;
+      controller.visiblePageIndex.value = targetIndex;
+      _schedulePlayerForPage(targetIndex);
+      _maybeBootstrapPreload();
     });
-    _sessionRestored = true;
   }
 
   @override
   Widget build(BuildContext context) {
     super.build(context);
-    isAuthenticated = isAuthenticated;
-    print("PRINTING IS AUTHENTICATED ${isAuthenticated}");
     var currentUserDetails = profileController.simpleUserDetails.value?.user;
     var currentUser = professionalProfileController.userDetails.value?.user;
     String? userId = currentUser?.id ?? currentUserDetails?.id;
@@ -334,25 +717,28 @@ class _VideoReelScreenState extends State<VideoReelScreen>
             return;
           }
 
-          // Switch to new tab if it's different from current
           if (newTabType != controller.selectedType.value) {
-            if (!controller.isLoading.value &&
-                !controller.isLocationFetching.value) {
-              controller.disposeControllers();
-              controller.setSelectedType(newTabType);
-              controller.fetchVideos();
-            }
+            _switchFeedTab(newTabType);
           }
         },
-        child: Obx(() {
-          _applyPendingRestoreIfPossible();
-          return Stack(
+        child: Stack(
             children: [
-              controller.isLoading.value || controller.isLocationFetching.value
-                  ? const _ReelsSkeletonLoader()
-                  : controller.videoFeed.value.videos == null ||
-                      controller.videoFeed.value.videos!.isEmpty
-                  ? Padding(
+              Obx(() {
+                final showSkeleton = controller.isLoading.value &&
+                    (controller.videoFeed.value.videos?.isEmpty ?? true);
+                if (!showSkeleton && !controller.blocksUiForLocation) {
+                  return const SizedBox.shrink();
+                }
+                return const _ReelsSkeletonLoader();
+              }),
+              Obx(() {
+                if (controller.isLoading.value ||
+                    controller.blocksUiForLocation) {
+                  return const SizedBox.shrink();
+                }
+                if (controller.videoFeed.value.videos == null ||
+                    controller.videoFeed.value.videos!.isEmpty) {
+                  return Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16.0),
                     child: Container(
                       height: double.infinity,
@@ -408,24 +794,16 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                                   ),
                                   child: ClipRRect(
                                     borderRadius: BorderRadius.circular(50),
-                                    child: BackdropFilter(
-                                      filter: ImageFilter.blur(
-                                        sigmaX: 10.0,
-                                        sigmaY: 10.0,
+                                    child: Container(
+                                      padding: const EdgeInsets.all(14),
+                                      decoration: BoxDecoration(
+                                        color: ColorUtils.primaryColor,
+                                        borderRadius: BorderRadius.circular(50),
                                       ),
-                                      child: Container(
-                                        padding: EdgeInsets.all(14),
-                                        decoration: BoxDecoration(
-                                          color: ColorUtils.primaryColor,
-                                          borderRadius: BorderRadius.circular(
-                                            50,
-                                          ),
-                                        ),
-                                        child: Icon(
-                                          Icons.search,
-                                          color: Colors.black,
-                                          size: 24.sp,
-                                        ),
+                                      child: Icon(
+                                        Icons.search,
+                                        color: Colors.black,
+                                        size: 24.sp,
                                       ),
                                     ),
                                   ),
@@ -443,24 +821,16 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                                   ),
                                   child: ClipRRect(
                                     borderRadius: BorderRadius.circular(50),
-                                    child: BackdropFilter(
-                                      filter: ImageFilter.blur(
-                                        sigmaX: 10.0,
-                                        sigmaY: 10.0,
+                                    child: Container(
+                                      padding: const EdgeInsets.all(14),
+                                      decoration: BoxDecoration(
+                                        color: ColorUtils.primaryColor,
+                                        borderRadius: BorderRadius.circular(50),
                                       ),
-                                      child: Container(
-                                        padding: EdgeInsets.all(14),
-                                        decoration: BoxDecoration(
-                                          color: ColorUtils.primaryColor,
-                                          borderRadius: BorderRadius.circular(
-                                            50,
-                                          ),
-                                        ),
-                                        child: Icon(
-                                          Icons.refresh,
-                                          color: Colors.black,
-                                          size: 24.sp,
-                                        ),
+                                      child: Icon(
+                                        Icons.refresh,
+                                        color: Colors.black,
+                                        size: 24.sp,
                                       ),
                                     ),
                                   ),
@@ -471,14 +841,30 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                         ],
                       ),
                     ),
-                  )
-                  : FocusDetector(
+                  );
+                }
+                return const SizedBox.shrink();
+              }),
+              Obx(() {
+                if (controller.isLoading.value ||
+                    controller.blocksUiForLocation ||
+                    controller.videoFeed.value.videos == null ||
+                    controller.videoFeed.value.videos!.isEmpty) {
+                  return const SizedBox.shrink();
+                }
+                final reelsActive = controller.isReelsTabVisible.value;
+                return FocusDetector(
                     onFocusGained: () {
-                      _pageController.jumpToPage(
+                      if (_pageController.hasClients) {
+                        _pageController.jumpToPage(
+                          controller.visiblePageIndex.value,
+                        );
+                      }
+                      _schedulePlayerForPage(
                         controller.visiblePageIndex.value,
                       );
-                      _activateVisibleVideoByIndex(
-                        controller.visiblePageIndex.value,
+                      unawaited(
+                        _reelPlayerKey.currentState?.syncAudibleIfNeeded(),
                       );
                     },
                     child: PageView.custom(
@@ -486,59 +872,58 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                       controller: _pageController,
                       clipBehavior: Clip.hardEdge,
                       dragStartBehavior: DragStartBehavior.down,
-                      allowImplicitScrolling: true,
+                      // allowImplicitScrolling kept off: with heavy video
+                      // widgets it spawns extra decoders for off-screen pages,
+                      // which is the dominant cause of swipe lag.
+                      allowImplicitScrolling: false,
                       pageSnapping: true,
                       physics: const ClampingScrollPhysics(),
                       padEnds: false,
-                      onPageChanged: (index) async {
-                        controller.visiblePageIndex.value = index;
-                        int actualIndex =
-                            controller.videoFeed.value.videos != null
-                                ? index %
-                                    controller.videoFeed.value.videos!.length
-                                : 0;
-                        await _activateVisibleVideoByIndex(actualIndex);
-
-                        if (controller.videoFeed.value.videos != null &&
-                            actualIndex >=
-                                controller.videoFeed.value.videos!.length - 3) {
-                          await controller.fetchMoreVideos();
+                      onPageChanged: (index) {
+                        final length =
+                            controller.videoFeed.value.videos?.length ?? 0;
+                        if (length == 0) {
+                          return;
                         }
-
-                        String? videoId =
-                            controller.videoFeed.value.videos != null
-                                ? controller
-                                    .videoFeed
-                                    .value
-                                    .videos![actualIndex]
-                                    .id
-                                : null;
-                        if (videoId != null) {
-                          await _sessionStore.savePosition(
-                            videoId: videoId,
-                            index: actualIndex,
+                        final actualIndex = index % length;
+                        final v = controller.videoFeed.value.videos![
+                            actualIndex];
+                        final incomingKey = v.id ?? '';
+                        controller.visiblePageIndex.value = actualIndex;
+                        _visibleIndexNotifier.value = actualIndex;
+                        _schedulePlayerForPage(actualIndex);
+                        if (incomingKey.isNotEmpty) {
+                          MediaKitPlayerPool.instance.pauseAllImmediate(
+                            exceptKey: incomingKey,
                           );
-                          await _preloadManager.onVisibleIndexChanged(
-                            actualIndex,
-                          );
-                          await _trackVideoView(
-                            videoId,
-                            userId,
-                            isAuthenticated,
+                          unawaited(
+                            MediaKitPlayerPool.instance
+                                .prepareVisiblePlayback(incomingKey),
                           );
                         } else {
-                          print(
-                            'Error: Video ID is null for index $actualIndex',
-                          );
+                          MediaKitPlayerPool.instance.pauseAllImmediate();
                         }
+                        MediaKitPlayerPool.instance.setScreenWidth(
+                          MediaQuery.sizeOf(context).width,
+                        );
+                        _playbackCoordinator.onPageSettled(
+                          actualIndex,
+                          context: context,
+                        );
+                        WidgetsBinding.instance.addPostFrameCallback((_) {
+                          if (!mounted) {
+                            return;
+                          }
+                          _schedulePageSideEffects(actualIndex);
+                        });
                       },
                       childrenDelegate: SliverChildBuilderDelegate(
                         (context, index) {
                           if (controller.videoFeed.value.videos == null ||
                               controller.videoFeed.value.videos!.isEmpty) {
                             return Container(
-                              width: MediaQuery.of(context).size.width,
-                              height: MediaQuery.of(context).size.height,
+                              width: MediaQuery.sizeOf(context).width,
+                              height: MediaQuery.sizeOf(context).height,
                               color: Colors.black,
                               child: const Center(
                                 child: Text(
@@ -561,54 +946,37 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                             key: ValueKey<String>(
                               '${videoDetail.id ?? 'video'}_$index',
                             ),
-                            child: Stack(
+                            child: ValueListenableBuilder<int>(
+                              valueListenable: _visibleIndexNotifier,
+                              builder: (context, visibleIndex, _) {
+                                final isActiveReel =
+                                    actualIndex == visibleIndex &&
+                                    videoDetail.isImage != 1;
+                                return Stack(
                               clipBehavior: Clip.none,
                               alignment: Alignment.bottomLeft,
                               children: [
-                              VideoPlayerWidget(
-                                isImage: videoDetail.isImage,
-                                videoId: videoDetail.id,
-                                thumbnailUrl:
-                                    '${Common.videoUrl}/${videoDetail.image}',
-                                videoUrl:
-                                    videoDetail.videoUrl?.isNotEmpty == true ? videoDetail.videoUrl! : '${Common.videoUrl}/${videoDetail.video}',
-                                hlsUrl: (videoDetail.video?.contains('.m3u8') ??
-                                        false)
-                                    ? videoDetail.video
-                                    : null,
-                                autoPlay:
-                                    actualIndex ==
-                                    controller.visiblePageIndex.value,
-                                onTap: () async {
-                                  // Get current user details
-                                  var currentUserDetails =
-                                      profileController
-                                          .simpleUserDetails
-                                          .value
-                                          ?.user;
-                                  var currentUser =
-                                      professionalProfileController
-                                          .userDetails
-                                          .value
-                                          ?.user;
-                                  String userId =
-                                      currentUserDetails?.id ?? currentUser?.id;
-
-                                  if (userId.isNotEmpty && isAuthenticated) {
-                                    final String videoId = videoDetail.id!;
-                                    HapticFeedback.lightImpact();
-
-                                    // Call the same like function used in the like button
-                                    await videoCommentsController
-                                        .toggleVideoLike(
-                                          videoId.toString(),
-                                          userId.toString(),
-                                        );
-                                  } else if (!isAuthenticated) {
-                                    Get.toNamed(AppRoutes.signIn);
-                                  }
-                                },
+                              _buildPagePoster(
+                                videoDetail,
+                                isActiveReel: isActiveReel,
                               ),
+                              if (isActiveReel)
+                                _buildInlineReelPlayer(videoDetail),
+                              if (isActiveReel)
+                                Positioned.fill(
+                                  child: GestureDetector(
+                                    behavior: HitTestBehavior.translucent,
+                                    onTap: () {
+                                      _reelPlayerKey.currentState
+                                          ?.togglePlayPause();
+                                    },
+                                    onDoubleTapDown: (_) {
+                                      unawaited(
+                                        _onReelDoubleTapLike(videoDetail),
+                                      );
+                                    },
+                                  ),
+                                ),
                               VideoDescriptionWidget(
                                 title: videoDetail.title,
                                 description: videoDetail.description,
@@ -630,9 +998,12 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                                 currentUser,
                                 isAuthenticated,
                                 context,
+                                listenLive: _shouldListenFirestoreStats(
+                                  actualIndex,
+                                ),
                               ),
                               Positioned(
-                                top: MediaQuery.of(context).padding.top + 64,
+                                top: MediaQuery.paddingOf(context).top + 64,
                                 left: isRtl ? 0 : null,
                                 right: isRtl ? null : 0,
                                 child: GestureDetector(
@@ -646,7 +1017,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                                                 : 0,
                                       ),
                                     )!.then((_) {
-                                      controller.disposeControllers();
+                                      controller.prepareForFeedTabSwitch();
                                       controller.fetchVideos(
                                         city: controller.currentCity.value,
                                         country:
@@ -664,24 +1035,18 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                                     ),
                                     child: ClipRRect(
                                       borderRadius: BorderRadius.circular(100),
-                                      child: BackdropFilter(
-                                        filter: ImageFilter.blur(
-                                          sigmaX: 10.0,
-                                          sigmaY: 10.0,
+                                      child: Container(
+                                        padding: const EdgeInsets.all(6),
+                                        decoration: BoxDecoration(
+                                          color: Colors.black.withValues(
+                                            alpha: 0.45,
+                                          ),
+                                          shape: BoxShape.circle,
                                         ),
-                                        child: Container(
-                                          padding: EdgeInsets.all(6),
-                                          decoration: BoxDecoration(
-                                            color: Colors.black.withOpacity(
-                                              0.3,
-                                            ),
-                                            shape: BoxShape.circle,
-                                          ),
-                                          child: Icon(
-                                            Icons.search,
-                                            color: Colors.white,
-                                            size: 40,
-                                          ),
+                                        child: const Icon(
+                                          Icons.search,
+                                          color: Colors.white,
+                                          size: 40,
                                         ),
                                       ),
                                     ),
@@ -689,6 +1054,8 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                                 ),
                               ),
                               ],
+                            );
+                              },
                             ),
                           );
                         },
@@ -698,7 +1065,8 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                                 : 1,
                       ),
                     ),
-                  ),
+                  );
+              }),
 
               SafeArea(
                 child: Obx(
@@ -733,14 +1101,8 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                                   1)
                                 Expanded(
                                   child: GestureDetector(
-                                    onTap: () async {
-                                      if (controller.isLoading.value ||
-                                          controller.isLocationFetching.value) {
-                                        return;
-                                      }
-                                      controller.disposeControllers();
-                                      controller.setSelectedType("General");
-                                      controller.fetchVideos();
+                                    onTap: () {
+                                      _switchFeedTab('General');
                                     },
                                     child: Text(
                                       "General".tr,
@@ -766,11 +1128,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                               Expanded(
                                 child: GestureDetector(
                                   onTap: () {
-                                    if (controller.isLoading.value) {
-                                      return;
-                                    }
-                                    controller.setSelectedType("Near Me");
-                                    controller.fetchVideos();
+                                    _switchFeedTab('Near Me');
                                   },
                                   child: Text(
                                     "Near Me".tr,
@@ -802,18 +1160,12 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                                   1)
                                 Expanded(
                                   child: GestureDetector(
-                                    onTap: () async {
+                                    onTap: () {
                                       if (!isAuthenticated) {
                                         Get.toNamed(AppRoutes.signIn);
                                         return;
                                       }
-                                      if (controller.isLoading.value ||
-                                          controller.isLocationFetching.value) {
-                                        return;
-                                      }
-                                      controller.disposeControllers();
-                                      controller.setSelectedType("Following");
-                                      controller.fetchVideos();
+                                      _switchFeedTab('Following');
                                     },
                                     child: Text(
                                       "Following".tr,
@@ -862,8 +1214,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
 
               // Optional: Swipe indicator at the bottom
             ],
-          );
-        }),
+          ),
       ),
     );
   }
@@ -923,7 +1274,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                     SizedBox(height: 15),
                     InkWell(
                       onTap: () {
-                        print(controller.currentCityId.value);
+                        debugPrint(controller.currentCityId.value);
                         // Pass the initialCity ID to showCityDialog
                         showCityDialog(
                           context,
@@ -991,32 +1342,15 @@ class _VideoReelScreenState extends State<VideoReelScreen>
     );
   }
 
-  Stream<double> _getAverageRating(String videoId) {
-    return FirebaseFirestore.instance
-        .collection('videos')
-        .doc(videoId)
-        .collection('reviews')
-        .snapshots()
-        .map((snapshot) {
-          if (snapshot.docs.isEmpty) return 0.0;
-          double totalRating = 0.0;
-          for (var doc in snapshot.docs) {
-            totalRating += (doc['rating'] as num?)?.toDouble() ?? 0.0;
-          }
-
-          rateVideo(videoId, totalRating / snapshot.docs.length);
-          return totalRating / snapshot.docs.length;
-        });
-  }
-
   /// Video widgets with details
   Positioned videoActions(
     WallVideos videoDetail,
     SimpleUser? currentUserDetails,
     User? currentUser,
     dynamic isAuthenticated,
-    BuildContext context,
-  ) {
+    BuildContext context, {
+    required bool listenLive,
+  }) {
     return Positioned(
       right: 10,
       bottom: Platform.isAndroid ? Get.height * 0.02 : Get.height * 0.02,
@@ -1029,53 +1363,61 @@ class _VideoReelScreenState extends State<VideoReelScreen>
             ),
             child: ClipRRect(
               borderRadius: BorderRadius.circular(50),
-              child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 10.0, sigmaY: 10.0),
-                child: Container(
-                  padding: EdgeInsets.symmetric(horizontal: 6, vertical: 16),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.3),
-                    borderRadius: BorderRadius.circular(50),
-                  ),
-                  child: StreamBuilder<DocumentSnapshot>(
-                    stream:
-                        FirebaseFirestore.instance
-                            .collection('videos')
-                            .doc(videoDetail.id)
-                            .snapshots(),
-                    builder: (context, snapshot) {
-                      final data =
-                          snapshot.data?.data() as Map<String, dynamic>? ?? {};
-                      List<dynamic> likes = data['likes'] ?? [];
-                      int likeCount =
-                          likes.length; // Count likes from array length
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 16),
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.45),
+                  borderRadius: BorderRadius.circular(50),
+                ),
+                child: _buildReelActionsColumn(
+                  videoDetail: videoDetail,
+                  currentUserDetails: currentUserDetails,
+                  currentUser: currentUser,
+                  isAuthenticated: isAuthenticated,
+                  context: context,
+                  listenLive: listenLive,
+                ),
+              ),
+            ),
+          ),
+          SizedBox(height: 8),
 
-                      String userId =
-                          currentUserDetails?.id ?? currentUser?.id ?? '';
-                      bool isLiked = likes.contains(userId);
+          if (videoDetail.sponsorType == null)
+            if (videoDetail.frontUserId != currentUserDetails?.id)
+              _buildReviewButton(
+                videoDetail: videoDetail,
+                currentUserDetails: currentUserDetails,
+                currentUser: currentUser,
+                isAuthenticated: isAuthenticated,
+                context: context,
+                listenLive: listenLive,
+              ),
+        ],
+      ),
+    );
+  }
 
-                      String formattedLikeCount =
-                          likeCount > 1000
-                              ? '${(likeCount / 1000).toStringAsFixed(1)}K'
-                              : likeCount.toString();
+  Widget _buildReelActionsColumn({
+    required WallVideos videoDetail,
+    required SimpleUser? currentUserDetails,
+    required User? currentUser,
+    required dynamic isAuthenticated,
+    required BuildContext context,
+    required bool listenLive,
+  }) {
+    final videoId = videoDetail.id ?? '';
+    Widget buildColumn(ReelVideoStats stats) {
+      final likes = stats.likes;
+      final userId = currentUserDetails?.id ?? currentUser?.id ?? '';
+      final isLiked = likes.contains(userId);
+      final commentCount = stats.commentCount > 0
+          ? stats.commentCount
+          : (_commentCounts[videoId] ?? 0);
+      final formattedLikeCount = ReelVideoStats.formatCount(stats.likeCount);
+      final formattedCommentCount = ReelVideoStats.formatCount(commentCount);
+      final formattedViewCount = ReelVideoStats.formatCount(stats.viewCount);
 
-                      // Fetch the comment count from the comments subcollection
-                      return StreamBuilder<QuerySnapshot>(
-                        stream:
-                            FirebaseFirestore.instance
-                                .collection('videos')
-                                .doc(videoDetail.id)
-                                .collection('comments')
-                                .snapshots(),
-                        builder: (context, commentSnapshot) {
-                          int commentCount =
-                              commentSnapshot.data?.docs.length ?? 0;
-                          String formattedCommentCount =
-                              commentCount > 1000
-                                  ? '${(commentCount / 1000).toStringAsFixed(1)}K'
-                                  : commentCount.toString();
-
-                          return Column(
+      return Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               // Simplified Like Button
@@ -1119,7 +1461,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                                   );
                                 },
                                 child: Text(
-                                  formattedLikeCount ?? "0",
+                                  formattedLikeCount,
                                   style: TextStyle(
                                     color: Colors.white,
                                     fontSize: 10.sp,
@@ -1136,41 +1478,12 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                                 ),
                               ),
                               SizedBox(width: 4),
-                              StreamBuilder<DocumentSnapshot>(
-                                stream:
-                                    FirebaseFirestore.instance
-                                        .collection('videos')
-                                        .doc(videoDetail.id)
-                                        .snapshots(),
-                                builder: (context, snapshot) {
-                                  if (!snapshot.hasData ||
-                                      !snapshot.data!.exists) {
-                                    return Text(
-                                      "0",
-                                      style: TextStyle(color: Colors.white),
-                                    );
-                                  }
-                                  final data =
-                                      snapshot.data!.data()
-                                          as Map<String, dynamic>? ??
-                                      {};
-                                  List<dynamic> views = data['views'] ?? [];
-                                  int viewCount =
-                                      views
-                                          .length; // Count views from array length
-                                  String formattedViewCount =
-                                      viewCount > 1000
-                                          ? '${(viewCount / 1000).toStringAsFixed(1)}K'
-                                          : viewCount.toString();
-
-                                  return Text(
-                                    formattedViewCount,
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 10.sp,
-                                    ),
-                                  );
-                                },
+                              Text(
+                                formattedViewCount,
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 10.sp,
+                                ),
                               ),
                               // Comment Button
                               if (videoDetail.allowComments == 1) ...[
@@ -1320,92 +1633,99 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                                 ),
                             ],
                           );
-                        },
-                      );
-                    },
+    }
+
+    if (!listenLive || videoId.isEmpty) {
+      return buildColumn(ReelVideoStats.empty);
+    }
+
+    return StreamBuilder<DocumentSnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('videos')
+          .doc(videoId)
+          .snapshots(),
+      builder: (context, snapshot) {
+        return buildColumn(ReelVideoStats.fromDoc(snapshot.data));
+      },
+    );
+  }
+
+  Widget _buildReviewButton({
+    required WallVideos videoDetail,
+    required SimpleUser? currentUserDetails,
+    required User? currentUser,
+    required dynamic isAuthenticated,
+    required BuildContext context,
+    required bool listenLive,
+  }) {
+    final videoId = videoDetail.id ?? '';
+    Widget ratingLabel(double rating) {
+      final label = rating > 0 ? rating.toStringAsFixed(1) : '0.0';
+      return Text(
+        label,
+        style: TextStyle(color: Colors.white, fontSize: 14.sp),
+      );
+    }
+
+    Widget buttonChild(Widget ratingWidget) {
+      return Container(
+        decoration: BoxDecoration(
+          color: Colors.transparent,
+          borderRadius: BorderRadius.circular(50),
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(50),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 16),
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.45),
+              borderRadius: BorderRadius.circular(50),
+            ),
+            child: InkWell(
+              onTap: () {
+                if (!isAuthenticated) {
+                  Get.toNamed(AppRoutes.signIn);
+                  return;
+                }
+                final userId = currentUserDetails?.id ?? currentUser!.id;
+                final userImage =
+                    currentUserDetails?.image ?? currentUser?.image ?? '';
+                showReviewsBottomSheet(
+                  context,
+                  videoDetail.id!,
+                  userId!,
+                  userImage,
+                );
+              },
+              child: Column(
+                children: [
+                  const Icon(
+                    Icons.star_rounded,
+                    color: Colors.amberAccent,
+                    size: 40,
                   ),
-                ),
+                  ratingWidget,
+                ],
               ),
             ),
           ),
-          SizedBox(height: 8),
+        ),
+      );
+    }
 
-          if (videoDetail.sponsorType == null)
-            if (videoDetail.frontUserId != currentUserDetails?.id)
-              Container(
-                decoration: BoxDecoration(
-                  color: Colors.transparent,
-                  borderRadius: BorderRadius.circular(50),
-                ),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(50),
-                  child: BackdropFilter(
-                    filter: ImageFilter.blur(sigmaX: 10.0, sigmaY: 10.0),
-                    child: Container(
-                      padding: EdgeInsets.symmetric(
-                        horizontal: 6,
-                        vertical: 16,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.black.withOpacity(0.3),
-                        borderRadius: BorderRadius.circular(50),
-                      ),
-                      child: InkWell(
-                        onTap: () {
-                          if (!isAuthenticated) {
-                            Get.toNamed(AppRoutes.signIn);
-                            return;
-                          }
-                          // controller.pauseCurrentVideo();
-                          String? userId =
-                              currentUserDetails?.id ?? currentUser!.id;
-                          String? userImage =
-                              currentUserDetails?.image ??
-                              currentUser?.image ??
-                              "";
-                          showReviewsBottomSheet(
-                            context,
-                            videoDetail.id!,
-                            userId!,
-                            userImage!,
-                          );
+    if (!listenLive || videoId.isEmpty) {
+      return buttonChild(ratingLabel(0));
+    }
 
-                          if (mounted) {
-                            // controller.restoreVideoState();
-                          }
-                        },
-                        child: Column(
-                          children: [
-                            Icon(
-                              Icons.star_rounded,
-                              color: Colors.amberAccent,
-                              size: 40,
-                            ),
-                            StreamBuilder<double>(
-                              stream: _getAverageRating(videoDetail.id!),
-                              builder: (context, snapshot) {
-                                final averageRating =
-                                    snapshot.hasData && snapshot.data! > 0
-                                        ? snapshot.data!.toStringAsFixed(1)
-                                        : "0.0";
-                                return Text(
-                                  averageRating,
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 14.sp,
-                                  ),
-                                );
-                              },
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-        ],
-      ),
+    return StreamBuilder<DocumentSnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('videos')
+          .doc(videoId)
+          .snapshots(),
+      builder: (context, snapshot) {
+        final stats = ReelVideoStats.fromDoc(snapshot.data);
+        return buttonChild(ratingLabel(stats.averageRating));
+      },
     );
   }
 
@@ -1558,7 +1878,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
           'Check out this amazing video on Cookster!\n$appUrl\n\nIf the app does not open, use this web link:\n$webUrl';
       await Share.share(shareMessage, subject: 'Cookster Video');
     } catch (e) {
-      print('Error sharing video: $e');
+      debugPrint('Error sharing video: $e');
       Get.snackbar(
         'Error',
         'Could not share this video',
@@ -1631,7 +1951,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                     style: TextStyle(color: Colors.black, fontSize: 14.sp),
                   ),
                   onTap: () {
-                    print("THis is the report video id:$videoId");
+                    debugPrint("THis is the report video id:$videoId");
                     Navigator.pop(context);
                     // controller.pauseCurrentVideo();
                     Get.to(ReportContentView(videoId: videoId))?.then((_) {
@@ -1724,7 +2044,7 @@ class videoUserDetails extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final overlayTop = MediaQuery.of(context).padding.top + 64;
+    final overlayTop = MediaQuery.paddingOf(context).top + 64;
     return Positioned(
       top: overlayTop,
       left: 10,
@@ -1744,16 +2064,13 @@ class videoUserDetails extends StatelessWidget {
               ),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(50),
-                child: BackdropFilter(
-                  filter: ImageFilter.blur(sigmaX: 10.0, sigmaY: 10.0),
-                  // Blur effect
-                  child: Container(
-                    padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: Colors.black.withOpacity(0.3), // Blue tint
-                      borderRadius: BorderRadius.circular(50),
-                    ),
-                    child: Obx(() {
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.45),
+                    borderRadius: BorderRadius.circular(50),
+                  ),
+                  child: Obx(() {
                       var currentUserDetails =
                           profileController.simpleUserDetails.value?.user;
                       var currentUser =
@@ -1774,32 +2091,13 @@ class videoUserDetails extends StatelessWidget {
                         children: [
                           InkWell(
                             onTap: () {
-                              // controller.pauseCurrentVideo();
-                              Get.to(
-                                VisitProfileView(
-                                  userId: videoDetail.frontUserId!,
+                              unawaited(
+                                Get.to(
+                                  () => VisitProfileView(
+                                    userId: videoDetail.frontUserId!,
+                                  ),
                                 ),
-                              )!.then((result) async {
-                                // Handle the result when user comes back
-                                if (result != null &&
-                                    result is Map<String, dynamic>) {
-                                  bool followerChanged =
-                                      result['followerChanged'] ?? false;
-
-                                  if (followerChanged) {
-                                    print(
-                                      "User follow/unfollow status changed - refreshing data",
-                                    );
-                                    controller.setSelectedType(
-                                      controller.selectedType.value,
-                                    );
-
-                                    controller.fetchVideos();
-                                  } else {
-                                    print("No follow status changes detected");
-                                  }
-                                }
-                              });
+                              );
                             },
                             child: Row(
                               children: [
@@ -1816,7 +2114,9 @@ class videoUserDetails extends StatelessWidget {
                                                     .userImage!
                                                     .isNotEmpty
                                             ? CachedNetworkImageProvider(
-                                              '${Common.profileImage}/${videoDetail.userImage}',
+                                              videoDetail
+                                                      .resolvedUserAvatarUrl ??
+                                                  '',
                                             )
                                             : null,
                                     child:
@@ -1860,7 +2160,7 @@ class videoUserDetails extends StatelessWidget {
                                           ),
                                         )
                                         : Text(
-                                          "${videoDetail.followersCount} ${"Followers".tr}",
+                                          "${videoDetail.displayFollowersCount} ${"Followers".tr}",
                                           style: TextStyle(
                                             color: Colors.white,
                                             fontSize: 10.sp,
@@ -1909,7 +2209,7 @@ class videoUserDetails extends StatelessWidget {
                                     // For GetX: controller.update();
                                   } catch (e) {
                                     // Handle error - maybe revert the changes if API call fails
-                                    print('Error toggling follow status: $e');
+                                    debugPrint('Error toggling follow status: $e');
                                     // You might want to show a snackbar or toast here
 
                                     // Revert the follower count changes on error
@@ -1975,7 +2275,6 @@ class videoUserDetails extends StatelessWidget {
                   ),
                 ),
               ),
-            ),
           ],
         ),
       ),
@@ -2207,7 +2506,7 @@ void showLocationDialog(BuildContext context) {
 
                             showCityDialog(context);
                           } catch (e) {
-                            print('Error selecting country: $e');
+                            debugPrint('Error selecting country: $e');
                             Get.snackbar('Error', 'Failed to load cities');
                           }
                         }
@@ -2449,7 +2748,7 @@ void showCityDialog(BuildContext context, {int? initialCity}) {
                                       int selectedId = selectedCity.value['id'];
                                       String selectedName =
                                           selectedCity.value['name'];
-                                      print(
+                                      debugPrint(
                                         "Selected City: $selectedName (ID: $selectedId)",
                                       );
 
@@ -2465,7 +2764,7 @@ void showCityDialog(BuildContext context, {int? initialCity}) {
                                           selectedName;
                                       Get.back(); // Close the city dialog
                                     } catch (e) {
-                                      print('Error selecting city: $e');
+                                      debugPrint('Error selecting city: $e');
                                       Get.snackbar(
                                         'Error',
                                         'Failed to select city',
@@ -2702,10 +3001,8 @@ class _VideoDescriptionWidgetState extends State<VideoDescriptionWidget>
                                           //     ?.pauseCurrentVideo();
 
                                           Get.to(
-                                            () => SearchView(
+                                            () => HashtagReelScreen(
                                               tag: trimmedTag,
-                                              // isFollowing: 1,
-                                              isGeneral: 1,
                                             ),
                                           );
                                         },

@@ -176,11 +176,13 @@ class _EditVideoViewState extends State<EditVideoView> {
     bool currentAllowComments = controller.allowComments.value;
     bool currentTakeOrder = controller.acceptOrder.value;
     int? currentCountry =
-        controller.selectedLocationId > 0
-            ? controller.selectedLocationId
+        controller.selectedLocationId.value > 0
+            ? controller.selectedLocationId.value
             : null;
     int? currentCity =
-        controller.selectedCityId > 0 ? controller.selectedCityId : null;
+        controller.selectedCityId.value > 0
+            ? controller.selectedCityId.value
+            : null;
 
     // Compare with original values
     bool titleChanged = currentTitle != originalTitle;
@@ -851,10 +853,10 @@ class _EditVideoViewState extends State<EditVideoView> {
                                             'Allow Comments: ${controller.allowComments.value ? 1 : 0}',
                                           );
                                           print(
-                                            'Country ID: ${controller.selectedLocationId > 0 ? controller.selectedLocationId : null}',
+                                            'Country ID: ${controller.selectedLocationId.value > 0 ? controller.selectedLocationId.value : null}',
                                           );
                                           print(
-                                            'City ID: ${controller.selectedCityId > 0 ? controller.selectedCityId : null}',
+                                            'City ID: ${controller.selectedCityId.value > 0 ? controller.selectedCityId.value : null}',
                                           );
 
                                           // Perform the update
@@ -893,15 +895,15 @@ class _EditVideoViewState extends State<EditVideoView> {
                                                       ? 1
                                                       : 0,
                                               country:
-                                                  controller.selectedLocationId >
+                                                  controller.selectedLocationId.value >
                                                           0
                                                       ? controller
-                                                          .selectedLocationId
+                                                          .selectedLocationId.value
                                                       : null,
                                               city:
-                                                  controller.selectedCityId > 0
+                                                  controller.selectedCityId.value > 0
                                                       ? controller
-                                                          .selectedCityId
+                                                          .selectedCityId.value
                                                       : null,
                                             );
 
@@ -996,12 +998,12 @@ class _EditVideoViewState extends State<EditVideoView> {
                                                 ? 1
                                                 : 0,
                                         country:
-                                            controller.selectedLocationId > 0
-                                                ? controller.selectedLocationId
+                                            controller.selectedLocationId.value > 0
+                                                ? controller.selectedLocationId.value
                                                 : null,
                                         city:
-                                            controller.selectedCityId > 0
-                                                ? controller.selectedCityId
+                                            controller.selectedCityId.value > 0
+                                                ? controller.selectedCityId.value
                                                 : null,
                                       );
 

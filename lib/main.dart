@@ -20,8 +20,15 @@ import 'appRoutes/appRoutes.dart';
 import 'locale/localizationServices.dart';
 import 'modules/landing/landingController/landingController.dart';
 import 'modules/singleVideoVisit/singleVideoVisit.dart';
+import 'package:flutter/foundation.dart';
+import 'package:media_kit/media_kit.dart';
+import 'package:cookster/core/video/media_kit_player_pool.dart';
+import 'package:cookster/core/video/video_player_pool.dart';
+import 'package:cookster/modules/landing/landingTabs/home/homeController/homeController.dart';
+import 'services/apiClient.dart';
 import 'services/feature_flags/remote_config_service.dart';
 import 'services/settings/settings_service.dart';
+import 'services/video_settings_service.dart';
 
 // Import firebase_options.dart if it exists
 // import 'firebase_options.dart';
@@ -58,23 +65,60 @@ Future<void> requestLocationPermission() async {
   }
 }
 
+void _configureImageCache() {
+  final cache = PaintingBinding.instance.imageCache;
+  // Conservative defaults for 3–4 GB RAM devices; slightly higher on desktop.
+  final isLowMemoryTarget =
+      !kIsWeb &&
+      (Platform.isAndroid || Platform.isIOS);
+  cache.maximumSize = isLowMemoryTarget ? 180 : 250;
+  cache.maximumSizeBytes = isLowMemoryTarget ? (64 << 20) : (96 << 20);
+}
+
+void _logFlutterError(FlutterErrorDetails details) {
+  debugPrint('══╡ FLUTTER ERROR ╞══');
+  debugPrint('${details.exception}');
+  debugPrint('${details.summary}');
+  if (details.stack != null) {
+    debugPrintStack(stackTrace: details.stack, label: details.library ?? '');
+  }
+  FlutterError.dumpErrorToConsole(details);
+}
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  _configureImageCache();
+  MediaKit.ensureInitialized();
   await runZonedGuarded(() async {
     try {
       await Firebase.initializeApp();
-      FlutterError.onError = FirebaseCrashlytics.instance.recordFlutterFatalError;
+      FlutterError.onError = (FlutterErrorDetails details) {
+        _logFlutterError(details);
+        FirebaseCrashlytics.instance.recordFlutterFatalError(details);
+      };
       PlatformDispatcher.instance.onError = (error, stack) {
+        debugPrint('══╡ UNCAUGHT ERROR ╞══');
+        debugPrint('$error');
+        debugPrint('$stack');
         FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
         return true;
       };
-      await setupFirebaseMessaging();
-      await RemoteConfigService.instance.initialize();
-      await SettingsService.instance.load();
+
+      final prefs = await SharedPreferences.getInstance();
+      await Future.wait([
+        ApiClient.hydrateFromPrefs(),
+        RemoteConfigService.instance.initialize(),
+        SettingsService.instance.load(),
+      ]);
       if (!SettingsService.instance.dataSaverEnabled.value &&
           RemoteConfigService.instance.dataSaverDefault) {
         await SettingsService.instance.setDataSaver(true);
       }
+
+      // Defer FCM permission prompts until after first frame.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        unawaited(setupFirebaseMessaging());
+      });
     } catch (e, stack) {
       await FirebaseCrashlytics.instance.recordError(e, stack, fatal: false);
       print('Firebase initialization error: $e');
@@ -85,7 +129,7 @@ void main() async {
       DeviceOrientation.portraitDown,
     ]);
 
-    SharedPreferences prefs = await SharedPreferences.getInstance();
+    final prefs = await SharedPreferences.getInstance();
     String? savedLang = prefs.getString('selectedLanguage');
 
     Locale initialLocale =
@@ -95,6 +139,9 @@ void main() async {
 
     runApp(MyApp(initialLocale: initialLocale, hasInternet: true));
   }, (error, stack) async {
+    debugPrint('══╡ ZONE ERROR ╞══');
+    debugPrint('$error');
+    debugPrint('$stack');
     await FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
   });
 }
@@ -192,13 +239,26 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
 
     switch (state) {
       case AppLifecycleState.resumed:
-        print('App resumed - clearing notification badge');
         clearNotificationBadge();
+        if (Get.isRegistered<HomeController>()) {
+          final home = Get.find<HomeController>();
+          unawaited(
+            home.resumeVisibleVideo(
+              home.visiblePageIndex.value,
+            ),
+          );
+        }
         break;
       case AppLifecycleState.inactive:
       case AppLifecycleState.paused:
       case AppLifecycleState.detached:
       case AppLifecycleState.hidden:
+        if (Get.isRegistered<HomeController>()) {
+          Get.find<HomeController>().pauseAllVideos();
+        } else {
+          unawaited(MediaKitPlayerPool.instance.pauseAll());
+          unawaited(VideoPlayerPool.instance.pauseAll());
+        }
         break;
     }
   }
@@ -291,10 +351,9 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
-    String deviceLanguage = Platform.localeName;
-    print("PRINTING THE DEVICE LANGUAGE: $deviceLanguage");
-
-    // Initialize controllers only once
+    if (!Get.isRegistered<VideoSettingsService>()) {
+      Get.put(VideoSettingsService(), permanent: true);
+    }
     if (!Get.isRegistered<NavBarController>()) {
       Get.put(NavBarController(), permanent: true);
     }
@@ -306,6 +365,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       builder: (context, child) {
         return GetMaterialApp(
           debugShowCheckedModeBanner: false,
+          enableLog: kDebugMode,
           title: 'Cookster',
           translations: LocalizationService(),
           locale: widget.initialLocale,
@@ -322,10 +382,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
           navigatorObservers: [
             GetObserver((routing) {
               if (routing?.current != null) {
-                print(
-                  "Navigated to: ${routing!.current} (Previous: ${routing.previous}, Args: ${routing.args})",
-                );
-                if (routing.current != AppRoutes.noInternet &&
+                if (routing!.current != AppRoutes.noInternet &&
                     routing.current != AppRoutes.splash) {
                   _lastRouteBeforeNoInternet = routing.current;
                 }

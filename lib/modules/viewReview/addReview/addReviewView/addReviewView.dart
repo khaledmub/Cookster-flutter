@@ -6,17 +6,26 @@ import 'package:flutter_rating_bar/flutter_rating_bar.dart';
 import '../../../../appUtils/colorUtils.dart';
 import '../addReviewController/addReviewController.dart';
 
-class AddReviewView extends StatelessWidget {
+class AddReviewView extends StatefulWidget {
   final String professionalId;
 
   const AddReviewView({super.key, required this.professionalId});
 
   @override
-  Widget build(BuildContext context) {
-    final controller = Get.put(
-      AddReviewController(professionalId: professionalId),
-    );
+  State<AddReviewView> createState() => _AddReviewViewState();
+}
 
+class _AddReviewViewState extends State<AddReviewView> {
+  late final AddReviewController controller;
+
+  @override
+  void initState() {
+    super.initState();
+    controller = Get.find<AddReviewController>();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: PreferredSize(
@@ -73,7 +82,6 @@ class AddReviewView extends StatelessWidget {
                 ),
               ),
               SizedBox(width: 56.w),
-              // Balances the back button's width and margin
             ],
           ),
         ),

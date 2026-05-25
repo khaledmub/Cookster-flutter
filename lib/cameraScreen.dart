@@ -436,7 +436,7 @@ class VideoPlaybackScreen extends StatefulWidget {
 class _VideoPlaybackScreenState extends State<VideoPlaybackScreen> {
   late VideoPlayerController _controller;
   bool _isPlaying = false;
-  Duration _position = Duration.zero;
+  final ValueNotifier<Duration> _position = ValueNotifier(Duration.zero);
   Duration _duration = Duration.zero;
   bool _isVideoReady = false;
 
@@ -449,26 +449,24 @@ class _VideoPlaybackScreenState extends State<VideoPlaybackScreen> {
             setState(() {
               _duration = _controller.value.duration;
               _isVideoReady = true;
-              // Start playing automatically like in original code
               _controller.play();
               _isPlaying = true;
             });
           })
           .catchError((error) {
-            print('Error initializing video: $error');
+            debugPrint('Error initializing video: $error');
           });
 
     _controller.addListener(() {
       if (mounted) {
-        setState(() {
-          _position = _controller.value.position;
-        });
+        _position.value = _controller.value.position;
       }
     });
   }
 
   @override
   void dispose() {
+    _position.dispose();
     _controller.dispose();
     super.dispose();
   }
@@ -520,7 +518,7 @@ class _VideoPlaybackScreenState extends State<VideoPlaybackScreen> {
               Container(
                 color: Colors.white,
                 constraints: BoxConstraints(
-                  maxHeight: MediaQuery.of(context).size.height * 0.5,
+                  maxHeight: MediaQuery.sizeOf(context).height * 0.5,
                 ),
                 child: Center(
                   child: AspectRatio(
@@ -542,30 +540,36 @@ class _VideoPlaybackScreenState extends State<VideoPlaybackScreen> {
             if (_isVideoReady) ...[
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                child: Row(
-                  children: [
-                    Text(
-                      _formatDuration(_position),
-                      style: TextStyle(color: Colors.white),
-                    ),
-                    Expanded(
-                      child: Slider(
-                        value: _position.inSeconds.toDouble(),
-                        min: 0.0,
-                        max: _duration.inSeconds.toDouble(),
-                        activeColor: Colors.red,
-                        inactiveColor: Colors.grey.shade600,
-                        onChanged: (value) {
-                          final position = Duration(seconds: value.toInt());
-                          _controller.seekTo(position);
-                        },
-                      ),
-                    ),
-                    Text(
-                      _formatDuration(_duration),
-                      style: TextStyle(color: Colors.white),
-                    ),
-                  ],
+                child: ValueListenableBuilder<Duration>(
+                  valueListenable: _position,
+                  builder: (context, position, _) {
+                    return Row(
+                      children: [
+                        Text(
+                          _formatDuration(position),
+                          style: const TextStyle(color: Colors.white),
+                        ),
+                        Expanded(
+                          child: Slider(
+                            value: position.inSeconds.toDouble(),
+                            min: 0.0,
+                            max: _duration.inSeconds.toDouble(),
+                            activeColor: Colors.red,
+                            inactiveColor: Colors.grey.shade600,
+                            onChanged: (value) {
+                              _controller.seekTo(
+                                Duration(seconds: value.toInt()),
+                              );
+                            },
+                          ),
+                        ),
+                        Text(
+                          _formatDuration(_duration),
+                          style: const TextStyle(color: Colors.white),
+                        ),
+                      ],
+                    );
+                  },
                 ),
               ),
               SizedBox(height: 20),
@@ -575,7 +579,7 @@ class _VideoPlaybackScreenState extends State<VideoPlaybackScreen> {
                   IconButton(
                     icon: Icon(Icons.replay_10, color: Colors.white, size: 36),
                     onPressed: () {
-                      final position = _position - Duration(seconds: 10);
+                      final position = _position.value - const Duration(seconds: 10);
                       _controller.seekTo(
                         position > Duration.zero ? position : Duration.zero,
                       );
@@ -605,7 +609,7 @@ class _VideoPlaybackScreenState extends State<VideoPlaybackScreen> {
                   IconButton(
                     icon: Icon(Icons.forward_10, color: Colors.white, size: 36),
                     onPressed: () {
-                      final position = _position + Duration(seconds: 10);
+                      final position = _position.value + const Duration(seconds: 10);
                       _controller.seekTo(
                         position < _duration ? position : _duration,
                       );

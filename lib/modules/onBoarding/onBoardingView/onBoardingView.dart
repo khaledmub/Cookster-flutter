@@ -20,10 +20,7 @@ class OnBoarding extends StatefulWidget {
 }
 
 class _OnBoardingState extends State<OnBoarding> {
-  final OnboardingController controller = Get.put(
-    OnboardingController(),
-    permanent: true,
-  );
+  final OnboardingController controller = Get.find();
 
   @override
   Widget build(BuildContext context) {

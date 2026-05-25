@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:cookster/modules/landing/landingTabs/add/videoAddController/videoAddController.dart';
+import 'package:cookster/services/video_settings_service.dart';
 import 'package:dropdown_flutter/custom_dropdown.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -15,94 +18,66 @@ class UploadVideoStep2 extends StatefulWidget {
   State<UploadVideoStep2> createState() => _UploadVideoStep2State();
 }
 
-class _UploadVideoStep2State extends State<UploadVideoStep2> {
-  Future<int> getEntity() async {
-    SharedPreferences prefs = await SharedPreferences.getInstance();
-    return prefs.getInt('entity') ?? 0;
-  }
+class _UploadVideoStep2State extends State<UploadVideoStep2>
+    with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
+  final VideoAddController videoAddController = Get.find();
+  final ProfileController profileController = Get.find();
+  final GlobalKey<FormFieldState> _tagKey = GlobalKey<FormFieldState>();
+  final FocusNode _tagFocusNode = FocusNode();
+  late final Future<int> _entityFuture;
 
   String _language = 'en';
 
-  // Default to English
   Future<void> _loadLanguage() async {
     final prefs = await SharedPreferences.getInstance();
+    if (!mounted) return;
     setState(() {
-      _language =
-          prefs.getString('language') ?? 'en'; // Default to 'en' if not set
+      _language = prefs.getString('language') ?? 'en';
     });
   }
 
   @override
   void initState() {
-    // TODO: implement initState
     super.initState();
+    _entityFuture = _loadEntity();
     _loadLanguage();
+    unawaited(_ensureVideoUploadSettings());
+    _tagFocusNode.addListener(() {
+      if (_tagFocusNode.hasFocus) {
+        _tagKey.currentState?.validate();
+      }
+    });
+  }
+
+  Future<int> _loadEntity() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getInt('entity') ?? 0;
+  }
+
+  @override
+  void dispose() {
+    _tagFocusNode.dispose();
+    super.dispose();
+  }
+
+  Future<void> _ensureVideoUploadSettings() async {
+    final profileController = Get.find<ProfileController>();
+    if (profileController.videoUploadSettings.value?.videoTypeList.isNotEmpty ==
+        true) {
+      return;
+    }
+    await VideoSettingsService.instance.load();
   }
 
   @override
   Widget build(BuildContext context) {
-    bool isRtl = _language == 'ar';
-
-    final VideoAddController videoAddController = Get.find();
-    final FocusNode menuFocusNode = FocusNode();
-    final ProfileController profileController = Get.find();
-    final tagKey = GlobalKey<FormFieldState>();
-    final FocusNode tagFocusNode = FocusNode();
-
-    tagFocusNode.addListener(() {
-      if (tagFocusNode.hasFocus) {
-        tagKey.currentState?.validate();
-      }
-    });
-
-    final menuKey = GlobalKey<FormFieldState>();
-    menuFocusNode.addListener(() {
-      if (menuFocusNode.hasFocus) {
-        menuKey.currentState?.validate();
-      }
-    });
-
-    Map<String, int> videoTypeMap = {};
-    List<String> videoTypeNames = [];
-    if (profileController.videoUploadSettings.value != null &&
-        profileController.videoUploadSettings.value!.videoTypes != null &&
-        profileController.videoUploadSettings.value!.videoTypes!.values !=
-            null) {
-      videoTypeNames =
-          profileController.videoUploadSettings.value!.videoTypes!.values!.map((
-            videoType,
-          ) {
-            videoTypeMap[videoType.name!] = videoType.id!;
-            return videoType.name!;
-          }).toList();
-    }
-
-    // TEMP: Ensure "Others" appears in publish type list even when backend
-    // hasn't provided a dedicated type yet.
-    final String othersLabel = "Others".tr;
-    final hasOthers = videoTypeNames.any(
-      (name) => name.trim().toLowerCase() == 'others' || name.trim() == 'أخرى',
-    );
-    if (!hasOthers && videoTypeMap.isNotEmpty) {
-      // Temporary fallback mapping until backend adds a real "Others" type id.
-      videoTypeMap[othersLabel] = videoTypeMap.values.first;
-      videoTypeNames.add(othersLabel);
-    }
-
-    String? currentSelectedType;
-    if (videoAddController.videoType.value.isNotEmpty) {
-      int? currentTypeId = int.tryParse(videoAddController.videoType.value);
-      if (currentTypeId != null) {
-        videoTypeMap.forEach((name, id) {
-          if (id == currentTypeId) {
-            currentSelectedType = name;
-          }
-        });
-      }
-    }
+    super.build(context);
+    final isRtl = _language == 'ar';
 
     return FutureBuilder<int>(
-      future: getEntity(),
+      future: _entityFuture,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
@@ -141,68 +116,7 @@ class _UploadVideoStep2State extends State<UploadVideoStep2> {
                             ),
                           ),
                           SizedBox(height: 6),
-                          DropdownFlutter<String>(
-                            initialItem: currentSelectedType,
-                            validator: (value) {
-                              if (value == null || value.isEmpty) {
-                                videoAddController.videoTypeError.value =
-                                    "select_video_type".tr;
-
-                                return "".tr;
-                              }
-                              return null;
-                            },
-                            closedHeaderPadding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 16,
-                            ),
-                            decoration: CustomDropdownDecoration(
-                              closedBorderRadius: BorderRadius.circular(8),
-                              expandedBorderRadius: BorderRadius.circular(8),
-                              closedFillColor: Colors.transparent,
-                              closedBorder: Border.all(
-                                color: const Color(0xFFBDBDBD).withOpacity(0.3),
-                                width: 0.8,
-                              ),
-                              closedSuffixIcon: const Icon(
-                                Icons.keyboard_arrow_down_rounded,
-                                size: 18,
-                              ),
-                            ),
-                            hintText: "select_video_type".tr,
-                            items: videoTypeNames,
-                            onChanged: (String? selectedValue) {
-                              if (selectedValue != null) {
-                                int? selectedId = videoTypeMap[selectedValue];
-                                videoAddController.videoType.value =
-                                    selectedId.toString();
-                                videoAddController.videoTypeError.value = "";
-                              }
-                            },
-                          ),
-
-                          Obx(() {
-                            return videoAddController
-                                    .videoTypeError
-                                    .value
-                                    .isNotEmpty
-                                ? Padding(
-                                  padding: EdgeInsets.only(
-                                    // top: 2.h,
-                                    left: isRtl ? 8.w : 8.w,
-                                    right: isRtl ? 8.w : 8.w,
-                                  ),
-                                  child: Text(
-                                    videoAddController.videoTypeError.value,
-                                    style: TextStyle(
-                                      color:
-                                          Theme.of(context).colorScheme.error,
-                                      fontSize: 12.sp,
-                                    ),
-                                  ),
-                                )
-                                : SizedBox.shrink();
-                          }),
+                          _Step2VideoTypeField(isRtl: isRtl),
                           SizedBox(height: 16.h),
                           Text(
                             "tag_label".tr,
@@ -214,52 +128,49 @@ class _UploadVideoStep2State extends State<UploadVideoStep2> {
                           SizedBox(height: 6),
 
                           Obx(() {
+                            final tagsFull =
+                                videoAddController.tagsList.length >= 5;
                             return AppUtils.customPasswordTextField(
-                              fieldKey: tagKey,
-                              labelText: "enter_tag_here".tr,
-                              controller: videoAddController.tagController,
-                              focusNode: tagFocusNode,
-                              enabled: videoAddController.tagsList.length < 5,
-                              // Enable text field if fewer than 5 tags
-                              validator: (value) {
-                                if (value != null && value.isNotEmpty) {
-                                  final badWordError = videoAddController
-                                      .checkBadWords(context, value);
-                                  if (badWordError != null) {
-                                    return badWordError;
-                                  }
-                                }
-
-                                if (videoAddController.tagsList.isEmpty) {
-                                  return "tag_error".tr;
-                                }
-
-                                return null;
-                              },
-                              onChanged: (value) {
-                                if (value.contains(",")) {
-                                  videoAddController.addTag(
-                                    value.replaceAll(",", "").trim(),
-                                  );
-                                  videoAddController.tagController.clear();
-                                  tagKey.currentState?.validate();
-                                }
-                              },
-                              onSubmitted: (value) {
-                                final cleanedValue = value.trim();
+                            fieldKey: _tagKey,
+                            labelText: "enter_tag_here".tr,
+                            controller: videoAddController.tagController,
+                            focusNode: _tagFocusNode,
+                            enabled: !tagsFull,
+                            validator: (value) {
+                              if (value != null && value.isNotEmpty) {
                                 final badWordError = videoAddController
-                                    .checkBadWords(context, cleanedValue);
-
-                                if (cleanedValue.isNotEmpty &&
-                                    badWordError == null) {
-                                  videoAddController.addTag(cleanedValue);
+                                    .checkBadWords(context, value);
+                                if (badWordError != null) {
+                                  return badWordError;
                                 }
-
+                              }
+                              if (videoAddController.tagsList.isEmpty) {
+                                return "tag_error".tr;
+                              }
+                              return null;
+                            },
+                            onChanged: (value) {
+                              if (value.contains(",")) {
+                                videoAddController.addTag(
+                                  value.replaceAll(",", "").trim(),
+                                );
                                 videoAddController.tagController.clear();
-                                tagKey.currentState?.validate();
-                              },
-                              textInputAction: TextInputAction.done,
-                            );
+                                _tagKey.currentState?.validate();
+                              }
+                            },
+                            onSubmitted: (value) {
+                              final cleanedValue = value.trim();
+                              final badWordError = videoAddController
+                                  .checkBadWords(context, cleanedValue);
+                              if (cleanedValue.isNotEmpty &&
+                                  badWordError == null) {
+                                videoAddController.addTag(cleanedValue);
+                              }
+                              videoAddController.tagController.clear();
+                              _tagKey.currentState?.validate();
+                            },
+                            textInputAction: TextInputAction.done,
+                          );
                           }),
                           Obx(() {
                             return Column(
@@ -290,7 +201,7 @@ class _UploadVideoStep2State extends State<UploadVideoStep2> {
                                             videoAddController.tagsList.remove(
                                               tag,
                                             );
-                                            tagKey.currentState?.validate();
+                                            _tagKey.currentState?.validate();
                                           },
                                         );
                                       }).toList(),
@@ -358,5 +269,130 @@ class _UploadVideoStep2State extends State<UploadVideoStep2> {
         );
       },
     );
+  }
+}
+
+class _Step2VideoTypeField extends StatelessWidget {
+  const _Step2VideoTypeField({required this.isRtl});
+
+  final bool isRtl;
+
+  @override
+  Widget build(BuildContext context) {
+    final videoAddController = Get.find<VideoAddController>();
+    final profileController = Get.find<ProfileController>();
+
+    return Obx(() {
+      final settings =
+          profileController.videoUploadSettings.value ??
+          VideoSettingsService.instance.settings.value;
+      final videoTypeMap = <String, int>{};
+      final videoTypeNames = <String>[];
+      for (final videoType in settings?.videoTypeList ?? const []) {
+        final name = videoType.name?.trim();
+        final id = videoType.id;
+        if (name == null || name.isEmpty || id == null) continue;
+        videoTypeMap[name] = id;
+        videoTypeNames.add(name);
+      }
+
+      final othersLabel = "Others".tr;
+      final hasOthers = videoTypeNames.any(
+        (name) =>
+            name.trim().toLowerCase() == 'others' || name.trim() == 'أخرى',
+      );
+      if (!hasOthers && videoTypeMap.isNotEmpty) {
+        videoTypeMap[othersLabel] = videoTypeMap.values.first;
+        videoTypeNames.add(othersLabel);
+      }
+
+      String? currentSelectedType;
+      if (videoAddController.videoType.value.isNotEmpty) {
+        final currentTypeId = int.tryParse(videoAddController.videoType.value);
+        if (currentTypeId != null) {
+          videoTypeMap.forEach((name, id) {
+            if (id == currentTypeId) currentSelectedType = name;
+          });
+        }
+      }
+
+      if (videoTypeNames.isEmpty) {
+        return Padding(
+          padding: EdgeInsets.symmetric(vertical: 8.h),
+          child: Row(
+            children: [
+              SizedBox(
+                width: 16.w,
+                height: 16.w,
+                child: const CircularProgressIndicator(strokeWidth: 2),
+              ),
+              SizedBox(width: 8.w),
+              Expanded(
+                child: Text(
+                  "select_video_type".tr,
+                  style: TextStyle(fontSize: 12.sp, color: Colors.grey),
+                ),
+              ),
+            ],
+          ),
+        );
+      }
+
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          DropdownFlutter<String>(
+            initialItem: currentSelectedType,
+            validator: (value) {
+              if (value == null || value.isEmpty) {
+                videoAddController.videoTypeError.value =
+                    "select_video_type".tr;
+                return "".tr;
+              }
+              return null;
+            },
+            closedHeaderPadding: const EdgeInsets.symmetric(
+              horizontal: 12,
+              vertical: 16,
+            ),
+            decoration: CustomDropdownDecoration(
+              closedBorderRadius: BorderRadius.circular(8),
+              expandedBorderRadius: BorderRadius.circular(8),
+              closedFillColor: Colors.transparent,
+              closedBorder: Border.all(
+                color: const Color(0xFFBDBDBD).withOpacity(0.3),
+                width: 0.8,
+              ),
+              closedSuffixIcon: const Icon(
+                Icons.keyboard_arrow_down_rounded,
+                size: 18,
+              ),
+            ),
+            hintText: "select_video_type".tr,
+            items: videoTypeNames,
+            onChanged: (String? selectedValue) {
+              if (selectedValue != null) {
+                final selectedId = videoTypeMap[selectedValue];
+                if (selectedId != null) {
+                  videoAddController.videoType.value = selectedId.toString();
+                  videoAddController.videoTypeError.value = "";
+                }
+              }
+            },
+          ),
+          if (videoAddController.videoTypeError.value.isNotEmpty)
+            Padding(
+              padding: EdgeInsets.only(left: 8.w, right: 8.w),
+              child: Text(
+                videoAddController.videoTypeError.value,
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.error,
+                  fontSize: 12.sp,
+                ),
+              ),
+            ),
+        ],
+      );
+    });
   }
 }

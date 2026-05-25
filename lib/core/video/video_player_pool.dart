@@ -16,7 +16,7 @@ class VideoPlayerPool {
   VideoPlayerPool._();
 
   static final VideoPlayerPool instance = VideoPlayerPool._();
-  static const int maxPlayers = 8;
+  static const int maxPlayers = 1;
 
   final LinkedHashMap<String, VideoPlayerController> _controllers =
       LinkedHashMap<String, VideoPlayerController>();
@@ -36,7 +36,7 @@ class VideoPlayerPool {
       if (!existing.value.isInitialized) {
         await existing.initialize();
       }
-      if (autoPlay) {
+      if (autoPlay || _activeKey == key) {
         await setActive(key);
       }
       _leaseCount[key] = (_leaseCount[key] ?? 0) + 1;
@@ -48,7 +48,7 @@ class VideoPlayerPool {
     await controller.initialize();
     _controllers[key] = controller;
 
-    if (autoPlay) {
+    if (autoPlay || _activeKey == key) {
       await setActive(key);
     }
     _leaseCount[key] = (_leaseCount[key] ?? 0) + 1;
@@ -59,7 +59,13 @@ class VideoPlayerPool {
     required String key,
     required String sourceUrl,
   }) async {
-    await acquire(key: key, sourceUrl: sourceUrl, autoPlay: false);
+    if (_controllers.containsKey(key)) {
+      return;
+    }
+    await _evictIfNeeded();
+    final controller = VideoPlayerController.networkUrl(Uri.parse(sourceUrl));
+    await controller.initialize();
+    _controllers[key] = controller;
   }
 
   Future<void> setActive(String key) async {
@@ -110,19 +116,20 @@ class VideoPlayerPool {
     final currentLease = _leaseCount[key] ?? 0;
     if (currentLease > 1) {
       _leaseCount[key] = currentLease - 1;
-    } else {
-      _leaseCount.remove(key);
+      return;
     }
 
-    final controller = _controllers[key];
-    if (controller != null && controller.value.isInitialized) {
-      if (controller.value.isPlaying) {
-        await controller.pause();
-      }
-      await controller.setVolume(0.0);
-    }
+    _leaseCount.remove(key);
     if (_activeKey == key) {
       _activeKey = null;
+    }
+
+    final controller = _controllers.remove(key);
+    if (controller != null) {
+      if (controller.value.isInitialized && controller.value.isPlaying) {
+        await controller.pause();
+      }
+      await controller.dispose();
     }
   }
 
@@ -149,12 +156,41 @@ class VideoPlayerPool {
       }
     }
     if (evictKey == null) {
-      // All controllers are currently leased; skip eviction for now.
       return;
     }
     final oldest = _controllers.remove(evictKey);
     if (oldest != null) {
       await oldest.dispose();
+    }
+  }
+
+  /// Releases pooled players whose keys are farther than [window] from [visibleIndex].
+  Future<void> releaseFarFrom(
+    int visibleIndex, {
+    required int window,
+    required String? Function(int index) keyResolver,
+  }) async {
+    final keepKeys = <String>{};
+    for (int offset = -window; offset <= window; offset++) {
+      final key = keyResolver(visibleIndex + offset);
+      if (key != null && key.isNotEmpty) {
+        keepKeys.add(key);
+      }
+    }
+    if (_activeKey != null) {
+      keepKeys.add(_activeKey!);
+    }
+
+    final keysToRelease = _controllers.keys
+        .where((key) => !keepKeys.contains(key) && (_leaseCount[key] ?? 0) == 0)
+        .toList(growable: false);
+
+    for (final key in keysToRelease) {
+      final controller = _controllers.remove(key);
+      _leaseCount.remove(key);
+      if (controller != null) {
+        await controller.dispose();
+      }
     }
   }
 }

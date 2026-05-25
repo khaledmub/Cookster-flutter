@@ -3,14 +3,15 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:get/get.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 
-import '../../../../../appUtils/apiEndPoints.dart';
+import 'package:cookster/core/widgets/grid_thumbnail_cache.dart';
+import 'package:cookster/modules/landing/landingTabs/home/homeModel/userSaveUnsave.dart';
+
+import '../../../../../core/widgets/paginated_scroll_mixin.dart';
 import '../../../../../appUtils/colorUtils.dart';
 import '../../../../singleVideoView/singleVideoView.dart';
 import 'package:cookster/modules/landing/landingTabs/home/homeController/saveController.dart';
-import '../../profile/profileControlller/profileController.dart';
 
 class SavedVideosView extends StatefulWidget {
   const SavedVideosView({super.key});
@@ -19,13 +20,18 @@ class SavedVideosView extends StatefulWidget {
   State<SavedVideosView> createState() => _SavedVideosViewState();
 }
 
-class _SavedVideosViewState extends State<SavedVideosView> {
+class _SavedVideosViewState extends State<SavedVideosView>
+    with PaginatedScrollMixin {
   final SaveController saveController = Get.find();
-  final ProfileController profileController = Get.find();
 
   @override
   void initState() {
     super.initState();
+    initPaginatedScroll(() {
+      if (saveController.hasMore && !saveController.isLoadingMore.value) {
+        saveController.fetchMoreSavedVideos();
+      }
+    });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       saveController.getSavedVideos();
     });
@@ -36,7 +42,66 @@ class _SavedVideosViewState extends State<SavedVideosView> {
   }
 
   @override
+  void dispose() {
+    disposePaginatedScroll();
+    super.dispose();
+  }
+
+  Widget _buildVideoTile(SavedVideos video, int thumbCache) {
+    return GestureDetector(
+      onTap: () {
+        Get.to(
+          SingleVideoScreen(
+            followers: video.followersCount.toString(),
+            frondUserId: video.frontUserId,
+            userImage: video.userImage,
+            videoId: video.id,
+            videoUrl: video.resolvedPlaybackUrl,
+            title: video.title,
+            image: video.image,
+            allowComments: video.allowComments,
+            description: video.description,
+            tags: video.tags,
+            userName: video.userName,
+            createdAt: video.createdAt,
+          ),
+        );
+      },
+      child: Stack(
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(12.r),
+            child: video.resolvedThumbnailUrl != null
+                ? CachedNetworkImage(
+                    imageUrl: video.resolvedThumbnailUrl!,
+                    fit: BoxFit.cover,
+                    width: double.infinity,
+                    height: double.infinity,
+                    memCacheWidth: thumbCache,
+                    memCacheHeight: (thumbCache * 1.33).round(),
+                  )
+                : Image.asset(
+                    'assets/images/food1.jpg',
+                    fit: BoxFit.cover,
+                  ),
+          ),
+          Center(
+            child: Icon(
+              Icons.play_circle_outline,
+              color: Colors.white.withValues(alpha: 0.7),
+              size: 30.sp,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final bottomPadding = MediaQuery.paddingOf(context).bottom + 20;
+    final thumbCache = gridThumbnailMemCacheSize(100.w);
+
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: PreferredSize(
@@ -45,7 +110,7 @@ class _SavedVideosViewState extends State<SavedVideosView> {
           padding: EdgeInsets.only(top: 20.h),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.vertical(bottom: Radius.circular(30)),
-            gradient: LinearGradient(
+            gradient: const LinearGradient(
               colors: [Color(0XFFFFD700), Color(0XFFFFFADC)],
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
@@ -70,21 +135,17 @@ class _SavedVideosViewState extends State<SavedVideosView> {
                     Directionality.of(context) == TextDirection.rtl ? 16 : null,
                 top: 25,
                 child: InkWell(
-                  onTap: () {
-                    Get.back();
-                  },
+                  onTap: Get.back,
                   child: Container(
                     height: 40,
                     width: 40,
-                    decoration: BoxDecoration(
+                    decoration: const BoxDecoration(
                       color: Color(0xFFE6BE00),
                       shape: BoxShape.circle,
                     ),
-                    child: Center(
+                    child: const Center(
                       child: Icon(
-                        Directionality.of(context) == TextDirection.rtl
-                            ? Icons.arrow_back
-                            : Icons.arrow_back,
+                        Icons.arrow_back,
                         color: ColorUtils.darkBrown,
                         size: 24,
                       ),
@@ -98,180 +159,68 @@ class _SavedVideosViewState extends State<SavedVideosView> {
       ),
       body: RefreshIndicator(
         onRefresh: _onRefresh,
-        color: Color(0XFFFFD700),
+        color: const Color(0XFFFFD700),
         backgroundColor: Colors.white,
-        child: Padding(
-          padding: EdgeInsets.only(
-            bottom: MediaQuery.of(context).viewPadding.bottom + 20,
-          ),
-          child: SingleChildScrollView(
-            physics: const AlwaysScrollableScrollPhysics(),
-            child: SizedBox(
-              // Ensure the content takes up at least the full screen height
-              height: MediaQuery.of(context).size.height,
-              child: Obx(() {
-                if (saveController.isLoading.value) {
-                  return const Center(
-                    child: PulseLogoLoader(
-                      logoPath: "assets/images/appLogo.png",
-                    ),
-                  );
-                }
+        child: Obx(() {
+          if (saveController.isLoading.value) {
+            return const Center(
+              child: PulseLogoLoader(logoPath: "assets/images/appLogo.png"),
+            );
+          }
 
-                final videos = saveController.savedVideos;
-
-                if (videos.isEmpty) {
-                  return Center(
+          final videos = saveController.savedVideos;
+          if (videos.isEmpty) {
+            return ListView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              children: [
+                SizedBox(
+                  height: MediaQuery.sizeOf(context).height * 0.6,
+                  child: Center(
                     child: Image.asset(
                       "assets/images/notfound.png",
                       fit: BoxFit.cover,
                     ),
+                  ),
+                ),
+              ],
+            );
+          }
+
+          return CustomScrollView(
+            controller: paginatedScrollController,
+            physics: const AlwaysScrollableScrollPhysics(),
+            slivers: [
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+                sliver: SliverGrid(
+                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 3,
+                    crossAxisSpacing: 8,
+                    mainAxisSpacing: 8,
+                    childAspectRatio: 100.w / 133.h,
+                  ),
+                  delegate: SliverChildBuilderDelegate(
+                    (context, index) =>
+                        _buildVideoTile(videos[index], thumbCache),
+                    childCount: videos.length,
+                    addAutomaticKeepAlives: false,
+                  ),
+                ),
+              ),
+              SliverToBoxAdapter(
+                child: Obx(() {
+                  if (!saveController.isLoadingMore.value) {
+                    return SizedBox(height: bottomPadding);
+                  }
+                  return Padding(
+                    padding: EdgeInsets.fromLTRB(16, 16, 16, bottomPadding),
+                    child: const Center(child: CircularProgressIndicator()),
                   );
-                }
-
-                return Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 4,
-                  ),
-                  child: Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children:
-                        videos.map((video) {
-                          return SizedBox(
-                            width: 100.w,
-                            height: 133.h,
-                            child: GestureDetector(
-                              // Use onTap to avoid gesture conflicts
-                              onTap: () {
-                                Get.to(
-                                  SingleVideoScreen(
-                                    followers: video.followersCount.toString(),
-                                    frondUserId: video.frontUserId,
-                                    userImage: video.userImage,
-                                    videoId: video.id,
-                                    videoUrl: video.video,
-                                    title: video.title,
-                                    image: video.image,
-                                    allowComments: video.allowComments,
-                                    description: video.description,
-                                    tags: video.tags,
-                                    userName: video.userName,
-                                    createdAt: video.createdAt,
-                                  ),
-                                );
-                              },
-                              child: Stack(
-                                children: [
-                                  Container(
-                                    decoration: BoxDecoration(
-                                      borderRadius: BorderRadius.circular(12.r),
-                                      image: DecorationImage(
-                                        image:
-                                            (video.image != null &&
-                                                    video.image!.isNotEmpty)
-                                                ? CachedNetworkImageProvider(
-                                                  '${Common.videoUrl}/${video.image}',
-                                                )
-                                                : const AssetImage(
-                                                      "assets/images/food1.jpg",
-                                                    )
-                                                    as ImageProvider,
-                                        fit: BoxFit.cover,
-                                      ),
-                                    ),
-                                  ),
-                                  Center(
-                                    child: Icon(
-                                      Icons.play_circle_outline,
-                                      color: Colors.white.withOpacity(0.7),
-                                      size: 30.sp,
-                                    ),
-                                  ),
-                                  Positioned(
-                                    bottom: 0,
-                                    left: 0,
-                                    right: 0,
-                                    child: Container(
-                                      height: 40,
-                                      decoration: BoxDecoration(
-                                        borderRadius: BorderRadius.vertical(
-                                          bottom: Radius.circular(12.r),
-                                        ),
-                                        gradient: const LinearGradient(
-                                          begin: Alignment.bottomCenter,
-                                          end: Alignment.topCenter,
-                                          colors: [
-                                            Colors.black,
-                                            Colors.transparent,
-                                          ],
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                  Positioned(
-                                    bottom: 8,
-                                    left: 8,
-                                    child: Row(
-                                      children: [
-                                        Icon(
-                                          CupertinoIcons.heart_fill,
-                                          color: Colors.white,
-                                          size: 14.sp,
-                                        ),
-                                        SizedBox(width: 4),
-                                        StreamBuilder<DocumentSnapshot>(
-                                          stream:
-                                              FirebaseFirestore.instance
-                                                  .collection('videos')
-                                                  .doc(video.id)
-                                                  .snapshots(),
-                                          builder: (context, snapshot) {
-                                            if (!snapshot.hasData ||
-                                                !snapshot.data!.exists) {
-                                              return Text(
-                                                "0",
-                                                style: TextStyle(
-                                                  color: Colors.white,
-                                                ),
-                                              );
-                                            }
-                                            final data =
-                                                snapshot.data!.data()
-                                                    as Map<String, dynamic>? ??
-                                                {};
-                                            List<dynamic> likes =
-                                                data['likes'] ?? [];
-                                            int likeCount = likes.length;
-                                            String formattedLikeCount =
-                                                likeCount > 1000
-                                                    ? '${(likeCount / 1000).toStringAsFixed(1)}K'
-                                                    : likeCount.toString();
-
-                                            return Text(
-                                              formattedLikeCount,
-                                              style: TextStyle(
-                                                color: Colors.white,
-                                                fontSize: 10.sp,
-                                              ),
-                                            );
-                                          },
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          );
-                        }).toList(),
-                  ),
-                );
-              }),
-            ),
-          ),
-        ),
+                }),
+              ),
+            ],
+          );
+        }),
       ),
     );
   }

@@ -9,6 +9,8 @@ import 'package:shimmer/shimmer.dart';
 
 import '../../../../../appUtils/apiEndPoints.dart';
 import '../../../../../appUtils/colorUtils.dart';
+import '../../../../../core/widgets/grid_thumbnail_cache.dart';
+import 'package:cookster/core/media/media_url_resolver.dart';
 
 class VideoReviewsScreen extends StatefulWidget {
   final String videoId;
@@ -304,20 +306,50 @@ class _VideoReviewsScreenState extends State<VideoReviewsScreen> {
                                         final name = userData['name'] ?? 'Unknown';
                                         final profileImage = userData['image'] as String?;
 
-                                        return CircleAvatar(
-                                          radius: 16.r,
-                                          backgroundImage: profileImage != null
-                                              ? NetworkImage(
-                                            '${Common.profileImage}/$profileImage',
-                                          )
-                                              : null,
-                                          child: profileImage == null
-                                              ? Text(
-                                            name[0],
-                                            style: TextStyle(fontSize: 12.sp),
-                                          )
-                                              : null,
+                                        final avatarSize = 32.r;
+                                        final avatarCache = avatarMemCacheSize(
+                                          avatarSize,
                                         );
+
+                                        return profileImage != null
+                                            ? ClipOval(
+                                              child: CachedNetworkImage(
+                                                imageUrl:
+                                                    MediaUrlResolver.profileImageUrl(profileImage) ?? '',
+                                                width: avatarSize,
+                                                height: avatarSize,
+                                                fit: BoxFit.cover,
+                                                memCacheWidth: avatarCache,
+                                                memCacheHeight: avatarCache,
+                                                placeholder:
+                                                    (_, __) => CircleAvatar(
+                                                      radius: 16.r,
+                                                      child: Icon(
+                                                        Icons.person,
+                                                        size: 16.sp,
+                                                      ),
+                                                    ),
+                                                errorWidget:
+                                                    (_, __, ___) => CircleAvatar(
+                                                      radius: 16.r,
+                                                      child: Text(
+                                                        name[0],
+                                                        style: TextStyle(
+                                                          fontSize: 12.sp,
+                                                        ),
+                                                      ),
+                                                    ),
+                                              ),
+                                            )
+                                            : CircleAvatar(
+                                              radius: 16.r,
+                                              child: Text(
+                                                name[0],
+                                                style: TextStyle(
+                                                  fontSize: 12.sp,
+                                                ),
+                                              ),
+                                            );
                                       },
                                     ),
                                     SizedBox(width: 12.w),
@@ -452,7 +484,7 @@ class _VideoReviewsScreenState extends State<VideoReviewsScreen> {
                                 backgroundColor: Colors.grey[200],
                                 child: CachedNetworkImage(
                                   imageUrl:
-                                  '${Common.profileImage}/${widget.userImage}',
+                                  MediaUrlResolver.profileImageUrl(widget.userImage) ?? '',
                                   imageBuilder: (context, imageProvider) =>
                                       CircleAvatar(
                                         radius: 20.r,

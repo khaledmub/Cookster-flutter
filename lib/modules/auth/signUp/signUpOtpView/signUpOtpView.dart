@@ -29,7 +29,6 @@ class _SignUpOtpViewState extends State<SignUpOtpView> {
   void initState() {
     super.initState();
     _loadLanguage();
-    Get.put(SignUpOtpController());
   }
 
   @override

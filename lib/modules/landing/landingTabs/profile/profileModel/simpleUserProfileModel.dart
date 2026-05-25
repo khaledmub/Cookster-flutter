@@ -419,6 +419,8 @@ class UserVideos {
   dynamic userName;
   dynamic isImage;
   dynamic userImage;
+  dynamic likeCount;
+  dynamic viewCount;
 
   dynamic sponsorType;
   dynamic cities;
@@ -488,6 +490,8 @@ class UserVideos {
     updatedAt = json['updated_at'];
     userName = json['user_name'];
     userImage = json['user_image'];
+    likeCount = json['like_count'] ?? json['likes_count'] ?? json['likeCount'];
+    viewCount = json['view_count'] ?? json['views_count'] ?? json['viewCount'];
     sponsorType = json['sponsor_type'];
     isImage = json['is_image'];
     cities = json['city_names'];

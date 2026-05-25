@@ -18,6 +18,7 @@ import '../../../../../../loaders/pulseLoader.dart';
 import '../../../../../../services/apiClient.dart';
 import '../../../../../auth/signUp/signUpWidgets/selectLocation.dart';
 import '../../profileControlller/professionalProfileController.dart';
+import 'package:cookster/core/media/media_url_resolver.dart';
 
 class EditProfessionalProfileView extends StatefulWidget {
   const EditProfessionalProfileView({super.key});
@@ -469,7 +470,7 @@ class _EditProfessionalProfileViewState
                                                     )
                                                     : CachedNetworkImage(
                                                       imageUrl:
-                                                          '${Common.profileImage}/${userDetails.image!}',
+                                                          MediaUrlResolver.profileImageUrl(userDetails.image!) ?? '',
                                                       fit: BoxFit.cover,
                                                       placeholder:
                                                           (

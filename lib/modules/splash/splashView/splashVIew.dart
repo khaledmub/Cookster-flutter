@@ -1,11 +1,13 @@
-import 'package:cookster/modules/onBoarding/onBoardingView/onBoardingView.dart';
+import 'dart:async';
+
+import 'package:cookster/appBindings/app_bindings.dart';
+import 'package:cookster/appRoutes/appRoutes.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:get/get.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../initLanguageSelection/initLanguageView.dart';
-// Import LanguageController
 
 class SplashView extends StatefulWidget {
   const SplashView({super.key});
@@ -22,34 +24,33 @@ class _SplashViewState extends State<SplashView>
     final prefs = await SharedPreferences.getInstance();
     final bool initLanguage = prefs.getBool('initLanguage') ?? false;
 
-    print("SplashView: initLanguage: $initLanguage");
-
-    // Navigate based on initLanguage flag
     if (initLanguage) {
-      Get.offAll(() => const OnBoarding());
+      Get.offAllNamed(AppRoutes.onBoarding);
     } else {
-      Get.offAll(() => const InitLanguageView());
+      Get.offAll(
+        () => const InitLanguageView(),
+        binding: SelectLanguageBinding(),
+      );
     }
+  }
+
+  Future<void> _scheduleNavigation() async {
+    await Future.wait([
+      Future.delayed(const Duration(milliseconds: 800)),
+      _navigateToInitialScreen(),
+    ]);
   }
 
   @override
   void initState() {
     super.initState();
-
-    // Animation controller for breathing effect
     _controller = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 5),
       lowerBound: 0.9,
       upperBound: 1.1,
     )..repeat(reverse: true);
-
-    // Navigate to the initial screen after a 3-second delay
-    Future.delayed(const Duration(seconds: 3), () {
-      if (mounted) {
-        _navigateToInitialScreen();
-      }
-    });
+    unawaited(_scheduleNavigation());
   }
 
   @override
@@ -63,7 +64,6 @@ class _SplashViewState extends State<SplashView>
     return Scaffold(
       body: Stack(
         children: [
-          // Fade-in background
           Positioned.fill(
             child: AnimatedOpacity(
               opacity: 1.0,
@@ -74,8 +74,6 @@ class _SplashViewState extends State<SplashView>
               ),
             ),
           ),
-
-          // Breathing effect on app icon
           Center(
             child: AnimatedBuilder(
               animation: _controller,

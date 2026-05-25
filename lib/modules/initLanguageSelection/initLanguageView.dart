@@ -1,4 +1,6 @@
 import 'package:awesome_dialog/awesome_dialog.dart';
+import 'package:cookster/appBindings/app_bindings.dart';
+import 'package:cookster/appRoutes/appRoutes.dart';
 import 'package:cookster/appUtils/appCenterIcon.dart';
 import 'package:cookster/appUtils/appUtils.dart';
 import 'package:cookster/modules/selectLanguage/selectController/selectLanguageController.dart';
@@ -20,7 +22,7 @@ class InitLanguageView extends StatefulWidget {
 }
 
 class _InitLanguageViewState extends State<InitLanguageView> {
-  final LanguageController languageController = Get.put(LanguageController());
+  final LanguageController languageController = Get.find();
 
   // Save initLanguage flag to SharedPreferences
   Future<void> _saveInitLanguage() async {
@@ -138,7 +140,7 @@ class _InitLanguageViewState extends State<InitLanguageView> {
 
 
                               // Get.put(OnboardingController(), permanent: true);
-                              Get.offAll(() => const OnBoarding());
+                              Get.offAllNamed(AppRoutes.onBoarding);
                             },
                           ),
                           SizedBox(height: 20.h),

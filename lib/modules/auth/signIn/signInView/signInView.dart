@@ -42,9 +42,8 @@ class _SignInViewState extends State<SignInView> {
     });
   }
 
-  final PromoteVideoController promoteVideoController = Get.put(
-    PromoteVideoController(),
-  );
+  final LogInController logInController = Get.find();
+  final PromoteVideoController promoteVideoController = Get.find();
 
   @override
   void initState() {
@@ -65,7 +64,6 @@ class _SignInViewState extends State<SignInView> {
   Widget build(BuildContext context) {
     bool isRtl = _language == 'ar';
 
-    final LogInController logInController = Get.put(LogInController());
     return Scaffold(
       appBar: AppBar(
         backgroundColor: ColorUtils.primaryColor,

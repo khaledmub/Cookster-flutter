@@ -4,6 +4,7 @@ import 'package:get/get.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../appUtils/apiEndPoints.dart';
 import 'api_call.dart';
+import 'package:cookster/core/media/media_url_resolver.dart';
 
 class CommentWidget extends StatefulWidget {
   final String liveStreamId;
@@ -417,7 +418,7 @@ class _CommentWidgetState extends State<CommentWidget>
                         )
                         : ClipOval(
                           child: Image.network(
-                            '${Common.profileImage}/${avatarUrl}',
+                            MediaUrlResolver.profileImageUrl(avatarUrl) ?? '',
                             fit: BoxFit.cover,
                             width: 40,
                             height: 40,

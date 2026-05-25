@@ -1,10 +1,13 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cookster/appUtils/apiEndPoints.dart';
+import 'package:cookster/core/widgets/grid_thumbnail_cache.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../../../loaders/pulseLoader.dart';
 import '../blockedUsersController/blockedUsersController.dart';
 import '../blockedUsersModel/blockedUsersModel.dart';
+import 'package:cookster/core/media/media_url_resolver.dart';
 
 class BlockedUsersScreen extends StatefulWidget {
   final String userName;
@@ -207,10 +210,12 @@ class _BlockedUsersScreenState extends State<BlockedUsersScreen> {
                       ),
                     ),
                     child: ClipOval(
-                      child: Image.network(
-                        '${Common.profileImage}/${user.image}',
+                      child: CachedNetworkImage(
+                        imageUrl: MediaUrlResolver.profileImageUrl(user.image) ?? '',
                         fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) {
+                        memCacheWidth: gridThumbnailMemCacheSize(48),
+                        memCacheHeight: gridThumbnailMemCacheSize(48),
+                        errorWidget: (context, url, error) {
                           return Container(
                             color: Colors.grey[200],
                             child: Icon(

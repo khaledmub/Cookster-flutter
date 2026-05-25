@@ -21,6 +21,7 @@ import '../../../../../../services/apiClient.dart';
 import '../../../../../auth/signUp/signUpController/cityController.dart';
 import '../../../../../promoteVideo/promoteVideoController/promoteVideoController.dart';
 import '../../profileControlller/profileController.dart';
+import 'package:cookster/core/media/media_url_resolver.dart';
 
 class EditProfileView extends StatefulWidget {
   const EditProfileView({super.key});
@@ -402,7 +403,7 @@ class _EditProfileViewState extends State<EditProfileView> {
                                                     )
                                                     : CachedNetworkImage(
                                                       imageUrl:
-                                                          '${Common.profileImage}/${userDetails.image!}',
+                                                          MediaUrlResolver.profileImageUrl(userDetails.image!) ?? '',
                                                       fit: BoxFit.cover,
                                                       // Makes sure it scales properly
                                                       placeholder:

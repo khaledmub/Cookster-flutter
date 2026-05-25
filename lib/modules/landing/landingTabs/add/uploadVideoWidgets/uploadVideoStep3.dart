@@ -6,19 +6,36 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:get/get.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
-class uploadVideoStep3 extends StatelessWidget {
+class UploadVideoStep3 extends StatefulWidget {
+  const UploadVideoStep3({super.key});
+
+  @override
+  State<UploadVideoStep3> createState() => _UploadVideoStep3State();
+}
+
+class _UploadVideoStep3State extends State<UploadVideoStep3>
+    with AutomaticKeepAliveClientMixin {
   final VideoAddController controller = Get.find();
 
   @override
-  Widget build(BuildContext context) {
+  bool get wantKeepAlive => true;
+
+  @override
+  void initState() {
+    super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       controller.validateSelectedCountry();
     });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
     return Column(
       children: [
         Container(
-          margin: EdgeInsets.symmetric(horizontal: 16),
-          padding: EdgeInsets.all(16),
+          margin: const EdgeInsets.symmetric(horizontal: 16),
+          padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(20.r),
@@ -27,7 +44,6 @@ class uploadVideoStep3 extends StatelessWidget {
             spacing: 1.h,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              /// **Title**
               Text(
                 "publish_label".tr,
                 style: TextStyle(
@@ -36,96 +52,66 @@ class uploadVideoStep3 extends StatelessWidget {
                   color: Colors.black,
                 ),
               ),
-
-              /// **Radio Buttons for Visibility**
-              Wrap(
-                spacing: 0.w,
-                runSpacing: 0.h,
-                alignment: WrapAlignment.start,
-                children: [
-                  buildRadioOption(
-                    "public_option".tr,
-                    VisibilityOption.public,
-                    controller,
-                  ),
-
-                  buildRadioOption(
-                    "only_followers_option".tr,
-                    VisibilityOption.onlyFollowers,
-                    controller,
-                  ),
-
-                  buildRadioOption(
-                    "private_option".tr,
-                    VisibilityOption.private,
-                    controller,
-                  ),
-                ],
-              ),
-
-              Divider(color: Color(0XFFD5D5D5), thickness: 0.2),
-
-              /// **Allow Comments Toggle**
               Obx(
-                () => buildToggleOption(
+                () => Wrap(
+                  spacing: 0.w,
+                  runSpacing: 0.h,
+                  alignment: WrapAlignment.start,
+                  children: [
+                    _buildRadioOption(
+                      "public_option".tr,
+                      VisibilityOption.public,
+                    ),
+                    _buildRadioOption(
+                      "only_followers_option".tr,
+                      VisibilityOption.onlyFollowers,
+                    ),
+                    _buildRadioOption(
+                      "private_option".tr,
+                      VisibilityOption.private,
+                    ),
+                  ],
+                ),
+              ),
+              const Divider(color: Color(0XFFD5D5D5), thickness: 0.2),
+              Obx(
+                () => _buildToggleOption(
                   icon: "assets/icons/comment.svg",
                   title: "allow_comments_label".tr,
                   value: controller.allowComments.value,
-                  onChanged: (value) => controller.toggleComments(),
+                  onChanged: (_) => controller.toggleComments(),
                 ),
               ),
-              Divider(color: Color(0XFFD5D5D5), thickness: 0.2),
-
-              /// **Location Option**
-              buildClickableOption(
-                icon: Icons.location_on,
-                title: "location_label".tr,
-                onTap: () {
-                  showLocationDialog(context);
-                  print("Open location settings");
-                  // Add navigation to location settings if needed
-                },
-                context: context,
-              ),
+              const Divider(color: Color(0XFFD5D5D5), thickness: 0.2),
+              _buildLocationSection(context),
             ],
           ),
         ),
-        SizedBox(height: 16),
-
-        // Text('${controller.entityDetails.value['is_sponsored']}'),
-        if (controller.entityDetails.value['is_sponsored'] == 1) SponsorBox(),
+        const SizedBox(height: 16),
+        if (controller.entityDetails.value['is_sponsored'] == 1) const SponsorBox(),
       ],
     );
   }
 
-  /// **Reusable Widget for Radio Option**
-  Widget buildRadioOption(
-    String title,
-    VisibilityOption option,
-    VideoAddController ctrl,
-  ) {
+  Widget _buildRadioOption(String title, VisibilityOption option) {
     return ListTileTheme(
       horizontalTitleGap: 1,
       child: GestureDetector(
-        onTap: () => ctrl.setVisibility(option),
+        onTap: () => controller.setVisibility(option),
         child: Row(
           mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.center, // Align items properly
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            Obx(
-              () => Radio<VisibilityOption>(
-                fillColor: WidgetStateColor.resolveWith(
-                  (states) => ColorUtils.primaryColor,
-                ),
-                activeColor: Colors.yellow.shade700,
-                value: option,
-                groupValue: ctrl.selectedVisibility.value,
-                onChanged: (value) {
-                  ctrl.setVisibility(value!);
-
-                  // controller.setLocation(value as String);
-                },
+            Radio<VisibilityOption>(
+              fillColor: WidgetStateColor.resolveWith(
+                (states) => ColorUtils.primaryColor,
               ),
+              activeColor: Colors.yellow.shade700,
+              value: option,
+              groupValue: controller.selectedVisibility.value,
+              onChanged: (value) {
+                if (value != null) controller.setVisibility(value);
+              },
             ),
             Text(
               title,
@@ -137,8 +123,7 @@ class uploadVideoStep3 extends StatelessWidget {
     );
   }
 
-  /// **Reusable Widget for Toggle Option**
-  Widget buildToggleOption({
+  Widget _buildToggleOption({
     required String icon,
     required String title,
     required bool value,
@@ -153,7 +138,10 @@ class uploadVideoStep3 extends StatelessWidget {
             children: [
               SvgPicture.asset(
                 icon,
-                color: ColorUtils.greyTextFieldBorderColor,
+                colorFilter: ColorFilter.mode(
+                  ColorUtils.greyTextFieldBorderColor,
+                  BlendMode.srcIn,
+                ),
                 height: 15.h,
               ),
               SizedBox(width: 16.w),
@@ -173,98 +161,68 @@ class uploadVideoStep3 extends StatelessWidget {
     );
   }
 
-  /// **Reusable Widget for Clickable Option**
-  Widget buildClickableOption({
-    required BuildContext context,
-    required IconData icon,
-    required String title,
-    required Function() onTap,
-  }) {
-    // final VideoAddController videoAddController = Get.find();
+  Widget _buildLocationSection(BuildContext context) {
     return Column(
       children: [
         InkWell(
-          onTap: onTap,
+          onTap: () => showLocationDialog(context),
           child: Padding(
             padding: const EdgeInsets.symmetric(vertical: 8.0),
             child: Row(
               children: [
-                Row(
-                  children: [
-                    Icon(icon, color: ColorUtils.greyTextFieldBorderColor),
-                    SizedBox(width: 16.w),
-                    Text(
-                      'select_country_label'.tr,
-                      style: TextStyle(
-                        fontSize: 14.sp,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ],
+                Icon(Icons.location_on, color: ColorUtils.greyTextFieldBorderColor),
+                SizedBox(width: 16.w),
+                Text(
+                  'select_country_label'.tr,
+                  style: TextStyle(
+                    fontSize: 14.sp,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
-                Spacer(),
+                const Spacer(),
                 Obx(() {
                   final country = controller.selectedCountry.value;
                   final city = controller.selectedCity.value;
-
-                  if (country.isEmpty && city.isEmpty) {
-                    return Text(""); // Return empty text if both are empty
-                  } else if (city.isEmpty) {
-                    return Text(country); // Show only country if city is empty
-                  } else if (country.isEmpty ) {
-                    return Text(city); // Show only city if country is empty
-                  } else {
-                    return Text(
-                      "$country",
-                    ); // Show both with separator if both are non-empty
-                  }
+                  if (country.isEmpty && city.isEmpty) return const Text('');
+                  if (city.isEmpty) return Text(country);
+                  if (country.isEmpty) return Text(city);
+                  return Text(country);
                 }),
-                SizedBox(width: 8),
-                Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey),
+                const SizedBox(width: 8),
+                const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey),
               ],
             ),
           ),
         ),
-
         SizedBox(height: 8.h),
         InkWell(
-          onTap: () {
-            showCityDialog(context);
-          },
+          onTap: () => showCityDialog(context),
           child: Padding(
             padding: const EdgeInsets.symmetric(vertical: 8.0),
             child: Row(
               children: [
-                Row(
-                  children: [
-                    Icon(icon, color: ColorUtils.greyTextFieldBorderColor),
-                    SizedBox(width: 16.w),
-                    Text(
-                      'select_city_label'.tr,
-                      style: TextStyle(
-                        fontSize: 14.sp,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ],
+                Icon(Icons.location_on, color: ColorUtils.greyTextFieldBorderColor),
+                SizedBox(width: 16.w),
+                Text(
+                  'select_city_label'.tr,
+                  style: TextStyle(
+                    fontSize: 14.sp,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
-                Spacer(),
-                Obx(() {
-                  // final country = controller.selectedCountry.value;
-                  final city = controller.selectedCity.value;
-
-                  return ConstrainedBox(
+                const Spacer(),
+                Obx(
+                  () => ConstrainedBox(
                     constraints: const BoxConstraints(maxWidth: 150),
-
                     child: Text(
-                      city,
+                      controller.selectedCity.value,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
-                  );
-                }),
-                SizedBox(width: 8),
-                Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey),
               ],
             ),
           ),
@@ -273,3 +231,6 @@ class uploadVideoStep3 extends StatelessWidget {
     );
   }
 }
+
+// Keep legacy name for callers that still reference uploadVideoStep3.
+typedef uploadVideoStep3 = UploadVideoStep3;

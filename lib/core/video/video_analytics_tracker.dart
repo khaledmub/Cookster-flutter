@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:firebase_analytics/firebase_analytics.dart';
+import 'package:media_kit/media_kit.dart';
 import 'package:video_player/video_player.dart';
 
 class VideoAnalyticsTracker {
@@ -9,16 +12,44 @@ class VideoAnalyticsTracker {
   final Set<String> _milestones = <String>{};
   DateTime? _startedAt;
   String? _videoId;
+  StreamSubscription<Duration>? _mediaKitPositionSub;
+  Duration _mediaKitDuration = Duration.zero;
 
   void attach({
     required String videoId,
     required VideoPlayerController controller,
   }) {
+    detach();
     _videoId = videoId;
     _startedAt = DateTime.now();
     _milestones.clear();
     _logOnce('video_start');
-    controller.addListener(() => _onPosition(controller));
+    controller.addListener(() => _onLegacyPosition(controller));
+  }
+
+  void attachMediaKit({
+    required String videoId,
+    required Player player,
+  }) {
+    detach();
+    _videoId = videoId;
+    _startedAt = DateTime.now();
+    _milestones.clear();
+    _logOnce('video_start');
+
+    _mediaKitPositionSub = player.stream.position.listen((position) {
+      final duration = player.state.duration;
+      if (duration > Duration.zero) {
+        _mediaKitDuration = duration;
+      }
+      _onProgress(position, _mediaKitDuration);
+    });
+  }
+
+  void detach() {
+    _mediaKitPositionSub?.cancel();
+    _mediaKitPositionSub = null;
+    _mediaKitDuration = Duration.zero;
   }
 
   void markSkippedIfNeeded() {
@@ -30,13 +61,19 @@ class VideoAnalyticsTracker {
     }
   }
 
-  void _onPosition(VideoPlayerController controller) {
+  void _onLegacyPosition(VideoPlayerController controller) {
     final value = controller.value;
     if (!value.isInitialized || value.duration.inMilliseconds <= 0) {
       return;
     }
-    final progress =
-        value.position.inMilliseconds / value.duration.inMilliseconds;
+    _onProgress(value.position, value.duration);
+  }
+
+  void _onProgress(Duration position, Duration duration) {
+    if (duration.inMilliseconds <= 0) {
+      return;
+    }
+    final progress = position.inMilliseconds / duration.inMilliseconds;
     if (progress >= 0.25) {
       _logOnce('video_25_percent');
     }

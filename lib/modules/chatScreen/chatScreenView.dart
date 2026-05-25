@@ -7,8 +7,10 @@ import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:shimmer/shimmer.dart';
 import '../../appUtils/apiEndPoints.dart';
+import '../../core/widgets/grid_thumbnail_cache.dart';
 import '../../appUtils/colorUtils.dart';
 import 'chatController/chatController.dart';
+import 'package:cookster/core/media/media_url_resolver.dart';
 
 class ChatView extends StatefulWidget {
   final String senderId;
@@ -313,6 +315,7 @@ class _ChatViewState extends State<ChatView> {
 
         final receiverName = controller.receiverData['name'] as String;
         final receiverImage = controller.receiverData['image'] as String;
+        final avatarCacheSize = gridThumbnailMemCacheSize(44);
 
         return Row(
           children: [
@@ -322,7 +325,9 @@ class _ChatViewState extends State<ChatView> {
               backgroundImage:
                   receiverImage.isNotEmpty
                       ? CachedNetworkImageProvider(
-                        '${Common.profileImage}/$receiverImage',
+                        MediaUrlResolver.profileImageUrl(receiverImage) ?? '',
+                        maxWidth: avatarCacheSize,
+                        maxHeight: avatarCacheSize,
                       )
                       : null,
               child:

@@ -4,8 +4,7 @@ import 'package:awesome_dialog/awesome_dialog.dart';
 import 'package:get/get.dart';
 import 'package:update_available/update_available.dart';
 import 'package:url_launcher/url_launcher.dart';
-import '../../../appUtils/apiEndPoints.dart';
-import '../../../services/apiClient.dart';
+import '../../../services/video_settings_service.dart';
 import '../landingTabs/add/videoUploadSettingsModel/videoUploadSettingsModel.dart';
 
 class NavBarController extends GetxController {
@@ -20,14 +19,8 @@ class NavBarController extends GetxController {
 
   Future<void> getVideoUploadSettings() async {
     try {
-      var response = await ApiClient.getRequest(EndPoints.videoTypes);
-
-      if (response.statusCode == 200) {
-        var data = jsonDecode(response.body);
-        videoUploadSettings.value = VideoUploadSettings.fromJson(data);
-      } else {
-        print("Error fetching video settings: ${response.statusCode}");
-      }
+      final settings = await VideoSettingsService.instance.load();
+      videoUploadSettings.value = settings;
     } catch (e) {
       print("Error fetching video upload settings: $e");
     }

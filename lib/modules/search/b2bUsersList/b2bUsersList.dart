@@ -8,6 +8,7 @@ import '../../visitProfile/visitProfileView/visitProfileView.dart';
 import '../searchController/searchController.dart';
 import '../../../appUtils/colorUtils.dart';
 import '../../../appUtils/appCenterIcon.dart'; // For AppCenterIcon
+import 'package:cookster/core/media/media_url_resolver.dart';
 
 class B2bUsersList extends StatefulWidget {
   final String categoryId;
@@ -273,7 +274,7 @@ class _B2bUsersListState extends State<B2bUsersList> {
                                         backgroundImage: CachedNetworkImageProvider(
                                           user.image!.contains('http')
                                               ? user.image!
-                                              : '${Common.profileImage}/${user.image!}',
+                                              : MediaUrlResolver.profileImageUrl(user.image!) ?? '',
                                         ),
                                         radius: 25,
                                         onBackgroundImageError: (

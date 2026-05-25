@@ -6,17 +6,29 @@ class VideoUploadSettings {
   VideoUploadSettings({this.status, this.videoTypes, this.countries});
 
   VideoUploadSettings.fromJson(Map<String, dynamic> json) {
-    status = json['status'];
-    videoTypes =
-        json['video_types'] != null
-            ? new VideoTypes.fromJson(json['video_types'])
-            : null;
-    if (json['countries'] != null) {
+    final root = _unwrapPayload(json);
+    status = root['status'] as bool? ?? json['status'] as bool?;
+    videoTypes = VideoTypes.parse(root['video_types']);
+    if (root['countries'] != null) {
       countries = <Countries>[];
-      json['countries'].forEach((v) {
-        countries!.add(new Countries.fromJson(v));
-      });
+      for (final v in root['countries'] as List) {
+        if (v is Map) {
+          countries!.add(
+            Countries.fromJson(Map<String, dynamic>.from(v)),
+          );
+        }
+      }
     }
+  }
+
+  /// Flat list of selectable video types (handles legacy and array API shapes).
+  List<Values> get videoTypeList => videoTypes?.values ?? const [];
+
+  static Map<String, dynamic> _unwrapPayload(Map<String, dynamic> json) {
+    final data = json['data'];
+    if (data is Map<String, dynamic>) return data;
+    if (data is Map) return Map<String, dynamic>.from(data);
+    return json;
   }
 
   Map<String, dynamic> toJson() {
@@ -42,10 +54,33 @@ class VideoTypes {
     key = json['key'] != null ? new Key.fromJson(json['key']) : null;
     if (json['values'] != null) {
       values = <Values>[];
-      json['values'].forEach((v) {
-        values!.add(new Values.fromJson(v));
-      });
+      for (final v in json['values'] as List) {
+        if (v is Map) {
+          values!.add(Values.fromJson(Map<String, dynamic>.from(v)));
+        }
+      }
     }
+  }
+
+  /// Supports `video_types` as `{ key, values }` or a plain array from the API.
+  static VideoTypes? parse(dynamic raw) {
+    if (raw == null) return null;
+    if (raw is List) {
+      final list = <Values>[];
+      for (final item in raw) {
+        if (item is Map) {
+          list.add(Values.fromJson(Map<String, dynamic>.from(item)));
+        }
+      }
+      return VideoTypes(values: list);
+    }
+    if (raw is Map<String, dynamic>) {
+      return VideoTypes.fromJson(raw);
+    }
+    if (raw is Map) {
+      return VideoTypes.fromJson(Map<String, dynamic>.from(raw));
+    }
+    return null;
   }
 
   Map<String, dynamic> toJson() {
@@ -106,12 +141,21 @@ class Values {
   });
 
   Values.fromJson(Map<String, dynamic> json) {
-    id = json['id'];
+    final rawId = json['id'];
+    if (rawId is int) {
+      id = rawId;
+    } else if (rawId != null) {
+      id = int.tryParse(rawId.toString());
+    }
     keyId = json['key_id'];
     status = json['status'];
     createdAt = json['created_at'];
     updatedAt = json['updated_at'];
-    name = json['name'];
+    name =
+        json['name']?.toString() ??
+        json['title']?.toString() ??
+        json['label']?.toString() ??
+        json['type_name']?.toString();
   }
 
   Map<String, dynamic> toJson() {

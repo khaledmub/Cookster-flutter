@@ -11,6 +11,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../appUtils/apiEndPoints.dart';
 import '../../appUtils/appCenterIcon.dart';
 import 'chatScreenView.dart';
+import 'package:cookster/core/media/media_url_resolver.dart';
 
 class ChatListScreen extends StatefulWidget {
   final String userId;
@@ -374,7 +375,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
                                       backgroundImage:
                                           userData['image'].isNotEmpty
                                               ? CachedNetworkImageProvider(
-                                                '${Common.profileImage}/${userData['image']}',
+                                                MediaUrlResolver.profileImageUrl(userData['image']) ?? '',
                                               )
                                               : null,
                                       child:

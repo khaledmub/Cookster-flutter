@@ -1,9 +1,12 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cookster/core/widgets/grid_thumbnail_cache.dart';
 import 'package:cookster/loaders/pulseLoader.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../../appUtils/apiEndPoints.dart';
 import '../visitProfile/visitProfileView/visitProfileView.dart';
+import 'package:cookster/core/media/media_url_resolver.dart';
 
 class VideoLikesScreen extends StatelessWidget {
   final String videoId;
@@ -189,37 +192,17 @@ class VideoLikesScreen extends StatelessWidget {
                             child: ClipOval(
                               child:
                               image.isNotEmpty
-                                  ? Image.network(
-                                '${Common.profileImage}/$image',
+                                  ? CachedNetworkImage(
+                                imageUrl: MediaUrlResolver.profileImageUrl(image) ?? '',
                                 fit: BoxFit.cover,
-                                loadingBuilder: (
-                                    context,
-                                    child,
-                                    loadingProgress,
-                                    ) {
-                                  if (loadingProgress == null) {
-                                    return child;
-                                  }
-                                  return Center(
-                                    child: CircularProgressIndicator(
-                                      value:
-                                      loadingProgress
-                                          .expectedTotalBytes !=
-                                          null
-                                          ? loadingProgress
-                                          .cumulativeBytesLoaded /
-                                          loadingProgress
-                                              .expectedTotalBytes!
-                                          : null,
-                                      color: const Color(0xFFFFD700),
-                                    ),
-                                  );
-                                },
-                                errorBuilder: (
-                                    context,
-                                    error,
-                                    stackTrace,
-                                    ) {
+                                memCacheWidth: gridThumbnailMemCacheSize(48),
+                                memCacheHeight: gridThumbnailMemCacheSize(48),
+                                placeholder: (context, url) => Center(
+                                  child: CircularProgressIndicator(
+                                    color: const Color(0xFFFFD700),
+                                  ),
+                                ),
+                                errorWidget: (context, url, error) {
                                   return Container(
                                     color: Colors.grey[200],
                                     child: Icon(

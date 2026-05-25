@@ -5,6 +5,8 @@ import 'package:awesome_dialog/awesome_dialog.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cookster/appRoutes/appRoutes.dart';
 import 'package:cookster/appUtils/apiEndPoints.dart';
+import 'package:cookster/core/parsing/feed_parsers.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
@@ -17,9 +19,12 @@ import 'package:http_parser/http_parser.dart';
 import '../../../../../appUtils/colorUtils.dart';
 import '../../../../../loaders/pulseLoader.dart';
 import '../../../../../services/apiClient.dart';
-import '../../add/videoUploadSettingsModel/videoUploadSettingsModel.dart';
-import '../profileModel/profileModel.dart';
+import '../../../../../services/video_settings_service.dart';
+import '../../add/videoUploadSettingsModel/videoUploadSettingsModel.dart'
+    hide VideoTypes;
+import '../profileModel/profileModel.dart' hide VideoTypes;
 import '../profileModel/simpleUserProfileModel.dart';
+import 'package:cookster/core/media/media_url_resolver.dart';
 
 class ProfileController extends GetxController {
   var selectedIndex = 0.obs;
@@ -304,20 +309,8 @@ class ProfileController extends GetxController {
 
   Future<void> getVideoUploadSettings() async {
     try {
-      var response = await ApiClient.getRequest(EndPoints.videoTypes).timeout(
-        const Duration(seconds: 10),
-        onTimeout: () {
-          Get.offAllNamed('/noInternet');
-          throw TimeoutException("The connection has timed out!");
-        },
-      );
-
-      if (response.statusCode == 200) {
-        var data = jsonDecode(response.body);
-        videoUploadSettings.value = VideoUploadSettings.fromJson(data);
-      } else {
-        print("Error fetching video settings: ${response.statusCode}");
-      }
+      final settings = await VideoSettingsService.instance.load();
+      videoUploadSettings.value = settings;
     } catch (e) {
       print("Error fetching video upload settings: $e");
     }
@@ -523,65 +516,15 @@ class ProfileController extends GetxController {
 
       if (response.statusCode == 200) {
         print("Step 6: Successfully fetched user details. Parsing data.");
-        var data = jsonDecode(response.body);
+        final details = await compute(parseProfileDetails, response.body);
+        simpleUserDetails.value = details;
+        print("Check Followers list fetched");
+        followersList.value = simpleUserDetails.value!.followers ?? [];
+        print("Check Following list fetched");
+        followingList.value = simpleUserDetails.value!.following ?? [];
 
-        print("Step 7: Raw JSON response: $data");
-        print("Step 7: Response type: ${data.runtimeType}");
-
-        if (data is Map<String, dynamic>) {
-          print("Check Simple Details fetched");
-          simpleUserDetails.value = SimpleUserDetails.fromJson(data);
-          print("Check Followers list fetched");
-          followersList.value = simpleUserDetails.value!.followers ?? [];
-          print("Check Following list fetched");
-          followingList.value = simpleUserDetails.value!.following ?? [];
-
-          // Extract video IDs
-          videoIds.clear();
-          if (simpleUserDetails.value!.videoTypes != null) {
-            for (var videoType in simpleUserDetails.value!.videoTypes!) {
-              if (videoType.videos != null) {
-                videoIds.addAll(
-                  videoType.videos!
-                      .map((video) => video.id.toString())
-                      .toList(),
-                );
-              }
-            }
-          }
-          print("Step 8: Extracted video IDs: $videoIds");
-
-          // Fetch total likes for all videos
-          totalLikes.value = 0;
-          int likesCount = 0;
-
-          for (var videoId in videoIds) {
-            var videoDoc =
-                await FirebaseFirestore.instance
-                    .collection('videos')
-                    .doc(videoId)
-                    .get();
-
-            if (videoDoc.exists) {
-              var data = videoDoc.data() as Map<String, dynamic>;
-              List<String> likes = List<String>.from(data['likes'] ?? []);
-              likesCount += likes.length;
-            }
-          }
-
-          // ✅ Update only once after loop finishes
-          totalLikes.value = likesCount;
-          print("Step 9: Total likes on all videos: ${totalLikes.value}");
-
-          print("Step 9: Total likes on all videos: ${totalLikes.value}");
-        } else {
-          print(
-            "Step 10: Invalid response format. Expected Map, got ${data.runtimeType}",
-          );
-          throw Exception(
-            "Invalid response format: Expected Map<String, dynamic>",
-          );
-        }
+        totalLikes.value = _sumVideoLikes(simpleUserDetails.value?.videoTypes);
+        print("Step 9: Total likes on all videos: ${totalLikes.value}");
       } else {
         print(
           "Step 11: Failed to fetch user details. Status code: ${response.statusCode}",
@@ -601,24 +544,18 @@ class ProfileController extends GetxController {
   /// Lightweight refresh: only re-counts likes from Firestore
   /// without reloading the full profile (avoids UI flicker on back-navigation).
   Future<void> refreshLikesOnly() async {
-    try {
-      if (videoIds.isEmpty) return;
-      int likesCount = 0;
-      for (var videoId in videoIds) {
-        var videoDoc = await FirebaseFirestore.instance
-            .collection('videos')
-            .doc(videoId)
-            .get();
-        if (videoDoc.exists) {
-          var data = videoDoc.data() as Map<String, dynamic>;
-          List<String> likes = List<String>.from(data['likes'] ?? []);
-          likesCount += likes.length;
-        }
+    totalLikes.value = _sumVideoLikes(simpleUserDetails.value?.videoTypes);
+  }
+
+  int _sumVideoLikes(List<VideoTypes>? videoTypes) {
+    if (videoTypes == null) return 0;
+    var total = 0;
+    for (final videoType in videoTypes) {
+      for (final video in videoType.videos ?? const []) {
+        total += parseApiCount(video.likeCount);
       }
-      totalLikes.value = likesCount;
-    } catch (e) {
-      print("Error refreshing likes: $e");
     }
+    return total;
   }
 
   String? validatePassword(String? password) {
@@ -667,30 +604,21 @@ class ProfileController extends GetxController {
         return;
       }
 
-      var request = http.MultipartRequest(
-        'POST',
-        Uri.parse('${Common.baseUrl}${EndPoints.editUserProfile}'),
-      );
+      final fields = <String, String>{};
+      final files = <http.MultipartFile>[];
 
-      request.headers['Authorization'] = 'Bearer $token';
-      request.headers['Accept'] = 'application/json';
-      request.headers['X-Requested-With'] = 'XMLHttpRequest';
-      request.headers['Accept-Language'] =
-          language; // Add Accept-Language header
-
-      // Add only non-null fields
-      if (name?.isNotEmpty ?? false) request.fields['name'] = name!;
-      if (dob?.isNotEmpty ?? false) request.fields['dob'] = dob!;
-      if (password?.isNotEmpty ?? false) request.fields['password'] = password!;
-      if (phoneNumber?.isNotEmpty ?? false)
-        request.fields['phone'] = phoneNumber!;
-      if (countryId != -1) request.fields['country'] = countryId.toString();
-      if (cityId != -1) request.fields['city'] = cityId.toString();
-      if (selectedAccountType != -1)
-        request.fields['type_of_account'] = selectedAccountType.toString();
+      if (name?.isNotEmpty ?? false) fields['name'] = name!;
+      if (dob?.isNotEmpty ?? false) fields['dob'] = dob!;
+      if (password?.isNotEmpty ?? false) fields['password'] = password!;
+      if (phoneNumber?.isNotEmpty ?? false) fields['phone'] = phoneNumber!;
+      if (countryId != -1) fields['country'] = countryId.toString();
+      if (cityId != -1) fields['city'] = cityId.toString();
+      if (selectedAccountType != -1) {
+        fields['type_of_account'] = selectedAccountType.toString();
+      }
 
       if (imageFile != null) {
-        request.files.add(
+        files.add(
           await http.MultipartFile.fromPath(
             'image',
             imageFile.path,
@@ -699,8 +627,12 @@ class ProfileController extends GetxController {
         );
       }
 
-      var response = await request.send();
-      var responseData = await response.stream.bytesToString();
+      final response = await ApiClient.multipartPost(
+        EndPoints.editUserProfile,
+        fields: fields,
+        files: files,
+      );
+      final responseData = response.body;
 
       if (response.statusCode == 200) {
         Map<String, dynamic> data;
@@ -730,7 +662,7 @@ class ProfileController extends GetxController {
         if (updatedImage != null && updatedImage.isNotEmpty) {
           await prefs.setString('user_image', updatedImage);
           await DefaultCacheManager().removeFile(
-            '${Common.profileImage}/$updatedImage',
+            MediaUrlResolver.profileImageUrl(updatedImage) ?? '',
           );
           profileImageRefreshToken.value = DateTime.now().millisecondsSinceEpoch;
         }
@@ -802,16 +734,16 @@ class ProfileController extends GetxController {
   void onInit() async {
     super.onInit();
     // await getUserDetails();
-    await getVideoUploadSettings();
   }
 
   // @override
-  // void onClose() {
-  //   nameController.dispose();
-  //   emailController.dispose();
-  //   birthdayController.dispose();
-  //   phoneNumberController.dispose();
-  //   passwordController.dispose();
-  //   super.onClose();
-  // }
+  @override
+  void onClose() {
+    nameController.dispose();
+    emailController.dispose();
+    birthdayController.dispose();
+    phoneNumberController.dispose();
+    passwordController.dispose();
+    super.onClose();
+  }
 }

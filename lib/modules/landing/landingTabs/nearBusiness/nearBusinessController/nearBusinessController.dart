@@ -1,4 +1,6 @@
 import 'package:geolocator/geolocator.dart';
+import 'package:cookster/core/parsing/feed_parsers.dart';
+import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'dart:convert';
 import '../../../../../services/apiClient.dart';
@@ -13,6 +15,7 @@ class LocationController extends GetxController {
   var nearestBusinesses = NearBusinessModel().obs;
   var isRadiusCardVisible = false.obs;
   var isLocationAllowed = false.obs;
+  final loadError = RxnString();
 
   // Cache for location to avoid repeated API calls
   Position? _cachedPosition;
@@ -29,9 +32,28 @@ class LocationController extends GetxController {
     getCurrentLocation();
   }
 
+  /// Called when the Discover tab becomes visible so map data loads even if
+  /// the first attempt failed while Home reels were holding decoders.
+  Future<void> ensureDiscoverLoaded() async {
+    if (isLoading.value) {
+      return;
+    }
+    if (!isLocationAllowed.value ||
+        latitude.value == 0.0 ||
+        longitude.value == 0.0) {
+      await getCurrentLocation();
+      return;
+    }
+    final accounts = nearestBusinesses.value.accounts;
+    if (accounts == null || accounts.isEmpty) {
+      await fetchNearestBusinesses();
+    }
+  }
+
   Future<void> getCurrentLocation() async {
     try {
       isLoading.value = true;
+      loadError.value = null;
 
       if (_cachedPosition != null &&
           _lastLocationUpdate != null &&
@@ -86,7 +108,8 @@ class LocationController extends GetxController {
       longitude.value = position.longitude;
 
       await fetchNearestBusinesses();
-    } catch (e) {
+    } catch (e, stack) {
+      debugPrint('getCurrentLocation failed: $e\n$stack');
       try {
         Position? lastPosition = await Geolocator.getLastKnownPosition();
         if (lastPosition != null) {
@@ -98,9 +121,12 @@ class LocationController extends GetxController {
           await fetchNearestBusinesses();
         } else {
           isLocationAllowed.value = false;
+          loadError.value = 'Unable to get your location. Please try again.';
         }
-      } catch (fallbackError) {
+      } catch (fallbackError, fallbackStack) {
+        debugPrint('getCurrentLocation fallback failed: $fallbackError\n$fallbackStack');
         isLocationAllowed.value = false;
+        loadError.value = 'Unable to get your location. Please try again.';
       }
     } finally {
       isLoading.value = false;
@@ -136,19 +162,27 @@ class LocationController extends GetxController {
       );
 
       if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        nearestBusinesses.value = NearBusinessModel.fromJson(data);
+        nearestBusinesses.value =
+            await compute(parseNearBusinesses, response.body);
+        loadError.value = null;
         if (closeRadiusCard) {
           isRadiusCardVisible.value =
               false; // Only close if explicitly requested
         }
+      } else {
+        loadError.value =
+            'Could not load nearby businesses (${response.statusCode}).';
+        debugPrint(
+          'fetchNearestBusinesses: HTTP ${response.statusCode} ${response.body}',
+        );
       }
-    } catch (e) {
+    } catch (e, stack) {
+      debugPrint('fetchNearestBusinesses failed: $e\n$stack');
       if (e.toString().contains('timeout')) {
-        // Get.snackbar(
-        //   'Error',
-        //   'Request timed out. Please check your internet connection.',
-        // );
+        loadError.value =
+            'Request timed out. Check your connection and try again.';
+      } else {
+        loadError.value = 'Could not load nearby businesses. Please try again.';
       }
     } finally {
       isLoading.value = false;

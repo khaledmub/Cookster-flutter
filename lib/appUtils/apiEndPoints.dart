@@ -1,11 +1,30 @@
 class Common {
-  static String baseUrl = "https://cookster.org/api/";
+  /// Override at build time: `--dart-define=API_BASE_URL=https://cookster.mubreq.com/api/`
+  /// Production: `--dart-define=API_BASE_URL=https://cookster.org/api/`
+  static const String _apiBaseOverride = String.fromEnvironment('API_BASE_URL');
+
+  static const String _defaultApiBase = 'https://cookster.mubreq.com/api/';
+  static String get baseUrl {
+    if (_apiBaseOverride.isNotEmpty) {
+      return _apiBaseOverride.endsWith('/')
+          ? _apiBaseOverride
+          : '$_apiBaseOverride/';
+    }
+    return _defaultApiBase;
+  }
+
+  static bool get isTestApi => baseUrl.contains('mubreq.com');
+
+  static String get imageBaseUrl {
+    if (isTestApi) {
+      return 'https://cookster.mubreq.com/storage/';
+    }
+    return 'https://cookster.org/storage/';
+  }
 
   //
   // static String baseUrl = "http://192.168.1.7/cookster_admin/public/api/";
   //
-
-  static String imageBaseUrl = "https://cookster.org/storage/";
 
   // static String imageBaseUrl =
   //     "http://192.168.1.7/cookster_admin/public/storage/";
@@ -55,7 +74,10 @@ class EndPoints {
   static String removeFollower = "remove_follower";
   static String search = "search";
   static String getVideos = "videos/list";
+  static String reels = "reels";
+  static String reelsPresign = "reels/presign";
   static String uploadVideo = "videos/create";
+  static String videoProcessingStatus = "videos/processing_status";
   static String videoTypes = "videos/settings";
   static String editUserProfile = "edit_profile";
   static String getUserProfile = "profile";

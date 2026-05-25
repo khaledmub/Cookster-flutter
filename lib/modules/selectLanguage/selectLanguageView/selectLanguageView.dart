@@ -1,7 +1,7 @@
+import 'package:cookster/appBindings/app_bindings.dart';
+import 'package:cookster/appRoutes/appRoutes.dart';
 import 'package:cookster/appUtils/appCenterIcon.dart';
 import 'package:cookster/appUtils/appUtils.dart';
-import 'package:cookster/modules/auth/signIn/signInView/signInView.dart';
-import 'package:cookster/modules/landing/landingView/landingView.dart';
 import 'package:cookster/modules/selectLanguage/selectController/selectLanguageController.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -19,7 +19,7 @@ class SelectLanguageView extends StatefulWidget {
 }
 
 class _SelectLanguageViewState extends State<SelectLanguageView> {
-  final LanguageController languageController = Get.put(LanguageController());
+  final LanguageController languageController = Get.find();
   String _language = 'en'; // Default to English
 
   // Load language from SharedPreferences
@@ -128,9 +128,9 @@ class _SelectLanguageViewState extends State<SelectLanguageView> {
                             final prefs = await SharedPreferences.getInstance();
                             final userId = prefs.getString('user_id');
                             if (userId != null && userId.isNotEmpty) {
-                              Get.offAll(() => Landing());
+                              Get.offAllNamed(AppRoutes.landing);
                             } else {
-                              Get.offAll(() => SignInView());
+                              Get.offAllNamed(AppRoutes.signIn);
                             }
                           },
                         ),

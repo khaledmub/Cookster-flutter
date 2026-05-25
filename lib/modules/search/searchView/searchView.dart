@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cookster/appUtils/apiEndPoints.dart';
 import 'package:cookster/appUtils/appCenterIcon.dart';
 import 'package:cookster/modules/search/searchController/searchController.dart';
@@ -25,7 +24,13 @@ import '../b2bUsersList/b2bUsersList.dart';
 import '../custom_tab_button_search/custom_tab_button_search.dart';
 import '../searchModel/b2bCategoryList.dart';
 import '../searchModel/b2bList.dart';
+import 'package:cookster/core/firestore/reel_video_stats.dart';
+import 'package:cookster/core/parsing/feed_parsers.dart';
+import 'package:cookster/core/widgets/grid_thumbnail_cache.dart';
+
 import '../searchModel/searchModel.dart';
+import '../../../../core/widgets/paginated_scroll_mixin.dart';
+import 'package:cookster/core/media/media_url_resolver.dart';
 
 class SearchView extends StatefulWidget {
   final String? tag; // Optional tag parameter
@@ -39,7 +44,7 @@ class SearchView extends StatefulWidget {
 }
 
 class _SearchViewState extends State<SearchView>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, PaginatedScrollMixin {
   late TabController _tabController;
   TextEditingController _searchController = TextEditingController();
   final UserSearchController searchController = Get.find();
@@ -66,6 +71,12 @@ class _SearchViewState extends State<SearchView>
   @override
   void initState() {
     super.initState();
+    initPaginatedScroll(() {
+      if (searchController.canLoadMoreVideos &&
+          !searchController.isLoadingMore.value) {
+        searchController.fetchMoreSearchResults();
+      }
+    });
     _loadLanguage();
     _tabController = TabController(length: 4, vsync: this);
     _clearSearchData();
@@ -101,9 +112,10 @@ class _SearchViewState extends State<SearchView>
 
   @override
   void dispose() {
+    disposePaginatedScroll();
     _tabController.dispose();
     _searchController.dispose();
-    _debounce?.cancel(); // Cancel debounce timer
+    _debounce?.cancel();
     super.dispose();
   }
 
@@ -422,601 +434,496 @@ class _SearchViewState extends State<SearchView>
       ),
       body: Padding(
         padding: EdgeInsets.only(
-          bottom: MediaQuery.of(context).viewPadding.bottom + 20,
+          bottom: MediaQuery.paddingOf(context).bottom + 20,
         ),
         child: Obx(() {
-          var videosList = searchController.searchResult.value.videos;
-          var chefsList = searchController.searchResult.value.chefAccounts;
-          var businessList =
-              searchController.searchResult.value.businessAccounts;
-
-          bool hasNoResults =
-              searchController.hasSearched.value &&
-              (videosList == null || videosList.isEmpty) &&
-              (chefsList == null || chefsList.isEmpty) &&
-              (businessList == null || businessList.isEmpty);
-
-          bool hasNotSearchedYet = !searchController.hasSearched.value;
-
           if (searchController.type.value == 5) {
-            return Obx(() {
-              var categories =
-                  searchController.filteredB2bCategories.value.businessTypes;
+            return _buildB2bCategoriesBody();
+          }
+          return _buildStandardSearchBody();
+        }),
+      ),
+    );
+  }
 
-              if (searchController.isLoading.value) {
-                return Center(
-                  child: PulseLogoLoader(
-                    logoPath: "assets/images/appIcon.png",
-                    size: 80,
-                  ),
-                );
-              } else if (categories == null) {
-                return _buildNoResultsFound();
-              } else {
-                return SingleChildScrollView(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16.0,
-                      vertical: 16,
-                    ),
-                    child: GridView.count(
-                      crossAxisCount: 2,
-                      shrinkWrap: true,
-                      physics: NeverScrollableScrollPhysics(),
-                      mainAxisSpacing: 12,
-                      crossAxisSpacing: 12,
-                      childAspectRatio: 3,
-                      children:
-                          categories.values?.asMap().entries.map((entry) {
-                            int index = entry.key;
-                            var value = entry.value;
+  Widget _buildB2bCategoriesBody() {
+    return Obx(() {
+      final categories =
+          searchController.filteredB2bCategories.value.businessTypes;
 
-                            return InkWell(
-                              onTap: () async {
-                                bool isAuthenticated =
-                                    await _isUserAuthenticated();
-                                if (isAuthenticated) {
-                                  Get.to(
-                                    B2bUsersList(
-                                      categoryId: value.id.toString(),
-                                      categoryName: value.name.toString(),
-                                      country:
-                                          searchController.currentCountry.value,
-                                      city: searchController.currentCity.value,
-                                    ),
-                                  );
-                                } else {
-                                  Get.toNamed(AppRoutes.signIn);
-                                }
-                              },
-                              child: Container(
-                                padding: EdgeInsets.all(12),
-                                decoration: BoxDecoration(
-                                  color: Colors.white,
-                                  borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(color: Colors.grey[200]!),
-                                ),
-                                child: Row(
-                                  children: [
-                                    // Index number badge
-                                    Text(
-                                      '${index + 1}.', // Show 1-based index
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.w500,
-                                      ),
-                                    ),
-                                    SizedBox(width: 8),
-                                    Expanded(
-                                      child: Text(
-                                        value.name ?? "Unknown",
-                                        style: TextStyle(
-                                          fontSize: 12.sp,
-                                          fontWeight: FontWeight.w600,
-                                          color: Colors.black87,
-                                        ),
-                                        maxLines: 2,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ),
-                                    Icon(Icons.chevron_right),
-                                  ],
-                                ),
-                              ),
-                            );
-                          }).toList() ??
-                          [],
-                    ),
-                  ),
-                );
-              }
-            });
-          } else if (searchController.isLoading.value) {
-            return Center(
-              child: PulseLogoLoader(
-                logoPath: "assets/images/appIcon.png",
-                size: 80,
-              ),
-            );
-          } else if (hasNotSearchedYet && widget.tag == null) {
-            return _buildInitialState();
-          } else if (hasNoResults) {
-            return _buildNoResultsFound();
-          } else {
-            return SingleChildScrollView(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Obx(
-                    () =>
-                        searchController.recentSearches.isNotEmpty
-                            ? Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                SizedBox(height: 8),
-                                Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 16.0,
-                                  ),
-                                  child: Row(
-                                    children: [
-                                      Text(
-                                        "recent_searches".tr,
-                                        style: TextStyle(
-                                          fontSize: 16.sp,
-                                          fontWeight: FontWeight.w700,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                Padding(
-                                  padding: EdgeInsets.only(left: 16, right: 16),
-                                  child: Wrap(
-                                    crossAxisAlignment:
-                                        WrapCrossAlignment.start,
-                                    spacing: 8.0,
-                                    children:
-                                        searchController.recentSearches.map((
-                                          search,
-                                        ) {
-                                          return InkWell(
-                                            onTap: () {
-                                              _searchController.text = search;
-                                              searchController
-                                                  .fetchSearchResults(
-                                                    isGeneral: widget.isGeneral,
-                                                    search,
-                                                  );
-                                            },
-                                            child: Chip(
-                                              label: Text(search),
-                                              onDeleted: () {
-                                                searchController
-                                                    .removeSearchQuery(search);
-                                              },
-                                              backgroundColor: Colors.grey[200],
-                                              labelStyle: TextStyle(
-                                                color: Colors.black,
-                                              ),
-                                              deleteIcon: Icon(
-                                                Icons.close,
-                                                size: 18,
-                                              ),
-                                              shape: RoundedRectangleBorder(
-                                                borderRadius:
-                                                    BorderRadius.circular(20),
-                                              ),
-                                            ),
-                                          );
-                                        }).toList(),
-                                  ),
-                                ),
-                              ],
-                            )
-                            : SizedBox(),
-                  ),
-                  if (videosList != null && videosList.isNotEmpty)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+      if (searchController.isLoading.value) {
+        return const Center(
+          child: PulseLogoLoader(
+            logoPath: "assets/images/appIcon.png",
+            size: 80,
+          ),
+        );
+      }
+      if (categories == null) {
+        return _buildNoResultsFound();
+      }
+      return SingleChildScrollView(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 16),
+          child: GridView.count(
+            crossAxisCount: 2,
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            mainAxisSpacing: 12,
+            crossAxisSpacing: 12,
+            childAspectRatio: 3,
+            children:
+                categories.values?.asMap().entries.map((entry) {
+                  final index = entry.key;
+                  final value = entry.value;
+                  return InkWell(
+                    onTap: () async {
+                      final isAuthenticated = await _isUserAuthenticated();
+                      if (isAuthenticated) {
+                        Get.to(
+                          B2bUsersList(
+                            categoryId: value.id.toString(),
+                            categoryName: value.name.toString(),
+                            country: searchController.currentCountry.value,
+                            city: searchController.currentCity.value,
+                          ),
+                        );
+                      } else {
+                        Get.toNamed(AppRoutes.signIn);
+                      }
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.grey[200]!),
+                      ),
+                      child: Row(
                         children: [
-                          SizedBox(height: 16),
                           Text(
-                            "Discover".tr,
-                            style: TextStyle(
-                              fontSize: 16.sp,
-                              fontWeight: FontWeight.w700,
+                            '${index + 1}.',
+                            style: const TextStyle(fontWeight: FontWeight.w500),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              value.name ?? 'Unknown',
+                              style: TextStyle(
+                                fontSize: 12.sp,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.black87,
+                              ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
                             ),
                           ),
-                          SizedBox(height: 8.h),
-                          GridView.builder(
-                            shrinkWrap: true,
-                            physics: NeverScrollableScrollPhysics(),
-                            gridDelegate:
-                                SliverGridDelegateWithFixedCrossAxisCount(
-                                  crossAxisCount: 2,
-                                  crossAxisSpacing: 10,
-                                  mainAxisSpacing: 10,
-                                  childAspectRatio: 1 / 1.2,
-                                ),
-                            itemCount: videosList.length,
-                            itemBuilder: (context, index) {
-                              var video = videosList[index];
-                              return InkWell(
-                                onTap: () async {
-                                  bool isAuthenticated =
-                                      await _isUserAuthenticated();
-                                  Get.to(
-                                    SingleVideoScreen(
-                                      followers:
-                                          video.followersCount.toString(),
-                                      frondUserId: video.frontUserId,
-                                      userImage: video.userImage,
-                                      videoId: video.id,
-                                      videoUrl: video.video,
-                                      title: video.title,
-                                      image: video.image,
-                                      allowComments: video.allowComments,
-                                      description: video.description,
-                                      tags: video.tags,
-                                      userName: video.userName,
-                                      createdAt: video.createdAt,
-                                      contactEmail: video.contactEmail,
-                                      contactPhone: video.contactPhone,
-                                      latitude: video.latitude,
-                                      longitude: video.longitude,
-                                      takeOrder: video.takeOrder.toString(),
-                                      website: video.website,
-                                      isImage: video.isImage.toString(),
-                                    ),
-                                  );
-                                },
-
-                                child: ClipRRect(
-                                  borderRadius: BorderRadius.circular(10),
-                                  child: Stack(
-                                    children: [
-                                      ClipRRect(
-                                        borderRadius: BorderRadius.circular(10),
-                                        child: CachedNetworkImage(
-                                          imageUrl:
-                                              video.image != null
-                                                  ? '${Common.videoUrl}/${video.image!}'
-                                                  : '',
-                                          // Empty string if image is null
-                                          fit: BoxFit.cover,
-                                          width: double.infinity,
-                                          height: double.infinity,
-                                          placeholder:
-                                              (context, url) => const Center(
-                                                child: Icon(
-                                                  Icons.image,
-                                                  size: 50,
-                                                  color: Colors.grey,
-                                                ),
-                                              ),
-                                          errorWidget:
-                                              (context, url, error) =>
-                                                  const Center(
-                                                    child: Icon(
-                                                      Icons.broken_image,
-                                                      size: 50,
-                                                      color: Colors.grey,
-                                                    ),
-                                                  ),
-                                        ),
-                                      ),
-                                      Positioned.fill(
-                                        child: Container(
-                                          decoration: BoxDecoration(
-                                            gradient: LinearGradient(
-                                              begin: Alignment.topCenter,
-                                              end: Alignment.bottomCenter,
-                                              colors: [
-                                                Colors.transparent,
-                                                Colors.black.withOpacity(0.7),
-                                              ],
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                      Positioned(
-                                        bottom: 10,
-                                        left: 10,
-                                        child: Row(
-                                          children: [
-                                            Icon(
-                                              CupertinoIcons.heart_fill,
-                                              color: Colors.white,
-                                              size: 14.sp,
-                                            ),
-                                            SizedBox(width: 4),
-                                            StreamBuilder<DocumentSnapshot>(
-                                              stream:
-                                                  FirebaseFirestore.instance
-                                                      .collection('videos')
-                                                      .doc(video.id)
-                                                      .snapshots(),
-                                              builder: (context, snapshot) {
-                                                if (!snapshot.hasData ||
-                                                    !snapshot.data!.exists) {
-                                                  return Text(
-                                                    "0",
-                                                    style: TextStyle(
-                                                      color: Colors.white,
-                                                    ),
-                                                  );
-                                                }
-                                                final data =
-                                                    snapshot.data!.data()
-                                                        as Map<
-                                                          String,
-                                                          dynamic
-                                                        >? ??
-                                                    {};
-                                                List<dynamic> likes =
-                                                    data['likes'] ?? [];
-                                                int likeCount = likes.length;
-                                                String formattedLikeCount =
-                                                    likeCount > 1000
-                                                        ? '${(likeCount / 1000).toStringAsFixed(1)}K'
-                                                        : likeCount.toString();
-                                                return Text(
-                                                  formattedLikeCount,
-                                                  style: TextStyle(
-                                                    color: Colors.white,
-                                                    fontSize: 10.sp,
-                                                  ),
-                                                );
-                                              },
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              );
-                            },
-                          ),
+                          const Icon(Icons.chevron_right),
                         ],
                       ),
                     ),
-                  if (chefsList != null && chefsList.isNotEmpty)
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                          child: Text(
-                            "users".tr,
-                            style: TextStyle(
-                              fontSize: 16.sp,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ),
-                        SizedBox(height: 8.h),
-                        SizedBox(
-                          height: Get.height * 0.5,
-                          child: ListView.builder(
-                            padding: EdgeInsets.symmetric(horizontal: 16),
-                            itemCount: chefsList.length,
-                            itemBuilder: (context, index) {
-                              var chef = chefsList[index];
-                              return Container(
-                                margin: const EdgeInsets.symmetric(vertical: 8),
-                                decoration: BoxDecoration(
-                                  color: Colors.white,
-                                  border: Border.all(
-                                    color: Colors.grey.shade300,
-                                    width: 1,
-                                  ),
-                                  borderRadius: BorderRadius.circular(12),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.grey.withOpacity(0.1),
-                                      blurRadius: 6,
-                                      offset: const Offset(0, 2),
-                                    ),
-                                  ],
-                                ),
-                                child: ListTile(
-                                  leading:
-                                      chef.image != null &&
-                                              chef.image!.isNotEmpty
-                                          ? CircleAvatar(
-                                            backgroundImage:
-                                                CachedNetworkImageProvider(
-                                                  chef.image!.contains('http')
-                                                      ? chef.image!
-                                                      : '${Common.profileImage}/${chef.image!}',
-                                                ),
-                                            radius: 25,
-                                            onBackgroundImageError: (
-                                              exception,
-                                              stackTrace,
-                                            ) {
-                                              print(
-                                                "Image load error: $exception",
-                                              );
-                                            },
-                                          )
-                                          : const CircleAvatar(
-                                            child: Icon(
-                                              Icons.person,
-                                              color: Colors.white,
-                                            ),
-                                            radius: 25,
-                                          ),
-                                  title: Text(
-                                    chef.name ?? "Unknown Business",
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 16,
-                                    ),
-                                  ),
-                                  subtitle: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      if (chef.email != null &&
-                                          chef.email!.isNotEmpty)
-                                        Text("${chef.email}"),
-                                      if (chef.phone != null &&
-                                          chef.phone!.isNotEmpty)
-                                        Text("${chef.phone}"),
-                                    ],
-                                  ),
-                                  onTap: () async {
-                                    bool isAuthenticated =
-                                        await _isUserAuthenticated();
-                                    if (isAuthenticated) {
-                                      Get.to(
-                                        VisitProfileView(userId: chef.id!),
-                                      );
-                                    } else {
-                                      // Navigate to sign in page
-                                      Get.toNamed(
-                                        AppRoutes.signIn,
-                                      ); // Make sure you have this route defined
-                                    }
-                                  },
-                                  contentPadding: const EdgeInsets.symmetric(
-                                    horizontal: 16,
-                                    vertical: 5,
-                                  ),
-                                ),
-                              );
-                            },
-                          ),
-                        ),
-                      ],
-                    ),
-                  if (businessList != null && businessList.isNotEmpty)
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                          child: Text(
-                            "Business Accounts".tr,
-                            style: TextStyle(
-                              fontSize: 16.sp,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ),
-                        SizedBox(height: 8.h),
-                        SizedBox(
-                          height: Get.height * 0.5,
+                  );
+                }).toList() ??
+                [],
+          ),
+        ),
+      );
+    });
+  }
 
-                          child: ListView.builder(
+  Widget _buildStandardSearchBody() {
+    return Obx(() {
+      final videosList = searchController.searchResult.value.videos;
+      final chefsList = searchController.searchResult.value.chefAccounts;
+      final businessList =
+          searchController.searchResult.value.businessAccounts;
+
+      final hasNoResults =
+          searchController.hasSearched.value &&
+          (videosList == null || videosList.isEmpty) &&
+          (chefsList == null || chefsList.isEmpty) &&
+          (businessList == null || businessList.isEmpty);
+
+      final hasNotSearchedYet = !searchController.hasSearched.value;
+
+      if (searchController.isLoading.value) {
+        return const Center(
+          child: PulseLogoLoader(
+            logoPath: "assets/images/appIcon.png",
+            size: 80,
+          ),
+        );
+      }
+      if (hasNotSearchedYet && widget.tag == null) {
+        return _buildInitialState();
+      }
+      if (hasNoResults) {
+        return _buildNoResultsFound();
+      }
+
+      final thumbCache = gridThumbnailMemCacheSize(120);
+      return CustomScrollView(
+        controller: paginatedScrollController,
+        slivers: [
+          SliverToBoxAdapter(
+            child: Obx(
+              () =>
+                  searchController.recentSearches.isNotEmpty
+                      ? Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const SizedBox(height: 8),
+                          Padding(
                             padding: const EdgeInsets.symmetric(
                               horizontal: 16.0,
                             ),
-                            itemCount: businessList.length,
-                            itemBuilder: (context, index) {
-                              var business = businessList[index];
-                              return Container(
-                                margin: const EdgeInsets.symmetric(vertical: 8),
-                                decoration: BoxDecoration(
-                                  color: Colors.white,
-                                  border: Border.all(
-                                    color: Colors.grey.shade300,
-                                    width: 1,
+                            child: Row(
+                              children: [
+                                Text(
+                                  "recent_searches".tr,
+                                  style: TextStyle(
+                                    fontSize: 16.sp,
+                                    fontWeight: FontWeight.w700,
                                   ),
-                                  borderRadius: BorderRadius.circular(12),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.grey.withOpacity(0.1),
-                                      blurRadius: 6,
-                                      offset: const Offset(0, 2),
-                                    ),
-                                  ],
                                 ),
-                                child: ListTile(
-                                  leading:
-                                      business.image != null &&
-                                              business.image!.isNotEmpty
-                                          ? CircleAvatar(
-                                            backgroundImage:
-                                                CachedNetworkImageProvider(
-                                                  business.image!.contains(
-                                                        'http',
-                                                      )
-                                                      ? business.image!
-                                                      : '${Common.profileImage}/${business.image!}',
-                                                ),
-                                            radius: 25,
-                                            onBackgroundImageError: (
-                                              exception,
-                                              stackTrace,
-                                            ) {
-                                              print(
-                                                "Image load error: $exception",
-                                              );
-                                            },
-                                          )
-                                          : const CircleAvatar(
-                                            child: Icon(
-                                              Icons.person,
-                                              color: Colors.white,
-                                            ),
-                                            radius: 25,
+                              ],
+                            ),
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.only(left: 16, right: 16),
+                            child: Wrap(
+                              crossAxisAlignment: WrapCrossAlignment.start,
+                              spacing: 8.0,
+                              children:
+                                  searchController.recentSearches.map((
+                                    search,
+                                  ) {
+                                    return InkWell(
+                                      onTap: () {
+                                        _searchController.text = search;
+                                        searchController.fetchSearchResults(
+                                          isGeneral: widget.isGeneral,
+                                          search,
+                                        );
+                                      },
+                                      child: Chip(
+                                        label: Text(search),
+                                        onDeleted: () {
+                                          searchController.removeSearchQuery(
+                                            search,
+                                          );
+                                        },
+                                        backgroundColor: Colors.grey[200],
+                                        labelStyle: const TextStyle(
+                                          color: Colors.black,
+                                        ),
+                                        deleteIcon: const Icon(
+                                          Icons.close,
+                                          size: 18,
+                                        ),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            20,
                                           ),
-                                  title: Text(
-                                    business.name ?? "Unknown Business",
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 16,
+                                        ),
+                                      ),
+                                    );
+                                  }).toList(),
+                            ),
+                          ),
+                        ],
+                      )
+                      : const SizedBox(),
+            ),
+          ),
+          if (videosList != null && videosList.isNotEmpty) ...[
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                child: Text(
+                  "Discover".tr,
+                  style: TextStyle(
+                    fontSize: 16.sp,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ),
+            SliverPadding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              sliver: SliverGrid(
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 2,
+                  crossAxisSpacing: 10,
+                  mainAxisSpacing: 10,
+                  childAspectRatio: 1 / 1.2,
+                ),
+                delegate: SliverChildBuilderDelegate(
+                  (context, index) {
+                    final video = videosList[index];
+                    return InkWell(
+                      onTap: () {
+                        Get.to(
+                          SingleVideoScreen(
+                            followers: video.followersCount.toString(),
+                            frondUserId: video.frontUserId,
+                            userImage: video.userImage,
+                            videoId: video.id,
+                            videoUrl: video.resolvedPlaybackUrl,
+                            title: video.title,
+                            image: video.image,
+                            allowComments: video.allowComments,
+                            description: video.description,
+                            tags: video.tags,
+                            userName: video.userName,
+                            createdAt: video.createdAt,
+                            contactEmail: video.contactEmail,
+                            contactPhone: video.contactPhone,
+                            latitude: video.latitude,
+                            longitude: video.longitude,
+                            takeOrder: video.takeOrder.toString(),
+                            website: video.website,
+                            isImage: video.isImage.toString(),
+                          ),
+                        );
+                      },
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(10),
+                        child: Stack(
+                          children: [
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(10),
+                              child: CachedNetworkImage(
+                                imageUrl: video.resolvedThumbnailUrl ?? '',
+                                memCacheWidth: thumbCache,
+                                memCacheHeight: (thumbCache * 1.2).round(),
+                                fit: BoxFit.cover,
+                                width: double.infinity,
+                                height: double.infinity,
+                                placeholder:
+                                    (context, url) => const Center(
+                                      child: Icon(
+                                        Icons.image,
+                                        size: 50,
+                                        color: Colors.grey,
+                                      ),
                                     ),
-                                  ),
-                                  subtitle: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      if (business.email != null &&
-                                          business.email!.isNotEmpty)
-                                        Text("${business.email}"),
-                                      if (business.phone != null &&
-                                          business.phone!.isNotEmpty)
-                                        Text("${business.phone}"),
+                                errorWidget:
+                                    (context, url, error) => const Center(
+                                      child: Icon(
+                                        Icons.broken_image,
+                                        size: 50,
+                                        color: Colors.grey,
+                                      ),
+                                    ),
+                              ),
+                            ),
+                            Positioned.fill(
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  gradient: LinearGradient(
+                                    begin: Alignment.topCenter,
+                                    end: Alignment.bottomCenter,
+                                    colors: [
+                                      Colors.transparent,
+                                      Colors.black.withValues(alpha: 0.7),
                                     ],
                                   ),
-                                  onTap: () async {
-                                    bool isAuthenticated =
-                                        await _isUserAuthenticated();
-                                    if (isAuthenticated) {
-                                      Get.to(
-                                        VisitProfileView(userId: business.id!),
-                                      );
-                                    } else {
-                                      // Navigate to sign in page
-                                      Get.toNamed(
-                                        AppRoutes.signIn,
-                                      ); // Make sure you have this route defined
-                                    }
-                                  },
-                                  contentPadding: const EdgeInsets.symmetric(
-                                    horizontal: 16,
-                                    vertical: 5,
-                                  ),
                                 ),
-                              );
-                            },
-                          ),
+                              ),
+                            ),
+                            Positioned(
+                              bottom: 10,
+                              left: 10,
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    CupertinoIcons.heart_fill,
+                                    color: Colors.white,
+                                    size: 14.sp,
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    ReelVideoStats.formatCount(
+                                      parseApiCount(video.likeCount),
+                                    ),
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 10.sp,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
                         ),
-                        SizedBox(height: 16),
-                      ],
-                    ),
-                ],
+                      ),
+                    );
+                  },
+                  childCount: videosList.length,
+                  addAutomaticKeepAlives: false,
+                ),
               ),
-            );
-          }
-        }),
-      ),
+            ),
+            SliverToBoxAdapter(
+              child: Obx(() {
+                if (!searchController.isLoadingMore.value) {
+                  return const SizedBox.shrink();
+                }
+                return const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 16),
+                  child: Center(child: CircularProgressIndicator()),
+                );
+              }),
+            ),
+          ],
+          if (chefsList != null && chefsList.isNotEmpty)
+            SliverToBoxAdapter(child: _buildChefsListSection(chefsList)),
+          if (businessList != null && businessList.isNotEmpty)
+            SliverToBoxAdapter(
+              child: _buildBusinessListSection(businessList),
+            ),
+        ],
+      );
+    });
+  }
+
+  Widget _buildChefsListSection(List<ChefAccounts> chefsList) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16.0),
+          child: Text(
+            "users".tr,
+            style: TextStyle(fontSize: 16.sp, fontWeight: FontWeight.w700),
+          ),
+        ),
+        SizedBox(height: 8.h),
+        SizedBox(
+          height: Get.height * 0.5,
+          child: ListView.builder(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            itemCount: chefsList.length,
+            itemBuilder: (context, index) {
+              final chef = chefsList[index];
+              return Container(
+                margin: const EdgeInsets.symmetric(vertical: 8),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  border: Border.all(color: Colors.grey.shade300),
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.grey.withValues(alpha: 0.1),
+                      blurRadius: 6,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: ListTile(
+                  leading:
+                      chef.image != null && chef.image!.isNotEmpty
+                          ? CircleAvatar(
+                            backgroundImage: CachedNetworkImageProvider(
+                              chef.image!.contains('http')
+                                  ? chef.image!
+                                  : MediaUrlResolver.profileImageUrl(chef.image!) ?? '',
+                            ),
+                            radius: 25,
+                          )
+                          : const CircleAvatar(
+                            radius: 25,
+                            child: Icon(Icons.person, color: Colors.white),
+                          ),
+                  title: Text(
+                    chef.name ?? 'Unknown Business',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
+                  ),
+                  subtitle: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (chef.email != null && chef.email!.isNotEmpty)
+                        Text(chef.email!),
+                      if (chef.phone != null && chef.phone!.isNotEmpty)
+                        Text(chef.phone!),
+                    ],
+                  ),
+                  onTap: () async {
+                    if (await _isUserAuthenticated()) {
+                      Get.to(VisitProfileView(userId: chef.id!));
+                    } else {
+                      Get.toNamed(AppRoutes.signIn);
+                    }
+                  },
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildBusinessListSection(List<BusinessAccounts> businessList) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16.0),
+          child: Text(
+            'Business Accounts'.tr,
+            style: TextStyle(fontSize: 16.sp, fontWeight: FontWeight.w700),
+          ),
+        ),
+        SizedBox(height: 8.h),
+        SizedBox(
+          height: Get.height * 0.5,
+          child: ListView.builder(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0),
+            itemCount: businessList.length,
+            itemBuilder: (context, index) {
+              final business = businessList[index];
+              return Container(
+                margin: const EdgeInsets.symmetric(vertical: 8),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  border: Border.all(color: Colors.grey.shade300),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: ListTile(
+                  leading:
+                      business.image != null && business.image!.isNotEmpty
+                          ? CircleAvatar(
+                            backgroundImage: CachedNetworkImageProvider(
+                              business.image!.contains('http')
+                                  ? business.image!
+                                  : MediaUrlResolver.profileImageUrl(business.image!) ?? '',
+                            ),
+                            radius: 25,
+                          )
+                          : const CircleAvatar(
+                            radius: 25,
+                            child: Icon(Icons.person, color: Colors.white),
+                          ),
+                  title: Text(business.name ?? 'Unknown Business'),
+                  onTap: () async {
+                    if (await _isUserAuthenticated()) {
+                      Get.to(VisitProfileView(userId: business.id!));
+                    } else {
+                      Get.toNamed(AppRoutes.signIn);
+                    }
+                  },
+                ),
+              );
+            },
+          ),
+        ),
+        const SizedBox(height: 16),
+      ],
     );
   }
 

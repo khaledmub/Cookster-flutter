@@ -497,6 +497,8 @@ class ProfessionalVideos {
   dynamic userImage;
   dynamic userEmail;
   dynamic isImage;
+  dynamic likeCount;
+  dynamic viewCount;
   dynamic sponsorType;
   dynamic cities;
   dynamic days;
@@ -570,6 +572,8 @@ class ProfessionalVideos {
     city = json['city'];
     userImage = json['user_image'];
     isImage = json['is_image'];
+    likeCount = json['like_count'] ?? json['likes_count'] ?? json['likeCount'];
+    viewCount = json['view_count'] ?? json['views_count'] ?? json['viewCount'];
     sponsorType = json['sponsor_type'];
     cities = json['city_names'];
     days = json['days'];

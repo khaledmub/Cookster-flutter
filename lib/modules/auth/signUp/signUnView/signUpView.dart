@@ -55,7 +55,7 @@ class _SignVpViewState extends State<SignVpView> {
 
   late dynamic googleSignInBit = -1;
 
-  final SignUpController signUpController = Get.put(SignUpController());
+  final SignUpController signUpController = Get.find();
 
   @override
   void initState() {

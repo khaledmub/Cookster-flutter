@@ -1,8 +1,13 @@
 import 'dart:io';
 
+import 'package:cookster/appBindings/app_bindings.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cookster/appUtils/apiEndPoints.dart';
+import 'package:cookster/core/firestore/reel_video_stats.dart';
+import 'package:cookster/core/parsing/feed_parsers.dart';
+import 'package:cookster/core/video/media_kit_player_pool.dart';
+import 'package:cookster/core/widgets/grid_thumbnail_cache.dart';
+import 'package:cookster/modules/landing/landingTabs/home/homeController/homeController.dart';
 import 'package:cookster/appUtils/feature_flags.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
@@ -31,6 +36,7 @@ import '../editProfile/editProfileView/professionalEditProfileView.dart';
 import '../editProfile/editProfileView/subscribedPackage.dart';
 import '../profileControlller/professionalProfileController.dart';
 import '../profileWidgets/professsionalProfileWidgets.dart';
+import 'package:cookster/core/media/media_url_resolver.dart';
 
 class ProfessionalProfileView extends StatefulWidget {
   const ProfessionalProfileView({super.key});
@@ -48,6 +54,7 @@ class _ProfessionalProfileViewState extends State<ProfessionalProfileView>
   int? entity;
   TabController? _tabController;
   int currentTabIndex = 0;
+  Worker? _videoTypesWorker;
 
   Future<void> _loadEntity() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
@@ -60,9 +67,8 @@ class _ProfessionalProfileViewState extends State<ProfessionalProfileView>
   bool _isEditMode = true;
 
   String? _buildCoverImageUrl(String? coverImage) {
-    if (coverImage == null || coverImage.isEmpty) return null;
-    final raw = coverImage.trim();
-    final base = raw.startsWith('http') ? raw : '${Common.profileImage}/$raw';
+    final base = MediaUrlResolver.profileImageUrl(coverImage);
+    if (base == null || base.isEmpty) return null;
     return '$base?v=${profileController.coverImageRefreshToken.value}';
   }
 
@@ -93,10 +99,54 @@ class _ProfessionalProfileViewState extends State<ProfessionalProfileView>
     super.initState();
     _loadEntity();
     _loadLanguage();
+    _videoTypesWorker = ever(profileController.userDetails, (_) {
+      _syncFromUserDetails();
+    });
+    _syncFromUserDetails();
+  }
+
+  void _onTabChanged() {
+    if (!(_tabController?.indexIsChanging ?? true)) {
+      setState(() => currentTabIndex = _tabController!.index);
+    }
+  }
+
+  void _syncFromUserDetails() {
+    final details = profileController.userDetails.value;
+    profileController.isB2B.value = details?.additionalData?.isB2B != 0;
+
+    final displayVideoTypes = _buildDisplayVideoTypes(details?.videoTypes);
+    if (displayVideoTypes.isEmpty) {
+      _tabController?.removeListener(_onTabChanged);
+      _tabController?.dispose();
+      _tabController = null;
+      if (mounted) setState(() => currentTabIndex = 0);
+      return;
+    }
+    if (_tabController == null) {
+      _tabController = TabController(
+        length: displayVideoTypes.length,
+        vsync: this,
+      );
+      _tabController!.addListener(_onTabChanged);
+    } else if (_tabController!.length != displayVideoTypes.length) {
+      final previousIndex = _tabController!.index;
+      _tabController!.removeListener(_onTabChanged);
+      _tabController!.dispose();
+      _tabController = TabController(
+        length: displayVideoTypes.length,
+        vsync: this,
+        initialIndex: previousIndex.clamp(0, displayVideoTypes.length - 1),
+      );
+      _tabController!.addListener(_onTabChanged);
+    }
+    if (mounted) setState(() {});
   }
 
   @override
   void dispose() {
+    _videoTypesWorker?.dispose();
+    _tabController?.removeListener(_onTabChanged);
     _tabController?.dispose();
     super.dispose();
   }
@@ -124,35 +174,6 @@ class _ProfessionalProfileViewState extends State<ProfessionalProfileView>
       // }
       final professionalAdditionalData =
           profileController.userDetails.value?.additionalData;
-
-      profileController.isB2B.value =
-          profileController.userDetails.value?.additionalData?.isB2B == 0
-              ? false
-              : true;
-
-      // Initialize TabController only once
-      if (_tabController == null && displayVideoTypes.isNotEmpty) {
-        _tabController = TabController(
-          length: displayVideoTypes.length,
-          vsync: this,
-        );
-        _tabController!.addListener(() {
-          if (!_tabController!.indexIsChanging) {
-            currentTabIndex = _tabController!.index;
-          }
-        });
-      }
-      if (_tabController != null &&
-          _tabController!.length != displayVideoTypes.length &&
-          displayVideoTypes.isNotEmpty) {
-        final previousIndex = _tabController!.index;
-        _tabController!.dispose();
-        _tabController = TabController(
-          length: displayVideoTypes.length,
-          vsync: this,
-          initialIndex: previousIndex.clamp(0, displayVideoTypes.length - 1),
-        );
-      }
 
       return RefreshIndicator(
         onRefresh: () async {
@@ -348,7 +369,7 @@ class _ProfessionalProfileViewState extends State<ProfessionalProfileView>
                                             _buildCoverImageUrl(
                                                   userDetails.coverImage,
                                                 ) ??
-                                                '${Common.profileImage}/${userDetails.coverImage!}',
+                                                MediaUrlResolver.profileImageUrl(userDetails.coverImage!) ?? '',
                                           )
                                           : const AssetImage(
                                                 'assets/images/placeholder.jpg',
@@ -416,7 +437,7 @@ class _ProfessionalProfileViewState extends State<ProfessionalProfileView>
                                         profileController.isB2B.value,
 
                                     imageUrl:
-                                        '${Common.profileImage}/${userDetails!.image}?v=${profileController.profileImageRefreshToken.value}',
+                                        '${MediaUrlResolver.profileImageUrl(userDetails!.image) ?? ''}?v=${profileController.profileImageRefreshToken.value}' ?? '',
                                   ),
                                 ),
                               ),
@@ -728,7 +749,10 @@ class _ProfessionalProfileViewState extends State<ProfessionalProfileView>
                                 child: InkWell(
                                   onTap: () {
                                     Get.to(
-                                      LikedVideosScreen(userId: userDetails.id),
+                                      () => LikedVideosScreen(
+                                        userId: userDetails.id,
+                                      ),
+                                      binding: LikedVideosBinding(userDetails.id),
                                     );
                                   },
                                   child: CustomButtonWidget(
@@ -864,34 +888,43 @@ class _ProfessionalProfileViewState extends State<ProfessionalProfileView>
                             if (displayVideoTypes.isNotEmpty)
                               Padding(
                                 padding: EdgeInsets.symmetric(horizontal: 16),
-                                child: Wrap(
-                                  spacing: 8,
-                                  runSpacing: 8,
-                                  children: () {
+                                child: Builder(
+                                  builder: (context) {
                                     final selectedVideoType =
                                         displayVideoTypes[currentTabIndex];
-                                    if (selectedVideoType.videos == null ||
-                                        selectedVideoType.videos!.isEmpty) {
-                                      return [
-                                        Center(
-                                          child: Image.asset(
-                                            "assets/images/notfound.png",
-                                            fit: BoxFit.cover,
-                                            // width: 100.w,
-                                            height: 150.h,
-                                          ),
+                                    final videos = selectedVideoType.videos;
+                                    if (videos == null || videos.isEmpty) {
+                                      return Center(
+                                        child: Image.asset(
+                                          "assets/images/notfound.png",
+                                          fit: BoxFit.cover,
+                                          height: 150.h,
                                         ),
-                                      ];
+                                      );
                                     }
-
-                                    return selectedVideoType.videos!.map((
-                                      video,
-                                    ) {
-                                      return SizedBox(
-                                        width: 100.w,
-                                        height: 133.h,
-                                        child: GestureDetector(
+                                    return GridView.builder(
+                                      shrinkWrap: true,
+                                      physics:
+                                          const NeverScrollableScrollPhysics(),
+                                      gridDelegate:
+                                          SliverGridDelegateWithFixedCrossAxisCount(
+                                        crossAxisCount: 3,
+                                        crossAxisSpacing: 8,
+                                        mainAxisSpacing: 8,
+                                        childAspectRatio: 100.w / 133.h,
+                                      ),
+                                      itemCount: videos.length,
+                                      itemBuilder: (context, videoIndex) {
+                                        final video = videos[videoIndex];
+                                        return GestureDetector(
                                           onTap: () {
+                                            if (Get.isRegistered<HomeController>()) {
+                                              Get.find<HomeController>()
+                                                  .pauseReelsForRouteOverlay();
+                                            } else {
+                                              MediaKitPlayerPool.instance
+                                                  .silenceAllSync();
+                                            }
                                             Get.to(
                                               SingleVideoScreen(
                                                 followers:
@@ -990,74 +1023,17 @@ class _ProfessionalProfileViewState extends State<ProfessionalProfileView>
                                                       color: Colors.white,
                                                       size: 14.sp,
                                                     ),
-                                                    SizedBox(width: 4),
-                                                    StreamBuilder<
-                                                      DocumentSnapshot
-                                                    >(
-                                                      stream:
-                                                          FirebaseFirestore
-                                                              .instance
-                                                              .collection(
-                                                                'videos',
-                                                              )
-                                                              .doc(video.id)
-                                                              .snapshots(),
-                                                      builder: (
-                                                        context,
-                                                        snapshot,
-                                                      ) {
-                                                        if (snapshot
-                                                                .connectionState ==
-                                                            ConnectionState
-                                                                .waiting) {
-                                                          return Text(
-                                                            "...",
-                                                            style: TextStyle(
-                                                              color:
-                                                                  Colors.white,
-                                                            ),
-                                                          );
-                                                        }
-                                                        if (!snapshot.hasData ||
-                                                            !snapshot
-                                                                .data!
-                                                                .exists) {
-                                                          return Text(
-                                                            "0",
-                                                            style: TextStyle(
-                                                              color:
-                                                                  Colors.white,
-                                                            ),
-                                                          );
-                                                        }
-                                                        final data =
-                                                            snapshot.data!
-                                                                    .data()
-                                                                as Map<
-                                                                  String,
-                                                                  dynamic
-                                                                >? ??
-                                                            {};
-                                                        List<dynamic> likes =
-                                                            data['likes'] ?? [];
-                                                        int likeCount =
-                                                            likes
-                                                                .length; // Count likes from array length
-                                                        String
-                                                        formattedLikeCount =
-                                                            likeCount > 1000
-                                                                ? '${(likeCount / 1000).toStringAsFixed(1)}K'
-                                                                : likeCount
-                                                                    .toString();
-
-                                                        return Text(
-                                                          formattedLikeCount,
-                                                          style: TextStyle(
-                                                            color: Colors.white,
-                                                            fontSize: 10.sp,
-                                                          ),
-                                                        );
-                                                      },
+                                                    const SizedBox(width: 4),
+                                                    Text(
+                                                      ReelVideoStats.formatCount(
+                                                        parseApiCount(
+                                                          video.likeCount,
+                                                        ),
+                                                      ),
+                                                      style: TextStyle(
+                                                        color: Colors.white,
+                                                        fontSize: 10.sp,
+                                                      ),
                                                     ),
                                                   ],
                                                 ),
@@ -1124,74 +1100,17 @@ class _ProfessionalProfileViewState extends State<ProfessionalProfileView>
                                                       color: Colors.white,
                                                       size: 14.sp,
                                                     ),
-                                                    SizedBox(width: 4),
-                                                    StreamBuilder<
-                                                      DocumentSnapshot
-                                                    >(
-                                                      stream:
-                                                          FirebaseFirestore
-                                                              .instance
-                                                              .collection(
-                                                                'videos',
-                                                              )
-                                                              .doc(video.id)
-                                                              .snapshots(),
-                                                      builder: (
-                                                        context,
-                                                        snapshot,
-                                                      ) {
-                                                        if (snapshot
-                                                                .connectionState ==
-                                                            ConnectionState
-                                                                .waiting) {
-                                                          return Text(
-                                                            "...",
-                                                            style: TextStyle(
-                                                              color:
-                                                                  Colors.white,
-                                                            ),
-                                                          );
-                                                        }
-                                                        if (!snapshot.hasData ||
-                                                            !snapshot
-                                                                .data!
-                                                                .exists) {
-                                                          return Text(
-                                                            "0",
-                                                            style: TextStyle(
-                                                              color:
-                                                                  Colors.white,
-                                                            ),
-                                                          );
-                                                        }
-                                                        final data =
-                                                            snapshot.data!
-                                                                    .data()
-                                                                as Map<
-                                                                  String,
-                                                                  dynamic
-                                                                >? ??
-                                                            {};
-                                                        List<dynamic> views =
-                                                            data['views'] ?? [];
-                                                        int viewCount =
-                                                            views
-                                                                .length; // Count views from array length
-                                                        String
-                                                        formattedViewCount =
-                                                            viewCount > 1000
-                                                                ? '${(viewCount / 1000).toStringAsFixed(1)}K'
-                                                                : viewCount
-                                                                    .toString();
-
-                                                        return Text(
-                                                          formattedViewCount,
-                                                          style: TextStyle(
-                                                            color: Colors.white,
-                                                            fontSize: 10.sp,
-                                                          ),
-                                                        );
-                                                      },
+                                                    const SizedBox(width: 4),
+                                                    Text(
+                                                      ReelVideoStats.formatCount(
+                                                        parseApiCount(
+                                                          video.viewCount,
+                                                        ),
+                                                      ),
+                                                      style: TextStyle(
+                                                        color: Colors.white,
+                                                        fontSize: 10.sp,
+                                                      ),
                                                     ),
                                                   ],
                                                 ),
@@ -1241,10 +1160,10 @@ class _ProfessionalProfileViewState extends State<ProfessionalProfileView>
                                                 ),
                                             ],
                                           ),
-                                        ),
-                                      );
-                                    }).toList();
-                                  }(),
+                                        );
+                                      },
+                                    );
+                                  },
                                 ),
                               ),
                           ],

@@ -260,9 +260,16 @@ class ForgotPasswordController extends GetxController {
 
         SharedPreferences prefs = await SharedPreferences.getInstance();
         await prefs.setString('auth_token', token);
-        await prefs.setInt('entity', user['entity']);
-        await prefs.setString('user_id', user['id']);
-        await prefs.setString('user_image', user['image'] ?? '');
+        final entity = user['entity'];
+        await prefs.setInt(
+          'entity',
+          entity is int ? entity : int.tryParse(entity?.toString() ?? '') ?? 0,
+        );
+        await prefs.setString('user_id', user['id'].toString());
+        await prefs.setString(
+          'user_image',
+          user['image']?.toString() ?? '',
+        );
 
         ScaffoldMessenger.of(Get.context!).showSnackBar(
           SnackBar(

@@ -1,18 +1,20 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cookster/core/parsing/feed_parsers.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:get/get.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:video_player/video_player.dart';
-import 'package:chewie/chewie.dart';
-import 'package:flutter_cache_manager/flutter_cache_manager.dart';
+import 'package:cookster/core/video/media_kit_player_pool.dart';
+import 'package:cookster/core/video/video_player_pool.dart';
+import 'package:cookster/modules/landing/landingController/landingController.dart';
 import '../../../../../services/apiClient.dart';
 import '../homeModel/videoFeedModel.dart';
 import 'package:cookster/appUtils/apiEndPoints.dart';
-import 'package:location/location.dart' as LocationPackage;
+import 'package:geolocator/geolocator.dart';
 
 class HomeController extends GetxController with WidgetsBindingObserver {
   var isFollowing = false.obs;
@@ -21,14 +23,15 @@ class HomeController extends GetxController with WidgetsBindingObserver {
 
   var videoFeed = VideoFeed().obs;
   var isLoading = false.obs;
+  var isLoadingMore = false.obs;
   var error = "".obs;
   var currentPage = 1.obs;
+  static const int feedPageSize = 15;
+  static const int reelsPageSize = 10;
 
-  final _chewieControllers = <ChewieController?>[].obs;
-  List<VideoPlayerController?> _videoControllers = [];
   var currentIndex = 0.obs;
-  final Set<int> _viewedIndices = {};
 
+  final RxBool isReelsTabVisible = true.obs;
   final RxBool isVideoPlaying = true.obs;
   final RxBool isMuted = false.obs;
   var isNavigating = false.obs;
@@ -40,20 +43,8 @@ class HomeController extends GetxController with WidgetsBindingObserver {
   Timer? _debounceTimer;
   DateTime? _lastMemoryPressureCleanupAt;
 
-  // Keep a small pool alive to avoid dispose/recreate thrash on swipe.
-  final int maxConcurrentVideos = 4;
-  final int retentionRange = 5; // Retain controllers for ±3 indices
-
-  // Custom cache manager for videos
-  final CacheManager _videoCacheManager = CacheManager(
-    Config(
-      'videoCache',
-      stalePeriod: const Duration(days: 7), // Cache videos for 7 days
-      maxNrOfCacheObjects: 50, // Cache up to 50 videos
-    ),
-  );
-
-  List<ChewieController?> get chewieControllers => _chewieControllers;
+  /// Last successful feed per tab — instant UI when switching عام / بالقرب / المتابعة.
+  final Map<String, VideoFeed> _tabFeedCache = {};
 
   // New reactive variables for location checks
   var isLocationServiceEnabled = true.obs; // Default to true until checked
@@ -64,68 +55,160 @@ class HomeController extends GetxController with WidgetsBindingObserver {
     super.onInit();
     checkLocationStatus();
     WidgetsBinding.instance.addObserver(this);
-    fetchLocationOnce().then((_) {
-      fetchVideos();
-    });
+    unawaited(_bootstrapHomeFeed());
   }
+
+  /// Restore last known coords so Near Me can load before GPS finishes.
+  Future<void> _restoreLocationFromPrefs() async {
+    final prefs = await SharedPreferences.getInstance();
+    final lat = prefs.getDouble('latitude');
+    final lng = prefs.getDouble('longitude');
+    if (lat != null && lng != null && lat != 0 && lng != 0) {
+      latitude.value = lat.toString();
+      longitude.value = lng.toString();
+      hasLocationBeenFetched.value = true;
+    }
+    final city = prefs.getString('currentCity');
+    final country = prefs.getString('currentCountry');
+    if (city != null && city.isNotEmpty) {
+      currentCity.value = city;
+    }
+    if (country != null && country.isNotEmpty) {
+      currentCountry.value = country;
+    }
+  }
+
+  Future<void> _bootstrapHomeFeed() async {
+    await _restoreLocationFromPrefs();
+    await fetchVideos();
+    unawaited(_fetchLocationInBackground());
+  }
+
+  Future<void> _fetchLocationInBackground() async {
+    await fetchLocationOnce(refreshNearMeFeed: true);
+  }
+
+  bool get blocksUiForLocation =>
+      selectedType.value == 'Near Me' && isLocationFetching.value;
+
+  bool get _usesReelsApi => selectedType.value == 'General';
 
   Future<void> fetchMoreVideos() async {
     if (isLoading.value ||
+        isLoadingMore.value ||
         videoFeed.value.videos == null ||
         videoFeed.value.videos!.isEmpty) {
-      print(
-        "Cannot fetch more videos: loading=${isLoading.value}, videos=${videoFeed.value.videos?.length}",
-      );
       return;
     }
 
-    // isLoading.value = true;
+    final meta = videoFeed.value.meta;
+    if (meta != null && !meta.hasMore) {
+      return;
+    }
+
+    isLoadingMore.value = true;
     try {
-      // Create a copy of the existing videos to append
-      List<WallVideos> currentVideos = List<WallVideos>.from(
-        videoFeed.value.videos!,
-      );
-      // Append the current videos to the existing list
-      videoFeed.value.videos!.addAll(currentVideos);
+      final parsed = _usesReelsApi
+          ? await _fetchReelsPage(reset: false)
+          : await _fetchLegacyFeedPage(reset: false);
+      if (parsed == null) {
+        return;
+      }
 
-      print(
-        "Appended ${currentVideos.length} videos. New total: ${videoFeed.value.videos!.length}",
-      );
+      final incoming = parsed.videos ?? [];
+      if (incoming.isEmpty) {
+        if (videoFeed.value.meta != null) {
+          videoFeed.value.meta!.hasMore = false;
+        }
+        videoFeed.refresh();
+        return;
+      }
 
-      // Update controllers to match the new video count
-      await _updateControllersForNewVideos(currentVideos.length);
+      final existingIds = videoFeed.value.videos!
+          .map((v) => v.id)
+          .whereType<String>()
+          .toSet();
+      final uniqueIncoming = incoming
+          .where((v) => v.id != null && !existingIds.contains(v.id))
+          .toList();
 
-      // Refresh the video feed observable
+      videoFeed.value.videos!.addAll(uniqueIncoming);
+      videoFeed.value.meta = parsed.meta ?? videoFeed.value.meta;
+      if (parsed.meta?.page != null) {
+        currentPage.value = parsed.meta!.page!;
+      }
       videoFeed.refresh();
     } catch (e) {
-      print("Error in fetchMoreVideos: $e");
-      error.value = "Error appending more videos: $e";
+      error.value = "Error loading more videos: $e";
     } finally {
-      // isLoading.value = false;
+      isLoadingMore.value = false;
+      update();
     }
   }
 
-  Future<void> _updateControllersForNewVideos(int additionalVideoCount) async {
-    // Extend video controllers list
-    _videoControllers.addAll(
-      List.generate(additionalVideoCount, (index) => null),
-    );
+  Map<String, dynamic> _buildFeedPayload({required bool reset}) {
+    final base = <String, dynamic>{
+      'paginate': 1,
+      'per_page': feedPageSize,
+    };
 
-    // Extend chewie controllers list
-    _chewieControllers.addAll(
-      List.generate(additionalVideoCount, (index) => null),
-    );
+    if (selectedType.value == "Following") {
+      base['is_following'] = 1;
+    } else if (selectedType.value == "Near Me") {
+      base['latitude'] = latitude.value;
+      base['longitude'] = longitude.value;
+      if (currentCityId.value.isNotEmpty) {
+        base['city'] = currentCityId.value;
+        base['country'] = currentCountry.value;
+      }
+    }
 
-    // Preload controllers for the newly appended videos
-    int startIndex = _videoControllers.length - additionalVideoCount;
-    // for (int i = startIndex; i < _videoControllers.length; i++) {
-    //   if (!_viewedIndices.contains(i)) {
-    //     await initializeControllerAtIndex(i);
-    //   }
-    // }
+    if (reset) {
+      base['page'] = 1;
+      return base;
+    }
 
-    // Refresh the chewie controllers observable
-    _chewieControllers.refresh();
+    final meta = videoFeed.value.meta;
+    if (meta != null) {
+      base.addAll(meta.toRequestPayload());
+    } else {
+      base['page'] = currentPage.value + 1;
+    }
+    return base;
+  }
+
+  Future<VideoFeed?> _fetchFeedPage({required bool reset}) async {
+    if (_usesReelsApi) {
+      return _fetchReelsPage(reset: reset);
+    }
+    return _fetchLegacyFeedPage(reset: reset);
+  }
+
+  Future<VideoFeed?> _fetchReelsPage({required bool reset}) async {
+    var endpoint = EndPoints.reels;
+    if (!reset) {
+      final cursor = videoFeed.value.meta?.nextCursor;
+      if (cursor != null && cursor.isNotEmpty) {
+        endpoint =
+            '${EndPoints.reels}?cursor=${Uri.encodeQueryComponent(cursor)}';
+      }
+    }
+    final response = await ApiClient.getRequest(endpoint);
+    if (response.statusCode != 200) {
+      error.value = "Failed to load reels: ${response.statusCode}";
+      return null;
+    }
+    return compute(parseVideoFeed, response.body);
+  }
+
+  Future<VideoFeed?> _fetchLegacyFeedPage({required bool reset}) async {
+    final payload = _buildFeedPayload(reset: reset);
+    final response = await ApiClient.postRequest(EndPoints.getVideos, payload);
+    if (response.statusCode != 200) {
+      error.value = "Failed to load videos: ${response.statusCode}";
+      return null;
+    }
+    return compute(parseVideoFeed, response.body);
   }
 
   Future<void> checkLocationStatus() async {
@@ -167,8 +250,43 @@ class HomeController extends GetxController with WidgetsBindingObserver {
       return;
     }
     _lastMemoryPressureCleanupAt = now;
-    print("Memory pressure detected, cleaning up excess controllers");
-    _cleanupUnusedControllers(currentIndex.value);
+    final cache = PaintingBinding.instance.imageCache;
+    final oldMax = cache.maximumSize;
+    cache.maximumSize = 100;
+    cache.clearLiveImages();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      cache.maximumSize = oldMax;
+    });
+    final videos = videoFeed.value.videos;
+    if (videos == null || videos.isEmpty) {
+      return;
+    }
+    unawaited(
+      MediaKitPlayerPool.instance.releaseFarFrom(
+        currentIndex.value,
+        window: 0,
+        keyResolver: (index) {
+          if (index < 0 || index >= videos.length) {
+            return null;
+          }
+          final video = videos[index];
+          return video.id ?? video.videoUrl ?? video.video;
+        },
+      ),
+    );
+    unawaited(
+      VideoPlayerPool.instance.releaseFarFrom(
+        currentIndex.value,
+        window: 0,
+        keyResolver: (index) {
+          if (index < 0 || index >= videos.length) {
+            return null;
+          }
+          final video = videos[index];
+          return video.id ?? video.videoUrl ?? video.video;
+        },
+      ),
+    );
   }
 
   var currentCity = "".obs;
@@ -184,59 +302,53 @@ class HomeController extends GetxController with WidgetsBindingObserver {
   // Make sure you have these imports:
   // import 'package:geocoding/geocoding.dart';
 
-  Future<void> fetchLocationOnce() async {
-    isLocationFetching.value = true;
+  Future<void> fetchLocationOnce({bool refreshNearMeFeed = false}) async {
+    if (selectedType.value == 'Near Me') {
+      isLocationFetching.value = true;
+    }
 
     try {
-      // Use the location package with alias to avoid conflicts
-      LocationPackage.Location location = LocationPackage.Location();
-
-      bool serviceEnabled;
-      LocationPackage.PermissionStatus permissionGranted;
-      LocationPackage.LocationData locationData;
-
-      // Check if location service is enabled
-      serviceEnabled = await location.serviceEnabled();
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
       if (!serviceEnabled) {
-        serviceEnabled = await location.requestService();
-        if (!serviceEnabled) {
-          error.value = "Location service is disabled";
-          return;
-        }
+        error.value = "Location service is disabled";
+        return;
       }
 
-      // Check and request permission
-      permissionGranted = await location.hasPermission();
-      if (permissionGranted == LocationPackage.PermissionStatus.denied) {
-        permissionGranted = await location.requestPermission();
-        if (permissionGranted != LocationPackage.PermissionStatus.granted) {
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied) {
           error.value = "Location permission denied";
           return;
         }
       }
 
-      // Get current location
-      locationData = await location.getLocation();
+      if (permission == LocationPermission.deniedForever) {
+        error.value = "Location permission denied";
+        return;
+      }
 
-      // Check if coordinates are available
-      if (locationData.latitude == null || locationData.longitude == null) {
+      final position = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.medium,
+          timeLimit: Duration(seconds: 10),
+        ),
+      );
+
+      if (position.latitude == 0 && position.longitude == 0) {
         error.value = "Unable to get location coordinates";
         return;
       }
 
-      // Print latitude and longitude
-      print('Location: ${locationData.latitude}, ${locationData.longitude}');
+      print('Location: ${position.latitude}, ${position.longitude}');
 
-      // Set locale to English before fetching placemarks
       await setLocaleIdentifier('en_US');
 
-      // Get placemarks from coordinates
       List<Placemark> placemarks = await placemarkFromCoordinates(
-        locationData.latitude!,
-        locationData.longitude!,
+        position.latitude,
+        position.longitude,
       );
 
-      // Extract and print all available placemark details
       if (placemarks.isNotEmpty) {
         Placemark placemark = placemarks.first;
         currentCity.value = (placemark.locality ?? 'Unknown').trim();
@@ -244,18 +356,17 @@ class HomeController extends GetxController with WidgetsBindingObserver {
         String currentState =
             (placemark.administrativeArea ?? 'Unknown').trim();
 
-        latitude.value = locationData.latitude.toString();
-        longitude.value = locationData.longitude.toString();
+        latitude.value = position.latitude.toString();
+        longitude.value = position.longitude.toString();
 
-        // Print all placemark fields with state highlighted
         print('=== Location Details ===');
-        print('Latitude: ${locationData.latitude}');
-        print('Longitude: ${locationData.longitude}');
+        print('Latitude: ${position.latitude}');
+        print('Longitude: ${position.longitude}');
         print('City (Locality): ${placemark.locality ?? 'Unknown'}');
         print('Country: ${placemark.country ?? 'Unknown'}');
         print(
           'State/Province: ${placemark.administrativeArea ?? 'Unknown'}',
-        ); // Highlighted state
+        );
         print('Postal Code: ${placemark.postalCode ?? 'Unknown'}');
         print(
           'Sub-Administrative Area: ${placemark.subAdministrativeArea ?? 'Unknown'}',
@@ -268,19 +379,18 @@ class HomeController extends GetxController with WidgetsBindingObserver {
         print('Sub-Thoroughfare: ${placemark.subThoroughfare ?? 'Unknown'}');
         print('=== End Location Details ===');
 
-        // Save to SharedPreferences
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString('currentCity', currentCity.value);
         await prefs.setString('currentCountry', currentCountry.value);
-        await prefs.setString('currentState', currentState); // Save state
+        await prefs.setString('currentState', currentState);
         await prefs.setString('postalCode', placemark.postalCode ?? 'Unknown');
-        await prefs.setDouble('latitude', locationData.latitude!);
-        await prefs.setDouble('longitude', locationData.longitude!);
+        await prefs.setDouble('latitude', position.latitude);
+        await prefs.setDouble('longitude', position.longitude);
 
         hasLocationBeenFetched.value = true;
         print(
           'Location fetched - City: ${currentCity.value}, Country: ${currentCountry.value}, '
-          'State: ${currentState}, Latitude: ${locationData.latitude}, Longitude: ${locationData.longitude}',
+          'State: $currentState, Latitude: ${position.latitude}, Longitude: ${position.longitude}',
         );
       } else {
         currentCity.value = 'Unknown';
@@ -292,6 +402,11 @@ class HomeController extends GetxController with WidgetsBindingObserver {
       error.value = "Error fetching location: $e";
     } finally {
       isLocationFetching.value = false;
+      if (refreshNearMeFeed &&
+          selectedType.value == 'Near Me' &&
+          hasLocationBeenFetched.value) {
+        unawaited(fetchVideos(forceNetwork: true));
+      }
     }
   }
 
@@ -387,12 +502,6 @@ class HomeController extends GetxController with WidgetsBindingObserver {
       videos: updatedVideos,
     );
 
-    // Dispose controllers for videos that were removed
-    _disposeRemovedVideoControllers(updatedVideos.length);
-
-    // Update controllers list to match new video count
-    _updateControllersAfterRemoval(updatedVideos.length);
-
     // Adjust current index if needed
     // _adjustCurrentIndexAfterRemoval(currentVideoId, updatedVideos);
 
@@ -406,35 +515,6 @@ class HomeController extends GetxController with WidgetsBindingObserver {
   }
 
   // Helper method to remove blocked user's videos from current list
-
-  // Helper method to dispose controllers for removed videos
-  void _disposeRemovedVideoControllers(int newVideoCount) {
-    // Dispose controllers beyond the new video count
-    for (int i = newVideoCount; i < _chewieControllers.length; i++) {
-      if (_chewieControllers[i] != null) {
-        _chewieControllers[i]!.dispose();
-      }
-      if (_videoControllers[i] != null) {
-        _videoControllers[i]!.dispose();
-      }
-    }
-  }
-
-  // Helper method to update controller lists after video removal
-  void _updateControllersAfterRemoval(int newVideoCount) {
-    // Trim the controllers lists to match new video count
-    if (_chewieControllers.length > newVideoCount) {
-      _chewieControllers.value =
-          _chewieControllers.take(newVideoCount).toList();
-    }
-
-    if (_videoControllers.length > newVideoCount) {
-      _videoControllers = _videoControllers.take(newVideoCount).toList();
-    }
-
-    // Refresh the observable
-    _chewieControllers.refresh();
-  }
 
   // Helper method to adjust current index after video removal
   // void _adjustCurrentIndexAfterRemoval(
@@ -484,120 +564,52 @@ class HomeController extends GetxController with WidgetsBindingObserver {
     await prefs.setString('currentCity', currentCity.value);
   }
 
-  Future<void> fetchVideos({String? country, String? city}) async {
-    if (isLoading.value) return;
-    isLoading.value = true;
+  Future<void> fetchVideos({
+    String? country,
+    String? city,
+    bool forceNetwork = false,
+    bool fromTabSwitch = false,
+  }) async {
+    final tab = selectedType.value;
+    final cached = _tabFeedCache[tab];
+    final hasCachedFeed =
+        !forceNetwork && cached != null && (cached.videos?.isNotEmpty ?? false);
 
-    print("I am there to fetch videos");
+    if (hasCachedFeed) {
+      videoFeed.value = cached!;
+      visiblePageIndex.value = 0;
+      currentIndex.value = 0;
+      update();
+    }
 
-    print(selectedType.value);
+    if (isLoading.value && !hasCachedFeed && !fromTabSwitch) {
+      return;
+    }
+
+    if (!hasCachedFeed) {
+      isLoading.value = true;
+    }
+    currentPage.value = 1;
 
     try {
-      if (selectedType.value == "General") {
-        print('Fetching videos for General');
-        final response = await ApiClient.postRequest(EndPoints.getVideos, {});
-        if (response.statusCode == 200) {
-          var jsonData = jsonDecode(response.body);
-          videoFeed.value = VideoFeed.fromJson(jsonData);
-
-          print(
-            "This is the length of videos: ${videoFeed.value.videos!.length}",
-          );
-          // await prepareControllers();
-          // if (_chewieControllers.isNotEmpty) {
-          //   await initializeControllerAtIndex(0);
-          //   if (!isMuted.value &&
-          //       !isAppInBackground.value &&
-          //       !isNavigating.value) {
-          //     playVideoAtIndex(0);
-          //   }
-          //   _viewedIndices.add(0);
-          //   preloadNextVideos(0);
-          // }
-        } else {
-          error.value = "Failed to load videos: ${response.statusCode}";
-        }
-      } else if (selectedType.value == "Following") {
-        print('Fetching videos for Following');
-        final response = await ApiClient.postRequest(EndPoints.getVideos, {
-          "is_following": 1,
-        });
-
-        print("PRINTING RESPONSE OF VIDEOS");
-        print(response.body);
-        if (response.statusCode == 200) {
-          var jsonData = jsonDecode(response.body);
-          videoFeed.value = VideoFeed.fromJson(jsonData);
-          // await prepareControllers();
-          // if (_chewieControllers.isNotEmpty) {
-          //   await initializeControllerAtIndex(0);
-          //   if (!isMuted.value &&
-          //       !isAppInBackground.value &&
-          //       !isNavigating.value) {
-          //     playVideoAtIndex(0);
-          //   }
-          //   _viewedIndices.add(0);
-          //   preloadNextVideos(0);
-          // }
-        } else {
-          error.value = "Failed to load videos: ${response.statusCode}";
-        }
-      }else if (selectedType.value == "Near Me") {
-        print("Check there if you are");
-        String selectedCity;
-        String selectedCountry;
-
-        // Use provided parameters first, then use stored values, then fetch location
+      if (selectedType.value == "Near Me") {
         if (city != null && country != null) {
-          selectedCity = city;
-          selectedCountry = country;
-        } else if (hasLocationBeenFetched.value &&
-            currentCity.value.isNotEmpty &&
-            currentCountry.value.isNotEmpty) {
-          // Use already fetched location
-          selectedCity = currentCity.value;
-          selectedCountry = currentCountry.value;
-        } else {
-          if (error.value.isNotEmpty) {
-            isLoading.value = false;
-            update();
-            return;
-          }
-
-          selectedCity = currentCityId.value;
-          selectedCountry = currentCountry.value;
+          currentCityId.value = city;
+          currentCountry.value = country;
+        } else if (!hasLocationBeenFetched.value &&
+            latitude.value.isEmpty &&
+            longitude.value.isEmpty) {
+          return;
         }
+      }
 
-        // Build the request payload based on currentCityId
-        final Map<String, dynamic> requestPayload = {};
-
-        // Always add latitude and longitude
-        requestPayload['latitude'] = latitude.value; // Use .value to get the raw value
-        requestPayload['longitude'] = longitude.value; // Use .value to get the raw value
-
-        // Add city and country only if currentCityId is not null or empty
-        if (currentCityId.value.isNotEmpty) {
-          requestPayload['city'] = currentCityId.value; // Use .value for RxString
-          requestPayload['country'] = selectedCountry;
-        }
-
-        // Print the request payload
-        print('Request payload: $requestPayload');
-
-        // Make the API request
-        final response = await ApiClient.postRequest(
-          EndPoints.getVideos,
-          requestPayload,
-        );
-
-        print(response.body);
-
-        if (response.statusCode == 200) {
-          var jsonData = jsonDecode(response.body);
-          videoFeed.value = VideoFeed.fromJson(jsonData);
-        } else {
-          error.value = "Failed to load videos: ${response.statusCode}";
-        }
+      final parsed = await _fetchFeedPage(reset: true);
+      if (parsed != null) {
+        videoFeed.value = parsed;
+        _tabFeedCache[tab] = parsed;
+        currentPage.value = parsed.meta?.page ?? 1;
+        visiblePageIndex.value = 0;
+        currentIndex.value = 0;
       }
     } catch (e) {
       error.value = "Error: $e";
@@ -621,25 +633,6 @@ class HomeController extends GetxController with WidgetsBindingObserver {
     isLocationFetching.value = false;
     currentCity.value = "";
     currentCountry.value = "";
-  }
-
-  Future<void> prepareControllersIfNeeded() async {
-    if (_chewieControllers.isNotEmpty) return;
-    await prepareControllers();
-  }
-
-  Future<void> prepareControllers() async {
-    if (videoFeed.value.videos == null || videoFeed.value.videos!.isEmpty)
-      return;
-
-    _videoControllers = List.generate(
-      videoFeed.value.videos!.length,
-      (index) => null,
-    );
-    _chewieControllers.value = List.generate(
-      videoFeed.value.videos!.length,
-      (index) => null,
-    );
   }
 
   // Future<void> initializeControllerAtIndex(
@@ -740,63 +733,6 @@ class HomeController extends GetxController with WidgetsBindingObserver {
   // }
 
   // Helper method to dispose of a controller at a specific index
-  Future<void> _disposeControllerAtIndex(int index) async {
-    try {
-      if (_chewieControllers[index] != null) {
-        _chewieControllers[index]?.dispose();
-        _chewieControllers[index] = null;
-      }
-      if (_videoControllers[index] != null) {
-        await _videoControllers[index]?.dispose();
-        _videoControllers[index] = null;
-      }
-    } catch (e) {
-      print("Error disposing controller at index $index: $e");
-    }
-  }
-
-  void _cleanupUnusedControllers(int currentIndex) {
-    int activeControllers = _countActiveControllers();
-
-    if (activeControllers > maxConcurrentVideos) {
-      print(
-        "Active controllers ($activeControllers) exceeds limit ($maxConcurrentVideos). Cleaning up...",
-      );
-
-      int keepStart = (currentIndex - retentionRange).clamp(
-        0,
-        _videoControllers.length - 1,
-      );
-      int keepEnd = (currentIndex + retentionRange).clamp(
-        0,
-        _videoControllers.length - 1,
-      );
-
-      for (int i = 0; i < _videoControllers.length; i++) {
-        if (i < keepStart || i > keepEnd) {
-          if (_videoControllers[i] != null &&
-              _videoControllers[i]!.value.isInitialized) {
-            print(
-              "Cleaning up controller at index $i (outside range $keepStart-$keepEnd)",
-            );
-            _chewieControllers[i]?.pause();
-            disposeControllerAtIndex(i);
-          }
-        }
-      }
-    }
-  }
-
-  int _countActiveControllers() {
-    int count = 0;
-    for (var controller in _videoControllers) {
-      if (controller != null && controller.value.isInitialized) {
-        count++;
-      }
-    }
-    return count;
-  }
-
   // Future<void> recreateControllerAtIndex(
   //   int index, {
   //   int retryCount = 3,
@@ -933,13 +869,82 @@ class HomeController extends GetxController with WidgetsBindingObserver {
   //   print("Preloading completed");
   // }
 
-  void pauseAllVideos() {
-    print("Pausing all videos");
-    for (var controller in _chewieControllers) {
-      controller?.pause();
-      controller?.setVolume(0);
+  void setReelsTabVisible(bool visible) {
+    isReelsTabVisible.value = visible;
+  }
+
+  /// Stops reel audio/video immediately when pushing another route (e.g. profile).
+  void pauseReelsForRouteOverlay() {
+    isNavigating.value = true;
+    setReelsTabVisible(false);
+    pauseAllVideosSync();
+    unawaited(pauseAllVideosAwait());
+  }
+
+  /// Resumes the visible reel after closing an overlay route, only on the home tab.
+  void resumeReelsAfterRouteOverlay() {
+    isNavigating.value = false;
+    if (isAppInBackground.value) {
+      return;
     }
+    if (Get.isRegistered<NavBarController>() &&
+        Get.find<NavBarController>().selectedIndex.value != 0) {
+      return;
+    }
+    setReelsTabVisible(true);
+    unawaited(resumeVisibleVideo(visiblePageIndex.value));
+  }
+
+  void pauseAllVideosSync() {
+    MediaKitPlayerPool.instance.silenceAllSync();
     isVideoPlaying.value = false;
+  }
+
+  Future<void> pauseAllVideosAwait() async {
+    pauseAllVideosSync();
+    await MediaKitPlayerPool.instance.pauseAllAwait();
+    await VideoPlayerPool.instance.pauseAll();
+    isVideoPlaying.value = false;
+  }
+
+  void pauseAllVideos() {
+    pauseAllVideosSync();
+    unawaited(pauseAllVideosAwait());
+  }
+
+  /// Frees reel decoders before camera / upload / editor flows so local
+  /// [VideoPlayerController] can initialize without OOM on low-end devices.
+  Future<void> releaseAllVideoResources() async {
+    setReelsTabVisible(false);
+    pauseAllVideos();
+    await MediaKitPlayerPool.instance.disposeAll();
+    await VideoPlayerPool.instance.clear();
+    isVideoPlaying.value = false;
+  }
+
+  Future<void> restoreVideoResourcesAfterCapture() async {
+    if (isAppInBackground.value) {
+      return;
+    }
+    setReelsTabVisible(true);
+    await resumeVisibleVideo(visiblePageIndex.value);
+  }
+
+  Future<void> resumeVisibleVideo(int pageIndex) async {
+    if (isAppInBackground.value || isNavigating.value) {
+      return;
+    }
+    isReelsTabVisible.value = true;
+    final videos = videoFeed.value.videos;
+    if (videos == null || videos.isEmpty) {
+      return;
+    }
+    final actualIndex = pageIndex.clamp(0, videos.length - 1);
+    currentIndex.value = actualIndex;
+    visiblePageIndex.value = actualIndex;
+    isVideoPlaying.value = true;
+    // Playback is started by the visible [VideoPlayerWidget] once autoPlay is
+    // true again; do not touch the pool here (avoids racing disposed outputs).
   }
 
   // Future<void> playVideoAtIndex(int index) async {
@@ -972,15 +977,10 @@ class HomeController extends GetxController with WidgetsBindingObserver {
   // }
 
   void resumeCurrentVideo() {
-    if (!isAppInBackground.value &&
-        !isNavigating.value &&
-        currentIndex.value >= 0 &&
-        currentIndex.value < _chewieControllers.length &&
-        _chewieControllers[currentIndex.value] != null) {
-      print("Resuming video at index ${currentIndex.value}");
-      _chewieControllers[currentIndex.value]!.play();
-      isVideoPlaying.value = true;
+    if (isAppInBackground.value || isNavigating.value) {
+      return;
     }
+    isVideoPlaying.value = true;
   }
 
   // void togglePlayPause() {
@@ -996,11 +996,6 @@ class HomeController extends GetxController with WidgetsBindingObserver {
 
   void toggleMute() {
     isMuted.value = !isMuted.value;
-    if (currentIndex.value >= 0 &&
-        currentIndex.value < _chewieControllers.length &&
-        _chewieControllers[currentIndex.value] != null) {
-      _chewieControllers[currentIndex.value]!.setVolume(isMuted.value ? 0 : 1);
-    }
   }
 
   // void handleNavigation() {
@@ -1043,26 +1038,20 @@ class HomeController extends GetxController with WidgetsBindingObserver {
   //   }
   // }
 
-  void disposeControllerAtIndex(int index) {
-    if (index >= 0 && index < _chewieControllers.length) {
-      print("Disposing controller at index $index");
-      _chewieControllers[index]?.dispose();
-      _videoControllers[index]?.dispose();
-      _chewieControllers[index] = null;
-      _videoControllers[index] = null;
-      _chewieControllers.refresh();
-    }
+  void disposeControllerAtIndex(int index) {}
+
+  /// Light reset when switching عام / بالقرب / المتابعة (keep pool warm).
+  void prepareForFeedTabSwitch() {
+    MediaKitPlayerPool.instance.pauseAllImmediate();
+    unawaited(VideoPlayerPool.instance.pauseAll());
+    visiblePageIndex.value = 0;
+    currentIndex.value = 0;
   }
 
   void disposeControllers() {
-    print("Disposing all controllers");
-    for (int i = 0; i < _chewieControllers.length; i++) {
-      _chewieControllers[i]?.dispose();
-      _videoControllers[i]?.dispose();
-    }
-    _chewieControllers.clear();
-    _videoControllers.clear();
-    _viewedIndices.clear();
+    unawaited(MediaKitPlayerPool.instance.releaseAll());
+    unawaited(VideoPlayerPool.instance.clear());
+    visiblePageIndex.value = 0;
     currentIndex.value = 0;
   }
 

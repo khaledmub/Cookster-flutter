@@ -23,6 +23,8 @@ class AppUtils {
     int maxLines = 1, // Optional maxLines parameter with default value 1
     // Add a new parameter for form key to trigger validation
     GlobalKey<FormFieldState>? fieldKey,
+    /// When false (default), validation runs only on submit/blur — much faster for long forms.
+    bool validateOnChange = false,
   }) {
     return TextFormField(
       key: fieldKey,
@@ -37,16 +39,10 @@ class AppUtils {
       obscureText: obscureText,
       enabled: enabled,
       onChanged: (value) {
-        // Clear error when user starts typing
-        if (fieldKey != null) {
-          // This will clear the error and reset the border
+        if (validateOnChange && fieldKey != null) {
           fieldKey.currentState?.validate();
         }
-
-        // Still call the original onChanged if provided
-        if (onChanged != null) {
-          onChanged(value);
-        }
+        onChanged?.call(value);
       },
       textInputAction: textInputAction ?? TextInputAction.done,
       validator: validator,

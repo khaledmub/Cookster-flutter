@@ -122,17 +122,28 @@ class CameraCaptureControllerX extends GetxController {
   }
 }
 
-class CameraCaptureScreen extends StatelessWidget {
+class CameraCaptureScreen extends StatefulWidget {
   final List<CameraDescription> cameras;
 
   const CameraCaptureScreen({Key? key, required this.cameras})
     : super(key: key);
 
   @override
-  Widget build(BuildContext context) {
-    final controller = Get.put(CameraCaptureControllerX());
-    controller.initCamera(cameras);
+  State<CameraCaptureScreen> createState() => _CameraCaptureScreenState();
+}
 
+class _CameraCaptureScreenState extends State<CameraCaptureScreen> {
+  late final CameraCaptureControllerX controller;
+
+  @override
+  void initState() {
+    super.initState();
+    controller = Get.find<CameraCaptureControllerX>();
+    controller.initCamera(widget.cameras);
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.black,
       body: Obx(() {
@@ -154,7 +165,7 @@ class CameraCaptureScreen extends StatelessWidget {
                     if (controller.errorMessage.value.contains('permission')) {
                       openAppSettings();
                     } else {
-                      controller.initCamera(cameras);
+                      controller.initCamera(widget.cameras);
                     }
                   },
                   child: const Text('Retry'),
@@ -219,7 +230,7 @@ class CameraCaptureScreen extends StatelessWidget {
                       color: Colors.white,
                       size: 28,
                     ),
-                    onPressed: () => controller.switchCamera(cameras),
+                    onPressed: () => controller.switchCamera(widget.cameras),
                   ),
                 ],
               ),

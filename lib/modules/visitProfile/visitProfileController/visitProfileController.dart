@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'dart:developer';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cookster/core/parsing/feed_parsers.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:cookster/appUtils/apiEndPoints.dart';
@@ -152,10 +154,13 @@ class VisitProfileController extends GetxController {
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       print('PRINTING THE USER ID: $userId');
       try {
-        // Set loading state and clear previous data
         isLoading.value = true;
-        visitProfile.value = null; // Clear previous profile data
-        resetLikeState(); // Clear like-related states
+        final sameProfile =
+            visitProfile.value?.user?.id?.toString() == userId;
+        if (!sameProfile) {
+          visitProfile.value = null;
+          resetLikeState();
+        }
 
         final response = await ApiClient.getRequest(
           "${EndPoints.userProfile}?id=$userId",
@@ -164,9 +169,7 @@ class VisitProfileController extends GetxController {
         print("Searching the following id $userId");
 
         if (response.statusCode == 200) {
-          var jsonData = jsonDecode(response.body);
-          log("Response JSON: $jsonData");
-          visitProfile.value = VisitProfile.fromJson(jsonData);
+          visitProfile.value = await compute(parseVisitProfile, response.body);
 
           final user = visitProfile.value;
 
@@ -174,41 +177,7 @@ class VisitProfileController extends GetxController {
           localFollowersCount.value = user!.followers;
           localFollowingCount.value = user.following!;
 
-          // Extract video IDs
-          videoIds.clear();
-          if (user.videoTypes != null) {
-            for (var videoType in user.videoTypes!) {
-              if (videoType.videos != null) {
-                videoIds.addAll(
-                  videoType.videos!
-                      .map((video) => video.id.toString())
-                      .toList(),
-                );
-              }
-            }
-          }
-          print("Step 8: Extracted video IDs: $videoIds");
-
-          totalLikes.value = 0;
-          // Fetch total likes for all videos
-          int likesCount = 0;
-
-          for (var videoId in videoIds) {
-            var videoDoc =
-                await FirebaseFirestore.instance
-                    .collection('videos')
-                    .doc(videoId)
-                    .get();
-
-            if (videoDoc.exists) {
-              var data = videoDoc.data() as Map<String, dynamic>;
-              List<String> likes = List<String>.from(data['likes'] ?? []);
-              likesCount += likes.length;
-            }
-          }
-
-          // ✅ Update only once after loop finishes
-          totalLikes.value = likesCount;
+          totalLikes.value = _sumVideoLikes(user.videoTypes);
           print("Step 9: Total likes on all videos: ${totalLikes.value}");
 
           // Initialize like status after profile is loaded
@@ -232,6 +201,17 @@ class VisitProfileController extends GetxController {
         isLoading.value = false;
       }
     });
+  }
+
+  int _sumVideoLikes(List<VideoTypes>? videoTypes) {
+    if (videoTypes == null) return 0;
+    var total = 0;
+    for (final videoType in videoTypes) {
+      for (final video in videoType.videos ?? const []) {
+        total += parseApiCount(video.likeCount);
+      }
+    }
+    return total;
   }
 
   Future<void> initializeLikeStatus(

@@ -1,3 +1,8 @@
+# Flutter deferred components (Play Core — optional at runtime)
+-dontwarn com.google.android.play.core.splitcompat.SplitCompatApplication
+-dontwarn com.google.android.play.core.splitinstall.**
+-dontwarn com.google.android.play.core.tasks.**
+
 # Suppress warnings for SSL and security libraries
 -dontwarn org.bouncycastle.jsse.BCSSLParameters
 -dontwarn org.bouncycastle.jsse.BCSSLSocket
@@ -27,6 +32,40 @@
 # Flutter video player specific
 -keep class io.flutter.plugins.videoplayer.** { *; }
 -dontwarn io.flutter.plugins.videoplayer.**
+
+# MediaKit / libmpv (reels use this — required for release APK video surfaces)
+-keep class com.alexmercerind.** { *; }
+-keep class com.alexmercerind.media_kit_video.** { *; }
+-keep class com.alexmercerind.media_kit_libs_android_video.** { *; }
+-keep class com.alexmercerind.mediakitandroidhelper.** { *; }
+-dontwarn com.alexmercerind.**
+
+# Network images (CachedNetworkImage / http)
+-keep class okhttp3.** { *; }
+-keep interface okhttp3.** { *; }
+-dontwarn okhttp3.**
+-keep class com.davemorrissey.labs.subscaleview.** { *; }
+
+# Flutter embedding + plugins (JNI / platform views)
+-keep class io.flutter.embedding.** { *; }
+-keep class io.flutter.plugin.** { *; }
+-keep class io.flutter.view.** { *; }
+
+# Google Sign-In + Firebase Auth (required for release APK login)
+-keepattributes Signature
+-keepattributes *Annotation*
+-keepattributes EnclosingMethod
+-keepattributes InnerClasses
+-keep class com.google.firebase.** { *; }
+-keep class com.google.android.gms.** { *; }
+-keep class com.google.android.gms.auth.** { *; }
+-keep class com.google.android.gms.common.** { *; }
+-dontwarn com.google.android.gms.**
+-keep class io.flutter.plugins.googlesignin.** { *; }
+-keep class com.google.gson.** { *; }
+-keepclassmembers class * {
+  @com.google.gson.annotations.SerializedName <fields>;
+}
 
 # Additional media format support
 -keep class androidx.media3.extractor.** { *; }

@@ -26,6 +26,7 @@ class _SendEmailContactState extends State<SendEmailContact> {
   final _emailKey = GlobalKey<FormFieldState>();
   final _phoneKey = GlobalKey<FormFieldState>();
   final _messageKey = GlobalKey<FormFieldState>();
+  final EmailController userController = Get.find();
 
   @override
   void initState() {
@@ -49,8 +50,6 @@ class _SendEmailContactState extends State<SendEmailContact> {
 
   @override
   Widget build(BuildContext context) {
-    final EmailController userController = Get.put(EmailController());
-
     return Scaffold(
       appBar: AppBar(
         backgroundColor: ColorUtils.primaryColor,

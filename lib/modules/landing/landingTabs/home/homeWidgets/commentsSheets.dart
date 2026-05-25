@@ -6,11 +6,32 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:get/get.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:timeago/timeago.dart' as timeago;
+import 'package:intl/intl.dart';
 import 'package:shimmer/shimmer.dart'; // Add shimmer package to pubspec.yaml
 
 import '../../../../../appUtils/apiEndPoints.dart';
+import '../../../../../core/widgets/grid_thumbnail_cache.dart';
 import '../homeController/addCommentControllr.dart';
+import 'package:cookster/core/media/media_url_resolver.dart';
+
+String _formatRelativeTimestamp(DateTime timestamp) {
+  final now = DateTime.now();
+  final difference = now.difference(timestamp);
+
+  if (difference.inMinutes < 1) {
+    return 'Just now';
+  }
+  if (difference.inHours < 24 && now.day == timestamp.day) {
+    return DateFormat.jm().format(timestamp);
+  }
+  if (difference.inDays < 7) {
+    return DateFormat.E().add_jm().format(timestamp);
+  }
+  if (difference.inDays < 365) {
+    return DateFormat.MMMd().format(timestamp);
+  }
+  return DateFormat.yMMMd().format(timestamp);
+}
 
 void showCommentBottomSheet(
   BuildContext context,
@@ -112,7 +133,7 @@ class _CommentSectionState extends State<CommentSection> {
   @override
   Widget build(BuildContext context) {
     // Get the keyboard height
-    final keyboardHeight = MediaQuery.of(context).viewInsets.bottom;
+    final keyboardHeight = MediaQuery.viewInsetsOf(context).bottom;
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -222,7 +243,7 @@ class _CommentSectionState extends State<CommentSection> {
                     );
                     final dateFormatted =
                         timestamp != null
-                            ? timeago.format(timestamp.toDate())
+                            ? _formatRelativeTimestamp(timestamp.toDate())
                             : 'Just now';
 
                     return FutureBuilder<DocumentSnapshot>(
@@ -273,8 +294,10 @@ class _CommentSectionState extends State<CommentSection> {
                                     child: ClipOval(
                                       child: CachedNetworkImage(
                                         imageUrl:
-                                            '${Common.profileImage}/$profilePic',
+                                            MediaUrlResolver.profileImageUrl(profilePic) ?? '',
                                         fit: BoxFit.cover,
+                                        memCacheWidth: gridThumbnailMemCacheSize(40),
+                                        memCacheHeight: gridThumbnailMemCacheSize(40),
                                         placeholder:
                                             (context, url) =>
                                                 Shimmer.fromColors(
@@ -457,7 +480,9 @@ class _CommentSectionState extends State<CommentSection> {
                         backgroundColor: Colors.grey[200], // Default background
                         child: CachedNetworkImage(
                           imageUrl:
-                              '${Common.profileImage}/${widget.currentUserPhotoUrl}',
+                              MediaUrlResolver.profileImageUrl(widget.currentUserPhotoUrl) ?? '',
+                          memCacheWidth: gridThumbnailMemCacheSize(60),
+                          memCacheHeight: gridThumbnailMemCacheSize(60),
                           imageBuilder:
                               (context, imageProvider) => CircleAvatar(
                                 radius: 30,
@@ -594,7 +619,7 @@ class _CommentSectionState extends State<CommentSection> {
                       ),
                       const SizedBox(height: 4),
                       Container(
-                        width: MediaQuery.of(context).size.width * 0.6,
+                        width: MediaQuery.sizeOf(context).width * 0.6,
                         height: 10,
                         color: Colors.white,
                       ),
@@ -791,7 +816,7 @@ class _CommentSectionState extends State<CommentSection> {
                   final replyTimestamp = replyData['timestamp'] as Timestamp?;
                   final replyDateFormatted =
                       replyTimestamp != null
-                          ? timeago.format(replyTimestamp.toDate())
+                          ? _formatRelativeTimestamp(replyTimestamp.toDate())
                           : 'Just now';
 
                   return FutureBuilder<DocumentSnapshot>(
@@ -872,8 +897,10 @@ class _CommentSectionState extends State<CommentSection> {
                               child: ClipOval(
                                 child: CachedNetworkImage(
                                   imageUrl:
-                                      '${Common.profileImage}/$replyProfilePic',
+                                      MediaUrlResolver.profileImageUrl(replyProfilePic) ?? '',
                                   fit: BoxFit.cover,
+                                  memCacheWidth: gridThumbnailMemCacheSize(40),
+                                  memCacheHeight: gridThumbnailMemCacheSize(40),
                                   placeholder:
                                       (context, url) => Shimmer.fromColors(
                                         baseColor: Colors.grey[300]!,
@@ -1116,7 +1143,7 @@ class _CommentSectionState extends State<CommentSection> {
                               replyData['timestamp'] as Timestamp?;
                           final replyDateFormatted =
                               replyTimestamp != null
-                                  ? timeago.format(replyTimestamp.toDate())
+                                  ? _formatRelativeTimestamp(replyTimestamp.toDate())
                                   : 'Just now';
 
                           return FutureBuilder<DocumentSnapshot>(
@@ -1166,8 +1193,12 @@ class _CommentSectionState extends State<CommentSection> {
                                       child: ClipOval(
                                         child: CachedNetworkImage(
                                           imageUrl:
-                                              '${Common.profileImage}/$replyProfilePic',
+                                              MediaUrlResolver.profileImageUrl(replyProfilePic) ?? '',
                                           fit: BoxFit.cover,
+                                          memCacheWidth:
+                                              gridThumbnailMemCacheSize(40),
+                                          memCacheHeight:
+                                              gridThumbnailMemCacheSize(40),
                                           placeholder:
                                               (context, url) =>
                                                   Shimmer.fromColors(
@@ -1259,6 +1290,8 @@ class _CommentSectionState extends State<CommentSection> {
                         backgroundColor: Colors.grey[200],
                         child: CachedNetworkImage(
                           imageUrl: widget.currentUserPhotoUrl,
+                          memCacheWidth: gridThumbnailMemCacheSize(40),
+                          memCacheHeight: gridThumbnailMemCacheSize(40),
                           imageBuilder:
                               (context, imageProvider) => CircleAvatar(
                                 radius: 20,

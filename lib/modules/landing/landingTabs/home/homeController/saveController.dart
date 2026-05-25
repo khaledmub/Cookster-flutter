@@ -1,87 +1,106 @@
-import 'dart:convert';
-
+import 'package:cookster/core/parsing/feed_parsers.dart';
+import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:cookster/appUtils/apiEndPoints.dart';
 import '../../../../../services/apiClient.dart';
-import '../homeModel/userSaveUnsave.dart'; // Adjust path if needed
+import '../homeModel/userSaveUnsave.dart';
+import '../homeModel/videoFeedModel.dart';
 
 class SaveController extends GetxController {
   var isLoading = false.obs;
+  var isLoadingMore = false.obs;
   var savedVideos = <SavedVideos>[].obs;
+  var listMeta = Rxn<FeedMeta>();
+  var currentPage = 1.obs;
+
+  static const int listPageSize = 30;
 
   @override
-  void onInit() {
-    super.onInit();
-    // getSavedVideos();
+  void onClose() {
+    savedVideos.clear();
+    listMeta.value = null;
+    super.onClose();
   }
 
-  /// Save a video
   Future<bool> saveVideo(String videoId) async {
     try {
-      print('🔄 Starting saveVideo for videoId: $videoId');
-
       isLoading(true);
-      print('⏳ Loading state set to true');
-
-      final Map<String, dynamic> payload = {'video_id': videoId};
-      print('📤 Sending POST request to ${EndPoints.save} with body: $payload');
-
-      final response = await ApiClient.postRequest(EndPoints.save, payload);
-
-      print('📥 Response received with status code: ${response.statusCode}');
-      print('📄 Response body: ${response.body}');
-
-      if (response.statusCode == 201) {
-        print('✅ Video saved successfully!');
-        return true;
-      } else {
-        print('❌ Failed to save video');
-        return false;
-      }
+      final response = await ApiClient.postRequest(EndPoints.save, {
+        'video_id': videoId,
+      });
+      return response.statusCode == 201;
     } catch (e) {
-      print('🔥 Error during saveVideo: $e');
       return false;
     } finally {
       isLoading(false);
-      print('✅ Loading state set to false');
     }
   }
 
-  /// Fetch saved videos
-  /// Fetch saved videos using POST API
-  Future<void> getSavedVideos() async {
-    try {
-      print('🔄 Fetching saved videos (POST API)...');
-      isLoading(true);
+  Future<void> getSavedVideos({bool reset = true}) async {
+    if (reset) {
+      if (isLoading.value) return;
+      isLoading.value = true;
+      currentPage.value = 1;
+    } else {
+      if (isLoading.value || isLoadingMore.value) return;
+      if (listMeta.value != null && !listMeta.value!.hasMore) return;
+      isLoadingMore.value = true;
+    }
 
+    try {
+      final page = reset ? 1 : currentPage.value + 1;
       final response = await ApiClient.postRequest(
         EndPoints.getSavedVideos,
-        {}, // Pass empty map if no body is required
+        {'paginate': 1, 'per_page': listPageSize, 'page': page},
       );
 
-      print('📥 Response received with status code: ${response.statusCode}');
-      print('📄 Response body: ${response.body}');
+      if (response.statusCode != 200) {
+        return;
+      }
 
-      if (response.statusCode == 200) {
-        final savedVideosModel = SavedVideosModel.fromJson(
-          jsonDecode(response.body),
+      final model = await compute(parseSavedVideos, response.body);
+      listMeta.value = model.meta;
+      final incoming = model.videos ?? [];
+
+      if (reset) {
+        savedVideos.assignAll(incoming);
+      } else if (incoming.isNotEmpty) {
+        final existingIds = savedVideos
+            .map((v) => v.id?.toString())
+            .whereType<String>()
+            .toSet();
+        savedVideos.addAll(
+          incoming.where((v) {
+            final id = v.id?.toString();
+            return id != null && !existingIds.contains(id);
+          }),
         );
+      }
 
-        if (savedVideosModel.videos != null) {
-          print('✅ Fetched ${savedVideosModel.videos!.length} saved videos.');
-          savedVideos.assignAll(savedVideosModel.videos!);
-        } else {
-          print('⚠️ No videos found in response.');
-          savedVideos.clear();
-        }
+      if (model.meta?.page != null) {
+        currentPage.value = model.meta!.page!;
       } else {
-        print('❌ Failed to fetch saved videos: ${response.statusCode}');
+        currentPage.value = page;
+      }
+      if (incoming.isEmpty && !reset) {
+        listMeta.value = FeedMeta(
+          page: currentPage.value,
+          perPage: listPageSize,
+          hasMore: false,
+        );
       }
     } catch (e) {
-      print('🔥 Error fetching saved videos: $e');
+      // ignore
     } finally {
-      isLoading(false);
-      print('✅ Loading finished.');
+      if (reset) {
+        isLoading.value = false;
+      } else {
+        isLoadingMore.value = false;
+      }
     }
   }
+
+  Future<void> fetchMoreSavedVideos() => getSavedVideos(reset: false);
+
+  bool get hasMore => listMeta.value?.hasMore ?? false;
 }

@@ -3,7 +3,12 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:ui';
 import 'package:awesome_dialog/awesome_dialog.dart';
-import 'package:chewie/chewie.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:cookster/core/widgets/grid_thumbnail_cache.dart';
+import 'package:cookster/core/firestore/video_view_tracker.dart';
+import 'package:cookster/core/video/fullscreen_video_playback.dart';
+import 'package:cookster/core/video/media_kit_player_pool.dart';
+import 'package:cookster/modules/landing/landingTabs/home/homeWidgets/videoPlayerWidget.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cookster/appUtils/apiEndPoints.dart';
 import 'package:cookster/appUtils/colorUtils.dart';
@@ -17,7 +22,7 @@ import 'package:flutter_svg/svg.dart';
 import 'package:get/get.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:share_plus/share_plus.dart';
-import 'package:video_player/video_player.dart';
+import '../../appBindings/app_bindings.dart';
 import '../../services/apiClient.dart';
 import '../landing/landingTabs/home/homeController/addCommentControllr.dart';
 import '../landing/landingTabs/reportContent/reportContentView/reportContentView.dart';
@@ -43,8 +48,8 @@ class _SingleVideoVisitState extends State<SingleVisitVideo>
     SingleVisitVideoController(),
   );
 
-  VideoPlayerController? _videoPlayerController;
-  ChewieController? _chewieController;
+  String? _resolvedVideoUrl;
+  String? _playerKey;
   bool _isPlaying = true;
   bool _isInitializing = true;
   bool _isMuted = false;
@@ -53,6 +58,9 @@ class _SingleVideoVisitState extends State<SingleVisitVideo>
   String? _frontUserImage; // Store the user ID from SharedPreferences
   String _language = 'en'; // Default to English
   bool _hasInitializedPlayer = false;
+  Timer? _viewTrackDebounce;
+  final Set<String> _trackedVideoIds = <String>{};
+  Worker? _loadingWorker;
 
   @override
   bool get wantKeepAlive => true;
@@ -66,7 +74,7 @@ class _SingleVideoVisitState extends State<SingleVisitVideo>
     singleVideoController.fetchSingleVideo(widget.videoId);
 
     // Listen to the controller's loading state
-    ever(singleVideoController.isLoading, (isLoading) {
+    _loadingWorker = ever(singleVideoController.isLoading, (isLoading) {
       if (!isLoading && !_hasInitializedPlayer) {
         _initializePlayer();
       }
@@ -94,35 +102,20 @@ class _SingleVideoVisitState extends State<SingleVisitVideo>
     return deviceId;
   }
 
-  // Updated _trackVideoView function to handle both user and device views
-  Future<void> _trackVideoView(
-    String videoId,
-    String? userId,
-    bool isAuthenticated,
-  ) async {
-    try {
-      final videoRef = FirebaseFirestore.instance
-          .collection('videos')
-          .doc(videoId);
-
-      if (isAuthenticated && userId != null) {
-        // Track view for authenticated user
-        await videoRef.set({
-          'views': FieldValue.arrayUnion([userId]),
-        }, SetOptions(merge: true));
-        print("PRINTING VIDEO ID: $videoId Printing USER ID: $userId");
-      } else {
-        // Track view for non-authenticated user using device ID
-        String deviceId = await _getDeviceId();
-        await videoRef.set({
-          'views': FieldValue.arrayUnion([deviceId]),
-        }, SetOptions(merge: true));
-        print("PRINTING VIDEO ID: $videoId Printing DEVICE ID: $deviceId");
-      }
-    } catch (e) {
-      print('Error tracking video view: $e');
-      // Optionally handle the error (e.g., show a toast or log it)
-    }
+  void _scheduleViewTrack(String videoId) {
+    if (videoId.isEmpty) return;
+    _viewTrackDebounce?.cancel();
+    _viewTrackDebounce = Timer(const Duration(seconds: 2), () {
+      if (_trackedVideoIds.contains(videoId)) return;
+      _trackedVideoIds.add(videoId);
+      unawaited(
+        VideoViewTracker.trackUniqueView(
+          videoId: videoId,
+          userId: _frontUserId,
+          isAuthenticated: _frontUserId != null && _frontUserId!.isNotEmpty,
+        ),
+      );
+    });
   }
 
   // Load language from SharedPreferences
@@ -151,6 +144,8 @@ class _SingleVideoVisitState extends State<SingleVisitVideo>
   Future<void> _initializePlayer() async {
     if (_hasInitializedPlayer) return;
 
+    await prepareForFullscreenVideoPlayback();
+
     final video = singleVideoController.singleVideoContent.value.video;
     if (video?.video == null) {
       print("Video data not available for initialization");
@@ -158,6 +153,10 @@ class _SingleVideoVisitState extends State<SingleVisitVideo>
     }
 
     _hasInitializedPlayer = true;
+    final videoId = video?.id?.toString();
+    if (videoId != null && videoId.isNotEmpty) {
+      _scheduleViewTrack(videoId);
+    }
 
     if (video!.isImage.toString() == '1') {
       if (mounted) {
@@ -168,32 +167,13 @@ class _SingleVideoVisitState extends State<SingleVisitVideo>
       return;
     }
 
-    final videoUrl = video.videoUrl?.isNotEmpty == true ? video.videoUrl! : '${Common.videoUrl}/${video.video}';
-    print("PRINTING VIDEO URL: $videoUrl");
+    _resolvedVideoUrl = video.videoUrl?.isNotEmpty == true
+        ? video.videoUrl!
+        : '${Common.videoUrl}/${video.video}';
+    _playerKey = video.id?.isNotEmpty == true ? video.id : _resolvedVideoUrl;
+    print("PRINTING VIDEO URL: $_resolvedVideoUrl");
 
     try {
-      _videoPlayerController = VideoPlayerController.network(
-        videoUrl,
-        videoPlayerOptions: VideoPlayerOptions(
-          mixWithOthers: false,
-          allowBackgroundPlayback: false,
-        ),
-      );
-
-      await _videoPlayerController!.initialize();
-
-      _chewieController = ChewieController(
-        videoPlayerController: _videoPlayerController!,
-        autoPlay: true,
-        looping: true,
-        showControls: false,
-        aspectRatio: _videoPlayerController!.value.aspectRatio,
-        allowPlaybackSpeedChanging: false,
-        allowMuting: false,
-        allowFullScreen: false,
-        deviceOrientationsAfterFullScreen: [DeviceOrientation.portraitUp],
-      );
-
       if (mounted) {
         setState(() {
           _isInitializing = false;
@@ -217,8 +197,9 @@ class _SingleVideoVisitState extends State<SingleVisitVideo>
   }
 
   void _pauseVideo() {
-    if (_videoPlayerController?.value.isPlaying == true) {
-      _videoPlayerController!.pause();
+    final key = _playerKey;
+    if (key != null && key.isNotEmpty) {
+      unawaited(MediaKitPlayerPool.instance.pause(key));
       setState(() {
         _isPlaying = false;
         _showPlayPauseIcon = true;
@@ -227,8 +208,9 @@ class _SingleVideoVisitState extends State<SingleVisitVideo>
   }
 
   void _resumeVideo() {
-    if (_videoPlayerController?.value.isPlaying == false) {
-      _videoPlayerController!.play();
+    final key = _playerKey;
+    if (key != null && key.isNotEmpty) {
+      unawaited(MediaKitPlayerPool.instance.setActive(key));
       setState(() {
         _isPlaying = true;
         _showPlayPauseIcon = true;
@@ -237,7 +219,7 @@ class _SingleVideoVisitState extends State<SingleVisitVideo>
   }
 
   void _togglePlayPause() {
-    if (_videoPlayerController == null) return;
+    if (_resolvedVideoUrl == null) return;
 
     setState(() {
       _isPlaying = !_isPlaying;
@@ -260,11 +242,8 @@ class _SingleVideoVisitState extends State<SingleVisitVideo>
   }
 
   void _toggleMute() {
-    if (_videoPlayerController == null) return;
-
     setState(() {
       _isMuted = !_isMuted;
-      _videoPlayerController!.setVolume(_isMuted ? 0.0 : 1.0);
     });
   }
 
@@ -272,22 +251,23 @@ class _SingleVideoVisitState extends State<SingleVisitVideo>
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
     if (state == AppLifecycleState.resumed) {
-      if (_videoPlayerController?.value.isInitialized == true) {
+      if (!_isInitializing && _resolvedVideoUrl != null) {
         _resumeVideo();
       }
     } else if (state == AppLifecycleState.paused) {
-      if (_videoPlayerController?.value.isInitialized == true) {
-        _videoPlayerController!.pause();
-      }
+      _pauseVideo();
     }
   }
 
   @override
   void dispose() {
+    _loadingWorker?.dispose();
+    _viewTrackDebounce?.cancel();
     WidgetsBinding.instance.removeObserver(this);
-    _pauseVideo();
-    _videoPlayerController?.dispose();
-    _chewieController?.dispose();
+    final key = _playerKey;
+    if (key != null && key.isNotEmpty) {
+      unawaited(MediaKitPlayerPool.instance.release(key));
+    }
     super.dispose();
   }
 
@@ -322,18 +302,14 @@ class _SingleVideoVisitState extends State<SingleVisitVideo>
             }
             if (singleVideoController.isLoading.value) {
               return (video.image != null && video.image!.isNotEmpty)
-                  ? Image.network(
-                      "${Common.videoUrl}/${video.image}",
-                      errorBuilder: (context, error, stackTrace) => const SizedBox(),
+                  ? CachedNetworkImage(
+                      imageUrl: "${Common.videoUrl}/${video.image}",
+                      memCacheWidth: gridThumbnailMemCacheSize(120),
+                      memCacheHeight: gridThumbnailMemCacheSize(120),
+                      errorWidget: (context, url, error) => const SizedBox(),
                     )
                   : const SizedBox();
             }
-
-            _trackVideoView(
-              video.id.toString(),
-              _frontUserId!,
-              _frontUserId != null ? true : false,
-            );
 
             return Stack(
               clipBehavior: Clip.none,
@@ -361,34 +337,32 @@ class _SingleVideoVisitState extends State<SingleVisitVideo>
                                 width: double.infinity,
                                 height: double.infinity,
                                 child: Center(
-                                  child: Image.network(
-                                    (video.videoUrl?.isNotEmpty == true) 
-                                        ? video.videoUrl! 
+                                  child: CachedNetworkImage(
+                                    imageUrl: (video.videoUrl?.isNotEmpty == true)
+                                        ? video.videoUrl!
                                         : "${Common.videoUrl}/${video.video}",
                                     fit: BoxFit.contain,
                                     width: double.infinity,
                                     height: double.infinity,
-                                    errorBuilder: (context, error, stackTrace) => const SizedBox(),
+                                    memCacheWidth: gridThumbnailMemCacheSize(360),
+                                    memCacheHeight: gridThumbnailMemCacheSize(640),
+                                    errorWidget: (context, url, error) => const SizedBox(),
                                   ),
                                 ),
                               )
-                            : _chewieController != null
-                            ? Chewie(controller: _chewieController!)
-                            : SizedBox.shrink(),
+                            : _resolvedVideoUrl != null
+                            ? VideoPlayerWidget(
+                              videoUrl: _resolvedVideoUrl!,
+                              thumbnailUrl:
+                                  "${Common.imageBaseUrl}/videos/${video.video ?? ''}",
+                              isImage: video.isImage,
+                              videoId: _playerKey,
+                              autoPlay: true,
+                              useMediaKit: true,
+                              fillScreen: true,
+                            )
+                            : const SizedBox.shrink(),
                   ),
-                ),
-                Positioned(
-                  left: 16,
-                  right: 16,
-                  bottom: 10,
-                  child:
-                      _isInitializing || _videoPlayerController == null
-                          ? SizedBox.shrink()
-                          : video.isImage.toString() == '1'
-                          ? SizedBox.shrink()
-                          : EnhancedSeekBar(
-                            controller: _videoPlayerController!,
-                          ),
                 ),
                 if (_showPlayPauseIcon && !_isInitializing)
                   Center(
@@ -411,17 +385,13 @@ class _SingleVideoVisitState extends State<SingleVisitVideo>
                   top: Get.height * 0.05,
                   left: isRtl ? null : 16,
                   right: isRtl ? 16 : null,
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(50),
-                    child: BackdropFilter(
-                      filter: ImageFilter.blur(sigmaX: 10.0, sigmaY: 10.0),
-                      child: Container(
+                  child: Container(
                         padding: EdgeInsets.symmetric(
                           horizontal: 12,
                           vertical: 8,
                         ),
                         decoration: BoxDecoration(
-                          color: Colors.black.withOpacity(0.3),
+                          color: Colors.black.withValues(alpha: 0.45),
                           borderRadius: BorderRadius.circular(50),
                         ),
                         child: InkWell(
@@ -451,8 +421,6 @@ class _SingleVideoVisitState extends State<SingleVisitVideo>
                           ),
                         ),
                       ),
-                    ),
-                  ),
                 ),
 
                 Positioned(
@@ -466,17 +434,13 @@ class _SingleVideoVisitState extends State<SingleVisitVideo>
                 Positioned(
                   right: 10,
                   bottom: Get.height * 0.1,
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(50),
-                    child: BackdropFilter(
-                      filter: ImageFilter.blur(sigmaX: 10.0, sigmaY: 10.0),
-                      child: Container(
+                  child: Container(
                         padding: EdgeInsets.symmetric(
                           horizontal: 6,
                           vertical: 16,
                         ),
                         decoration: BoxDecoration(
-                          color: Colors.black.withOpacity(0.3),
+                          color: Colors.black.withValues(alpha: 0.45),
                           borderRadius: BorderRadius.circular(50),
                         ),
                         child: Column(
@@ -629,8 +593,6 @@ class _SingleVideoVisitState extends State<SingleVisitVideo>
                           ],
                         ),
                       ),
-                    ),
-                  ),
                 ),
               ],
             );
@@ -862,7 +824,10 @@ Future<bool> deleteVideo(
             ),
           );
           print('Step 7: Success SnackBar displayed');
-          Get.offAll(() => Landing());
+          Get.offAll(
+            () => Landing(),
+            binding: LandingBinding(),
+          );
           isDeleted = true;
           print('Step 8: Deletion marked as successful');
         } else {

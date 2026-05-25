@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:cookster/appUtils/apiEndPoints.dart';
+import 'package:cookster/core/parsing/feed_parsers.dart';
+import 'package:flutter/foundation.dart';
 import 'package:cookster/modules/landing/landingTabs/home/homeController/homeController.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:geolocator/geolocator.dart';
@@ -14,7 +16,11 @@ import '../searchModel/b2bUsersListModel.dart';
 import '../searchModel/searchModel.dart';
 
 class UserSearchController extends GetxController {
+  static const Set<int> videoSearchTypes = {1, 2, 3, 4};
+  static const int listPageSize = 30;
+
   var isLoading = false.obs;
+  var isLoadingMore = false.obs;
   var isCityLoading = false.obs;
   var searchResult = SearchResult().obs;
   var type = 6.obs;
@@ -35,6 +41,22 @@ class UserSearchController extends GetxController {
   RxList<String> recentSearches = <String>[].obs;
 
   final HomeController homeController = Get.find();
+
+  String? _lastKeywords;
+  int? _lastIsGeneral;
+  int? _lastIsFollowing;
+  String? _lastCity;
+  String? _lastCountry;
+
+  bool get canLoadMoreVideos =>
+      videoSearchTypes.contains(type.value) &&
+      (searchResult.value.meta?.hasMore ?? false);
+
+  @override
+  void onClose() {
+    recentSearches.clear();
+    super.onClose();
+  }
 
   @override
   void onInit() async {
@@ -126,51 +148,66 @@ class UserSearchController extends GetxController {
     String? country,
     int? isGeneral = 0,
     int? isFollowing = 0,
+    bool reset = true,
   }) async {
     if (keywords.isEmpty) {
       clearSearchResults();
       return;
     }
 
-    isLoading.value = true;
+    if (reset) {
+      if (isLoading.value) return;
+      isLoading.value = true;
+    } else {
+      if (isLoading.value || isLoadingMore.value) return;
+      if (!canLoadMoreVideos) return;
+      isLoadingMore.value = true;
+    }
     hasSearched.value = true;
 
     try {
-      String? finalCity = city ?? currentCity.value;
-      String? finalCountry = country ?? currentCountry.value;
+      final finalCountry = country ?? currentCountry.value;
 
-      if (keywords.isNotEmpty) {
+      if (reset && keywords.isNotEmpty) {
         await _saveSearchQuery(keywords);
-        print(
-          "Searching for: $keywords in city: $finalCity, country: $finalCountry, isGeneral: $isGeneral, isFollowing: $isFollowing",
-        );
       }
 
+      final page = reset
+          ? 1
+          : (searchResult.value.meta?.page ?? 1) + 1;
       final requestBody = <String, dynamic>{};
 
+      if (videoSearchTypes.contains(type.value)) {
+        requestBody['paginate'] = 1;
+        requestBody['per_page'] = listPageSize;
+        if (reset) {
+          requestBody['page'] = 1;
+        } else {
+          final meta = searchResult.value.meta;
+          if (meta != null) {
+            requestBody.addAll(meta.toRequestPayload());
+          } else {
+            requestBody['page'] = page;
+          }
+        }
+      }
+
       if (isFollowing == 1) {
-        requestBody["is_following"] = isFollowing;
-        requestBody["type"] = type.value;
-        requestBody["keywords"] = keywords;
+        requestBody['is_following'] = isFollowing;
+        requestBody['type'] = type.value;
+        requestBody['keywords'] = keywords;
       } else {
-        requestBody["type"] = type.value;
-        requestBody["keywords"] = keywords;
+        requestBody['type'] = type.value;
+        requestBody['keywords'] = keywords;
 
         if (isGeneral != 1 || city != null || country != null) {
-          // Always add latitude and longitude
-          requestBody['latitude'] =
-              homeController.latitude.value; // Use .value to get the raw value
-          requestBody['longitude'] =
-              homeController.longitude.value; // Use .value to get the raw value
+          requestBody['latitude'] = homeController.latitude.value;
+          requestBody['longitude'] = homeController.longitude.value;
 
-          // Add city and country only if currentCityId is not null or empty
           if (currentCityId.value.isNotEmpty) {
             requestBody['city'] = currentCityId.value;
             requestBody['country'] = finalCountry;
           }
-
-          // Print the request body
-          print('Request body: $requestBody');
         }
       }
 
@@ -179,23 +216,62 @@ class UserSearchController extends GetxController {
         requestBody,
       );
 
-      print(jsonEncode(requestBody));
-      print(type.value);
-      print(response.body);
-      print(response.statusCode);
-
       if (response.statusCode == 200) {
-        final jsonResponse = json.decode(response.body);
-        searchResult.value = SearchResult.fromJson(jsonResponse);
+        final parsed = await compute(parseSearchResult, response.body);
+
+        if (reset) {
+          searchResult.value = parsed;
+        } else {
+          final current = searchResult.value;
+          current.meta = parsed.meta;
+          final incoming = parsed.videos ?? [];
+          if (incoming.isNotEmpty) {
+            current.videos ??= [];
+            final existingIds = current.videos!
+                .map((v) => v.id?.toString())
+                .whereType<String>()
+                .toSet();
+            current.videos!.addAll(
+              incoming.where((v) {
+                final id = v.id?.toString();
+                return id != null && !existingIds.contains(id);
+              }),
+            );
+          } else if (current.meta != null) {
+            current.meta!.hasMore = false;
+          }
+          searchResult.refresh();
+        }
+
+        _lastKeywords = keywords;
+        _lastIsGeneral = isGeneral;
+        _lastIsFollowing = isFollowing;
+        _lastCity = city;
+        _lastCountry = country;
       } else {
-        Get.snackbar("Error", "Failed to fetch results");
+        Get.snackbar('Error', 'Failed to fetch results');
       }
     } catch (e) {
-      print(e);
-      Get.snackbar("Error", "Something went wrong: $e");
+      Get.snackbar('Error', 'Something went wrong: $e');
     } finally {
-      isLoading.value = false;
+      if (reset) {
+        isLoading.value = false;
+      } else {
+        isLoadingMore.value = false;
+      }
     }
+  }
+
+  Future<void> fetchMoreSearchResults() async {
+    if (_lastKeywords == null || _lastKeywords!.isEmpty) return;
+    await fetchSearchResults(
+      _lastKeywords!,
+      city: _lastCity,
+      country: _lastCountry,
+      isGeneral: _lastIsGeneral,
+      isFollowing: _lastIsFollowing,
+      reset: false,
+    );
   }
 
   // Search B2B categories by name
@@ -275,8 +351,7 @@ class UserSearchController extends GetxController {
       print('Response Body: ${response.body}');
 
       if (response.statusCode == 200) {
-        final jsonResponse = json.decode(response.body);
-        b2bCategories.value = B2BCategoryModel.fromJson(jsonResponse);
+        b2bCategories.value = await compute(parseB2BCategories, response.body);
         filteredB2bCategories.value = b2bCategories.value;
       } else {
         Get.snackbar("Error", "Failed to fetch B2B categories");
@@ -310,8 +385,7 @@ class UserSearchController extends GetxController {
       print('Response Body: ${response.body}');
 
       if (response.statusCode == 200) {
-        final jsonResponse = json.decode(response.body);
-        b2bList.value = B2BList.fromJson(jsonResponse);
+        b2bList.value = await compute(parseB2BList, response.body);
         filteredB2bList.value = b2bList.value;
       } else {
         Get.snackbar("Error", "Failed to fetch B2B list");
@@ -350,8 +424,7 @@ class UserSearchController extends GetxController {
       print('Response Body: ${response.body}');
 
       if (response.statusCode == 200) {
-        final jsonResponse = json.decode(response.body);
-        b2bUsersList.value = B2BUsersList.fromJson(jsonResponse);
+        b2bUsersList.value = await compute(parseB2BUsers, response.body);
         filteredB2bUsersList.value = b2bUsersList.value;
       } else {
         Get.snackbar("Error", "Failed to fetch B2B users list");

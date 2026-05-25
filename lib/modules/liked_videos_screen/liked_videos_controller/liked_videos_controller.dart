@@ -1,134 +1,151 @@
-import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter/material.dart'; // Import for ScaffoldMessenger
-import 'package:get/get.dart';
-import 'package:cookster/services/apiClient.dart';
 import 'package:cookster/appUtils/apiEndPoints.dart';
-import '../liked_videos_model/liked_videos_model.dart'; // Use provided model
+import 'package:cookster/core/parsing/feed_parsers.dart';
+import 'package:cookster/modules/landing/landingTabs/home/homeModel/videoFeedModel.dart';
+import 'package:cookster/services/apiClient.dart';
+import 'package:flutter/foundation.dart';
+import 'package:get/get.dart';
+
+import '../liked_videos_model/liked_videos_model.dart';
 
 class LikedVideosController extends GetxController {
-  final String userId;
-  final BuildContext context; // Add context for ScaffoldMessenger
-  final RxList<String> videoIds = <String>[].obs; // Firestore video IDs
-  final RxInt totalLikes = 0.obs; // Firestore total likes count
-  final RxString commaSeparatedIds = ''.obs; // Firestore comma-separated IDs
-  final RxList<LikedVideos> likedVideos =
-      <LikedVideos>[].obs; // API-fetched videos
-  final RxBool isLoading = false.obs; // Loading state for API
-  String?
-  _previousCommaSeparatedIds; // Track previous IDs to avoid duplicate API calls
+  LikedVideosController({required this.userId});
 
-  LikedVideosController({required this.userId, required this.context});
+  final String userId;
+
+  final RxList<String> videoIds = <String>[].obs;
+  final RxInt totalLikes = 0.obs;
+  final RxString commaSeparatedIds = ''.obs;
+  final RxList<LikedVideos> likedVideos = <LikedVideos>[].obs;
+  final RxBool isLoading = false.obs;
+  final RxBool isLoadingMore = false.obs;
+  final listMeta = Rxn<FeedMeta>();
+  final currentPage = 1.obs;
+
+  static const int listPageSize = 30;
+
+  String? _previousCommaSeparatedIds;
+  String? _activeVideoIds;
 
   @override
   void onInit() {
     super.onInit();
-    // Bind Firestore streams to reactive variables
     bindStreams();
   }
 
-  // Bind Firestore streams to reactive variables
   void bindStreams() {
-    // Stream for total likes count
     FirebaseFirestore.instance
         .collection('videos')
         .where('likes', arrayContains: userId)
         .snapshots()
         .listen(
-          (QuerySnapshot querySnapshot) {
+          (querySnapshot) {
             totalLikes.value = querySnapshot.docs.length;
-          },
-          onError:
-              (e) => ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('Error fetching total likes: $e'),
-                  duration: Duration(seconds: 3),
-                ),
-              ),
-        );
-
-    // Stream for liked video IDs
-    FirebaseFirestore.instance
-        .collection('videos')
-        .where('likes', arrayContains: userId)
-        .snapshots()
-        .listen(
-          (QuerySnapshot querySnapshot) {
             videoIds.value = querySnapshot.docs.map((doc) => doc.id).toList();
             commaSeparatedIds.value = videoIds.join(',');
 
-            // Send to API only if IDs have changed and not empty
             if (commaSeparatedIds.value != _previousCommaSeparatedIds &&
                 commaSeparatedIds.value.isNotEmpty) {
               _previousCommaSeparatedIds = commaSeparatedIds.value;
-              sendVideoIdsToApi(commaSeparatedIds.value);
+              _activeVideoIds = commaSeparatedIds.value;
+              sendVideoIdsToApi(commaSeparatedIds.value, reset: true);
+            } else if (commaSeparatedIds.value.isEmpty) {
+              likedVideos.clear();
+              listMeta.value = FeedMeta(hasMore: false);
             }
           },
-          onError:
-              (e) => ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('Error fetching video IDs: $e'),
-                  duration: Duration(seconds: 3),
-                ),
-              ),
+          onError: (e) => _showError('Error fetching liked videos: $e'),
         );
   }
 
-  // Function to send comma-separated IDs to the API and fetch liked videos
-  Future<void> sendVideoIdsToApi(String commaSeparatedIds) async {
-    try {
-      isLoading(true);
-      print(
-        '📤 Sending POST request to ${EndPoints.myLikedVideos} with body: {"video_ids": "$commaSeparatedIds"}',
-      );
+  Future<void> sendVideoIdsToApi(
+    String ids, {
+    bool reset = true,
+  }) async {
+    if (ids.isEmpty) return;
 
+    if (reset) {
+      if (isLoading.value) return;
+      isLoading.value = true;
+      currentPage.value = 1;
+    } else {
+      if (isLoading.value || isLoadingMore.value) return;
+      if (listMeta.value != null && !listMeta.value!.hasMore) return;
+      isLoadingMore.value = true;
+    }
+
+    try {
+      final page = reset ? 1 : currentPage.value + 1;
       final response = await ApiClient.postRequest(EndPoints.myLikedVideos, {
-        'video_ids': commaSeparatedIds,
+        'video_ids': ids,
+        'paginate': 1,
+        'per_page': listPageSize,
+        'page': page,
       });
 
-      print('📥 Response received with status code: ${response.statusCode}');
-      print('📄 Response body: ${response.body}');
+      if (response.statusCode != 200) {
+        if (!reset) return;
+        _showError('Failed to fetch liked videos: ${response.statusCode}');
+        return;
+      }
 
-      if (response.statusCode == 200) {
-        final likedVideosModel = LikedVideosModel.fromJson(
-          jsonDecode(response.body),
-        );
+      final model = await compute(parseLikedVideos, response.body);
+      listMeta.value = model.meta;
+      final incoming = model.videos ?? [];
 
-        if (likedVideosModel.videos != null) {
-          print('✅ Fetched ${likedVideosModel.videos!.length} liked videos.');
-          likedVideos.assignAll(likedVideosModel.videos!);
-        } else {
-          print('⚠️ No videos found in response.');
+      if (reset) {
+        if (incoming.isEmpty) {
           likedVideos.clear();
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('No liked videos found'),
-              duration: Duration(seconds: 3),
-            ),
-          );
+        } else {
+          likedVideos.assignAll(incoming);
         }
+      } else if (incoming.isNotEmpty) {
+        final existingIds = likedVideos
+            .map((v) => v.id?.toString())
+            .whereType<String>()
+            .toSet();
+        likedVideos.addAll(
+          incoming.where((v) {
+            final id = v.id?.toString();
+            return id != null && !existingIds.contains(id);
+          }),
+        );
+      }
+
+      if (model.meta?.page != null) {
+        currentPage.value = model.meta!.page!;
       } else {
-        print('❌ Failed to fetch liked videos: ${response.statusCode}');
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Failed to fetch liked videos: ${response.statusCode}',
-            ),
-            duration: Duration(seconds: 3),
-          ),
+        currentPage.value = page;
+      }
+      if (incoming.isEmpty && !reset) {
+        listMeta.value = FeedMeta(
+          page: currentPage.value,
+          perPage: listPageSize,
+          hasMore: false,
         );
       }
     } catch (e) {
-      print('🔥 Error fetching liked videos: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error fetching liked videos: $e'),
-          duration: Duration(seconds: 3),
-        ),
-      );
+      if (reset) {
+        _showError('Error fetching liked videos: $e');
+      }
     } finally {
-      isLoading(false);
-      print('✅ Loading finished.');
+      if (reset) {
+        isLoading.value = false;
+      } else {
+        isLoadingMore.value = false;
+      }
     }
+  }
+
+  Future<void> fetchMoreLikedVideos() async {
+    final ids = _activeVideoIds ?? commaSeparatedIds.value;
+    if (ids.isEmpty) return;
+    await sendVideoIdsToApi(ids, reset: false);
+  }
+
+  bool get hasMore => listMeta.value?.hasMore ?? false;
+
+  void _showError(String message) {
+    Get.snackbar('Error', message, duration: const Duration(seconds: 3));
   }
 }

@@ -1,3 +1,4 @@
+import 'package:cookster/appBindings/app_bindings.dart';
 import 'package:cookster/modules/auth/signIn/signInView/signInView.dart';
 import 'package:cookster/modules/landing/landingView/landingView.dart';
 import 'package:cookster/modules/search/searchView/searchView.dart';
@@ -25,16 +26,52 @@ class AppRoutes {
   static const String packages = '/packages';
 
   static List<GetPage> pages = [
-    GetPage(name: packages, page: () => PackagesScreen()),
-    GetPage(name: search, page: () => SearchView()),
+    GetPage(
+      name: packages,
+      page: () => PackagesScreen(),
+      binding: PackagesBinding(),
+    ),
+    GetPage(
+      name: search,
+      page: () => SearchView(),
+      binding: SearchBinding(),
+    ),
     // GetPage(name: noInternet, page: () => NoInternetScreen()),
-    GetPage(name: editProfile, page: () => EditProfileView()),
-    GetPage(name: landing, page: () => Landing()),
-    GetPage(name: selectLanguage, page: () => SelectLanguageView()),
-    GetPage(name: signUp, page: () => SignVpView()),
-    GetPage(name: signUpOtp, page: () => SignUpOtpView()),
-    GetPage(name: signIn, page: () => const SignInView()),
+    GetPage(
+      name: editProfile,
+      page: () => EditProfileView(),
+      binding: EditProfileBinding(),
+    ),
+    GetPage(
+      name: landing,
+      page: () => Landing(),
+      binding: LandingBinding(),
+    ),
+    GetPage(
+      name: selectLanguage,
+      page: () => SelectLanguageView(),
+      binding: SelectLanguageBinding(),
+    ),
+    GetPage(
+      name: signUp,
+      page: () => SignVpView(),
+      binding: SignUpBinding(),
+    ),
+    GetPage(
+      name: signUpOtp,
+      page: () => SignUpOtpView(),
+      binding: SignUpOtpBinding(),
+    ),
+    GetPage(
+      name: signIn,
+      page: () => const SignInView(),
+      binding: SignInBinding(),
+    ),
     GetPage(name: splash, page: () => const SplashView()),
-    GetPage(name: onBoarding, page: () => OnBoarding()),
+    GetPage(
+      name: onBoarding,
+      page: () => OnBoarding(),
+      binding: OnBoardingBinding(),
+    ),
   ];
 }

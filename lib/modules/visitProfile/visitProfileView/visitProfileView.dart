@@ -1,6 +1,9 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cookster/appUtils/appUtils.dart';
+import 'package:cookster/appUtils/apiEndPoints.dart';
+import 'package:cookster/core/parsing/feed_parsers.dart';
+import 'package:cookster/appBindings/app_bindings.dart';
 import 'package:cookster/modules/landing/landingTabs/home/homeController/homeController.dart';
 import 'package:cookster/modules/visitProfile/visitProfileModel/visitProfileModel.dart';
 import 'package:cookster/modules/visitProfile/visitProfileController/visitProfileController.dart';
@@ -13,7 +16,8 @@ import 'package:fluttertoast/fluttertoast.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../appRoutes/appRoutes.dart';
-import '../../../appUtils/apiEndPoints.dart';
+import 'package:cookster/core/firestore/reel_video_stats.dart';
+import 'package:cookster/core/widgets/grid_thumbnail_cache.dart';
 import '../../../appUtils/colorUtils.dart';
 import '../../../appUtils/openToWork.dart';
 import '../../../loaders/pulseLoader.dart';
@@ -24,7 +28,9 @@ import '../../followersFollowing/followersFollowingView/followersFollowingView.d
 import '../../landing/landingTabs/professionalProfile/profileControlller/professionalProfileController.dart';
 import '../../landing/landingTabs/professionalProfile/profileWidgets/professsionalProfileWidgets.dart';
 import '../../landing/landingTabs/profile/profileControlller/profileController.dart';
-import '../../singleVideoView/singleVideoView.dart';
+import 'package:cookster/modules/landing/landingTabs/home/homeModel/videoFeedModel.dart';
+import 'package:cookster/modules/visitProfile/profile_reel_screen.dart';
+import 'package:cookster/core/media/media_url_resolver.dart';
 
 class VisitProfileView extends StatefulWidget {
   final String userId;
@@ -37,13 +43,14 @@ class VisitProfileView extends StatefulWidget {
 
 class _VisitProfileViewState extends State<VisitProfileView>
     with SingleTickerProviderStateMixin {
-  final VisitProfileController visitProfileController = Get.put(
-    VisitProfileController(),
-  );
-  final HomeController homeController = Get.find();
+  late final VisitProfileController visitProfileController;
+  late final HomeController homeController;
+  late final ProfileController profileController;
+  late final ProfessionalProfileController professionalProfileController;
 
   TabController? _tabController;
   int _currentTabIndex = 0;
+  Worker? _videoTypesWorker;
 
   // Add an RxInt to track followers count locally
 
@@ -68,21 +75,65 @@ class _VisitProfileViewState extends State<VisitProfileView>
   @override
   void initState() {
     super.initState();
-
-    _initializeProfile();
+    ensureVisitProfileDependencies();
+    visitProfileController = Get.put(VisitProfileController());
+    homeController = Get.find<HomeController>();
+    profileController = Get.find<ProfileController>();
+    professionalProfileController = Get.find<ProfessionalProfileController>();
+    homeController.pauseReelsForRouteOverlay();
+    _initializeProfile().then((_) => _syncTabController());
     _loadLanguage();
     fetchUserId();
+    _videoTypesWorker = ever(visitProfileController.visitProfile, (_) {
+      _syncTabController();
+    });
   }
 
-  final ProfileController profileController = Get.find();
-  final ProfessionalProfileController professionalProfileController =
-      Get.find();
+  void _onTabChanged() {
+    if (_tabController?.indexIsChanging ?? false) {
+      setState(() => _currentTabIndex = _tabController!.index);
+    }
+  }
+
+  void _syncTabController() {
+    final videoTypes = visitProfileController.visitProfile.value?.videoTypes;
+    final displayVideoTypes = _buildDisplayVideoTypes(videoTypes);
+    if (displayVideoTypes.isEmpty) {
+      _tabController?.removeListener(_onTabChanged);
+      _tabController?.dispose();
+      _tabController = null;
+      if (mounted) setState(() => _currentTabIndex = 0);
+      return;
+    }
+    if (_tabController == null) {
+      _tabController = TabController(
+        length: displayVideoTypes.length,
+        vsync: this,
+      );
+      _tabController!.addListener(_onTabChanged);
+    } else if (_tabController!.length != displayVideoTypes.length) {
+      final previousIndex = _tabController!.index;
+      _tabController!.removeListener(_onTabChanged);
+      _tabController!.dispose();
+      _tabController = TabController(
+        length: displayVideoTypes.length,
+        vsync: this,
+        initialIndex: previousIndex.clamp(0, displayVideoTypes.length - 1),
+      );
+      _tabController!.addListener(_onTabChanged);
+    }
+    if (mounted) setState(() {});
+  }
 
   @override
   void dispose() {
+    _videoTypesWorker?.dispose();
+    _tabController?.removeListener(_onTabChanged);
     _tabController?.dispose();
-    // Reset SystemChrome settings to default
-
+    homeController.resumeReelsAfterRouteOverlay();
+    if (Get.isRegistered<VisitProfileController>()) {
+      Get.delete<VisitProfileController>(force: true);
+    }
     super.dispose();
   }
 
@@ -90,10 +141,6 @@ class _VisitProfileViewState extends State<VisitProfileView>
     await visitProfileController.fetchUserProfile(widget.userId);
 
     // Then initialize like status
-    final ProfileController profileController = Get.find();
-    final ProfessionalProfileController professionalProfileController =
-        Get.find();
-
     var currentUserDetails = profileController.simpleUserDetails.value?.user;
     var currentUser = professionalProfileController.userDetails.value?.user;
     String? userId = currentUser?.id ?? currentUserDetails?.id;
@@ -115,6 +162,47 @@ class _VisitProfileViewState extends State<VisitProfileView>
   }
 
   bool _followerChanged = false; // Track if follow status changed
+
+  List<Videos> _flattenProfileVideos(List<VideoTypes> types) {
+    return types
+        .expand((t) => t.videos ?? const <Videos>[])
+        .where((v) => v.id != null && '${v.id}'.isNotEmpty)
+        .toList();
+  }
+
+  void _openProfileReel(Videos tapped, List<VideoTypes> displayTypes) {
+    final profile = visitProfileController.visitProfile.value;
+    final owner = profile?.user;
+    final flat = _flattenProfileVideos(displayTypes);
+    if (flat.isEmpty) {
+      return;
+    }
+    final reels = flat
+        .map(
+          (v) => WallVideos.fromProfileVideo(
+            v,
+            ownerId: widget.userId,
+            ownerName: owner?.name?.toString(),
+            ownerImage: owner?.image?.toString(),
+            ownerFollowers: visitProfileController.localFollowersCount.value,
+          ),
+        )
+        .toList();
+    var start = flat.indexWhere((v) => '${v.id}' == '${tapped.id}');
+    if (start < 0) {
+      start = 0;
+    }
+    Get.to(
+      () => ProfileReelScreen(
+        videos: reels,
+        initialIndex: start,
+        ownerId: widget.userId,
+        ownerName: owner?.name?.toString(),
+        ownerImage: owner?.image?.toString(),
+        ownerFollowers: visitProfileController.localFollowersCount.value,
+      ),
+    );
+  }
 
   List<VideoTypes> _buildDisplayVideoTypes(List<VideoTypes>? sourceTypes) {
     final existing = List<VideoTypes>.from(sourceTypes ?? <VideoTypes>[]);
@@ -218,7 +306,9 @@ class _VisitProfileViewState extends State<VisitProfileView>
                             ImageProvider imageProvider =
                                 user.image != null && user.image!.isNotEmpty
                                     ? CachedNetworkImageProvider(
-                                      '${Common.profileImage}/${user.image!}',
+                                      MediaUrlResolver.profileImageUrl(user.image!) ?? '',
+                                      maxWidth: gridThumbnailMemCacheSize(48),
+                                      maxHeight: gridThumbnailMemCacheSize(48),
                                     )
                                     : const AssetImage('assets/images/sd.png')
                                         as ImageProvider;
@@ -305,33 +395,6 @@ class _VisitProfileViewState extends State<VisitProfileView>
             );
           }
 
-          // Initialize TabController when data is loaded
-          if (_tabController == null && displayVideoTypes.isNotEmpty) {
-            _tabController = TabController(
-              length: displayVideoTypes.length,
-              vsync: this,
-            );
-
-            _tabController!.addListener(() {
-              if (_tabController!.indexIsChanging) {
-                setState(() {
-                  _currentTabIndex = _tabController!.index;
-                });
-              }
-            });
-          }
-          if (_tabController != null &&
-              _tabController!.length != displayVideoTypes.length &&
-              displayVideoTypes.isNotEmpty) {
-            final previousIndex = _tabController!.index;
-            _tabController!.dispose();
-            _tabController = TabController(
-              length: displayVideoTypes.length,
-              vsync: this,
-              initialIndex: previousIndex.clamp(0, displayVideoTypes.length - 1),
-            );
-          }
-
           return RefreshIndicator(
             onRefresh: () async {
               await visitProfileController.fetchUserProfile(widget.userId);
@@ -361,7 +424,7 @@ class _VisitProfileViewState extends State<VisitProfileView>
                                     (userDetails.coverImage != null &&
                                             userDetails.coverImage!.isNotEmpty)
                                         ? CachedNetworkImageProvider(
-                                          '${Common.profileImage}/${userDetails.coverImage!}',
+                                          MediaUrlResolver.profileImageUrl(userDetails.coverImage!) ?? '',
                                         )
                                         : const AssetImage(
                                               'assets/images/placeholder.jpg',
@@ -384,7 +447,7 @@ class _VisitProfileViewState extends State<VisitProfileView>
                                           : true,
 
                                   imageUrl:
-                                      '${Common.profileImage}/${userDetails.image}',
+                                      MediaUrlResolver.profileImageUrl(userDetails.image) ?? '',
                                 ),
                               ),
                             ),
@@ -403,7 +466,7 @@ class _VisitProfileViewState extends State<VisitProfileView>
                               size: 70.h,
                               showOpenToWork: false,
                               imageUrl:
-                                  '${Common.profileImage}/${userDetails.image}',
+                                  MediaUrlResolver.profileImageUrl(userDetails.image) ?? '',
                             ),
                           ),
                         ),
@@ -824,60 +887,39 @@ class _VisitProfileViewState extends State<VisitProfileView>
                         if (displayVideoTypes.isNotEmpty)
                           Padding(
                             padding: const EdgeInsets.symmetric(horizontal: 16),
-                            child: Wrap(
-                              spacing: 8,
-                              runSpacing: 8,
-                              children: () {
+                            child: Builder(
+                              builder: (context) {
                                 final selectedVideoType =
                                     displayVideoTypes[_tabController!.index];
-                                if (selectedVideoType.videos == null ||
-                                    selectedVideoType.videos!.isEmpty) {
-                                  return [
-                                    Center(
-                                      child: Image.asset(
-                                        "assets/images/notfound.png",
-                                        fit: BoxFit.cover,
-                                        // width: 100.w,
-                                        height: 150.h,
-                                      ),
+                                final videos = selectedVideoType.videos;
+                                if (videos == null || videos.isEmpty) {
+                                  return Center(
+                                    child: Image.asset(
+                                      "assets/images/notfound.png",
+                                      fit: BoxFit.cover,
+                                      height: 150.h,
                                     ),
-                                  ];
+                                  );
                                 }
-
-                                return selectedVideoType.videos!.map((video) {
-                                  return SizedBox(
-                                    width: 100.w,
-                                    height: 133.h,
-                                    child: GestureDetector(
+                                return GridView.builder(
+                                  shrinkWrap: true,
+                                  physics: const NeverScrollableScrollPhysics(),
+                                  gridDelegate:
+                                      SliverGridDelegateWithFixedCrossAxisCount(
+                                    crossAxisCount: 3,
+                                    crossAxisSpacing: 8,
+                                    mainAxisSpacing: 8,
+                                    childAspectRatio: 100.w / 133.h,
+                                  ),
+                                  itemCount: videos.length,
+                                  itemBuilder: (context, videoIndex) {
+                                    final video = videos[videoIndex];
+                                    return GestureDetector(
                                       onTap: () {
-                                        Get.to(
-                                          SingleVideoScreen(
-                                            followers:
-                                                visitProfileController
-                                                    .localFollowersCount
-                                                    .toString(),
-                                            frondUserId: video.frontUserId,
-                                            userImage: video.userImage,
-                                            videoId: video.id,
-                                            videoUrl: video.videoUrl?.toString().isNotEmpty == true
-                                                ? video.videoUrl
-                                                : video.video,
-                                            title: video.title,
-                                            image: video.image,
-                                            allowComments: video.allowComments,
-                                            description: video.description,
-                                            tags: video.tags,
-                                            userName: video.userName,
-                                            createdAt: video.createdAt,
-                                            isImage: video.isImage.toString(),
-                                          ),
-                                        )!.then((result) async {
-                                          if (result is Map &&
-                                              result['followerChanged'] == true) {
-                                            await visitProfileController
-                                                .fetchUserProfile(widget.userId);
-                                          }
-                                        });
+                                        _openProfileReel(
+                                          video,
+                                          displayVideoTypes,
+                                        );
                                       },
                                       child: Stack(
                                         children: [
@@ -946,60 +988,16 @@ class _VisitProfileViewState extends State<VisitProfileView>
                                                   size: 14.sp,
                                                 ),
                                                 const SizedBox(width: 4),
-                                                StreamBuilder<DocumentSnapshot>(
-                                                  stream:
-                                                      FirebaseFirestore.instance
-                                                          .collection('videos')
-                                                          .doc(video.id)
-                                                          .snapshots(),
-                                                  builder: (context, snapshot) {
-                                                    if (snapshot
-                                                            .connectionState ==
-                                                        ConnectionState
-                                                            .waiting) {
-                                                      return const Text(
-                                                        "...",
-                                                        style: TextStyle(
-                                                          color: Colors.white,
-                                                        ),
-                                                      );
-                                                    }
-                                                    if (!snapshot.hasData ||
-                                                        !snapshot
-                                                            .data!
-                                                            .exists) {
-                                                      return const Text(
-                                                        "0",
-                                                        style: TextStyle(
-                                                          color: Colors.white,
-                                                        ),
-                                                      );
-                                                    }
-                                                    final data =
-                                                        snapshot.data!.data()
-                                                            as Map<
-                                                              String,
-                                                              dynamic
-                                                            >? ??
-                                                        {};
-                                                    List<dynamic> likes =
-                                                        data['likes'] ?? [];
-                                                    int likeCount =
-                                                        likes.length;
-                                                    String formattedLikeCount =
-                                                        likeCount > 1000
-                                                            ? '${(likeCount / 1000).toStringAsFixed(1)}K'
-                                                            : likeCount
-                                                                .toString();
-
-                                                    return Text(
-                                                      formattedLikeCount,
-                                                      style: TextStyle(
-                                                        color: Colors.white,
-                                                        fontSize: 10.sp,
-                                                      ),
-                                                    );
-                                                  },
+                                                Text(
+                                                  ReelVideoStats.formatCount(
+                                                    parseApiCount(
+                                                      video.likeCount,
+                                                    ),
+                                                  ),
+                                                  style: TextStyle(
+                                                    color: Colors.white,
+                                                    fontSize: 10.sp,
+                                                  ),
                                                 ),
                                               ],
                                             ),
@@ -1015,71 +1013,26 @@ class _VisitProfileViewState extends State<VisitProfileView>
                                                   size: 14.sp,
                                                 ),
                                                 SizedBox(width: 4),
-                                                StreamBuilder<DocumentSnapshot>(
-                                                  stream:
-                                                      FirebaseFirestore.instance
-                                                          .collection('videos')
-                                                          .doc(video.id)
-                                                          .snapshots(),
-                                                  builder: (context, snapshot) {
-                                                    if (snapshot
-                                                            .connectionState ==
-                                                        ConnectionState
-                                                            .waiting) {
-                                                      return Text(
-                                                        "...",
-                                                        style: TextStyle(
-                                                          color: Colors.white,
-                                                        ),
-                                                      );
-                                                    }
-                                                    if (!snapshot.hasData ||
-                                                        !snapshot
-                                                            .data!
-                                                            .exists) {
-                                                      return Text(
-                                                        "0",
-                                                        style: TextStyle(
-                                                          color: Colors.white,
-                                                        ),
-                                                      );
-                                                    }
-                                                    final data =
-                                                        snapshot.data!.data()
-                                                            as Map<
-                                                              String,
-                                                              dynamic
-                                                            >? ??
-                                                        {};
-                                                    List<dynamic> views =
-                                                        data['views'] ?? [];
-                                                    int viewCount =
-                                                        views
-                                                            .length; // Count views from array length
-                                                    String formattedViewCount =
-                                                        viewCount > 1000
-                                                            ? '${(viewCount / 1000).toStringAsFixed(1)}K'
-                                                            : viewCount
-                                                                .toString();
-
-                                                    return Text(
-                                                      formattedViewCount,
-                                                      style: TextStyle(
-                                                        color: Colors.white,
-                                                        fontSize: 10.sp,
-                                                      ),
-                                                    );
-                                                  },
+                                                Text(
+                                                  ReelVideoStats.formatCount(
+                                                    parseApiCount(
+                                                      video.viewCount,
+                                                    ),
+                                                  ),
+                                                  style: TextStyle(
+                                                    color: Colors.white,
+                                                    fontSize: 10.sp,
+                                                  ),
                                                 ),
                                               ],
                                             ),
                                           ),
                                         ],
                                       ),
-                                    ),
-                                  );
-                                }).toList();
-                              }(),
+                                    );
+                                  },
+                                );
+                              },
                             ),
                           ),
                       ],
@@ -1201,7 +1154,7 @@ void showBlockConfirmationBottomSheet({
             constraints: BoxConstraints(
               maxWidth: 500,
               minHeight: 200,
-              maxHeight: MediaQuery.of(context).size.height * 0.5,
+              maxHeight: MediaQuery.sizeOf(context).height * 0.5,
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,

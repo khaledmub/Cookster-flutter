@@ -19,7 +19,7 @@ class PackagesScreen extends StatefulWidget {
 }
 
 class _PackagesScreenState extends State<PackagesScreen> {
-  final SignUpController signUpController = Get.put(SignUpController());
+  final SignUpController signUpController = Get.find();
   final CarouselSliderController _carouselController =
       CarouselSliderController();
   int _currentIndex = 0;

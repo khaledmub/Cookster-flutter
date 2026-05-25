@@ -1,5 +1,6 @@
-import 'dart:convert';
 import 'package:cookster/appUtils/apiEndPoints.dart';
+import 'package:cookster/core/parsing/feed_parsers.dart';
+import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import '../../../services/apiClient.dart';
 import '../followersListModel/followersListModel.dart';
@@ -20,9 +21,7 @@ class SocialListsController extends GetxController {
       final response = await ApiClient.getRequest('${EndPoints.followerList}?user_id=$userId');
 
       if (response.statusCode == 200) {
-        final socialResponse = SocialResponse.fromJson(
-          jsonDecode(response.body),
-        );
+        final socialResponse = await compute(parseFollowersList, response.body);
         followers.assignAll(socialResponse.followers);
         following.assignAll(socialResponse.following);
       } else {

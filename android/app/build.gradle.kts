@@ -1,6 +1,7 @@
 import java.util.Properties
 import java.io.FileInputStream
 import java.io.File
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
     id("com.android.application")
@@ -29,10 +30,6 @@ android {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
         isCoreLibraryDesugaringEnabled = true
-    }
-
-    kotlinOptions {
-        jvmTarget = JavaVersion.VERSION_11.toString()
     }
 
     defaultConfig {
@@ -70,6 +67,8 @@ android {
         release {
             signingConfig = signingConfigs.getByName("release")
             isMinifyEnabled = true
+            // shrinkResources can strip assets referenced only from native/MediaKit code
+            isShrinkResources = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 file("proguard-rules.pro")
@@ -79,6 +78,12 @@ android {
 
 }
 
+kotlin {
+    compilerOptions {
+        jvmTarget.set(JvmTarget.JVM_11)
+    }
+}
+
 flutter {
     source = "../.."
 }
@@ -86,15 +91,8 @@ flutter {
 dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
     implementation("androidx.multidex:multidex:2.0.1")
-    implementation(platform("com.google.firebase:firebase-bom:33.5.1")) // Updated
+    implementation(platform("com.google.firebase:firebase-bom:33.5.1"))
     implementation("com.google.firebase:firebase-analytics")
-    implementation("com.google.android.exoplayer:exoplayer:2.19.1")
-    implementation("com.google.android.exoplayer:exoplayer-ui:2.19.1")
-    implementation("androidx.camera:camera-core:1.4.0") // Updated
-    implementation("androidx.camera:camera-camera2:1.4.0") // Updated
-    implementation("androidx.camera:camera-lifecycle:1.4.0") // Updated
-    implementation("androidx.camera:camera-video:1.4.0") // Updated
-    implementation("androidx.core:core:1.15.0") // Updated
-    implementation("androidx.core:core-ktx:1.15.0") // Updated
-    implementation("androidx.multidex:multidex:2.0.1")
+    implementation("androidx.core:core:1.15.0")
+    implementation("androidx.core:core-ktx:1.15.0")
 }

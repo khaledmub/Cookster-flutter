@@ -9,6 +9,7 @@ import 'livestream_controls.dart';
 import 'participant_grid.dart';
 
 import 'dart:async';
+import 'package:cookster/core/media/media_url_resolver.dart';
 
 class ILSView extends StatefulWidget {
   final Room room;
@@ -274,7 +275,7 @@ class _ILSViewState extends State<ILSView> {
                                                   userImage.isNotEmpty
                                                       ? DecorationImage(
                                                         image: NetworkImage(
-                                                          '${Common.profileImage}/${userImage}',
+                                                          MediaUrlResolver.profileImageUrl(userImage) ?? '',
                                                         ),
                                                         fit: BoxFit.cover,
                                                         onError: (
@@ -290,7 +291,7 @@ class _ILSViewState extends State<ILSView> {
                                             ),
                                             child: ClipOval(
                                               child: Image.network(
-                                                '${Common.profileImage}/${userImage}',
+                                                MediaUrlResolver.profileImageUrl(userImage) ?? '',
                                                 fit: BoxFit.cover,
                                                 width: 40,
                                                 height: 40,

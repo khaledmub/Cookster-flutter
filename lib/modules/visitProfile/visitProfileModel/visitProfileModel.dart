@@ -1,3 +1,5 @@
+import 'package:cookster/modules/landing/landingTabs/home/homeModel/video_sources.dart';
+
 class VisitProfile {
   bool? status;
   User? user;
@@ -315,6 +317,14 @@ class Videos {
   dynamic userImage;
   dynamic followersCount;
   dynamic followingCount;
+  dynamic likeCount;
+  dynamic viewCount;
+  dynamic thumbnailUrl;
+  dynamic hlsUrl;
+  dynamic hlsPlaylistUrl;
+  dynamic transcodeStatus;
+  dynamic processingStatus;
+  VideoSources? videoSources;
 
   Videos({
     this.id,
@@ -371,9 +381,23 @@ class Videos {
     createdAt = json['created_at'] as dynamic;
     updatedAt = json['updated_at'] as dynamic;
     userName = json['user_name'] as dynamic;
-    userImage = json['user_image'] as dynamic;
-    followersCount = json['followers'] as dynamic;
-    followingCount = json['following'] as dynamic;
+    userImage = json['user_image'] ?? json['user_image_url'] as dynamic;
+    followersCount =
+        json['followers_count'] ?? json['followers'] as dynamic;
+    followingCount =
+        json['following_count'] ?? json['following'] as dynamic;
+    thumbnailUrl = json['thumbnail_url'] ?? json['thumbnail'] as dynamic;
+    hlsUrl = json['hls_url'] as dynamic;
+    hlsPlaylistUrl = json['hls_playlist_url'] as dynamic;
+    transcodeStatus = json['transcode_status'] as dynamic;
+    processingStatus = json['processing_status'] as dynamic;
+    if (json['video_sources'] != null) {
+      videoSources = VideoSources.fromJson(json['video_sources']);
+    }
+    likeCount =
+        json['like_count'] ?? json['likes_count'] ?? json['likeCount'];
+    viewCount =
+        json['view_count'] ?? json['views_count'] ?? json['viewCount'];
   }
 
   Map<dynamic, dynamic> toJson() {

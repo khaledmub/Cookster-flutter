@@ -8,28 +8,37 @@ import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:cookster/core/widgets/grid_thumbnail_cache.dart';
 import '../../../../../appUtils/colorUtils.dart';
 import '../allowLocationView.dart';
+import '../../../landingController/landingController.dart';
 import '../nearBusinessController/nearBusinessController.dart';
 import '../nearBusinessModel/nearBusinessModel.dart';
 
-class NearestBusinessScreen extends StatelessWidget {
+class NearestBusinessScreen extends StatefulWidget {
   const NearestBusinessScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  State<NearestBusinessScreen> createState() => _NearestBusinessScreenState();
+}
+
+class _NearestBusinessScreenState extends State<NearestBusinessScreen> {
+  late final LocationController controller;
+
+  @override
+  void initState() {
+    super.initState();
+    controller = Get.find<LocationController>();
     SystemChrome.setSystemUIOverlayStyle(
       const SystemUiOverlayStyle(
-        statusBarIconBrightness: Brightness.dark, // White icons ke liye
-        statusBarColor:
-            Colors.transparent, // Optional: Status bar background color
+        statusBarIconBrightness: Brightness.dark,
+        statusBarColor: Colors.transparent,
       ),
     );
-    final LocationController controller = Get.put(
-      LocationController(),
-      permanent: true,
-    );
+  }
 
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
       body: Obx(() {
         return !controller.isLocationAllowed.value
@@ -47,6 +56,8 @@ class NearestBusinessScreen extends StatelessWidget {
                 ),
               ],
             )
+            : controller.loadError.value != null
+            ? _buildLoadError(context)
             : Stack(
               children: [
                 // Full-screen Google Map
@@ -126,6 +137,41 @@ class NearestBusinessScreen extends StatelessWidget {
             )
             : SizedBox.shrink();
       }),
+    );
+  }
+
+  Widget _buildLoadError(BuildContext context) {
+    final message =
+        controller.loadError.value ??
+        'Could not load nearby businesses. Please try again.';
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.map_outlined, size: 48, color: Colors.grey.shade600),
+            const SizedBox(height: 16),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 16, color: Colors.grey.shade800),
+            ),
+            const SizedBox(height: 24),
+            FilledButton.icon(
+              onPressed: () async {
+                controller.loadError.value = null;
+                await controller.refreshLocation();
+              },
+              icon: const Icon(Icons.refresh),
+              label: const Text('Try again'),
+              style: FilledButton.styleFrom(
+                backgroundColor: ColorUtils.primaryColor,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -272,6 +318,8 @@ class _GoogleMapWithBusinessImagesState
   final _customInfoWindowController = CustomInfoWindowController();
   LatLng? _lastCenteredLocation;
   String _lastMarkersSignature = '';
+  bool _mapEnabled = false;
+  Worker? _tabWorker;
 
   Future<void> _loadCustomMarker() async {
     try {
@@ -294,12 +342,24 @@ class _GoogleMapWithBusinessImagesState
 
   @override
   void initState() {
-    _loadCustomMarker();
     super.initState();
+    _loadCustomMarker();
+    if (Get.isRegistered<NavBarController>()) {
+      final nav = Get.find<NavBarController>();
+      _mapEnabled = nav.selectedIndex.value == 1;
+      _tabWorker = ever(nav.selectedIndex, (index) {
+        if (index == 1 && !_mapEnabled && mounted) {
+          setState(() => _mapEnabled = true);
+        }
+      });
+    } else {
+      _mapEnabled = true;
+    }
   }
 
   @override
   void dispose() {
+    _tabWorker?.dispose();
     mapController?.dispose();
     _customInfoWindowController.dispose();
     super.dispose();
@@ -307,6 +367,9 @@ class _GoogleMapWithBusinessImagesState
 
   @override
   Widget build(BuildContext context) {
+    if (!_mapEnabled) {
+      return const ColoredBox(color: Color(0xFFE8E8E8));
+    }
     return Obx(() {
       _updateMarkers();
       return Stack(
@@ -660,18 +723,36 @@ class ContactCard extends StatelessWidget {
       // padding: EdgeInsets.all(16),
       child: Row(
         children: [
-          CircleAvatar(
-            radius: 30,
-            backgroundImage:
-                avatarUrl != null ? NetworkImage(avatarUrl!) : null,
-            backgroundColor: Colors.blueGrey[100],
-            child:
-                avatarUrl == null
-                    ? Text(
-                      name.isNotEmpty ? name[0].toUpperCase() : '',
-                      style: TextStyle(fontSize: 24, color: Colors.white),
-                    )
-                    : null,
+          ClipOval(
+            child: avatarUrl != null
+                ? CachedNetworkImage(
+                  imageUrl: avatarUrl!,
+                  width: 60,
+                  height: 60,
+                  fit: BoxFit.cover,
+                  memCacheWidth: avatarMemCacheSize(60),
+                  memCacheHeight: avatarMemCacheSize(60),
+                  errorWidget:
+                      (_, __, ___) => CircleAvatar(
+                        radius: 30,
+                        backgroundColor: Colors.blueGrey[100],
+                        child: Text(
+                          name.isNotEmpty ? name[0].toUpperCase() : '',
+                          style: const TextStyle(
+                            fontSize: 24,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                )
+                : CircleAvatar(
+                  radius: 30,
+                  backgroundColor: Colors.blueGrey[100],
+                  child: Text(
+                    name.isNotEmpty ? name[0].toUpperCase() : '',
+                    style: const TextStyle(fontSize: 24, color: Colors.white),
+                  ),
+                ),
           ),
           SizedBox(width: 16),
           Expanded(

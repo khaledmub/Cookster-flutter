@@ -1,15 +1,17 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-import 'dart:ui';
-
 import 'package:awesome_dialog/awesome_dialog.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:chewie/chewie.dart';
+import 'package:cookster/core/video/fullscreen_video_playback.dart';
+import 'package:cookster/core/video/media_kit_player_pool.dart';
+import 'package:cookster/modules/landing/landingTabs/home/homeWidgets/videoPlayerWidget.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cookster/appUtils/apiEndPoints.dart';
+import 'package:cookster/core/firestore/video_view_tracker.dart';
+import 'package:cookster/core/media/media_url_resolver.dart';
 import 'package:cookster/appUtils/colorUtils.dart';
-import 'package:cookster/modules/search/searchView/searchView.dart';
+import 'package:cookster/modules/landing/landingTabs/home/homeView/hashtagReelScreen.dart';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -20,11 +22,14 @@ import 'package:http/http.dart' as http;
 import 'package:like_button/like_button.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:video_player/video_player.dart';
 
+import 'package:cookster/core/widgets/grid_thumbnail_cache.dart';
+import '../../appBindings/app_bindings.dart';
 import '../../appRoutes/appRoutes.dart';
 import '../../services/apiClient.dart';
 import '../landing/landingTabs/home/homeController/addCommentControllr.dart';
+import '../landing/landingController/landingController.dart';
+import '../landing/landingTabs/home/homeController/homeController.dart';
 import '../landing/landingTabs/home/homeController/saveController.dart';
 import '../landing/landingTabs/home/homeModel/userSaveUnsave.dart';
 import '../landing/landingTabs/home/homeView/commentScreen.dart';
@@ -87,8 +92,8 @@ class SingleVideoScreen extends StatefulWidget {
 
 class _SingleVideoScreenState extends State<SingleVideoScreen>
     with WidgetsBindingObserver, AutomaticKeepAliveClientMixin {
-  late VideoPlayerController _videoPlayerController;
-  ChewieController? _chewieController;
+  String? _resolvedVideoUrl;
+  String? _playerKey;
   bool _isPlaying = true;
   bool _isInitializing = true;
   bool _isMuted = false;
@@ -97,22 +102,17 @@ class _SingleVideoScreenState extends State<SingleVideoScreen>
   RxInt localFollowersCount = 0.obs;
 
   String? _resolveMediaUrl({String? primary, String? fallback}) {
-    final primaryValue = primary?.trim();
-    if (primaryValue != null && primaryValue.isNotEmpty) {
-      return primaryValue.startsWith('http')
-          ? primaryValue
-          : '${Common.videoUrl}/$primaryValue';
-    }
-    final fallbackValue = fallback?.trim();
-    if (fallbackValue != null && fallbackValue.isNotEmpty) {
-      return fallbackValue.startsWith('http')
-          ? fallbackValue
-          : '${Common.videoUrl}/$fallbackValue';
-    }
-    return null;
+    return MediaUrlResolver.playbackUrl(videoUrl: primary, video: fallback);
   }
 
-  // static final CustomCacheManager _cacheManager = CustomCacheManager._();
+  String? _resolveThumbnailUrl({String? thumbnail, String? image}) {
+    return MediaUrlResolver.thumbnailUrl(
+      thumbnailUrl: thumbnail,
+      imageUrl: image,
+      image: image,
+    );
+  }
+
 
   @override
   bool get wantKeepAlive => true;
@@ -127,22 +127,53 @@ class _SingleVideoScreenState extends State<SingleVideoScreen>
     });
   }
 
-  bool isAuthenticated = false; // Initialize the variable
+  bool isAuthenticated = false;
+  Timer? _viewTrackDebounce;
+  final Set<String> _trackedVideoIds = <String>{};
+
+  late final VideoCommentsController _videoCommentsController;
+  Worker? _navTabWorker;
+
   @override
   void initState() {
     super.initState();
+    ensureSingleVideoDependencies();
+    if (Get.isRegistered<HomeController>()) {
+      Get.find<HomeController>().pauseReelsForRouteOverlay();
+    } else {
+      MediaKitPlayerPool.instance.silenceAllSync();
+    }
+    if (Get.isRegistered<NavBarController>()) {
+      _navTabWorker = ever(
+        Get.find<NavBarController>().selectedIndex,
+        (_) {
+          if (!mounted) return;
+          setState(() => _isPlaying = false);
+          _pauseVideo();
+        },
+      );
+    }
+    if (Get.isRegistered<VideoCommentsController>()) {
+      _videoCommentsController = Get.find<VideoCommentsController>();
+    } else {
+      _videoCommentsController = Get.put(VideoCommentsController());
+    }
+    if (widget.followers != null) {
+      localFollowersCount.value = int.tryParse(widget.followers!) ?? 0;
+    }
     _loadLanguage();
-    print(widget.videoId);
-    _trackVideoView(
-      widget.videoId ?? '',
-      widget.frondUserId,
-      widget.frondUserId != null ? true : false,
-    );
+    _scheduleViewTrack();
     WidgetsBinding.instance.addObserver(this);
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _initializePlayer();
-      _checkAuthentication(); // Call the async check
-    });
+    unawaited(_bootstrapPlayer());
+    unawaited(_checkAuthentication());
+  }
+
+  Future<void> _bootstrapPlayer() async {
+    await prepareForFullscreenVideoPlayback();
+    if (!mounted) {
+      return;
+    }
+    await _resolvePlayback();
   }
 
   Future<void> _checkAuthentication() async {
@@ -180,33 +211,27 @@ class _SingleVideoScreenState extends State<SingleVideoScreen>
     return deviceId;
   }
 
-  // Updated _trackVideoView function to handle both user and device views
-  Future<void> _trackVideoView(
-    String videoId,
-    String? userId,
-    bool isAuthenticated,
-  ) async {
-    try {
-      final videoRef = FirebaseFirestore.instance
-          .collection('videos')
-          .doc(videoId);
+  void _scheduleViewTrack() {
+    final videoId = widget.videoId;
+    if (videoId == null || videoId.isEmpty) return;
+    _viewTrackDebounce?.cancel();
+    _viewTrackDebounce = Timer(const Duration(seconds: 2), () {
+      if (_trackedVideoIds.contains(videoId)) return;
+      _trackedVideoIds.add(videoId);
+      unawaited(_trackVideoView(videoId));
+    });
+  }
 
-      if (isAuthenticated && userId != null) {
-        // Track view for authenticated user
-        await videoRef.set({
-          'views': FieldValue.arrayUnion([userId]),
-        }, SetOptions(merge: true));
-        print("PRINTING VIDEO ID: $videoId Printing USER ID: $userId");
-      } else {
-        // Track view for non-authenticated user using device ID
-        String deviceId = await _getDeviceId();
-        await videoRef.set({
-          'views': FieldValue.arrayUnion([deviceId]),
-        }, SetOptions(merge: true));
-        print("PRINTING VIDEO ID: $videoId Printing DEVICE ID: $deviceId");
-      }
+  Future<void> _trackVideoView(String videoId) async {
+    try {
+      final auth = await _isUserAuthenticated();
+      await VideoViewTracker.trackUniqueView(
+        videoId: videoId,
+        userId: auth ? widget.frondUserId : null,
+        isAuthenticated: auth,
+      );
     } catch (e) {
-      print('Error tracking video view: $e');
+      debugPrint('Error tracking video view: $e');
       // Optionally handle the error (e.g., show a toast or log it)
     }
   }
@@ -224,7 +249,7 @@ class _SingleVideoScreenState extends State<SingleVideoScreen>
     }
   }
 
-  Future<void> _initializePlayer() async {
+  Future<void> _resolvePlayback() async {
     if (widget.isImage == "1") {
       if (mounted) {
         setState(() {
@@ -260,39 +285,19 @@ class _SingleVideoScreenState extends State<SingleVideoScreen>
       return;
     }
 
-    final String videoUrl = resolvedVideoUrl;
-    print("PRINTING VIDEO URL: ${videoUrl}");
+    _resolvedVideoUrl = resolvedVideoUrl;
+    _playerKey = widget.videoId?.isNotEmpty == true
+        ? widget.videoId
+        : resolvedVideoUrl;
 
     try {
-      _videoPlayerController = VideoPlayerController.network(
-        videoUrl,
-        videoPlayerOptions: VideoPlayerOptions(
-          mixWithOthers: false,
-          allowBackgroundPlayback: false,
-        ),
-      );
-
-      await _videoPlayerController.initialize();
-
-      _chewieController = ChewieController(
-        videoPlayerController: _videoPlayerController,
-        autoPlay: true,
-        looping: true,
-        showControls: false,
-        aspectRatio: _videoPlayerController.value.aspectRatio,
-        allowPlaybackSpeedChanging: false,
-        allowMuting: false,
-        allowFullScreen: false,
-        deviceOrientationsAfterFullScreen: [DeviceOrientation.portraitUp],
-      );
-
       if (mounted) {
         setState(() {
           _isInitializing = false;
         });
       }
     } catch (e) {
-      print('Error initializing video: $e');
+      debugPrint('Error initializing video: $e');
       if (mounted) {
         setState(() {
           _isInitializing = false;
@@ -313,14 +318,16 @@ class _SingleVideoScreenState extends State<SingleVideoScreen>
   }
 
   void _pauseVideo() {
-    if (_videoPlayerController.value.isPlaying) {
-      _videoPlayerController.pause();
+    final key = _playerKey;
+    if (key != null && key.isNotEmpty) {
+      unawaited(MediaKitPlayerPool.instance.pause(key));
     }
   }
 
   void _resumeVideo() {
-    if (!_videoPlayerController.value.isPlaying) {
-      _videoPlayerController.play();
+    final key = _playerKey;
+    if (key != null && key.isNotEmpty) {
+      unawaited(MediaKitPlayerPool.instance.setActive(key));
     }
   }
 
@@ -350,17 +357,20 @@ class _SingleVideoScreenState extends State<SingleVideoScreen>
   void _toggleMute() {
     setState(() {
       _isMuted = !_isMuted;
-      _videoPlayerController.setVolume(_isMuted ? 0.0 : 1.0);
     });
   }
 
   @override
   void dispose() {
+    _navTabWorker?.dispose();
+    _viewTrackDebounce?.cancel();
     WidgetsBinding.instance.removeObserver(this);
-    if (!_isImageMode) {
-      _pauseVideo();
-      _videoPlayerController.dispose();
-      _chewieController?.dispose();
+    final key = _playerKey;
+    if (!_isImageMode && key != null && key.isNotEmpty) {
+      unawaited(MediaKitPlayerPool.instance.release(key));
+    }
+    if (Get.isRegistered<HomeController>()) {
+      Get.find<HomeController>().resumeReelsAfterRouteOverlay();
     }
     super.dispose();
   }
@@ -370,18 +380,14 @@ class _SingleVideoScreenState extends State<SingleVideoScreen>
   Widget build(BuildContext context) {
     super.build(context);
 
-    final ProfileController profileController = Get.find();
+    final ProfileController profileController = Get.find<ProfileController>();
     final ProfessionalProfileController professionalProfileController =
-        Get.find();
-    final VideoCommentsController videoCommentsController = Get.put(
-      VideoCommentsController(),
-    );
+        Get.find<ProfessionalProfileController>();
+    final VideoCommentsController videoCommentsController =
+        _videoCommentsController;
     bool isRtl = _language == 'ar';
-    localFollowersCount.value = int.parse(widget.followers!);
 
-    print("PRINTING VIDEO ID: ${widget.isImage}");
-
-    final SaveController saveController = Get.find();
+    final SaveController saveController = Get.find<SaveController>();
 
     var currentUserDetails = profileController.simpleUserDetails.value?.user;
     var currentUser = professionalProfileController.userDetails.value?.user;
@@ -397,7 +403,7 @@ class _SingleVideoScreenState extends State<SingleVideoScreen>
         appBar: AppBar(toolbarHeight: 0),
         body: Padding(
           padding: EdgeInsets.only(
-            bottom: MediaQuery.of(context).viewPadding.bottom + 20,
+            bottom: MediaQuery.paddingOf(context).bottom + 20,
           ),
           child: Stack(
             clipBehavior: Clip.none,
@@ -455,27 +461,25 @@ class _SingleVideoScreenState extends State<SingleVideoScreen>
                             ),
                           );
                         })()
-                      : _isInitializing
-                          ? Center(
-                            child: Image.network(
-                              "${Common.videoUrl}/${widget.image}",
-                            ),
+                      : _resolvedVideoUrl != null
+                          ? VideoPlayerWidget(
+                            key: ValueKey('single_${_playerKey}_ready'),
+                            videoUrl: _resolvedVideoUrl!,
+                            thumbnailUrl: _resolveThumbnailUrl(
+                                  thumbnail: widget.image,
+                                  image: widget.image,
+                                ) ??
+                                '',
+                            isImage: widget.isImage,
+                            videoId: _playerKey,
+                            playerPoolKey: _playerKey,
+                            autoPlay: true,
+                            useMediaKit: true,
+                            fillScreen: true,
                           )
-                          : _chewieController != null
-                          ? Chewie(controller: _chewieController!)
-                          : SizedBox.shrink(),
+                          : const SizedBox.shrink(),
                 ),
               ),
-              if (widget.isImage == "0" && !_isImageMode)
-                Positioned(
-                  left: 16,
-                  right: 16,
-                  bottom: 10,
-                  child:
-                      _isInitializing
-                          ? SizedBox.shrink()
-                          : EnhancedSeekBar(controller: _videoPlayerController),
-                ),
               if (_showPlayPauseIcon && !_isInitializing)
                 Center(
                   child: Container(
@@ -497,11 +501,7 @@ class _SingleVideoScreenState extends State<SingleVideoScreen>
                 top: Get.height * 0.05,
                 left: isRtl ? null : 16,
                 right: isRtl ? 16 : null,
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(50),
-                  child: BackdropFilter(
-                    filter: ImageFilter.blur(sigmaX: 10.0, sigmaY: 10.0),
-                    child: ConstrainedBox(
+                child: ConstrainedBox(
                       constraints: BoxConstraints(
                         maxWidth:
                             Get.width *
@@ -513,7 +513,7 @@ class _SingleVideoScreenState extends State<SingleVideoScreen>
                           vertical: 8,
                         ),
                         decoration: BoxDecoration(
-                          color: Colors.black.withOpacity(0.3),
+                          color: Colors.black.withValues(alpha: 0.45),
                           borderRadius: BorderRadius.circular(50),
                         ),
                         child: Row(
@@ -538,23 +538,35 @@ class _SingleVideoScreenState extends State<SingleVideoScreen>
                                     size: 30,
                                   ),
                                   // SizedBox(width: 8),
-                                  CircleAvatar(
-                                    radius: 20, // Adjust size as needed
-                                    backgroundImage:
+                                  ClipOval(
+                                    child:
                                         widget.userImage != null &&
                                                 widget.userImage!.isNotEmpty
-                                            ? NetworkImage(
-                                              '${Common.profileImage}/${widget.userImage}',
+                                            ? CachedNetworkImage(
+                                              imageUrl:
+                                                  MediaUrlResolver.profileImageUrl(widget.userImage) ?? '',
+                                              width: 40,
+                                              height: 40,
+                                              fit: BoxFit.cover,
+                                              memCacheWidth: avatarMemCacheSize(
+                                                40,
+                                              ),
+                                              memCacheHeight: avatarMemCacheSize(
+                                                40,
+                                              ),
+                                              errorWidget:
+                                                  (_, __, ___) => const Icon(
+                                                    Icons.person,
+                                                    color: Colors.white,
+                                                  ),
                                             )
-                                            : null,
-                                    child:
-                                        widget.userImage == null ||
-                                                widget.userImage!.isEmpty
-                                            ? Icon(
-                                              Icons.person,
-                                              color: Colors.white,
-                                            )
-                                            : null,
+                                            : const CircleAvatar(
+                                              radius: 20,
+                                              child: Icon(
+                                                Icons.person,
+                                                color: Colors.white,
+                                              ),
+                                            ),
                                   ),
                                   SizedBox(width: 8),
                                   Column(
@@ -638,13 +650,13 @@ class _SingleVideoScreenState extends State<SingleVideoScreen>
                                                 .toggleFollowStatus(
                                                   widget.frondUserId!,
                                                 );
-                                            print("User");
+                                            debugPrint("User");
                                           } else {
                                             await professionalProfileController
                                                 .toggleFollowStatus(
                                                   widget.frondUserId!,
                                                 );
-                                            print("Professional");
+                                            debugPrint("Professional");
                                           }
                                         } finally {
                                           _isProcessing = false;
@@ -691,8 +703,6 @@ class _SingleVideoScreenState extends State<SingleVideoScreen>
                         ),
                       ),
                     ),
-                  ),
-                ),
               ),
 
               VideoDescriptionWidget(
@@ -706,18 +716,13 @@ class _SingleVideoScreenState extends State<SingleVideoScreen>
                 bottom: Get.height * 0.1,
                 child: Column(
                   children: [
-                    ClipRRect(
-                      // Use ClipRRect to confine the blur effect
-                      borderRadius: BorderRadius.circular(50),
-                      child: BackdropFilter(
-                        filter: ImageFilter.blur(sigmaX: 10.0, sigmaY: 10.0),
-                        child: Container(
+                    Container(
                           padding: EdgeInsets.symmetric(
                             horizontal: 6,
                             vertical: 16,
                           ),
                           decoration: BoxDecoration(
-                            color: Colors.black.withOpacity(0.3),
+                            color: Colors.black.withValues(alpha: 0.45),
                             borderRadius: BorderRadius.circular(50),
                           ),
                           child: Column(
@@ -1057,8 +1062,6 @@ class _SingleVideoScreenState extends State<SingleVideoScreen>
                                   : SizedBox.shrink(),
                             ],
                           ),
-                        ),
-                      ),
                     ),
 
                     SizedBox(height: 16.h),
@@ -1070,20 +1073,13 @@ class _SingleVideoScreenState extends State<SingleVideoScreen>
                           color: Colors.transparent,
                           borderRadius: BorderRadius.circular(50),
                         ),
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(50),
-                          child: BackdropFilter(
-                            filter: ImageFilter.blur(
-                              sigmaX: 10.0,
-                              sigmaY: 10.0,
-                            ),
-                            child: Container(
+                        child: Container(
                               padding: EdgeInsets.symmetric(
                                 horizontal: 6,
                                 vertical: 16,
                               ),
                               decoration: BoxDecoration(
-                                color: Colors.black.withOpacity(0.3),
+                                color: Colors.black.withValues(alpha: 0.45),
                                 borderRadius: BorderRadius.circular(50),
                               ),
                               child: InkWell(
@@ -1141,8 +1137,6 @@ class _SingleVideoScreenState extends State<SingleVideoScreen>
                                   ],
                                 ),
                               ),
-                            ),
-                          ),
                         ),
                       ),
                   ],
@@ -1187,7 +1181,7 @@ class _SingleVideoScreenState extends State<SingleVideoScreen>
           'Direct app link:\n$appUrl';
       await Share.share(shareMessage, subject: 'Cookster Video');
     } catch (e) {
-      print('Error sharing video: $e');
+      debugPrint('Error sharing video: $e');
       Get.snackbar(
         'Error',
         'Could not share this video',
@@ -1203,7 +1197,9 @@ class _SingleVideoScreenState extends State<SingleVideoScreen>
   }
 
   void showMoreOptions(BuildContext context, String videoId, String userId) {
-    final PromoteVideoController promoteVideoController = Get.find();
+    ensureSingleVideoDependencies();
+    final PromoteVideoController promoteVideoController =
+        Get.find<PromoteVideoController>();
 
     var infoEmail = promoteVideoController.siteSettings.value?.settings?.email;
     showModalBottomSheet(
@@ -1250,8 +1246,8 @@ class _SingleVideoScreenState extends State<SingleVideoScreen>
                         userId,
                       );
                       if (isDeleted) {
-                        print("===============");
-                        print(isDeleted);
+                        debugPrint("===============");
+                        debugPrint('$isDeleted');
                         Navigator.pop(context); // Close the bottom sheet
                         // Ensure navigation happens after successful deletion
                         Get.back();
@@ -1311,259 +1307,6 @@ class _SingleVideoScreenState extends State<SingleVideoScreen>
           ),
         );
       },
-    );
-  }
-}
-
-class EnhancedSeekBar extends StatefulWidget {
-  final VideoPlayerController controller;
-  final Color primaryColor;
-  final Color backgroundColor;
-
-  const EnhancedSeekBar({
-    required this.controller,
-    this.primaryColor = ColorUtils.primaryColor,
-    this.backgroundColor = ColorUtils.darkBrown,
-  });
-
-  @override
-  _EnhancedSeekBarState createState() => _EnhancedSeekBarState();
-}
-
-class _EnhancedSeekBarState extends State<EnhancedSeekBar>
-    with SingleTickerProviderStateMixin {
-  double _progress = 0.0;
-  double _bufferedProgress = 0.0;
-  bool _isDragging = false;
-  Timer? _updateTimer;
-  late AnimationController _animationController;
-  String _tooltipText = "0:00";
-
-  @override
-  void initState() {
-    super.initState();
-    _animationController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 200),
-    );
-    _updateTimer = Timer.periodic(Duration(milliseconds: 100), (_) {
-      _updateProgressFromVideo();
-    });
-  }
-
-  @override
-  void dispose() {
-    _updateTimer?.cancel();
-    _animationController.dispose();
-    super.dispose();
-  }
-
-  void _updateProgressFromVideo() {
-    if (!_isDragging && widget.controller.value.isInitialized && mounted) {
-      final duration = widget.controller.value.duration.inMilliseconds;
-      if (duration > 0) {
-        final currentPosition = widget.controller.value.position.inMilliseconds;
-        double maxBufferedEnd = 0.0;
-        if (widget.controller.value.buffered.isNotEmpty) {
-          maxBufferedEnd = widget.controller.value.buffered
-              .map((range) => range.end.inMilliseconds / duration)
-              .reduce((max, buffered) => max > buffered ? max : buffered);
-        }
-        setState(() {
-          _progress = currentPosition / duration;
-          _bufferedProgress = maxBufferedEnd;
-          _tooltipText = _formatDuration(
-            Duration(milliseconds: currentPosition),
-          );
-        });
-      }
-    }
-  }
-
-  void _updateProgress(double newProgress) {
-    final clampedProgress = newProgress.clamp(0.0, 1.0);
-    setState(() {
-      _progress = clampedProgress;
-      _tooltipText = _formatDuration(
-        widget.controller.value.duration * clampedProgress,
-      );
-    });
-    final newPosition = widget.controller.value.duration * clampedProgress;
-    widget.controller.seekTo(newPosition);
-  }
-
-  String _formatDuration(Duration duration) {
-    String twoDigits(int n) => n.toString().padLeft(2, "0");
-    final minutes = twoDigits(duration.inMinutes.remainder(60));
-    final seconds = twoDigits(duration.inSeconds.remainder(60));
-    return "$minutes:$seconds";
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: Get.width,
-      height: 60, // Increased height for much better touch area
-      child: GestureDetector(
-        behavior: HitTestBehavior.translucent,
-        // Ensures the entire area is touch-sensitive
-        onHorizontalDragStart: (_) {
-          setState(() => _isDragging = true);
-          _animationController.forward();
-          if (widget.controller.value.isPlaying) {
-            widget.controller.pause();
-          }
-        },
-        onHorizontalDragEnd: (_) {
-          setState(() => _isDragging = false);
-          _animationController.reverse();
-          if (widget.controller.value.isInitialized) {
-            widget.controller.play();
-          }
-        },
-        onHorizontalDragUpdate: (details) {
-          final box = context.findRenderObject() as RenderBox;
-          final localPosition = box.globalToLocal(details.globalPosition);
-          _updateProgress(localPosition.dx / box.size.width);
-        },
-        onTapDown: (details) {
-          final box = context.findRenderObject() as RenderBox;
-          final localPosition = box.globalToLocal(details.globalPosition);
-          _updateProgress(localPosition.dx / box.size.width);
-        },
-        child: Center(
-          child: Container(
-            width: Get.width,
-            height: 30,
-            color: Colors.transparent,
-            child: Stack(
-              clipBehavior: Clip.none,
-              alignment: Alignment.center,
-              children: [
-                // Background positioned in center
-                Align(
-                  alignment: Alignment.center,
-                  child: Container(
-                    width: Get.width,
-                    height: _isDragging ? 12 : 8,
-                    // Increased height for better visibility
-                    decoration: BoxDecoration(
-                      color: widget.backgroundColor.withOpacity(0.3),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                  ),
-                ),
-                // Buffered progress
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 200),
-                    height: _isDragging ? 12 : 8, // Match the background height
-                    width: Get.width * _bufferedProgress,
-                    decoration: BoxDecoration(
-                      color: widget.backgroundColor.withOpacity(0.6),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                  ),
-                ),
-                // Progress bar with gradient
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 200),
-                    height: _isDragging ? 12 : 8, // Match the background height
-                    width: Get.width * _progress,
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          widget.primaryColor.withOpacity(0.7),
-                          widget.primaryColor,
-                        ],
-                      ),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                  ),
-                ),
-                // Thumb precisely at the end of the progress bar
-                Positioned(
-                  left: (Get.width * _progress),
-                  top: 15, // Center vertically in the container
-                  child: AnimatedBuilder(
-                    animation: _animationController,
-                    builder: (context, child) {
-                      final thumbSize =
-                          16.0 + (_animationController.value * 12);
-                      return Transform.translate(
-                        offset: Offset(-thumbSize / 2, -thumbSize / 2),
-                        // Center the thumb on the progress point
-                        child: Container(
-                          width: thumbSize,
-                          height: thumbSize,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: widget.primaryColor,
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.3),
-                                blurRadius: 6,
-                                offset: const Offset(0, 2),
-                              ),
-                            ],
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                ),
-                // Tooltip
-                if (_isDragging)
-                  Positioned(
-                    left: (Get.width * _progress),
-                    top: -15, // Position above the progress bar
-                    child: AnimatedBuilder(
-                      animation: _animationController,
-                      builder: (context, child) {
-                        return Transform.translate(
-                          offset: Offset(-20, 0),
-                          // Center tooltip above the thumb
-                          child: AnimatedOpacity(
-                            opacity: _animationController.value,
-                            duration: const Duration(milliseconds: 200),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                                vertical: 6,
-                              ),
-                              decoration: BoxDecoration(
-                                color: Colors.black87,
-                                borderRadius: BorderRadius.circular(6),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withOpacity(0.2),
-                                    blurRadius: 4,
-                                    offset: const Offset(0, 2),
-                                  ),
-                                ],
-                              ),
-                              child: Text(
-                                _tooltipText,
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-              ],
-            ),
-          ),
-        ),
-      ),
     );
   }
 }
@@ -1922,7 +1665,7 @@ class _VideoDescriptionWidgetState extends State<VideoDescriptionWidget> {
                                 onTap: () {
                                   // _pauseVideo();
                                   Get.off(
-                                    SearchView(tag: trimmedTag, isGeneral: 1),
+                                    HashtagReelScreen(tag: trimmedTag),
                                   );
                                 },
                                 child: Text('#$trimmedTag', style: tagStyle),
@@ -1997,26 +1740,26 @@ Future<bool> deleteVideo(
     },
     btnOkOnPress: () async {
       try {
-        print('Step 1: Initiating API call to delete video with ID: $videoId');
+        debugPrint('Step 1: Initiating API call to delete video with ID: $videoId');
         // Step 1: Make API call to delete video
         final response = await ApiClient.deleteRequest(endpoint);
 
-        print(
+        debugPrint(
           'Step 2: API call completed. Status code: ${response.statusCode}',
         );
-        print('API response body: ${response.body}');
+        debugPrint('API response body: ${response.body}');
 
         // Parse the API response
         final responseData = jsonDecode(response.body);
-        print('Step 3: API response parsed successfully');
+        debugPrint('Step 3: API response parsed successfully');
 
         // Assume the API returns a 'message' field in the JSON response
         final String apiMessage =
             responseData['message'] ?? 'No message provided by API';
-        print('Step 4: Extracted API message: $apiMessage');
+        debugPrint('Step 4: Extracted API message: $apiMessage');
 
         if (response.statusCode == 201) {
-          print(
+          debugPrint(
             'Step 5: API call successful. Proceeding to delete Firestore document',
           );
           // Step 2: Delete video document from Firestore
@@ -2024,7 +1767,7 @@ Future<bool> deleteVideo(
               .collection('videos')
               .doc(videoId)
               .delete();
-          print('Step 6: Firestore document deleted successfully');
+          debugPrint('Step 6: Firestore document deleted successfully');
 
           // Show success message from API at the top
           ScaffoldMessenger.of(context).showSnackBar(
@@ -2035,15 +1778,15 @@ Future<bool> deleteVideo(
               duration: Duration(seconds: 3),
             ),
           );
-          print('Step 7: Success SnackBar displayed');
+          debugPrint('Step 7: Success SnackBar displayed');
 
           // Get.offAll(Landing());
 
           // Mark deletion as successful
           isDeleted = true;
-          print('Step 8: Deletion marked as successful');
+          debugPrint('Step 8: Deletion marked as successful');
         } else {
-          print(
+          debugPrint(
             'Step 5: API call failed with status code: ${response.statusCode}',
           );
           // API call failed, show the API's error message at the top
@@ -2055,10 +1798,10 @@ Future<bool> deleteVideo(
               duration: Duration(seconds: 3),
             ),
           );
-          print('Step 6: Error SnackBar displayed for API failure');
+          debugPrint('Step 6: Error SnackBar displayed for API failure');
         }
       } catch (e) {
-        print('Error occurred during deletion: $e');
+        debugPrint('Error occurred during deletion: $e');
         // Show error message for any exception at the top
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -2068,7 +1811,7 @@ Future<bool> deleteVideo(
             duration: Duration(seconds: 3),
           ),
         );
-        print('Error SnackBar displayed');
+        debugPrint('Error SnackBar displayed');
       }
     },
     btnOkText: 'yes_delete'.tr,

@@ -1,6 +1,5 @@
-import 'dart:developer';
+import 'dart:async';
 import 'dart:io';
-import 'dart:ui';
 
 import 'package:app_links/app_links.dart';
 import 'package:awesome_dialog/awesome_dialog.dart';
@@ -18,8 +17,8 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:get/get.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:cookster/core/video/video_player_pool.dart';
 
+import 'package:cookster/appBindings/app_bindings.dart';
 import '../../../appRoutes/appRoutes.dart';
 import '../../../appUtils/colorUtils.dart';
 import '../../../basicVideoEditor/basicVideoEditor.dart';
@@ -31,9 +30,12 @@ import '../../search/searchController/searchController.dart';
 import '../../singleVideoVisit/singleVideoVisit.dart';
 import '../landingController/landingController.dart';
 import '../landingTabs/add/videoAddController/videoAddController.dart';
+import '../../../core/video/media_kit_player_pool.dart';
+import '../../../core/video/video_player_pool.dart';
 import '../landingTabs/home/homeController/homeController.dart';
 import '../landingTabs/home/homeController/saveController.dart';
 import '../landingTabs/home/homeView/reelsVideoScreen.dart';
+import '../landingTabs/nearBusiness/nearBusinessController/nearBusinessController.dart';
 import '../landingTabs/nearBusiness/newBusinessView/nearBusinessView.dart';
 import '../landingTabs/professionalProfile/profileControlller/professionalProfileController.dart';
 import '../landingTabs/professionalProfile/profileView/professionalProfileView.dart';
@@ -48,15 +50,18 @@ class Landing extends StatefulWidget {
 }
 
 class _LandingState extends State<Landing> {
-  final NavBarController navBarController = Get.put(NavBarController());
-  final SaveController saveController = Get.put(SaveController());
-  final PromoteVideoController promoteVideoController = Get.put(
-    PromoteVideoController(),
-  );
-
-  final HomeController controller = Get.put(HomeController());
-
-  final VideoAddController videoAddController = Get.put(VideoAddController());
+  NavBarController get navBarController => Get.find<NavBarController>();
+  Future<List<Widget>>? _screensFuture;
+  StreamSubscription<Uri>? _deepLinkSubscription;
+  Worker? _subscriptionExpiryWorker;
+  Worker? _tabAudioWorker;
+  bool _deepLinksInitialized = false;
+  final RxBool _isSubscriptionExpired = false.obs;
+  SaveController get saveController => Get.find<SaveController>();
+  PromoteVideoController get promoteVideoController =>
+      Get.find<PromoteVideoController>();
+  HomeController get controller => Get.find<HomeController>();
+  VideoAddController get videoAddController => Get.find<VideoAddController>();
 
   final AppLinks appLinks = AppLinks();
 
@@ -98,10 +103,10 @@ class _LandingState extends State<Landing> {
     }
   }
 
-  Future<void> _handleAuthRequiredAction(VoidCallback action) async {
+  Future<void> _handleAuthRequiredAction(Future<void> Function() action) async {
     bool isAuthenticated = await _isUserAuthenticated();
     if (isAuthenticated) {
-      action();
+      await action();
     } else {
       Get.toNamed(AppRoutes.signIn);
     }
@@ -118,7 +123,10 @@ class _LandingState extends State<Landing> {
       );
       return;
     }
-    Get.to(CameraCaptureScreen(cameras: cameras))?.then((_) {
+    Get.to(
+      () => CameraCaptureScreen(cameras: cameras),
+      binding: CameraCaptureBinding(),
+    )?.then((_) {
       // controller.restoreVideoState();
     });
   }
@@ -131,11 +139,16 @@ class _LandingState extends State<Landing> {
     return prefs.getInt('entity') ?? 0;
   }
 
-  final ProfileController profileController = Get.put(ProfileController());
-  final ProfessionalProfileController professionalProfileController = Get.put(
-    ProfessionalProfileController(),
-  );
-  final UserSearchController searchController = Get.put(UserSearchController());
+  ProfileController get profileController {
+    ensureLandingProfileControllers();
+    return Get.find<ProfileController>();
+  }
+
+  ProfessionalProfileController get professionalProfileController {
+    ensureLandingProfileControllers();
+    return Get.find<ProfessionalProfileController>();
+  }
+  UserSearchController get searchController => Get.find<UserSearchController>();
 
   Future<List<Widget>> _screens(BuildContext context) async {
     int entity = await getEntity();
@@ -200,8 +213,8 @@ class _LandingState extends State<Landing> {
                 ),
                 onTap: () async {
                   Navigator.pop(context);
-                  // controller.pauseCurrentVideo();
                   try {
+                    await _prepareForMediaCapture();
                     final XFile? pickedFile = await ImagePicker().pickMedia(
                       imageQuality: 80,
                       maxWidth: 1920,
@@ -242,7 +255,7 @@ class _LandingState extends State<Landing> {
                       colorText: Colors.white,
                     );
                   } finally {
-                    // controller.restoreVideoState();
+                    await _restoreAfterMediaCapture();
                   }
                 },
               ),
@@ -254,10 +267,10 @@ class _LandingState extends State<Landing> {
                 ),
                 onTap: () async {
                   Navigator.pop(context);
-                  // controller.pauseCurrentVideo();
+                  await _prepareForMediaCapture();
                   final cameras = await availableCameras();
-                  Get.to(CameraScreen(cameras: cameras))?.then((_) {
-                    // controller.restoreVideoState();
+                  Get.to(CameraScreen(cameras: cameras))?.then((_) async {
+                    await _restoreAfterMediaCapture();
                   });
                 },
               ),
@@ -304,96 +317,99 @@ class _LandingState extends State<Landing> {
     return shouldExit;
   }
 
+  void _initDeepLinks() {
+    if (_deepLinksInitialized) return;
+    _deepLinksInitialized = true;
+
+    appLinks.getInitialLink().then((uri) async {
+      if (uri == null) return;
+      final videoId = uri.queryParameters['id'];
+      if (videoId == null || videoId.isEmpty) return;
+      final isAuthenticated = await _isUserAuthenticated();
+      if (!mounted) return;
+      if (isAuthenticated) {
+        Get.to(
+          () => SingleVisitVideo(videoId: videoId, key: UniqueKey()),
+          arguments: videoId,
+        );
+      } else {
+        Get.to(AppRoutes.signIn);
+      }
+    });
+
+    _deepLinkSubscription = appLinks.uriLinkStream.listen((uri) async {
+      final videoId = uri.queryParameters['id'];
+      if (videoId == null || videoId.isEmpty) return;
+      final isAuthenticated = await _isUserAuthenticated();
+      if (isAuthenticated) {
+        Get.to(
+          () => SingleVisitVideo(key: UniqueKey(), videoId: videoId),
+          arguments: videoId,
+        );
+      } else {
+        Get.toNamed(AppRoutes.signIn);
+      }
+    });
+  }
+
+  void _checkSubscriptionExpiry() {
+    final subscriptionEndDate =
+        professionalProfileController.userDetails.value?.subscription?.endDate;
+    if (subscriptionEndDate == null) return;
+    try {
+      final expired = DateTime.now().isAfter(DateTime.parse(subscriptionEndDate));
+      if (expired && !_isSubscriptionExpired.value) {
+        _isSubscriptionExpired.value = true;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) showExpiredPackageDialog(context);
+        });
+      }
+    } catch (_) {}
+  }
+
   @override
   void initState() {
     super.initState();
+    LandingBinding().dependencies();
     navBarController.selectedIndex.value = widget.initialIndex;
     fetchUserDetails();
     navBarController.checkForUpdate();
+    _initDeepLinks();
+    _tabAudioWorker = ever(navBarController.selectedIndex, (index) {
+      if (index != 0) {
+        unawaited(_stopAllVideoAudio());
+      }
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      _screensFuture = _screens(context);
+      final entity = await getEntity();
+      if (entity == 2) {
+        ensureLandingProfileControllers();
+        _subscriptionExpiryWorker = ever(
+          Get.find<ProfessionalProfileController>().userDetails,
+          (_) => _checkSubscriptionExpiry(),
+        );
+      }
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _subscriptionExpiryWorker?.dispose();
+    _tabAudioWorker?.dispose();
+    _deepLinkSubscription?.cancel();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    appLinks.getInitialLink().then((uri) async {
-      bool isAuthenticated = await _isUserAuthenticated();
-      if (uri != null) {
-        final videoId = uri.queryParameters['id'];
-        if (videoId != null) {
-          log('Initial deep link with video ID: $videoId');
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            isAuthenticated
-                ? Get.to(
-                  () =>
-                  SingleVisitVideo(
-                    videoId: videoId,
-                    key: UniqueKey(), // ✅ Important
-                  ),
-              arguments: videoId,
-            )
-                : Get.to(AppRoutes.signIn);
-          });
-        }
-      }
-    });
-
-    // Handle deep links while app is running
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      appLinks.uriLinkStream.listen((uri) async {
-        final videoId = uri.queryParameters['id'];
-        if (videoId != null && videoId.isNotEmpty) {
-          bool isAuthenticated = await _isUserAuthenticated();
-
-          log('Stream deep link with video ID: $videoId');
-          isAuthenticated
-              ? Get.to(
-                () =>
-                SingleVisitVideo(
-                  key: UniqueKey(), // ✅ Important
-                  videoId: videoId,
-                ),
-            arguments: videoId,
-          )
-              : Get.toNamed(AppRoutes.signIn);
-        } else {
-          log('Invalid or missing video ID');
-          Get.snackbar(
-            'Error',
-            'Invalid video ID in deep link',
-            snackPosition: SnackPosition.BOTTOM,
-          );
-        }
-      });
-    });
-
-    return Obx(() {
-      RxBool isExpired = RxBool(false);
-      final subscriptionEndDate =
-          professionalProfileController
-              .userDetails
-              .value
-              ?.subscription
-              ?.endDate;
-      if (subscriptionEndDate != null) {
-        try {
-          isExpired.value = DateTime.now().isAfter(
-            DateTime.parse(subscriptionEndDate),
-          );
-        } catch (e) {
-          isExpired.value = false;
-        }
-      }
-      if (isExpired.value) {
-        Future.delayed(Duration.zero, () {
-          showExpiredPackageDialog(context);
-        });
-      }
-      return PopScope(
+    return PopScope(
         canPop: false,
         onPopInvoked: (didPop) async {
           if (didPop) return;
           if (navBarController.selectedIndex.value != 0) {
-            navBarController.changeTab(0);
-            // controller.restoreVideoState();
+            await _performTabNavigation(0);
           } else {
             final shouldPop = await _showExitConfirmationDialog(context);
             if (shouldPop) {
@@ -403,39 +419,49 @@ class _LandingState extends State<Landing> {
         },
         child: Scaffold(
           resizeToAvoidBottomInset: false,
-          bottomNavigationBar: _buildBottomNavBar(context),
+          bottomNavigationBar: Obx(() => _buildBottomNavBar(context)),
           body: FutureBuilder<List<Widget>>(
-            future: _screens(context),
+            future: _screensFuture,
             builder: (context, snapshot) {
-              return Obx(() {
-                return Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    snapshot.data![navBarController.selectedIndex.value],
-                  ],
-                );
-              });
+              if (!snapshot.hasData) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              final screens = snapshot.data!;
+              return Obx(
+                () {
+                  final selected = navBarController.selectedIndex.value;
+                  return IndexedStack(
+                    index: selected,
+                    sizing: StackFit.expand,
+                    children: [
+                      TickerMode(
+                        enabled: selected == 0,
+                        child: screens[0],
+                      ),
+                      screens[1],
+                      screens[2],
+                      screens[3],
+                    ],
+                  );
+                },
+              );
             },
           ),
         ),
-      );
-    });
+    );
   }
 
   Widget _buildBottomNavBar(BuildContext context) {
-    final bottomInset = MediaQuery.of(context).padding.bottom;
+    final bottomInset = MediaQuery.paddingOf(context).bottom;
 
-    return ClipRect(
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 10.0, sigmaY: 10.0),
-        child: Container(
+    return Container(
           width: Get.width,
           height: 60.h + bottomInset,
           padding: EdgeInsets.only(bottom: bottomInset),
           decoration: BoxDecoration(
-            color: Colors.black,
+            color: Colors.black.withValues(alpha: 0.92),
             border: Border(
-              top: BorderSide(color: Colors.grey.withOpacity(0.2), width: 0.5),
+              top: BorderSide(color: Colors.grey.withValues(alpha: 0.2), width: 0.5),
             ),
           ),
           child: Row(
@@ -472,8 +498,6 @@ class _LandingState extends State<Landing> {
               ),
             ],
           ),
-        ),
-      ),
     );
   }
 
@@ -485,16 +509,15 @@ class _LandingState extends State<Landing> {
     required BuildContext context,
   }) {
     final isSelected = navBarController.selectedIndex.value == index;
-    final isHomeTab = navBarController.selectedIndex.value == 0;
 
     return InkWell(
       onTap: () async {
         if (index == 2 || index == 3) {
-          await _handleAuthRequiredAction(() {
-            _performTabNavigation(index);
+          await _handleAuthRequiredAction(() async {
+            await _performTabNavigation(index);
           });
         } else {
-          _performTabNavigation(index);
+          await _performTabNavigation(index);
         }
       },
       child: Column(
@@ -513,7 +536,7 @@ class _LandingState extends State<Landing> {
               isSelected ? selectedSvgIcon : svgIcon,
               height: 16.h,
               colorFilter: ColorFilter.mode(
-                _getIconColor(isSelected, isHomeTab),
+                _getIconColor(isSelected),
                 BlendMode.srcIn,
               ),
             ),
@@ -523,7 +546,7 @@ class _LandingState extends State<Landing> {
             label.tr,
             style: TextStyle(
               fontSize: 12.sp,
-              color: _getTextColor(isSelected, isHomeTab),
+              color: _getTextColor(isSelected),
               fontWeight: isSelected ? FontWeight.w500 : FontWeight.w300,
             ),
           ),
@@ -532,26 +555,72 @@ class _LandingState extends State<Landing> {
     );
   }
 
-  void _performTabNavigation(int index) {
-    if (index != 0) {
-      VideoPlayerPool.instance.pauseAll();
+  Future<void> _stopAllVideoAudio() async {
+    MediaKitPlayerPool.instance.silenceAllSync();
+    if (Get.isRegistered<HomeController>()) {
+      final home = Get.find<HomeController>();
+      home.setReelsTabVisible(false);
+      home.isNavigating.value = true;
+      await home.pauseAllVideosAwait();
+    } else {
+      await MediaKitPlayerPool.instance.pauseAllAwait();
+      await VideoPlayerPool.instance.pauseAll();
     }
-    navBarController.changeTab(index);
   }
 
-  Color _getIconColor(bool isSelected, bool isHomeTab) {
+  Future<void> _performTabNavigation(int index) async {
+    if (index != 0) {
+      await _stopAllVideoAudio();
+    } else if (Get.isRegistered<HomeController>()) {
+      final home = Get.find<HomeController>();
+      final hasRouteOverlay = Get.key.currentState?.canPop() ?? false;
+      if (hasRouteOverlay) {
+        home.isNavigating.value = true;
+        home.setReelsTabVisible(false);
+        MediaKitPlayerPool.instance.silenceAllSync();
+      } else {
+        home.isNavigating.value = false;
+        home.setReelsTabVisible(true);
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          unawaited(home.resumeVisibleVideo(home.visiblePageIndex.value));
+        });
+      }
+    }
+    navBarController.changeTab(index);
+    if (index == 1 && Get.isRegistered<LocationController>()) {
+      unawaited(Get.find<LocationController>().ensureDiscoverLoaded());
+    }
+  }
+
+  Future<void> _prepareForMediaCapture() async {
+    if (Get.isRegistered<HomeController>()) {
+      await Get.find<HomeController>().releaseAllVideoResources();
+    }
+  }
+
+  Future<void> _restoreAfterMediaCapture() async {
+    if (!Get.isRegistered<HomeController>()) {
+      return;
+    }
+    if (navBarController.selectedIndex.value != 0) {
+      return;
+    }
+    await Get.find<HomeController>().restoreVideoResourcesAfterCapture();
+  }
+
+  Color _getIconColor(bool isSelected) {
     return isSelected ? ColorUtils.primaryColor : Colors.white;
   }
 
-  Color _getTextColor(bool isSelected, bool isHomeTab) {
+  Color _getTextColor(bool isSelected) {
     return isSelected ? ColorUtils.primaryColor : Colors.white;
   }
 
   Widget _buildAddButton(BuildContext context) {
     return InkWell(
       onTap: () async {
-        await _handleAuthRequiredAction(() {
-          _handleAddButtonLogic(context);
+        await _handleAuthRequiredAction(() async {
+          await _handleAddButtonLogic(context);
         });
       },
       child: Container(
@@ -577,23 +646,19 @@ class _LandingState extends State<Landing> {
     );
   }
 
-  void _handleAddButtonLogic(BuildContext context) {
-    if (professionalProfileController.userDetails.value != null &&
-        professionalProfileController.userDetails.value!.subscription != null &&
-        professionalProfileController
-            .userDetails
-            .value!
-            .subscription!
-            .endDate !=
-            null) {
+  Future<void> _handleAddButtonLogic(BuildContext context) async {
+    final entity = await getEntity();
+    if (entity != 2) {
+      _showVideoOptions(context);
+      return;
+    }
+
+    final details = professionalProfileController.userDetails.value;
+    final subscription = details?.subscription;
+    final endDateStr = subscription?.endDate;
+    if (details != null && subscription != null && endDateStr != null) {
       try {
-        DateTime endDate = DateTime.parse(
-          professionalProfileController
-              .userDetails
-              .value!
-              .subscription!
-              .endDate!,
-        );
+        final endDate = DateTime.parse(endDateStr);
         if (endDate.isAfter(DateTime.now())) {
           _showVideoOptions(context);
         } else {

@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../../../../appBindings/app_bindings.dart';
 import '../../../../services/apiClient.dart';
 import '../signUpController/signUpController.dart';
 
@@ -62,6 +63,7 @@ class SignUpOtpController extends GetxController {
         SharedPreferences prefs = await SharedPreferences.getInstance();
 
         await prefs.setString('auth_token', token);
+        ApiClient.setAuthToken(token);
         await prefs.setInt('entity', verifiedUser['entity']);
         await prefs.setString('user_id', verifiedUser['id']);
         await prefs.setString('user_image', verifiedUser['image'] ?? '');
@@ -178,7 +180,10 @@ class SignUpOtpController extends GetxController {
       desc: "account created successfully".tr,
       btnOkText: "ok".tr,
       btnOkOnPress: () {
-        Get.offAll(Landing(initialIndex: 0));
+        Get.offAll(
+          () => Landing(initialIndex: 0),
+          binding: LandingBinding(),
+        );
       },
     )..show();
   }

@@ -7,6 +7,7 @@ import '../appUtils/apiEndPoints.dart';
 import '../appUtils/colorUtils.dart';
 import 'api_call.dart';
 import 'ils_screen.dart';
+import 'package:cookster/core/media/media_url_resolver.dart';
 
 class JoinScreen extends StatefulWidget {
   JoinScreen({super.key});
@@ -562,7 +563,7 @@ class _JoinScreenState extends State<JoinScreen> {
                         child:
                             userImage.isNotEmpty
                                 ? Image.network(
-                               '${Common.profileImage}/$userImage',
+                               MediaUrlResolver.profileImageUrl(userImage) ?? '',
                                   width: 48,
                                   height: 48,
                                   fit: BoxFit.cover,

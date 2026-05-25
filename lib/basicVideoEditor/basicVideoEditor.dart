@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'dart:math';
+import 'dart:async';
 import 'package:cookster/basicVideoEditor/videoEditorControllers/audioSelectorController.dart';
 import 'package:cookster/basicVideoEditor/videoEditorControllers/videoFilterController.dart';
 import 'package:cookster/basicVideoEditor/videoFilterUi.dart';
@@ -210,49 +211,6 @@ class _VideoTextEditorState extends State<VideoTextEditor> {
     _isEditing = true;
     _cropSettings = CropSettings();
 
-    _videoController?.dispose();
-    _processedVideoController?.dispose();
-
-    _videoController = VideoPlayerController.file(_selectedVideo!)
-      ..initialize()
-          .then((_) {
-            setState(() {
-              _videoWidth = _videoController!.value.size.width;
-              _videoHeight = _videoController!.value.size.height;
-
-              double currentAspectRatio = _videoWidth / _videoHeight;
-              const targetAspectRatio = 0.5623529411764706; // 9:16
-
-              print('Original Aspect Ratio: $currentAspectRatio');
-              print('Video Name: ${_selectedVideo!.path.split('/').last}');
-
-              // Check if current aspect ratio is greater than target
-              if (currentAspectRatio > targetAspectRatio) {
-                // Calculate new dimensions to match target aspect ratio
-                double newWidth = _videoHeight * targetAspectRatio;
-                double newHeight =
-                    _videoHeight; // Keep height same, adjust width
-
-                // Update crop settings or video dimensions
-                _cropSettings = CropSettings(
-                  width: newWidth,
-                  height: newHeight,
-                  x: (_videoWidth - newWidth) / 2, // Center crop
-                  y: 0,
-                );
-
-                print('Adjusted to Target Aspect Ratio: $targetAspectRatio');
-                print('New Dimensions: ${newWidth}x$newHeight');
-              }
-
-              _videoController!.play();
-              _videoController!.setLooping(true);
-            });
-          })
-          .catchError((error) {
-            print("Error initializing video controller: $error");
-          });
-
     _textFocusNode.addListener(() {
       setState(() {
         _isTypingText = _textFocusNode.hasFocus;
@@ -260,6 +218,54 @@ class _VideoTextEditorState extends State<VideoTextEditor> {
     });
 
     _initializeFilterController();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(_initVideoController());
+    });
+  }
+
+  Future<void> _initVideoController() async {
+    _videoController?.dispose();
+    _processedVideoController?.dispose();
+    _processedVideoController = null;
+
+    final controller = VideoPlayerController.file(_selectedVideo!);
+    _videoController = controller;
+    try {
+      await controller.initialize();
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _videoWidth = controller.value.size.width;
+        _videoHeight = controller.value.size.height;
+
+        final currentAspectRatio = _videoWidth / _videoHeight;
+        const targetAspectRatio = 0.5623529411764706; // 9:16
+
+        if (currentAspectRatio > targetAspectRatio) {
+          final newWidth = _videoHeight * targetAspectRatio;
+          _cropSettings = CropSettings(
+            width: newWidth,
+            height: _videoHeight,
+            x: (_videoWidth - newWidth) / 2,
+            y: 0,
+          );
+        }
+      });
+      await controller.setLooping(true);
+      await controller.play();
+    } catch (error) {
+      debugPrint('Error initializing video controller: $error');
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to load video preview: $error'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
   void _initializeFilterController() {

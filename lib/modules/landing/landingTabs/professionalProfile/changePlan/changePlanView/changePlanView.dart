@@ -28,6 +28,7 @@ class _ChangePlanViewState extends State<ChangePlanView> {
       CarouselSliderController();
   int _currentIndex = 0;
   String _language = 'en';
+  Worker? _packagesWorker;
 
   // Default to English
   Future<void> _loadLanguage() async {
@@ -43,7 +44,7 @@ class _ChangePlanViewState extends State<ChangePlanView> {
     super.initState();
     _loadLanguage();
     // Select the first package by default after data is fetched
-    ever(changePlanController.packagesList, (packagesList) {
+    _packagesWorker = ever(changePlanController.packagesList, (packagesList) {
       final packages = packagesList.packages ?? [];
       if (packages.isNotEmpty) {
         changePlanController.selectPackage(packages[0].id!);
@@ -52,6 +53,12 @@ class _ChangePlanViewState extends State<ChangePlanView> {
         });
       }
     });
+  }
+
+  @override
+  void dispose() {
+    _packagesWorker?.dispose();
+    super.dispose();
   }
 
   @override

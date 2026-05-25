@@ -1,6 +1,7 @@
 import 'package:cookster/appUtils/colorUtils.dart';
-import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:cookster/core/widgets/grid_thumbnail_cache.dart';
+import 'package:flutter/material.dart';
 import 'dart:math' as math;
 
 class OpenToWorkBadge extends StatelessWidget {
@@ -35,6 +36,8 @@ class OpenToWorkBadge extends StatelessWidget {
                   ? CachedNetworkImage(
                 imageUrl: imageUrl!,
                 fit: BoxFit.cover,
+                memCacheWidth: gridThumbnailMemCacheSize(size),
+                memCacheHeight: gridThumbnailMemCacheSize(size),
                 placeholder: (context, url) => const Center(
                   child: CircularProgressIndicator(),
                 ),

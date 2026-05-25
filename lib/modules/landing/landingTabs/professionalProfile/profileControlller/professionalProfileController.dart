@@ -5,6 +5,8 @@ import 'package:awesome_dialog/awesome_dialog.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cookster/appRoutes/appRoutes.dart';
 import 'package:cookster/appUtils/apiEndPoints.dart';
+import 'package:cookster/core/parsing/feed_parsers.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
@@ -16,9 +18,12 @@ import 'package:http_parser/http_parser.dart';
 import '../../../../../appUtils/colorUtils.dart';
 import '../../../../../loaders/pulseLoader.dart';
 import '../../../../../services/apiClient.dart';
-import '../../add/videoUploadSettingsModel/videoUploadSettingsModel.dart';
+import '../../../../../services/video_settings_service.dart';
+import '../../add/videoUploadSettingsModel/videoUploadSettingsModel.dart'
+    hide VideoTypes;
 import '../../profile/profileModel/profileModel.dart';
-import '../../profile/profileModel/simpleUserProfileModel.dart';
+import '../../profile/profileModel/simpleUserProfileModel.dart' hide VideoTypes;
+import 'package:cookster/core/media/media_url_resolver.dart';
 
 class ProfessionalProfileController extends GetxController {
   var selectedIndex = 0.obs;
@@ -315,20 +320,8 @@ class ProfessionalProfileController extends GetxController {
 
   Future<void> getVideoUploadSettings() async {
     try {
-      var response = await ApiClient.getRequest(EndPoints.videoTypes).timeout(
-        const Duration(seconds: 10),
-        onTimeout: () {
-          Get.offAllNamed('/noInternet');
-          throw TimeoutException("The connection has timed out!");
-        },
-      );
-
-      if (response.statusCode == 200) {
-        var data = jsonDecode(response.body);
-        videoUploadSettings.value = VideoUploadSettings.fromJson(data);
-      } else {
-        print("Error fetching video settings: ${response.statusCode}");
-      }
+      final settings = await VideoSettingsService.instance.load();
+      videoUploadSettings.value = settings;
     } catch (e) {
       print("Error fetching video upload settings: $e");
     }
@@ -497,49 +490,15 @@ class ProfessionalProfileController extends GetxController {
 
       if (response.statusCode == 200) {
         print("Step 6: Successfully fetched user details. Parsing data.");
-        var data = jsonDecode(response.body);
-
-        // Parse user details
-        userDetails.value = UserDetails.fromJson(data);
+        userDetails.value = await compute(
+          parseProfessionalProfileDetails,
+          response.body,
+        );
         followersList.value = userDetails.value!.followers!;
         followingList.value = userDetails.value!.following!;
 
-        // Extract video IDs
-        videoIds.clear();
-        if (userDetails.value!.videoTypes != null) {
-          for (var videoType in userDetails.value!.videoTypes!) {
-            if (videoType.videos != null) {
-              videoIds.addAll(
-                videoType.videos!.map((video) => video.id.toString()).toList(),
-              );
-            }
-          }
-        }
-        print("Step 7: Extracted video IDs: $videoIds");
-
-        // Fetch total likes for all videos
-        totalLikes.value = 0;
-        int likesCount = 0;
-
-        for (var videoId in videoIds) {
-          var videoDoc =
-              await FirebaseFirestore.instance
-                  .collection('videos')
-                  .doc(videoId)
-                  .get();
-
-          if (videoDoc.exists) {
-            var data = videoDoc.data() as Map<String, dynamic>;
-            List<String> likes = List<String>.from(data['likes'] ?? []);
-            likesCount += likes.length;
-          }
-        }
-
-        // ✅ Update only once after loop finishes
-        totalLikes.value = likesCount;
+        totalLikes.value = _sumVideoLikes(userDetails.value?.videoTypes);
         print("Step 9: Total likes on all videos: ${totalLikes.value}");
-
-        print("Step 8: Total likes on all videos: ${totalLikes.value}");
       } else {
         print(
           "Step 9: Failed to fetch user details. Status code: ${response.statusCode}",
@@ -560,24 +519,18 @@ class ProfessionalProfileController extends GetxController {
   /// Lightweight refresh: only re-counts likes from Firestore
   /// without reloading the full profile (avoids UI flicker on back-navigation).
   Future<void> refreshLikesOnly() async {
-    try {
-      if (videoIds.isEmpty) return;
-      int likesCount = 0;
-      for (var videoId in videoIds) {
-        var videoDoc = await FirebaseFirestore.instance
-            .collection('videos')
-            .doc(videoId)
-            .get();
-        if (videoDoc.exists) {
-          var data = videoDoc.data() as Map<String, dynamic>;
-          List<String> likes = List<String>.from(data['likes'] ?? []);
-          likesCount += likes.length;
-        }
+    totalLikes.value = _sumVideoLikes(userDetails.value?.videoTypes);
+  }
+
+  int _sumVideoLikes(List<VideoTypes>? videoTypes) {
+    if (videoTypes == null) return 0;
+    var total = 0;
+    for (final videoType in videoTypes) {
+      for (final video in videoType.videos ?? const []) {
+        total += parseApiCount(video.likeCount);
       }
-      totalLikes.value = likesCount;
-    } catch (e) {
-      print("Error refreshing likes: $e");
     }
+    return total;
   }
 
   String? emailValidator(String? value) {
@@ -671,7 +624,6 @@ class ProfessionalProfileController extends GetxController {
 
       SharedPreferences prefs = await SharedPreferences.getInstance();
       String? token = prefs.getString('auth_token');
-      String language = prefs.getString('language') ?? 'en';
 
       if (token == null) {
         isProfileUpdating.value = false;
@@ -679,41 +631,32 @@ class ProfessionalProfileController extends GetxController {
         return;
       }
 
-      var request = http.MultipartRequest(
-        'POST',
-        Uri.parse('${Common.baseUrl}${EndPoints.editUserProfile}'),
-      );
+      final fields = <String, String>{};
+      final files = <http.MultipartFile>[];
 
-      request.headers['Authorization'] = 'Bearer $token';
-      request.headers['Accept'] = 'application/json';
-      request.headers['X-Requested-With'] = 'XMLHttpRequest';
-      request.headers['Accept-Language'] =
-          language; // Add Accept-Language header
-
-      // Add only non-null fields
-      if (name != null && name.isNotEmpty) request.fields['name'] = name;
-      if (dob != null && dob.isNotEmpty) request.fields['dob'] = dob;
-      if (password != null && password.isNotEmpty)
-        request.fields['password'] = password;
-      if (businessType != null && businessType.isNotEmpty)
-        request.fields['business_type'] = businessType;
-      if (countryId != -1) request.fields['country'] = countryId.toString();
-      if (cityId != -1) request.fields['city'] = cityId.toString();
-      if (menuId != -1) request.fields['business_type'] = menuId.toString();
-      if (contactPhone != null && contactPhone.isNotEmpty)
-        request.fields['contact_phone'] = contactPhone;
-      if (contactEmail != null && contactEmail.isNotEmpty)
-        request.fields['contact_email'] = contactEmail;
-      if (website != null && website.isNotEmpty)
-        request.fields['website'] = website;
-      if (location != null && location.isNotEmpty)
-        request.fields['location'] = location;
-      if (latitude != null && latitude.isNotEmpty)
-        request.fields['latitude'] = latitude;
-      if (longitude != null && longitude.isNotEmpty)
-        request.fields['longitude'] = longitude;
+      if (name != null && name.isNotEmpty) fields['name'] = name;
+      if (dob != null && dob.isNotEmpty) fields['dob'] = dob;
+      if (password != null && password.isNotEmpty) fields['password'] = password;
+      if (businessType != null && businessType.isNotEmpty) {
+        fields['business_type'] = businessType;
+      }
+      if (countryId != -1) fields['country'] = countryId.toString();
+      if (cityId != -1) fields['city'] = cityId.toString();
+      if (menuId != -1) fields['business_type'] = menuId.toString();
+      if (contactPhone != null && contactPhone.isNotEmpty) {
+        fields['contact_phone'] = contactPhone;
+      }
+      if (contactEmail != null && contactEmail.isNotEmpty) {
+        fields['contact_email'] = contactEmail;
+      }
+      if (website != null && website.isNotEmpty) fields['website'] = website;
+      if (location != null && location.isNotEmpty) fields['location'] = location;
+      if (latitude != null && latitude.isNotEmpty) fields['latitude'] = latitude;
+      if (longitude != null && longitude.isNotEmpty) {
+        fields['longitude'] = longitude;
+      }
       if (imageFile != null) {
-        request.files.add(
+        files.add(
           await http.MultipartFile.fromPath(
             'image',
             imageFile.path,
@@ -722,8 +665,12 @@ class ProfessionalProfileController extends GetxController {
         );
       }
 
-      var response = await request.send();
-      var responseData = await response.stream.bytesToString();
+      final response = await ApiClient.multipartPost(
+        EndPoints.editUserProfile,
+        fields: fields,
+        files: files,
+      );
+      final responseData = response.body;
 
       if (response.statusCode == 200) {
         Map<String, dynamic> data;
@@ -749,7 +696,7 @@ class ProfessionalProfileController extends GetxController {
         if (updatedImage != null && updatedImage.isNotEmpty) {
           await prefs.setString('user_image', updatedImage);
           await DefaultCacheManager().removeFile(
-            '${Common.profileImage}/$updatedImage',
+            MediaUrlResolver.profileImageUrl(updatedImage) ?? '',
           );
           profileImageRefreshToken.value = DateTime.now().millisecondsSinceEpoch;
         }
@@ -829,24 +776,12 @@ class ProfessionalProfileController extends GetxController {
 
       SharedPreferences prefs = await SharedPreferences.getInstance();
       String? token = prefs.getString('auth_token');
-      String language = prefs.getString('language') ?? 'en';
 
       if (token == null) {
         isProfileUpdating.value = false;
         Get.snackbar("Error", "User is not logged in.");
         return false;
       }
-
-      var request = http.MultipartRequest(
-        'POST',
-        Uri.parse('${Common.baseUrl}${EndPoints.editUserProfile}'),
-      );
-
-      request.headers['Authorization'] = 'Bearer $token';
-      request.headers['Accept'] = 'application/json';
-      request.headers['X-Requested-With'] = 'XMLHttpRequest';
-      request.headers['Accept-Language'] =
-          language; // Add Accept-Language header
 
       final filePath = coverImage.path;
       final fileName = filePath.split('/').last;
@@ -866,20 +801,17 @@ class ProfessionalProfileController extends GetxController {
       print('Cover Upload Debug -> exists: $fileExists, size: $fileSize');
       print('Cover Upload Debug -> filename: $fileName, subtype: $imageSubtype');
 
-      // Add cover image file
-      request.files.add(
-        await http.MultipartFile.fromPath(
-          'cover_image',
-          filePath,
-          contentType: MediaType('image', imageSubtype),
-        ),
+      final response = await ApiClient.multipartPost(
+        EndPoints.editUserProfile,
+        files: [
+          await http.MultipartFile.fromPath(
+            'cover_image',
+            filePath,
+            contentType: MediaType('image', imageSubtype),
+          ),
+        ],
       );
-      print(
-        'Cover Upload Debug -> multipart file keys: ${request.files.map((f) => f.field).toList()}',
-      );
-
-      var response = await request.send();
-      var responseData = await response.stream.bytesToString();
+      final responseData = response.body;
 
       if (response.statusCode == 200) {
         Map<String, dynamic> data;
@@ -990,6 +922,5 @@ class ProfessionalProfileController extends GetxController {
   void onInit() {
     super.onInit();
     // getUserDetails();
-    getVideoUploadSettings();
   }
 }

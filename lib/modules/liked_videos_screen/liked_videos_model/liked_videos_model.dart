@@ -1,16 +1,23 @@
+import 'package:cookster/core/media/media_url_resolver.dart';
+import 'package:cookster/modules/landing/landingTabs/home/homeModel/videoFeedModel.dart';
+
 class LikedVideosModel {
   bool? status;
   List<LikedVideos>? videos;
+  FeedMeta? meta;
 
-  LikedVideosModel({this.status, this.videos});
+  LikedVideosModel({this.status, this.videos, this.meta});
 
   LikedVideosModel.fromJson(Map<String, dynamic> json) {
     status = json['status'];
     if (json['videos'] != null) {
       videos = <LikedVideos>[];
       json['videos'].forEach((v) {
-        videos!.add(new LikedVideos.fromJson(v));
+        videos!.add(LikedVideos.fromJson(v));
       });
+    }
+    if (json['meta'] != null) {
+      meta = FeedMeta.fromJson(json['meta'] as Map<String, dynamic>);
     }
   }
 
@@ -40,6 +47,8 @@ class LikedVideos {
   dynamic image;
   dynamic video;
   dynamic videoUrl;
+  dynamic thumbnailUrl;
+  dynamic imageUrl;
   dynamic state;
   dynamic status;
   dynamic createdAt;
@@ -92,13 +101,15 @@ class LikedVideos {
     image = json['image'];
     video = json['video'];
     videoUrl = json['video_url'];
+    thumbnailUrl = json['thumbnail_url'];
+    imageUrl = json['image_url'];
     state = json['state'];
     status = json['status'];
     createdAt = json['created_at'];
     updatedAt = json['updated_at'];
     videoTypeName = json['video_type_name'];
     userName = json['user_name'];
-    userImage = json['user_image'];
+    userImage = json['user_image_url'] ?? json['user_image'];
     followersCount = json['followers_count'];
     followingCount = json['following_count'];
   }
@@ -131,4 +142,17 @@ class LikedVideos {
     data['following_count'] = this.followingCount;
     return data;
   }
+}
+
+extension LikedVideosMedia on LikedVideos {
+  String? get resolvedThumbnailUrl => MediaUrlResolver.thumbnailUrl(
+        thumbnailUrl: thumbnailUrl?.toString(),
+        imageUrl: imageUrl?.toString(),
+        image: image?.toString(),
+      );
+
+  String? get resolvedPlaybackUrl => MediaUrlResolver.playbackUrl(
+        videoUrl: videoUrl?.toString(),
+        video: video?.toString(),
+      );
 }

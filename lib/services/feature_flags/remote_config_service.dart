@@ -15,8 +15,8 @@ class RemoteConfigService {
     );
     await _remoteConfig.setDefaults(const {
       'reels_preload_enabled': true,
-      'reels_preload_limit_wifi': 2,
-      'reels_preload_limit_mobile': 1,
+      'reels_preload_limit_wifi': 4,
+      'reels_preload_limit_mobile': 2,
       'reels_data_saver_default': false,
     });
     await _remoteConfig.fetchAndActivate();

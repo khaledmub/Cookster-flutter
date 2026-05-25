@@ -11,6 +11,7 @@ import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
 import 'package:get/get.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../../../appBindings/app_bindings.dart';
 import '../../../../appRoutes/appRoutes.dart';
 import '../../../../services/apiClient.dart';
 import '../../../landing/landingView/landingView.dart';
@@ -914,7 +915,10 @@ void showSuccessDialog() {
     desc: "account created successfully".tr,
     btnOkText: "ok".tr,
     btnOkOnPress: () {
-      Get.offAll(Landing(initialIndex: 0));
+      Get.offAll(
+        () => Landing(initialIndex: 0),
+        binding: LandingBinding(),
+      );
     },
   )..show();
 }

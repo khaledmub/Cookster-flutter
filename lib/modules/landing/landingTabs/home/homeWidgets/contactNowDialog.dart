@@ -1,4 +1,5 @@
 import 'package:awesome_dialog/awesome_dialog.dart';
+import 'package:cookster/appBindings/app_bindings.dart';
 import 'package:cookster/modules/landing/landingTabs/home/homeWidgets/sendEmail.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -176,7 +177,10 @@ Widget _buildContactOptionsLayout({
             label: 'email'.tr,
             onTap: () {
               Navigator.pop(context);
-              Get.to(SendEmailContact(videoId: videoId));
+              Get.to(
+                () => SendEmailContact(videoId: videoId),
+                binding: SendEmailBinding(),
+              );
             },
             color: Color(0xFFEA4335),
             smallScreen: smallScreen,
@@ -229,7 +233,10 @@ Widget _buildContactOptionsLayout({
             icon: 'assets/images/email.png',
             label: 'email'.tr,
             onTap: () {
-              Get.to(() => SendEmailContact(videoId: videoId));
+              Get.to(
+                () => SendEmailContact(videoId: videoId),
+                binding: SendEmailBinding(),
+              );
             },
             color: Color(0xFFEA4335),
             smallScreen: smallScreen,

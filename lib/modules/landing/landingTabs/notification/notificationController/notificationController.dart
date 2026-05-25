@@ -1,4 +1,6 @@
 import 'dart:convert';
+import 'package:cookster/core/parsing/feed_parsers.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../../../../appUtils/apiEndPoints.dart';
@@ -15,11 +17,13 @@ class NotificationController extends GetxController {
     try {
       final response = await ApiClient.getRequest(EndPoints.notifications);
 
-      print(response.body);
+      if (kDebugMode) {
+        debugPrint('Notifications response length: ${response.body.length}');
+      }
 
       if (response.statusCode == 200) {
-        final jsonResponse = json.decode(response.body);
-        notificationData.value = NotificationModel.fromJson(jsonResponse);
+        final parsed = await compute(parseNotificationsFull, response.body);
+        notificationData.value = parsed;
       } else {
         // Decode the response body to extract the server message
         final responseBody = jsonDecode(response.body);
@@ -31,7 +35,7 @@ class NotificationController extends GetxController {
         );
       }
     } catch (e) {
-      print("Error fetching notifications: $e");
+      debugPrint("Error fetching notifications: $e");
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text("Something went wrong: $e"),
@@ -45,5 +49,11 @@ class NotificationController extends GetxController {
 
   void clearNotifications() {
     notificationData.value = NotificationModel();
+  }
+
+  @override
+  void onClose() {
+    clearNotifications();
+    super.onClose();
   }
 }

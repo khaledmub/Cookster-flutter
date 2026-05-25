@@ -19,9 +19,13 @@ import 'package:urwaypayment/urwaypayment.dart';
 import 'package:video_thumbnail/video_thumbnail.dart';
 
 import '../../../../../loaders/pulseLoader.dart';
+import '../../../../../appBindings/app_bindings.dart';
 import '../../../../../services/apiClient.dart';
+import '../../../../../services/video_settings_service.dart';
+import '../../../../../services/video_processing_service.dart';
 import '../../../../../services/urway_response_config.dart';
 import '../../../../promoteVideo/promoteVideoModel/promoteVideoModel.dart';
+import '../../professionalProfile/profileControlller/professionalProfileController.dart';
 import '../../profile/profileControlller/profileController.dart';
 
 enum VisibilityOption { public, onlyFollowers, private }
@@ -120,6 +124,9 @@ class VideoAddController extends GetxController {
   final TextEditingController menuController = TextEditingController();
   var isUploadSuccessful = false.obs; // New variable to track success
   var uploadProgress = 0.0.obs;
+  int _lastUploadProgressPercent = -1;
+  File? _cachedThumbnail;
+  Future<File?>? _thumbnailInFlight;
   var selectedCountryId = 0.obs;
 
   int get visibilityValue => selectedVisibility.value.value;
@@ -135,8 +142,8 @@ class VideoAddController extends GetxController {
   var acceptOrder = false.obs;
   var publishType = "2".obs;
   var allowComments = true.obs;
-  var selectedLocationId = -1.obs;
-  var selectedCityId = -1.obs;
+  final RxInt selectedLocationId = (-1).obs;
+  final RxInt selectedCityId = (-1).obs;
   var selectedSponsorCountryName = "".obs;
   var selectedSponsorLocationId = 0.obs;
   var selectedCities = <String>[].obs;
@@ -194,13 +201,22 @@ class VideoAddController extends GetxController {
 
         // If country ID is found, fetch cities for that country
         if (countryId != null) {
+          selectedLocationId.value = countryId;
+          selectedCountryId.value = countryId;
           await cityController.fetchCities(countryId);
-          // Optionally, verify if the stored city is valid for the country
           final cities = cityController.cityList;
-          bool isValidCity = cities.any((city) => city.name == storedCity);
-          if (!isValidCity) {
-            // If the stored city is not valid, reset it
+          int? cityId;
+          for (final c in cities) {
+            if (c.name == storedCity && c.id != null) {
+              cityId = c.id;
+              break;
+            }
+          }
+          if (cityId != null) {
+            selectedCityId.value = cityId;
+          } else if (!cities.any((c) => c.name == storedCity)) {
             selectedCity.value = 'Unknown';
+            selectedCityId.value = -1;
             await prefs.setString('currentCity', 'Unknown');
           }
         } else {
@@ -404,68 +420,67 @@ class VideoAddController extends GetxController {
 
   void selectLocation(String location, int stateId) {
     selectedCountry.value = location;
-    selectedLocationId = stateId;
+    selectedLocationId.value = stateId;
+    selectedCountryId.value = stateId;
     print("Selected Location: ${selectedCountry.value} (ID: $stateId)");
   }
 
-  void selectCity(String location, int cityId) {
+  void selectCity(String location, int cityIdValue) {
     selectedCity.value = location;
-    selectedCityId = cityId;
-    print("Selected Location: ${selectedCountry.value} (ID: $cityId)");
+    selectedCityId.value = cityIdValue;
+    print("Selected City: ${selectedCity.value} (ID: $cityIdValue)");
+  }
+
+  /// Resolves country/city display names to API ids (required for upload).
+  Future<bool> ensureLocationIdsReady() async {
+    final profileController = Get.find<ProfileController>();
+    final cityController = Get.find<CityController>();
+
+    if (profileController.videoUploadSettings.value?.countries == null) {
+      await VideoSettingsService.instance.load();
+    }
+
+    final countries = profileController.videoUploadSettings.value?.countries;
+    if (countries == null || countries.isEmpty) return false;
+
+    final country = selectedCountry.value.trim();
+    final city = selectedCity.value.trim();
+    if (country.isEmpty ||
+        city.isEmpty ||
+        country == 'Unknown' ||
+        city == 'Unknown') {
+      return false;
+    }
+
+    int? countryId;
+    for (final c in countries) {
+      if (c.name == country && c.id != null) {
+        countryId = c.id;
+        break;
+      }
+    }
+    if (countryId == null) return false;
+
+    selectedLocationId.value = countryId;
+    selectedCountryId.value = countryId;
+
+    final needsCities = cityController.cityList.isEmpty ||
+        !cityController.cityList.any((c) => c.name == city);
+    if (needsCities) {
+      await cityController.fetchCities(countryId);
+    }
+
+    for (final c in cityController.cityList) {
+      if (c.name == city && c.id != null) {
+        selectedCityId.value = c.id!;
+        return true;
+      }
+    }
+    return false;
   }
 
   void validateSelectedCountry() {
-    final ProfileController profileController = Get.find();
-    final CityController cityController = Get.find<CityController>();
-
-    // Validate selected country
-    final Map<String, int> countryMap = {};
-    final List<String> countryName =
-        profileController.videoUploadSettings.value!.countries!.map((country) {
-          countryMap[country.name!] = country.id!;
-          return country.name!;
-        }).toList();
-
-    if (selectedCountry.value.isNotEmpty &&
-        countryName.contains(selectedCountry.value)) {
-      // If country exists in the list, set the corresponding ID
-      int? countryId = countryMap[selectedCountry.value];
-      if (countryId != null) {
-        selectedCountryId.value = countryId; // Set the country ID
-      }
-    } else {
-      // If country does not exist, clear it and related fields
-      selectedCountry.value = '';
-      selectedCountryId.value = 0; // Clear country ID
-      selectedCity.value = ''; // Clear city
-      selectedCityId = 0; // Clear city ID
-    }
-
-    // Validate selected city
-    if (selectedCountry.value.isNotEmpty && selectedCity.value.isNotEmpty) {
-      final Map<String, int> cityMap = {};
-      final List<String> cityName =
-          cityController.cityList.map((city) {
-            cityMap[city.name!] = city.id!;
-            return city.name!;
-          }).toList();
-
-      if (cityName.contains(selectedCity.value)) {
-        // If city exists in the list, set the corresponding ID
-        int? cityId = cityMap[selectedCity.value];
-        if (cityId != null) {
-          selectedCityId = cityId; // Set the city ID
-        }
-      } else {
-        // If city does not exist, clear it
-        selectedCity.value = '';
-        selectedCityId = 0; // Clear city ID
-      }
-    } else {
-      // If no country is selected, clear city and city ID
-      selectedCity.value = '';
-      selectedCityId = 0;
-    }
+    unawaited(ensureLocationIdsReady());
   }
 
   void setVisibility(VisibilityOption option) {
@@ -498,16 +513,79 @@ class VideoAddController extends GetxController {
     acceptOrder.value = !acceptOrder.value;
   }
 
-  void updateTitle(String title) {
-    videoTitle.value = title;
-  }
-
-  void updateDescription(String description) {
-    videoDescription.value = description;
+  void syncFormTextFromControllers() {
+    videoTitle.value = titleController.text;
+    videoDescription.value = descriptionController.text;
   }
 
   void nextStep() {
-    if (currentStep < 3) currentStep.value++;
+    if (currentStep.value == 1) {
+      syncFormTextFromControllers();
+    }
+    if (currentStep.value < 3) {
+      currentStep.value++;
+    }
+    if (currentStep.value == 3) {
+      validateSelectedCountry();
+    }
+  }
+
+  /// Pre-generate thumbnail off the upload button critical path.
+  Future<void> prepareThumbnail(File videoFile) async {
+    await ensureThumbnail(videoFile);
+  }
+
+  Future<File?> ensureThumbnail(File videoFile) async {
+    if (_cachedThumbnail != null && await _cachedThumbnail!.exists()) {
+      return _cachedThumbnail;
+    }
+    _thumbnailInFlight ??= _generateThumbnail(videoFile);
+    try {
+      _cachedThumbnail = await _thumbnailInFlight;
+      return _cachedThumbnail;
+    } finally {
+      _thumbnailInFlight = null;
+    }
+  }
+
+  Future<File?> _generateThumbnail(File videoFile) async {
+    try {
+      final thumbnailPath = await VideoThumbnail.thumbnailFile(
+        video: videoFile.path,
+        thumbnailPath: (await getTemporaryDirectory()).path,
+        imageFormat: ImageFormat.JPEG,
+        quality: 50,
+      );
+      if (thumbnailPath == null) return null;
+      return File(thumbnailPath);
+    } catch (e) {
+      print('Error generating thumbnail: $e');
+      return null;
+    }
+  }
+
+  void _reportUploadProgress(double progress) {
+    final percent = (progress * 100).floor().clamp(0, 100);
+    if (percent == _lastUploadProgressPercent) return;
+    _lastUploadProgressPercent = percent;
+    uploadProgress.value = progress;
+  }
+
+  void _resetUploadProgressTracking() {
+    _lastUploadProgressPercent = -1;
+    uploadProgress.value = 0;
+  }
+
+  /// Reloads the active profile so the new upload appears on the profile tab.
+  Future<void> _refreshProfileAfterUpload() async {
+    ensureLandingProfileControllers();
+    final prefs = await SharedPreferences.getInstance();
+    final entity = prefs.getInt('entity') ?? 0;
+    if (entity == 2) {
+      await Get.find<ProfessionalProfileController>().getUserDetails();
+    } else {
+      await Get.find<ProfileController>().getUserDetails();
+    }
   }
 
   void previousStep() {
@@ -538,6 +616,17 @@ class VideoAddController extends GetxController {
   // Front-end cap to keep multipart request safely under backend/nginx limits.
   // Backend guidance: nginx 300m, PHP upload_max_filesize 256M -> cap to ~250MB.
   static const int _clientMaxVideoBytes = 250 * 1024 * 1024; // 250 MiB
+
+  void _scheduleThumbnailProcessingPoll(String responseBody) {
+    final videoId =
+        VideoProcessingService.extractVideoIdFromUploadResponse(responseBody);
+    if (videoId != null) {
+      VideoProcessingService.scheduleBackgroundPoll(
+        videoId,
+        waitForTranscode: true,
+      );
+    }
+  }
   static const Set<String> _supportedVideoExtensions = {
     'mp4',
     'mov',
@@ -589,6 +678,8 @@ class VideoAddController extends GetxController {
 
   Future<void> uploadVideo(File videoFile, BuildContext context) async {
     if (isVideoUploading.value || isCompressing.value) return;
+    syncFormTextFromControllers();
+    _resetUploadProgressTracking();
     if (!_isSupportedVideoFormat(videoFile)) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -622,6 +713,28 @@ class VideoAddController extends GetxController {
         );
         return;
       }
+
+      if (!await ensureLocationIdsReady()) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("select_country_city_error".tr),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        return;
+      }
+    }
+
+    if (videoType.value.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("select_video_type".tr),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
     }
 
     // Additional validation for sponsored videos
@@ -640,6 +753,17 @@ class VideoAddController extends GetxController {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(errorMessage),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        return;
+      }
+
+      if (!await ensureLocationIdsReady()) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("select_country_city_error".tr),
             backgroundColor: Colors.red,
             behavior: SnackBarBehavior.floating,
           ),
@@ -689,38 +813,17 @@ class VideoAddController extends GetxController {
       isVideoUploading.value = true;
       isUploadSuccessful.value = false;
 
-      String? thumbnailPath;
-      try {
-        thumbnailPath = await VideoThumbnail.thumbnailFile(
-          video: videoFile.path,
-          thumbnailPath: (await getTemporaryDirectory()).path,
-          imageFormat: ImageFormat.JPEG,
-          quality: 50,
-        );
-      } catch (e) {
-        print("Error generating thumbnail: $e");
-      }
-
-      if (thumbnailPath == null) {
+      final File? thumbnailFile = await ensureThumbnail(videoFile);
+      if (thumbnailFile == null) {
         print(
           "Warning: Thumbnail generation failed. Proceeding without thumbnail.",
         );
       }
 
-      File? thumbnailFile = thumbnailPath != null ? File(thumbnailPath) : null;
-
       var request = http.MultipartRequest(
         'POST',
         Uri.parse("${Common.baseUrl}${EndPoints.uploadVideo}"),
       );
-
-      SharedPreferences prefs = await SharedPreferences.getInstance();
-      String? token = prefs.getString('auth_token');
-
-      request.headers.addAll({
-        "Accept": "application/json",
-        "Authorization": token != null ? "Bearer $token" : "",
-      });
 
       final sponsorType = selectedVideoType.value == "Basic" ? 1 : 2;
 
@@ -729,8 +832,8 @@ class VideoAddController extends GetxController {
       request.fields['video_type'] = videoType.value;
       request.fields['tags'] = tagsList.join(',');
       request.fields['menu'] = menuList.join(',');
-      request.fields['country'] = selectedLocationId.toString();
-      request.fields['city'] = selectedCityId.toString();
+      request.fields['country'] = selectedLocationId.value.toString();
+      request.fields['city'] = selectedCityId.value.toString();
       request.fields['location'] = "";
       request.fields['take_order'] = acceptOrder.value ? '1' : '0';
       request.fields['allow_comments'] = allowComments.value ? "1" : "0";
@@ -788,8 +891,7 @@ class VideoAddController extends GetxController {
         StreamTransformer<List<int>, List<int>>.fromHandlers(
           handleData: (data, sink) {
             bytesSent += data.length;
-            double progress = bytesSent / videoLength;
-            uploadProgress.value = progress;
+            _reportUploadProgress(bytesSent / videoLength);
             sink.add(data);
           },
         ),
@@ -811,8 +913,7 @@ class VideoAddController extends GetxController {
       }
 
       try {
-        var streamedResponse = await request.send();
-        var response = await http.Response.fromStream(streamedResponse);
+        var response = await ApiClient.sendMultipartRequest(request);
 
         dialog.dismiss();
 
@@ -822,8 +923,13 @@ class VideoAddController extends GetxController {
           isVideoUploading.value = false;
           isUploadSuccessful.value = true;
 
+          _scheduleThumbnailProcessingPoll(response.body);
           resetController();
-          Get.offAll(() => Landing(initialIndex: 3));
+          await _refreshProfileAfterUpload();
+          Get.offAll(
+            () => Landing(initialIndex: 3),
+            binding: LandingBinding(),
+          );
 
           // AwesomeDialog(
           //   context: context,
@@ -915,52 +1021,34 @@ class VideoAddController extends GetxController {
       isVideoUploading.value = true;
       isUploadSuccessful.value = false;
 
-      String? thumbnailPath;
-      try {
-        thumbnailPath = await VideoThumbnail.thumbnailFile(
-          video: videoFile.path,
-          thumbnailPath: (await getTemporaryDirectory()).path,
-          imageFormat: ImageFormat.JPEG,
-          quality: 50,
-        );
-      } catch (e) {
-        print("Error generating thumbnail: $e");
-      }
-
-      if (thumbnailPath == null) {
+      final File? thumbnailFile = await ensureThumbnail(videoFile);
+      if (thumbnailFile == null) {
         print(
           "Warning: Thumbnail generation failed. Proceeding without thumbnail.",
         );
       }
-
-      File? thumbnailFile = thumbnailPath != null ? File(thumbnailPath) : null;
 
       var request = http.MultipartRequest(
         'POST',
         Uri.parse("${Common.baseUrl}${EndPoints.uploadVideo}"),
       );
 
-      SharedPreferences prefs = await SharedPreferences.getInstance();
-      String? token = prefs.getString('auth_token');
-
-      request.headers.addAll({
-        "Accept": "application/json",
-        "Authorization": token != null ? "Bearer $token" : "",
-      });
-
       request.fields['title'] = videoTitle.value;
       request.fields['description'] = videoDescription.value;
       request.fields['video_type'] = videoType.value;
       request.fields['tags'] = tagsList.join(',');
       request.fields['menu'] = menuList.join(',');
-      request.fields['country'] = selectedLocationId.toString();
-      request.fields['city'] = selectedCityId.toString();
+      request.fields['country'] = selectedLocationId.value.toString();
+      request.fields['city'] = selectedCityId.value.toString();
       request.fields['location'] = "";
       request.fields['take_order'] = acceptOrder.value ? '1' : '0';
       request.fields['allow_comments'] = allowComments.value ? "1" : "0";
       request.fields['publish_type'] = publishType.value;
       request.fields['is_image'] = isImage.value;
 
+      print(
+        "Upload payload location: country=${selectedLocationId.value} city=${selectedCityId.value} video_type=${videoType.value}",
+      );
       print("Is Image?: ${isImage}");
 
       AwesomeDialog? dialog;
@@ -991,8 +1079,7 @@ class VideoAddController extends GetxController {
         StreamTransformer<List<int>, List<int>>.fromHandlers(
           handleData: (data, sink) {
             bytesSent += data.length;
-            double progress = bytesSent / videoLength;
-            uploadProgress.value = progress;
+            _reportUploadProgress(bytesSent / videoLength);
             sink.add(data);
           },
         ),
@@ -1014,8 +1101,7 @@ class VideoAddController extends GetxController {
       }
 
       try {
-        var streamedResponse = await request.send();
-        var response = await http.Response.fromStream(streamedResponse);
+        var response = await ApiClient.sendMultipartRequest(request);
 
         dialog.dismiss();
 
@@ -1024,6 +1110,8 @@ class VideoAddController extends GetxController {
           print("Response: ${response.body}");
           isVideoUploading.value = false;
           isUploadSuccessful.value = true;
+
+          _scheduleThumbnailProcessingPoll(response.body);
 
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -1039,7 +1127,11 @@ class VideoAddController extends GetxController {
           );
 
           resetController();
-          Get.offAll(() => Landing(initialIndex: 3));
+          await _refreshProfileAfterUpload();
+          Get.offAll(
+            () => Landing(initialIndex: 3),
+            binding: LandingBinding(),
+          );
         } else {
           print("❌ Failed to upload video. Status: ${response.statusCode}");
           print("Response: ${response.body}");
@@ -1285,7 +1377,9 @@ class VideoAddController extends GetxController {
     videoType.value = "";
     tagsList.clear();
     menuList.clear();
-    selectedLocationId = -1;
+    selectedLocationId.value = -1;
+    selectedCityId.value = -1;
+    selectedCountryId.value = 0;
     acceptOrder.value = false;
     allowComments.value = true;
     publishType.value = "2";
@@ -1294,6 +1388,9 @@ class VideoAddController extends GetxController {
     selectedCountry.value = "";
     selectedCity.value = "";
     currentStep.value = 1;
+    _cachedThumbnail = null;
+    _thumbnailInFlight = null;
+    _resetUploadProgressTracking();
   }
 
   Future<void> fetchSiteSettings() async {
@@ -1326,24 +1423,25 @@ class VideoAddController extends GetxController {
   }
 
   @override
-  void onInit() async {
+  void onInit() {
+    super.onInit();
     titleController.text = videoTitle.value;
     descriptionController.text = videoDescription.value;
-    _loadBadWords();
-    await fetchSiteSettings();
-    print("Fetching entities");
-    await fetchEntity();
-    // await loadLocationData();
-    super.onInit();
+    unawaited(_loadBadWords());
   }
 
   @override
-  void dispose() {
-    print('EditVideoView dispose: Disposing controllers');
+  void onReady() {
+    super.onReady();
+    unawaited(fetchSiteSettings());
+    unawaited(fetchEntity());
+  }
+
+  @override
+  void onClose() {
     titleController.dispose();
     descriptionController.dispose();
-    // tagFocusNode.dispose();
-    super.dispose();
+    super.onClose();
   }
 }
 
@@ -1852,7 +1950,10 @@ void showSuccessDialog() {
 
   // Optional: Add a delay before navigation if you want the dialog to be visible briefly
   Future.delayed(Duration(seconds: 3), () {
-    Get.offAll(() => Landing());
+    Get.offAll(
+      () => Landing(),
+      binding: LandingBinding(),
+    );
   });
 }
 
