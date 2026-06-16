@@ -1,3 +1,5 @@
+import 'package:cookster/modules/landing/landingTabs/home/homeModel/video_sources.dart';
+
 class SimpleUserDetails {
   bool? status;
   SimpleUser? user;
@@ -116,6 +118,7 @@ class SimpleUser {
   dynamic id;
   dynamic systemId;
   dynamic name;
+  dynamic userName;
   dynamic email;
   dynamic phone;
   dynamic dob;
@@ -126,11 +129,14 @@ class SimpleUser {
   dynamic updatedAt;
   dynamic country;
   dynamic city;
+  dynamic countryName;
+  dynamic cityName;
 
   SimpleUser({
     this.id,
     this.systemId,
     this.name,
+    this.userName,
     this.email,
     this.phone,
     this.dob,
@@ -141,12 +147,15 @@ class SimpleUser {
     this.updatedAt,
     this.country,
     this.city,
+    this.countryName,
+    this.cityName,
   });
 
   SimpleUser.fromJson(Map<String, dynamic> json) {
     id = json['id'];
     systemId = json['system_id'];
     name = json['name'];
+    userName = json['user_name'];
     email = json['email'];
     phone = json['phone'];
     dob = json['dob'];
@@ -157,6 +166,8 @@ class SimpleUser {
     updatedAt = json['updated_at'];
     country = json['country'];
     city = json['city'];
+    countryName = json['country_name'];
+    cityName = json['city_name'];
   }
 
   Map<String, dynamic> toJson() {
@@ -164,6 +175,7 @@ class SimpleUser {
     data['id'] = this.id;
     data['system_id'] = this.systemId;
     data['name'] = this.name;
+    data['user_name'] = this.userName;
     data['email'] = this.email;
     data['phone'] = this.phone;
     data['dob'] = this.dob;
@@ -174,6 +186,8 @@ class SimpleUser {
     data['updated_at'] = this.updatedAt;
     data['country'] = this.country;
     data['city'] = this.city;
+    data['country_name'] = this.countryName;
+    data['city_name'] = this.cityName;
 
     return data;
   }
@@ -409,6 +423,13 @@ class UserVideos {
   dynamic allowComments;
   dynamic location;
   dynamic image;
+  dynamic imageUrl;
+  dynamic thumbnailUrl;
+  dynamic hlsUrl;
+  dynamic hlsPlaylistUrl;
+  dynamic transcodeStatus;
+  dynamic processingStatus;
+  VideoSources? videoSources;
   dynamic video;
   dynamic videoUrl;
   dynamic country;
@@ -481,6 +502,15 @@ class UserVideos {
     allowComments = json['allow_comments'];
     location = json['location'];
     image = json['image'];
+    imageUrl = json['image_url'];
+    thumbnailUrl = json['thumbnail_url'] ?? json['thumbnail'];
+    hlsUrl = json['hls_url'];
+    hlsPlaylistUrl = json['hls_playlist_url'];
+    transcodeStatus = json['transcode_status'];
+    processingStatus = json['processing_status'];
+    if (json['video_sources'] != null) {
+      videoSources = VideoSources.fromJson(json['video_sources']);
+    }
     video = json['video'];
     videoUrl = json['video_url'];
     country = json['country'];

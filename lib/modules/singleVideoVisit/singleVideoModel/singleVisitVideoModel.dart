@@ -1,3 +1,7 @@
+import 'package:cookster/core/media/media_url_resolver.dart';
+import 'package:cookster/core/media/playback_media.dart';
+import 'package:cookster/modules/landing/landingTabs/home/homeModel/video_sources.dart';
+
 class SingleVideoDetail {
   bool? status;
   Video? video;
@@ -35,6 +39,14 @@ class Video {
   String? image;
   String? video;
   String? videoUrl;
+  String? thumbnailUrl;
+  String? thumbnailBlur;
+  String? imageUrl;
+  String? hlsUrl;
+  String? hlsPlaylistUrl;
+  String? transcodeStatus;
+  String? processingStatus;
+  VideoSources? videoSources;
   int? state;
   int? status;
   String? createdAt;
@@ -90,6 +102,14 @@ class Video {
     image = json['image'];
     video = json['video'];
     videoUrl = json['video_url'];
+    thumbnailUrl = json['thumbnail_url'];
+    thumbnailBlur = json['thumbnail_blur'];
+    imageUrl = json['image_url'];
+    hlsUrl = json['hls_url'];
+    hlsPlaylistUrl = json['hls_playlist_url'];
+    transcodeStatus = json['transcode_status'];
+    processingStatus = json['processing_status'];
+    videoSources = PlaybackMedia.parseSources(json['video_sources']);
     state = json['state'];
     status = json['status'];
     createdAt = json['created_at'];
@@ -132,4 +152,30 @@ class Video {
     data['following_count'] = this.followingCount;
     return data;
   }
+}
+
+extension SingleVideoDetailMedia on Video {
+  String? get resolvedPlaybackUrl => MediaUrlResolver.playbackUrl(
+        videoUrl: videoUrl,
+        video: video,
+      );
+
+  String? get resolvedThumbnailUrl => MediaUrlResolver.thumbnailUrl(
+        thumbnailUrl: thumbnailUrl,
+        imageUrl: imageUrl,
+        image: image,
+      );
+
+  bool get isTranscodeReady => PlaybackMedia.isReady(transcodeStatus);
+
+  String? get resolvedHlsUrl => PlaybackMedia.resolvedHls(
+        transcodeStatus: transcodeStatus,
+        hlsPlaylistUrl: hlsPlaylistUrl,
+        hlsUrl: hlsUrl,
+      );
+
+  List<String> get qualityMp4Urls => PlaybackMedia.ladder(
+        transcodeStatus: transcodeStatus,
+        sources: videoSources,
+      );
 }

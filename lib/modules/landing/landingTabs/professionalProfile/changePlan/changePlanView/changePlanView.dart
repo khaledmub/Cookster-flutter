@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:intl/intl.dart'; // Added for number formatting
+import 'package:cookster/core/navigation/route_back.dart';
 import 'package:cookster/appUtils/appUtils.dart';
 import 'package:cookster/modules/landing/landingTabs/add/videoAddController/videoAddController.dart';
 import 'package:cookster/modules/landing/landingTabs/professionalProfile/changePlan/changePlanController/changePlanController.dart';
@@ -222,7 +223,7 @@ class _ChangePlanViewState extends State<ChangePlanView> {
                 onTap: () {
                   try {
                     print("Tapped");
-                    Get.back();
+                    navigateBack();
                   } catch (e) {
                     print(e);
                   }

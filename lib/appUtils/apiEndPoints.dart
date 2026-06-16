@@ -1,9 +1,13 @@
 class Common {
-  /// Override at build time: `--dart-define=API_BASE_URL=https://cookster.mubreq.com/api/`
-  /// Production: `--dart-define=API_BASE_URL=https://cookster.org/api/`
+  /// Override at build time: `--dart-define=API_BASE_URL=https://cookster.org/api/`
+  /// Test VM IP override: `--dart-define=TEST_SERVER_IP=34.40.83.204`
   static const String _apiBaseOverride = String.fromEnvironment('API_BASE_URL');
+  static const String testServerIp = String.fromEnvironment(
+    'TEST_SERVER_IP',
+    defaultValue: '34.40.83.204',
+  );
 
-  static const String _defaultApiBase = 'https://cookster.mubreq.com/api/';
+  static const String _defaultApiBase = 'https://34.40.83.204/api/';
   static String get baseUrl {
     if (_apiBaseOverride.isNotEmpty) {
       return _apiBaseOverride.endsWith('/')
@@ -13,11 +17,20 @@ class Common {
     return _defaultApiBase;
   }
 
-  static bool get isTestApi => baseUrl.contains('mubreq.com');
+  static bool get isTestApi =>
+      baseUrl.contains('mubreq.com') || baseUrl.contains(testServerIp);
+
+  static bool get usesTestServerRouting =>
+      testServerIp.isNotEmpty &&
+      _apiBaseOverride.isEmpty &&
+      baseUrl.contains(testServerIp);
 
   static String get imageBaseUrl {
-    if (isTestApi) {
+    if (baseUrl.contains('mubreq.com')) {
       return 'https://cookster.mubreq.com/storage/';
+    }
+    if (baseUrl.contains(testServerIp)) {
+      return 'https://$testServerIp/storage/';
     }
     return 'https://cookster.org/storage/';
   }
@@ -92,5 +105,6 @@ class EndPoints {
   static String siteSettings = "site_settings";
   static String onBoarding = "started_screens";
   static String validateRegister = "validate_register";
+  static String checkUsername = "check_username";
   static String deleteAccount = "delete_account";
 }

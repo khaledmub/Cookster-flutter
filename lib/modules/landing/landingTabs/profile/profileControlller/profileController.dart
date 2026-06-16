@@ -5,6 +5,8 @@ import 'package:awesome_dialog/awesome_dialog.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cookster/appRoutes/appRoutes.dart';
 import 'package:cookster/appUtils/apiEndPoints.dart';
+import 'package:cookster/core/user/public_user_identity.dart';
+import 'package:cookster/services/username_availability_service.dart';
 import 'package:cookster/core/parsing/feed_parsers.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -42,13 +44,13 @@ class ProfileController extends GetxController {
   var isFollowingLoading = false.obs;
   var selectedImage = Rxn<File>();
   final profileImageRefreshToken = 0.obs;
-  var countryId = -1.obs;
+  int countryId = -1;
   var selectCountryId = "".obs;
   var selectedCityId = "".obs;
   var selectedAccountType = "".obs;
   var isSettingsLoading = false.obs;
 
-  var cityId = -1.obs;
+  int cityId = -1;
   var profileLikesCount = 0.obs;
 
   Stream<int> checkReceivedLikes(String currentUserId) {
@@ -94,10 +96,14 @@ class ProfileController extends GetxController {
   }
 
   final TextEditingController nameController = TextEditingController();
+  final TextEditingController usernameController = TextEditingController();
   final TextEditingController emailController = TextEditingController();
   final TextEditingController birthdayController = TextEditingController();
   final TextEditingController phoneNumberController = TextEditingController();
   final TextEditingController passwordController = TextEditingController();
+  var isCheckingUsername = false.obs;
+  var isUsernameAvailable = RxnBool();
+  String? initialUsername;
   var videoUploadSettings = Rxn<VideoUploadSettings>();
 
   // Check if current user is following a specific user
@@ -241,6 +247,32 @@ class ProfileController extends GetxController {
     }
 
     return null; // Valid name
+  }
+
+  String? usernameValidator(String? value) {
+    return PublicUserIdentity.validateUsernameFormat(value);
+  }
+
+  Future<void> checkUsernameAvailability() async {
+    final normalized =
+        PublicUserIdentity.normalizeUsername(usernameController.text);
+    if (normalized == (initialUsername ?? '')) {
+      isUsernameAvailable.value = true;
+      return;
+    }
+    final formatError = usernameValidator(normalized);
+    if (formatError != null) {
+      isUsernameAvailable.value = null;
+      return;
+    }
+
+    isCheckingUsername.value = true;
+    try {
+      isUsernameAvailable.value =
+          await UsernameAvailabilityService.checkAvailability(normalized);
+    } finally {
+      isCheckingUsername.value = false;
+    }
   }
 
   String? dobValidator(String? value) {
@@ -584,6 +616,7 @@ class ProfileController extends GetxController {
 
   Future<void> updateUserProfile({
     String? name,
+    String? userName,
     String? dob,
     String? password,
     String? phoneNumber,
@@ -608,13 +641,17 @@ class ProfileController extends GetxController {
       final files = <http.MultipartFile>[];
 
       if (name?.isNotEmpty ?? false) fields['name'] = name!;
+      if (userName?.isNotEmpty ?? false) {
+        fields['user_name'] = PublicUserIdentity.normalizeUsername(userName!);
+      }
       if (dob?.isNotEmpty ?? false) fields['dob'] = dob!;
       if (password?.isNotEmpty ?? false) fields['password'] = password!;
       if (phoneNumber?.isNotEmpty ?? false) fields['phone'] = phoneNumber!;
       if (countryId != -1) fields['country'] = countryId.toString();
       if (cityId != -1) fields['city'] = cityId.toString();
-      if (selectedAccountType != -1) {
-        fields['type_of_account'] = selectedAccountType.toString();
+      if (selectedAccountType.value.isNotEmpty &&
+          selectedAccountType.value != '-1') {
+        fields['type_of_account'] = selectedAccountType.value;
       }
 
       if (imageFile != null) {
@@ -740,6 +777,7 @@ class ProfileController extends GetxController {
   @override
   void onClose() {
     nameController.dispose();
+    usernameController.dispose();
     emailController.dispose();
     birthdayController.dispose();
     phoneNumberController.dispose();

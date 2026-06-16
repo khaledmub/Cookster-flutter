@@ -53,8 +53,8 @@ class BlockedUsersController extends GetxController {
       filteredBlockedUsersList.assignAll(
         blockedUsersList.where((user) {
           final name = (user.name ?? '').toLowerCase();
-          final email = (user.email ?? '').toLowerCase();
-          return name.contains(lowerQuery) || email.contains(lowerQuery);
+          final handle = (user.userName ?? '').toLowerCase();
+          return name.contains(lowerQuery) || handle.contains(lowerQuery);
         }).toList(),
       );
     }

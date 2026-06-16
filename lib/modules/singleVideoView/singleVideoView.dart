@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:awesome_dialog/awesome_dialog.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:cookster/core/text/hashtag_text.dart';
 import 'package:cookster/core/video/fullscreen_video_playback.dart';
 import 'package:cookster/core/video/media_kit_player_pool.dart';
 import 'package:cookster/modules/landing/landingTabs/home/homeWidgets/videoPlayerWidget.dart';
@@ -47,6 +48,9 @@ class SingleVideoScreen extends StatefulWidget {
   final String? userImage;
   final String? videoId;
   final String? videoUrl;
+  final String? hlsUrl;
+  final List<String> qualityMp4Urls;
+  final String? thumbnailUrl;
   final String? title;
   final String? description;
   final String? tags;
@@ -69,6 +73,9 @@ class SingleVideoScreen extends StatefulWidget {
     this.userImage,
     this.videoId,
     this.videoUrl,
+    this.hlsUrl,
+    this.qualityMp4Urls = const [],
+    this.thumbnailUrl,
     this.title,
     this.description,
     this.tags,
@@ -261,9 +268,10 @@ class _SingleVideoScreenState extends State<SingleVideoScreen>
     }
 
     final String? resolvedVideoUrl = _resolveMediaUrl(
-      primary: widget.videoUrl,
-      fallback: widget.image,
-    );
+          primary: widget.videoUrl,
+          fallback: widget.image,
+        ) ??
+        widget.hlsUrl;
 
     if (resolvedVideoUrl == null) {
       if (mounted) {
@@ -465,8 +473,10 @@ class _SingleVideoScreenState extends State<SingleVideoScreen>
                           ? VideoPlayerWidget(
                             key: ValueKey('single_${_playerKey}_ready'),
                             videoUrl: _resolvedVideoUrl!,
+                            hlsUrl: widget.hlsUrl,
+                            qualityMp4Urls: widget.qualityMp4Urls,
                             thumbnailUrl: _resolveThumbnailUrl(
-                                  thumbnail: widget.image,
+                                  thumbnail: widget.thumbnailUrl ?? widget.image,
                                   image: widget.image,
                                 ) ??
                                 '',
@@ -847,10 +857,9 @@ class _SingleVideoScreenState extends State<SingleVideoScreen>
                               SizedBox(height: 8),
 
                               Obx(() {
-                                // Check if video is already saved
-                                bool isSaved = saveController.savedVideos.any(
-                                  (video) =>
-                                      video.id.toString() == widget.videoId,
+                                saveController.savedIdRevision.value;
+                                final isSaved = saveController.isVideoSaved(
+                                  widget.videoId.toString(),
                                 );
 
                                 return Column(
@@ -1546,8 +1555,9 @@ class _VideoDescriptionWidgetState extends State<VideoDescriptionWidget> {
     )..layout(maxWidth: maxDescriptionWidth);
 
     // Check tag overflow
-    final String tagLine =
-        widget.tags?.split(',').map((t) => '#${t.trim()}').join(' ') ?? '';
+    final String tagLine = HashtagText.splitTags(widget.tags)
+        .map(HashtagText.displayLabel)
+        .join(' ');
     final TextPainter tagPainter = TextPainter(
       text: TextSpan(text: tagLine, style: tagStyle),
       maxLines: 1,
@@ -1658,19 +1668,20 @@ class _VideoDescriptionWidgetState extends State<VideoDescriptionWidget> {
                       child: Wrap(
                         spacing: 8.0,
                         runSpacing: 4.0,
-                        children:
-                            widget.tags!.split(',').map((tag) {
-                              final trimmedTag = tag.trim();
-                              return InkWell(
-                                onTap: () {
-                                  // _pauseVideo();
-                                  Get.off(
-                                    HashtagReelScreen(tag: trimmedTag),
-                                  );
-                                },
-                                child: Text('#$trimmedTag', style: tagStyle),
+                        children: HashtagText.splitTags(widget.tags).map((tag) {
+                          final searchKey = HashtagText.searchKey(tag);
+                          return InkWell(
+                            onTap: () {
+                              Get.off(
+                                HashtagReelScreen(tag: searchKey),
                               );
-                            }).toList(),
+                            },
+                            child: Text(
+                              HashtagText.displayLabel(tag),
+                              style: tagStyle,
+                            ),
+                          );
+                        }).toList(),
                       ),
                     ),
                   ),
@@ -1694,9 +1705,7 @@ class _VideoDescriptionWidgetState extends State<VideoDescriptionWidget> {
                       ),
                     ),
                 ],
-              )
-            else
-              Text("#", style: tagStyle),
+              ),
           ],
         ),
       ),

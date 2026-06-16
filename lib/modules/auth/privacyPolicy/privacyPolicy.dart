@@ -1,3 +1,4 @@
+import 'package:cookster/core/navigation/route_back.dart';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -89,9 +90,7 @@ class _PolicyScreenState extends State<PolicyScreen> {
                             : null,
                     top: 25,
                     child: InkWell(
-                      onTap: () {
-                        Get.back();
-                      },
+                      onTap: () => navigateBack(),
                       child: Container(
                         height: 40,
                         width: 40,

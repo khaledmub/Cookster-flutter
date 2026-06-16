@@ -1,4 +1,6 @@
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:cookster/core/navigation/route_back.dart';
+import 'package:cookster/core/user/public_user_identity.dart';
 import 'package:cookster/appUtils/apiEndPoints.dart';
 import 'package:cookster/core/widgets/grid_thumbnail_cache.dart';
 import 'package:flutter/material.dart';
@@ -74,7 +76,7 @@ class _BlockedUsersScreenState extends State<BlockedUsersScreen> {
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
-          onPressed: () => Navigator.pop(context),
+          onPressed: () => navigateBack(),
         ),
         title: Text(
           widget.userName,
@@ -243,17 +245,17 @@ class _BlockedUsersScreenState extends State<BlockedUsersScreen> {
                           ),
                         ),
                         const SizedBox(height: 2),
-                        if ((user.email ?? '').isNotEmpty)
-                          Container(
-                            width: Get.width * 0.5,
-                            child: Text(
-                              user.email ?? '',
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                color: Colors.grey[600],
-                                fontSize: 14,
-                              ),
+                        if (PublicUserIdentity.subtitleHandle(
+                              user.userName,
+                            ) !=
+                            null)
+                          Text(
+                            PublicUserIdentity.formatAtHandle(user.userName),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: Colors.grey[600],
+                              fontSize: 14,
                             ),
                           ),
                       ],

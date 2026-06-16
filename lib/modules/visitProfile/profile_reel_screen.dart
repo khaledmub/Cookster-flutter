@@ -1,42 +1,56 @@
 import 'dart:async';
 
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:cookster/appBindings/app_bindings.dart';
+import 'package:cookster/core/navigation/route_back.dart';
 import 'package:cookster/core/firestore/video_view_tracker.dart';
 import 'package:cookster/core/media/media_url_resolver.dart';
+import 'package:cookster/core/media/profile_video_visibility.dart';
 import 'package:cookster/core/media/wall_video_media.dart';
+import 'package:cookster/core/video/fullscreen_video_playback.dart';
 import 'package:cookster/core/video/media_kit_player_pool.dart';
+import 'package:cookster/core/video/reels_feed_client.dart';
+import 'package:cookster/core/video/reels_playback_coordinator.dart';
+import 'package:cookster/core/video/video_preload_manager.dart';
+import 'package:cookster/core/video/video_preload_target.dart';
 import 'package:cookster/core/video/video_source_resolver.dart';
-import 'package:cookster/appBindings/app_bindings.dart';
 import 'package:cookster/core/widgets/grid_thumbnail_cache.dart';
 import 'package:cookster/modules/landing/landingTabs/home/homeController/homeController.dart';
 import 'package:cookster/modules/landing/landingTabs/home/homeModel/videoFeedModel.dart';
 import 'package:cookster/modules/landing/landingTabs/home/homeView/reelsVideoScreen.dart'
     show VideoDescriptionWidget;
+import 'package:cookster/modules/landing/landingTabs/home/homeWidgets/reel_feed_player_kit.dart';
 import 'package:cookster/modules/landing/landingTabs/home/homeWidgets/reel_overlay_column.dart';
-import 'package:cookster/modules/landing/landingTabs/home/homeWidgets/videoPlayerWidget.dart';
+import 'package:cookster/modules/landing/landingTabs/home/homeWidgets/reel_video_player.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:get/get.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-/// Vertical reel viewer from a visit profile — same overlays as the home feed.
+/// Vertical reel viewer for own / visit profile — same player + preload path
+/// as the General home feed (`ReelFeedPlayerKit` + `GET /api/reels?feed=user`).
 class ProfileReelScreen extends StatefulWidget {
   const ProfileReelScreen({
     super.key,
-    required this.videos,
-    this.initialIndex = 0,
-    this.ownerId,
+    required this.userId,
+    this.videoTypeId,
+    this.anchorId,
     this.ownerName,
     this.ownerImage,
     this.ownerFollowers = 0,
+    this.initialPosterUrl,
   });
 
-  final List<WallVideos> videos;
-  final int initialIndex;
-  final String? ownerId;
+  final String userId;
+  final String? videoTypeId;
+  final String? anchorId;
   final String? ownerName;
   final String? ownerImage;
   final int ownerFollowers;
+  /// Grid poster shown while the feed API loads (avoids black spinner screen).
+  final String? initialPosterUrl;
 
   @override
   State<ProfileReelScreen> createState() => _ProfileReelScreenState();
@@ -44,33 +58,76 @@ class ProfileReelScreen extends StatefulWidget {
 
 class _ProfileReelScreenState extends State<ProfileReelScreen> {
   late final PageController _pageController;
-  late int _visibleIndex;
+  final GlobalKey<ReelVideoPlayerState> _reelPlayerKey =
+      GlobalKey<ReelVideoPlayerState>();
+  final ValueNotifier<int> _visibleIndexNotifier = ValueNotifier<int>(0);
+
+  final List<WallVideos> _videos = [];
+  FeedMeta? _meta;
+  bool _isLoading = true;
+  bool _isLoadingMore = false;
+  String? _error;
   bool _isAuthenticated = false;
   final Set<String> _trackedVideoIds = {};
   Timer? _viewTrackDebounce;
+  Timer? _fetchMoreDebounce;
   late final HomeController _homeController;
+  late final VideoPreloadManager _preloadManager;
+  late final ReelsPlaybackCoordinator _playbackCoordinator;
+  final VideoSourceResolver _sourceResolver = const VideoSourceResolver();
+  int? _scrollTowardIndex;
 
   @override
   void initState() {
     super.initState();
     ensureVisitProfileDependencies();
     _homeController = Get.find<HomeController>();
-    final maxIndex = widget.videos.isEmpty ? 0 : widget.videos.length - 1;
-    _visibleIndex = widget.initialIndex.clamp(0, maxIndex);
-    _pageController = PageController(initialPage: _visibleIndex);
-    MediaKitPlayerPool.instance.pauseAllImmediate();
-    unawaited(_loadAuth());
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      unawaited(_activateVisible(_visibleIndex));
-      _scheduleViewTrack(widget.videos[_visibleIndex]);
-    });
+    _homeController.reinforceReelsPausedForOverlay();
+    _pageController = PageController(initialPage: 0);
+    _pageController.addListener(_onPageScrollOffset);
+    // Profile shares the pool with home — never spawn off-screen MTK decoders
+    // here (renderFps=0 zombies). Disk prefetch only; one visible decoder.
+    _preloadManager = VideoPreloadManager(
+      sourceBuilder: _preloadTargetForIndex,
+      decoderWarmEnabled: false,
+    );
+    _playbackCoordinator = ReelsPlaybackCoordinator(
+      preloadManager: _preloadManager,
+      targetForIndex: _preloadTargetForIndex,
+      thumbnailUrlForIndex: _thumbnailUrlForIndex,
+    );
+    unawaited(_bootstrap());
+  }
+
+  /// API fetch overlaps pool teardown — serial await was adding hundreds of ms.
+  Future<void> _bootstrap() async {
+    final feedFuture = ReelsFeedClient.fetchPage(
+      reset: true,
+      feed: 'user',
+      userId: widget.userId,
+      videoTypeId: widget.videoTypeId,
+      anchorId: widget.anchorId,
+    );
+    await Future.wait([
+      prepareForFullscreenVideoPlayback(),
+      _loadAuth(),
+    ]);
+    if (!mounted) {
+      return;
+    }
+    await _applyFeedResult(await feedFuture);
   }
 
   @override
   void dispose() {
     _viewTrackDebounce?.cancel();
+    _fetchMoreDebounce?.cancel();
+    _visibleIndexNotifier.dispose();
+    _pageController.removeListener(_onPageScrollOffset);
     _pageController.dispose();
+    _playbackCoordinator.dispose();
     MediaKitPlayerPool.instance.pauseAllImmediate();
+    unawaited(MediaKitPlayerPool.instance.disposeAll());
     super.dispose();
   }
 
@@ -84,17 +141,194 @@ class _ProfileReelScreenState extends State<ProfileReelScreen> {
     }
   }
 
-  Future<void> _activateVisible(int index) async {
-    if (index < 0 || index >= widget.videos.length) {
+  Future<void> _applyFeedResult(ReelsFeedResult result) async {
+    if (!mounted) {
       return;
     }
-    final video = widget.videos[index];
+    if (result.feed == null) {
+      setState(() {
+        _isLoading = false;
+        _error = result.error ?? 'Failed to load videos';
+      });
+      return;
+    }
+    final incoming = (result.feed!.videos ?? [])
+        .where(ProfileVideoVisibility.isWallVideoListable)
+        .toList();
+    setState(() {
+      _videos
+        ..clear()
+        ..addAll(incoming);
+      _meta = result.feed!.meta;
+      _isLoading = false;
+    });
+    if (_videos.isNotEmpty) {
+      _visibleIndexNotifier.value = 0;
+      _preloadManager.prepareForVisibleAttach();
+      unawaited(_preloadManager.bootstrapFromVisible(0));
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) {
+          return;
+        }
+        _attachPlaybackForIndex(0);
+      });
+    }
+  }
+
+  void _resumeProfileAudibleOnce() {
+    final index = _visibleIndexNotifier.value;
+    if (index < 0 || index >= _videos.length) {
+      return;
+    }
+    final key = _videos[index].id;
+    if (key == null || key.isEmpty) {
+      return;
+    }
+    unawaited(MediaKitPlayerPool.instance.resumeFeedVisible(key));
+  }
+
+  void _onVisibleReelReady(int index) {
+    if (!mounted || index < 0 || index >= _videos.length) {
+      return;
+    }
+    _preloadManager.decoderWarmEnabled = true;
+    _playbackCoordinator.bootstrapFromVisible(index);
+    unawaited(_preloadManager.onVisibleIndexChanged(index));
+  }
+
+  Widget _buildInlineReelPlayer(WallVideos video, int index) {
+    return ReelFeedPlayerKit.buildInlinePlayer(
+      video: video,
+      playerKey: _reelPlayerKey,
+      onPlaybackReady: () {
+        _onVisibleReelReady(index);
+      },
+      onVideoCompleted: _onReelVideoCompleted,
+    );
+  }
+
+  void _onReelVideoCompleted() {
+    // Reels loop in place (PlaylistMode.single). The user swipes manually to
+    // move to the next post — no auto-advance.
+  }
+
+  void _attachPlaybackForIndex(int index) {
+    if (index < 0 || index >= _videos.length) {
+      return;
+    }
+    MediaKitPlayerPool.instance.setScreenWidth(
+      MediaQuery.sizeOf(context).width,
+    );
+    _preloadManager.prepareForVisibleAttach();
+    _playbackCoordinator.onPageSettled(index, context: context);
+    _resumeProfileAudibleOnce();
+  }
+
+  VideoPreloadTarget? _preloadTargetForIndex(int index) {
+    if (index < 0 || index >= _videos.length) {
+      return null;
+    }
+    final video = _videos[index];
     final key = video.id ?? video.resolvedPlaybackUrl ?? '';
-    if (key.isEmpty) {
+    if (key.isEmpty || !video.isTranscodeReady) {
+      return VideoPreloadTarget(key: key, candidates: const []);
+    }
+    return VideoPreloadTarget(
+      key: key,
+      candidates: _sourceResolver.resolveForWallVideo(video),
+    );
+  }
+
+  String? _thumbnailUrlForIndex(int index) {
+    if (index < 0 || index >= _videos.length) {
+      return null;
+    }
+    final video = _videos[index];
+    return video.resolvedReelPosterFallbackUrl ??
+        video.resolvedReelPosterUrl;
+  }
+
+  void _onPageScrollOffset() {
+    if (!_pageController.hasClients || !mounted || _videos.isEmpty) {
       return;
     }
-    await MediaKitPlayerPool.instance.prepareVisiblePlayback(key);
-    await MediaKitPlayerPool.instance.activateVisible(key);
+    final page = _pageController.page;
+    if (page == null) {
+      return;
+    }
+    final rounded = page.roundToDouble();
+    if ((page - rounded).abs() < 0.02) {
+      _scrollTowardIndex = null;
+      return;
+    }
+    final towardRaw = page > rounded ? page.ceil() : page.floor();
+    final toward = towardRaw.clamp(0, _videos.length - 1).toInt();
+    if (_scrollTowardIndex == toward) {
+      return;
+    }
+    _scrollTowardIndex = toward;
+    _playbackCoordinator.onPageScrollToward(
+      fromActualIndex: _visibleIndexNotifier.value,
+      towardActualIndex: toward,
+      context: context,
+    );
+  }
+
+  Future<void> _fetchMoreVideos() async {
+    _fetchMoreDebounce?.cancel();
+    _fetchMoreDebounce = Timer(const Duration(milliseconds: 300), () {
+      unawaited(_fetchMoreVideosNow());
+    });
+  }
+
+  Future<void> _fetchMoreVideosNow() async {
+    if (_isLoadingMore || _videos.isEmpty) {
+      return;
+    }
+    final meta = _meta;
+    if (meta != null && !meta.hasMore) {
+      return;
+    }
+    final cursor = meta?.nextCursor;
+    if (cursor == null || cursor.isEmpty) {
+      return;
+    }
+
+    _isLoadingMore = true;
+    try {
+      final result = await ReelsFeedClient.fetchPage(
+        reset: false,
+        nextCursor: cursor,
+      );
+      if (!mounted || result.feed == null) {
+        return;
+      }
+      final incoming = (result.feed!.videos ?? [])
+          .where(ProfileVideoVisibility.isWallVideoListable)
+          .toList();
+      if (incoming.isEmpty) {
+        if (_meta != null) {
+          _meta!.hasMore = false;
+        }
+        setState(() {});
+        return;
+      }
+      final existingIds = _videos
+          .map((v) => v.id)
+          .whereType<String>()
+          .toSet();
+      final unique = incoming
+          .where((v) => v.id != null && !existingIds.contains(v.id))
+          .toList();
+      setState(() {
+        _videos.addAll(unique);
+        _meta = result.feed!.meta ?? _meta;
+      });
+    } finally {
+      if (mounted) {
+        setState(() => _isLoadingMore = false);
+      }
+    }
   }
 
   void _scheduleViewTrack(WallVideos video) {
@@ -122,152 +356,242 @@ class _ProfileReelScreenState extends State<ProfileReelScreen> {
   }
 
   void _onPageChanged(int index) {
-    setState(() => _visibleIndex = index);
-    unawaited(_activateVisible(index));
-    _scheduleViewTrack(widget.videos[index]);
+    _visibleIndexNotifier.value = index;
+    _scrollTowardIndex = null;
+    _scheduleViewTrack(_videos[index]);
+
+    _preloadManager.prepareForVisibleAttach();
+    MediaKitPlayerPool.instance.setScreenWidth(
+      MediaQuery.sizeOf(context).width,
+    );
+    _playbackCoordinator.onPageSettled(index, context: context);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      _resumeProfileAudibleOnce();
+    });
+
+    if (_meta?.hasMore != false && index >= _videos.length - 3) {
+      unawaited(_fetchMoreVideos());
+    }
   }
 
-  Widget _buildVideoLayer(WallVideos video, int index) {
-    final isActive = index == _visibleIndex;
-    if (video.isImage == 1) {
-      return VideoPlayerWidget(
-        key: ValueKey('profile_img_${video.id}_$index'),
-        videoUrl: video.resolvedPlaybackUrl ?? '',
-        thumbnailUrl: video.resolvedReelPosterUrl ?? '',
-        isImage: video.isImage,
-        videoId: video.id,
-        autoPlay: isActive,
-        useMediaKit: true,
-        fillScreen: true,
-      );
-    }
-    return VideoPlayerWidget(
-      key: ValueKey('profile_reel_${video.id}_$index'),
-      videoUrl: video.resolvedPlaybackUrl ?? '',
-      thumbnailUrl: video.resolvedReelPosterUrl ?? '',
-      isImage: video.isImage,
-      videoId: video.id,
-      playerPoolKey: video.id,
-      hlsUrl: video.resolvedHlsUrl,
-      qualityMp4Urls: video.isTranscodeReady ? video.qualityMp4Urls : const [],
-      autoPlay: isActive,
-      useMediaKit: true,
-      fillScreen: true,
+  void _popProfileReel() {
+    navigateBack();
+  }
+
+  Widget _buildTopBar() {
+    final topInset = MediaQuery.paddingOf(context).top;
+    final WallVideos? video = _videos.isNotEmpty
+        ? _videos[
+            _visibleIndexNotifier.value.clamp(0, _videos.length - 1).toInt()]
+        : null;
+
+    return Positioned(
+      top: 0,
+      left: 0,
+      right: 0,
+      child: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Color(0xCC000000), Color(0x00000000)],
+          ),
+        ),
+        child: Padding(
+          padding: EdgeInsets.only(top: topInset, left: 4, right: 12, bottom: 16),
+          child: Row(
+            children: [
+              GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: _popProfileReel,
+                child: const SizedBox(
+                  width: 48,
+                  height: 48,
+                  child: Icon(
+                    Icons.arrow_back,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+              if (widget.ownerImage != null && widget.ownerImage!.isNotEmpty)
+                ClipOval(
+                  child: CachedNetworkImage(
+                    imageUrl: MediaUrlResolver.profileImageUrl(
+                          widget.ownerImage,
+                        ) ??
+                        '',
+                    width: 36,
+                    height: 36,
+                    fit: BoxFit.cover,
+                    memCacheWidth: avatarMemCacheSize(36),
+                    memCacheHeight: avatarMemCacheSize(36),
+                    errorWidget: (_, __, ___) => const Icon(
+                      Icons.person,
+                      color: Colors.white,
+                    ),
+                  ),
+                )
+              else
+                const CircleAvatar(
+                  radius: 18,
+                  child: Icon(Icons.person, color: Colors.white),
+                ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      widget.ownerName ?? video?.userName ?? '',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14.sp,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    Text(
+                      '${widget.ownerFollowers > 0 ? widget.ownerFollowers : video?.displayFollowersCount ?? 0} ${'Followers'.tr}',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 10.sp,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    final videos = widget.videos;
-    if (videos.isEmpty) {
-      return const Scaffold(
-        backgroundColor: Colors.black,
-        body: Center(
-          child: Text('No videos', style: TextStyle(color: Colors.white)),
+    const overlayStyle = SystemUiOverlayStyle(
+      statusBarColor: Colors.black,
+      statusBarIconBrightness: Brightness.light,
+      statusBarBrightness: Brightness.dark,
+    );
+
+    if (_isLoading) {
+      final poster = widget.initialPosterUrl?.trim() ?? '';
+      return AnnotatedRegion<SystemUiOverlayStyle>(
+        value: overlayStyle,
+        child: Scaffold(
+          backgroundColor: Colors.black,
+          body: Stack(
+            fit: StackFit.expand,
+            children: [
+              if (poster.isNotEmpty)
+                CachedNetworkImage(
+                  imageUrl: poster,
+                  fit: BoxFit.cover,
+                  placeholder: (_, __) => const ColoredBox(color: Colors.black),
+                  errorWidget: (_, __, ___) =>
+                      const ColoredBox(color: Colors.black),
+                ),
+              const Center(
+                child: SizedBox(
+                  width: 36,
+                  height: 36,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2.5,
+                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white70),
+                  ),
+                ),
+              ),
+              _buildTopBar(),
+            ],
+          ),
         ),
       );
     }
 
-    final topInset = MediaQuery.paddingOf(context).top;
-
-    return Scaffold(
-      backgroundColor: Colors.black,
-      body: PageView.builder(
-        controller: _pageController,
-        scrollDirection: Axis.vertical,
-        itemCount: videos.length,
-        onPageChanged: _onPageChanged,
-        itemBuilder: (context, index) {
-          final video = videos[index];
-          final isActive = index == _visibleIndex;
-          return Stack(
-            fit: StackFit.expand,
+    if (_error != null || _videos.isEmpty) {
+      return AnnotatedRegion<SystemUiOverlayStyle>(
+        value: overlayStyle,
+        child: Scaffold(
+          backgroundColor: Colors.black,
+          body: Stack(
             children: [
-              _buildVideoLayer(video, index),
-              if (isActive) ...[
-                VideoDescriptionWidget(
-                  title: video.title,
-                  description: video.description,
-                  tags: video.tags,
-                  controller: _homeController,
-                ),
-                ReelOverlayColumn(
-                  video: video,
-                  isAuthenticated: _isAuthenticated,
-                ),
-              ],
-              SafeArea(
+              Center(
                 child: Padding(
-                  padding: EdgeInsets.only(
-                    left: 12,
-                    right: 12,
-                    top: topInset > 0 ? 4 : 12,
-                  ),
-                  child: Row(
-                    children: [
-                      IconButton(
-                        onPressed: () => Get.back(),
-                        icon: const Icon(Icons.arrow_back, color: Colors.white),
-                      ),
-                      if (widget.ownerImage != null &&
-                          widget.ownerImage!.isNotEmpty)
-                        ClipOval(
-                          child: CachedNetworkImage(
-                            imageUrl: MediaUrlResolver.profileImageUrl(
-                                  widget.ownerImage,
-                                ) ??
-                                '',
-                            width: 36,
-                            height: 36,
-                            fit: BoxFit.cover,
-                            memCacheWidth: avatarMemCacheSize(36),
-                            memCacheHeight: avatarMemCacheSize(36),
-                            errorWidget: (_, __, ___) => const Icon(
-                              Icons.person,
-                              color: Colors.white,
-                            ),
-                          ),
-                        )
-                      else
-                        const CircleAvatar(
-                          radius: 18,
-                          child: Icon(Icons.person, color: Colors.white),
-                        ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              widget.ownerName ??
-                                  video.userName ??
-                                  '',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 14.sp,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            Text(
-                              '${widget.ownerFollowers > 0 ? widget.ownerFollowers : video.displayFollowersCount} ${'Followers'.tr}',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 10.sp,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
+                  padding: const EdgeInsets.all(24),
+                  child: Text(
+                    _error ?? 'No videos',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(color: Colors.white),
                   ),
                 ),
               ),
+              _buildTopBar(),
             ],
-          );
-        },
+          ),
+        ),
+      );
+    }
+
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: overlayStyle,
+      child: PopScope(
+        canPop: true,
+        child: Scaffold(
+          backgroundColor: Colors.black,
+          body: Stack(
+            fit: StackFit.expand,
+            children: [
+              PageView.builder(
+                controller: _pageController,
+                scrollDirection: Axis.vertical,
+                clipBehavior: Clip.hardEdge,
+                dragStartBehavior: DragStartBehavior.down,
+                allowImplicitScrolling: false,
+                physics: const ClampingScrollPhysics(),
+                itemCount: _videos.length,
+                onPageChanged: _onPageChanged,
+                itemBuilder: (context, index) {
+                  final video = _videos[index];
+                  return ValueListenableBuilder<int>(
+                    valueListenable: _visibleIndexNotifier,
+                    builder: (context, visibleIndex, _) {
+                      final isActiveReel =
+                          index == visibleIndex && video.isImage != 1;
+                      return Stack(
+                        clipBehavior: Clip.none,
+                        alignment: Alignment.bottomLeft,
+                        fit: StackFit.expand,
+                        children: [
+                          ReelFeedPlayerKit.buildPagePoster(video),
+                          if (isActiveReel) _buildInlineReelPlayer(video, index),
+                          if (isActiveReel) ...[
+                            VideoDescriptionWidget(
+                              title: video.title,
+                              description: video.description,
+                              tags: video.tags,
+                              controller: _homeController,
+                            ),
+                            ReelOverlayColumn(
+                              video: video,
+                              isAuthenticated: _isAuthenticated,
+                            ),
+                          ],
+                        ],
+                      );
+                    },
+                  );
+                },
+              ),
+              _buildTopBar(),
+            ],
+          ),
+        ),
       ),
     );
   }

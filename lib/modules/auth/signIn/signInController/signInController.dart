@@ -49,6 +49,80 @@ class LogInController extends GetxController {
     return 0;
   }
 
+  bool _emailVerified(Map<String, dynamic> user) {
+    if (user['email_verified'] == true) {
+      return true;
+    }
+    final verifiedAt = user['email_verified_at'];
+    return verifiedAt != null && verifiedAt.toString().isNotEmpty;
+  }
+
+  bool _loginRequiresOtp(Map<String, dynamic> data) {
+    if (data['otp_required'] == true || data['requires_otp'] == true) {
+      return true;
+    }
+    final user = data['user'];
+    if (user is Map<String, dynamic> && !_emailVerified(user)) {
+      return true;
+    }
+    return false;
+  }
+
+  Future<void> _navigateToRegistrationOtp(
+    Map<String, dynamic> user,
+    String? deviceToken,
+  ) async {
+    final email =
+        user['email']?.toString() ?? emailController.text.trim();
+    try {
+      await ApiClient.postRequest(EndPoints.resendRegistrationOtp, {
+        'user_id': _userIdFromApi(user['id']),
+      });
+    } catch (e) {
+      debugPrint('Resend registration OTP failed: $e');
+    }
+
+    Get.toNamed(
+      AppRoutes.signUpOtp,
+      arguments: {
+        'user': user,
+        'email': email,
+        'deviceToken': deviceToken,
+      },
+    );
+  }
+
+  Future<void> _completeAuthenticatedLogin(
+    Map<String, dynamic> data,
+    String? deviceToken,
+  ) async {
+    final token = data['token']?.toString();
+    final user = data['user'];
+    if (token == null ||
+        token.isEmpty ||
+        user is! Map<String, dynamic>) {
+      throw StateError('Missing auth token or user payload');
+    }
+
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    await prefs.setString('auth_token', token);
+    ApiClient.setAuthToken(token);
+    await prefs.setInt('entity', _entityFromApi(user['entity']));
+    await prefs.setString('user_id', _userIdFromApi(user['id']));
+    await prefs.setString(
+      'user_image',
+      user['image']?.toString() ?? '',
+    );
+    debugPrint('Saving entity_details: ${user['entity_details']}');
+    await prefs.setString(
+      'entity_details',
+      jsonEncode(user['entity_details']),
+    );
+
+    await _updateFirestoreUser(user, deviceToken);
+    Get.offAllNamed(AppRoutes.landing);
+  }
+
   void togglePasswordVisibility() {
     isObscure.value = !isObscure.value;
   }
@@ -119,38 +193,24 @@ class LogInController extends GetxController {
         'uuid': deviceToken,
       });
 
-      final data = jsonDecode(response.body);
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
 
       if (response.statusCode == 200 && data['status'] == true) {
-        String token = data['token'];
-        Map<String, dynamic> user = data['user'];
-
-        SharedPreferences prefs = await SharedPreferences.getInstance();
-        await prefs.setString('auth_token', token);
-        ApiClient.setAuthToken(token);
-        await prefs.setInt('entity', _entityFromApi(user['entity']));
-
-        await prefs.setString('user_id', _userIdFromApi(user['id']));
-        await prefs.setString(
-          'user_image',
-          user['image']?.toString() ?? '',
+        if (_loginRequiresOtp(data)) {
+          final user = data['user'];
+          if (user is Map<String, dynamic>) {
+            await _navigateToRegistrationOtp(user, deviceToken);
+            return;
+          }
+        }
+        await _completeAuthenticatedLogin(data, deviceToken);
+      } else if (response.statusCode == 200 &&
+          data['user'] is Map<String, dynamic> &&
+          _loginRequiresOtp(data)) {
+        await _navigateToRegistrationOtp(
+          data['user'] as Map<String, dynamic>,
+          deviceToken,
         );
-        debugPrint('Saving entity_details: ${user['entity_details']}');
-        await prefs.setString(
-          'entity_details',
-          jsonEncode(user['entity_details']),
-        );
-
-        debugPrint(
-          "PRINTING THE ID: ${user['entity']} AND THE TOKEN: ${deviceToken}",
-        );
-
-        // await subscribeUserToTopics(user['entity'].toString());
-
-        // Update Firestore with user data and UUID
-        await _updateFirestoreUser(user, deviceToken);
-
-        Get.offAllNamed(AppRoutes.landing);
       } else {
         ScaffoldMessenger.of(Get.context!).showSnackBar(
           SnackBar(

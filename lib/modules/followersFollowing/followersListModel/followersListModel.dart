@@ -33,12 +33,14 @@ class SocialResponse {
 class FFUser {
   String id;
   String name;
+  String userName;
   String email;
   String? image;
 
   FFUser({
     required this.id,
     required this.name,
+    this.userName = '',
     required this.email,
     this.image,
   });
@@ -47,7 +49,8 @@ class FFUser {
     return FFUser(
       id: json['id'] as String,
       name: json['name'] as String,
-      email: json['email'] as String,
+      userName: (json['user_name'] as String?) ?? '',
+      email: json['email'] as String? ?? '',
       image: json['image'] as String?,
     );
   }
@@ -56,6 +59,7 @@ class FFUser {
     return {
       'id': id,
       'name': name,
+      'user_name': userName,
       'email': email,
       'image': image,
     };

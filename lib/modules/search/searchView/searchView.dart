@@ -1,7 +1,7 @@
 import 'dart:async';
 
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:cookster/appUtils/apiEndPoints.dart';
+import 'package:cookster/core/navigation/route_back.dart';
 import 'package:cookster/appUtils/appCenterIcon.dart';
 import 'package:cookster/modules/search/searchController/searchController.dart';
 import 'package:cookster/modules/singleVideoView/singleVideoView.dart';
@@ -26,6 +26,7 @@ import '../searchModel/b2bCategoryList.dart';
 import '../searchModel/b2bList.dart';
 import 'package:cookster/core/firestore/reel_video_stats.dart';
 import 'package:cookster/core/parsing/feed_parsers.dart';
+import 'package:cookster/core/user/public_user_identity.dart';
 import 'package:cookster/core/widgets/grid_thumbnail_cache.dart';
 
 import '../searchModel/searchModel.dart';
@@ -34,10 +35,10 @@ import 'package:cookster/core/media/media_url_resolver.dart';
 
 class SearchView extends StatefulWidget {
   final String? tag; // Optional tag parameter
-  int? isGeneral;
-  int? isFollowing;
+  final int? isGeneral;
+  final int? isFollowing;
 
-  SearchView({super.key, this.tag, this.isGeneral, this.isFollowing});
+  const SearchView({super.key, this.tag, this.isGeneral, this.isFollowing});
 
   @override
   State<SearchView> createState() => _SearchViewState();
@@ -46,7 +47,7 @@ class SearchView extends StatefulWidget {
 class _SearchViewState extends State<SearchView>
     with SingleTickerProviderStateMixin, PaginatedScrollMixin {
   late TabController _tabController;
-  TextEditingController _searchController = TextEditingController();
+  final TextEditingController _searchController = TextEditingController();
   final UserSearchController searchController = Get.find();
 
   Future<bool> _isUserAuthenticated() async {
@@ -119,36 +120,6 @@ class _SearchViewState extends State<SearchView>
     super.dispose();
   }
 
-  // Debounced search function
-  void _onSearchChanged(String query) {
-    if (_debounce?.isActive ?? false) _debounce!.cancel();
-    _debounce = Timer(const Duration(milliseconds: 500), () {
-      if (query.length >= 3) {
-        searchController.fetchSearchResults(
-          isGeneral: widget.isGeneral,
-          isFollowing: widget.isFollowing,
-
-          query,
-        );
-      } else if (query.isEmpty) {
-        // Clear results when search is empty
-        searchController.clearSearchResults();
-      }
-    });
-  }
-
-  void _onB2bChanged(String query) {
-    if (_debounce?.isActive ?? false) _debounce!.cancel();
-    _debounce = Timer(const Duration(milliseconds: 500), () {
-      if (query.length >= 3) {
-        searchController.searchB2BCategories(query);
-      } else if (query.isEmpty) {
-        // Clear results when search is empty
-        searchController.clearSearchResults();
-      }
-    });
-  }
-
   @override
   Widget build(BuildContext context) {
     bool isRtl = _language == 'ar';
@@ -182,14 +153,7 @@ class _SearchViewState extends State<SearchView>
                         top: 10.h,
                         child: GestureDetector(
                           behavior: HitTestBehavior.opaque,
-                          onTap: () {
-                            try {
-                              print("Tapped");
-                              Get.back();
-                            } catch (e) {
-                              print(e);
-                            }
-                          },
+                          onTap: () => navigateBack(),
                           child: Container(
                             height: 40,
                             width: 40,
@@ -432,17 +396,12 @@ class _SearchViewState extends State<SearchView>
           ],
         ),
       ),
-      body: Padding(
-        padding: EdgeInsets.only(
-          bottom: MediaQuery.paddingOf(context).bottom + 20,
-        ),
-        child: Obx(() {
-          if (searchController.type.value == 5) {
-            return _buildB2bCategoriesBody();
-          }
-          return _buildStandardSearchBody();
-        }),
-      ),
+      body: Obx(() {
+        if (searchController.type.value == 5) {
+          return _buildB2bCategoriesBody();
+        }
+        return _buildStandardSearchBody();
+      }),
     );
   }
 
@@ -462,71 +421,71 @@ class _SearchViewState extends State<SearchView>
       if (categories == null) {
         return _buildNoResultsFound();
       }
-      return SingleChildScrollView(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 16),
-          child: GridView.count(
-            crossAxisCount: 2,
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            mainAxisSpacing: 12,
-            crossAxisSpacing: 12,
-            childAspectRatio: 3,
-            children:
-                categories.values?.asMap().entries.map((entry) {
-                  final index = entry.key;
-                  final value = entry.value;
-                  return InkWell(
-                    onTap: () async {
-                      final isAuthenticated = await _isUserAuthenticated();
-                      if (isAuthenticated) {
-                        Get.to(
-                          B2bUsersList(
-                            categoryId: value.id.toString(),
-                            categoryName: value.name.toString(),
-                            country: searchController.currentCountry.value,
-                            city: searchController.currentCity.value,
-                          ),
-                        );
-                      } else {
-                        Get.toNamed(AppRoutes.signIn);
-                      }
-                    },
-                    child: Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.grey[200]!),
-                      ),
-                      child: Row(
-                        children: [
-                          Text(
-                            '${index + 1}.',
-                            style: const TextStyle(fontWeight: FontWeight.w500),
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              value.name ?? 'Unknown',
-                              style: TextStyle(
-                                fontSize: 12.sp,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.black87,
-                              ),
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                          const Icon(Icons.chevron_right),
-                        ],
-                      ),
+      final values = categories.values ?? const [];
+      return CustomScrollView(
+        slivers: [
+          SliverPadding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 16),
+            sliver: SliverGrid(
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2,
+                mainAxisSpacing: 12,
+                crossAxisSpacing: 12,
+                childAspectRatio: 3,
+              ),
+              delegate: SliverChildBuilderDelegate((context, index) {
+                final value = values[index];
+                return InkWell(
+                  onTap: () async {
+                    final isAuthenticated = await _isUserAuthenticated();
+                    if (isAuthenticated) {
+                      Get.to(
+                        B2bUsersList(
+                          categoryId: value.id.toString(),
+                          categoryName: value.name.toString(),
+                          country: searchController.currentCountryId.value,
+                          city: searchController.currentCityId.value,
+                        ),
+                      );
+                    } else {
+                      Get.toNamed(AppRoutes.signIn);
+                    }
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.grey[200]!),
                     ),
-                  );
-                }).toList() ??
-                [],
+                    child: Row(
+                      children: [
+                        Text(
+                          '${index + 1}.',
+                          style: const TextStyle(fontWeight: FontWeight.w500),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            value.name ?? 'Unknown',
+                            style: TextStyle(
+                              fontSize: 12.sp,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.black87,
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        const Icon(Icons.chevron_right),
+                      ],
+                    ),
+                  ),
+                );
+              }, childCount: values.length),
+            ),
           ),
-        ),
+        ],
       );
     });
   }
@@ -670,6 +629,9 @@ class _SearchViewState extends State<SearchView>
                             userImage: video.userImage,
                             videoId: video.id,
                             videoUrl: video.resolvedPlaybackUrl,
+                            hlsUrl: video.resolvedHlsUrl,
+                            qualityMp4Urls: video.qualityMp4Urls,
+                            thumbnailUrl: video.resolvedThumbnailUrl,
                             title: video.title,
                             image: video.image,
                             allowComments: video.allowComments,
@@ -778,152 +740,174 @@ class _SearchViewState extends State<SearchView>
             ),
           ],
           if (chefsList != null && chefsList.isNotEmpty)
-            SliverToBoxAdapter(child: _buildChefsListSection(chefsList)),
+            ..._buildChefUserSlivers(chefsList),
           if (businessList != null && businessList.isNotEmpty)
-            SliverToBoxAdapter(
-              child: _buildBusinessListSection(businessList),
+            ..._buildBusinessUserSlivers(businessList),
+          SliverPadding(
+            padding: EdgeInsets.only(
+              bottom: MediaQuery.paddingOf(context).bottom + 16,
             ),
+          ),
         ],
       );
     });
   }
 
-  Widget _buildChefsListSection(List<ChefAccounts> chefsList) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16.0),
+  List<Widget> _buildChefUserSlivers(List<ChefAccounts> chefsList) {
+    return [
+      SliverToBoxAdapter(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
           child: Text(
             "users".tr,
             style: TextStyle(fontSize: 16.sp, fontWeight: FontWeight.w700),
           ),
         ),
-        SizedBox(height: 8.h),
-        SizedBox(
-          height: Get.height * 0.5,
-          child: ListView.builder(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            itemCount: chefsList.length,
-            itemBuilder: (context, index) {
-              final chef = chefsList[index];
-              return Container(
-                margin: const EdgeInsets.symmetric(vertical: 8),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  border: Border.all(color: Colors.grey.shade300),
-                  borderRadius: BorderRadius.circular(12),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.grey.withValues(alpha: 0.1),
-                      blurRadius: 6,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-                ),
-                child: ListTile(
-                  leading:
-                      chef.image != null && chef.image!.isNotEmpty
-                          ? CircleAvatar(
-                            backgroundImage: CachedNetworkImageProvider(
-                              chef.image!.contains('http')
-                                  ? chef.image!
-                                  : MediaUrlResolver.profileImageUrl(chef.image!) ?? '',
-                            ),
-                            radius: 25,
-                          )
-                          : const CircleAvatar(
-                            radius: 25,
-                            child: Icon(Icons.person, color: Colors.white),
-                          ),
-                  title: Text(
-                    chef.name ?? 'Unknown Business',
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                    ),
-                  ),
-                  subtitle: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      if (chef.email != null && chef.email!.isNotEmpty)
-                        Text(chef.email!),
-                      if (chef.phone != null && chef.phone!.isNotEmpty)
-                        Text(chef.phone!),
-                    ],
-                  ),
-                  onTap: () async {
-                    if (await _isUserAuthenticated()) {
-                      Get.to(VisitProfileView(userId: chef.id!));
-                    } else {
-                      Get.toNamed(AppRoutes.signIn);
-                    }
-                  },
-                ),
-              );
-            },
+      ),
+      SliverPadding(
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        sliver: SliverList(
+          delegate: SliverChildBuilderDelegate(
+            (context, index) => _buildChefUserTile(chefsList[index]),
+            childCount: chefsList.length,
           ),
         ),
-      ],
-    );
+      ),
+    ];
   }
 
-  Widget _buildBusinessListSection(List<BusinessAccounts> businessList) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16.0),
+  List<Widget> _buildBusinessUserSlivers(List<BusinessAccounts> businessList) {
+    return [
+      SliverToBoxAdapter(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
           child: Text(
             'Business Accounts'.tr,
             style: TextStyle(fontSize: 16.sp, fontWeight: FontWeight.w700),
           ),
         ),
-        SizedBox(height: 8.h),
-        SizedBox(
-          height: Get.height * 0.5,
-          child: ListView.builder(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0),
-            itemCount: businessList.length,
-            itemBuilder: (context, index) {
-              final business = businessList[index];
-              return Container(
-                margin: const EdgeInsets.symmetric(vertical: 8),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  border: Border.all(color: Colors.grey.shade300),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: ListTile(
-                  leading:
-                      business.image != null && business.image!.isNotEmpty
-                          ? CircleAvatar(
-                            backgroundImage: CachedNetworkImageProvider(
-                              business.image!.contains('http')
-                                  ? business.image!
-                                  : MediaUrlResolver.profileImageUrl(business.image!) ?? '',
-                            ),
-                            radius: 25,
-                          )
-                          : const CircleAvatar(
-                            radius: 25,
-                            child: Icon(Icons.person, color: Colors.white),
-                          ),
-                  title: Text(business.name ?? 'Unknown Business'),
-                  onTap: () async {
-                    if (await _isUserAuthenticated()) {
-                      Get.to(VisitProfileView(userId: business.id!));
-                    } else {
-                      Get.toNamed(AppRoutes.signIn);
-                    }
-                  },
-                ),
-              );
-            },
+      ),
+      SliverPadding(
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        sliver: SliverList(
+          delegate: SliverChildBuilderDelegate(
+            (context, index) => _buildBusinessUserTile(businessList[index]),
+            childCount: businessList.length,
           ),
         ),
-        const SizedBox(height: 16),
-      ],
+      ),
+    ];
+  }
+
+  Widget _buildChefUserTile(ChefAccounts chef) {
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border.all(color: Colors.grey.shade300),
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withValues(alpha: 0.1),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: ListTile(
+        leading:
+            chef.image != null && chef.image!.isNotEmpty
+                ? CircleAvatar(
+                  backgroundImage: CachedNetworkImageProvider(
+                    chef.image!.contains('http')
+                        ? chef.image!
+                        : MediaUrlResolver.profileImageUrl(chef.image!) ?? '',
+                  ),
+                  radius: 25,
+                )
+                : const CircleAvatar(
+                  radius: 25,
+                  child: Icon(Icons.person, color: Colors.white),
+                ),
+        title: Text(
+          chef.name ?? 'Unknown Business',
+          style: const TextStyle(
+            fontWeight: FontWeight.bold,
+            fontSize: 16,
+          ),
+        ),
+        subtitle: PublicUserIdentity.subtitleHandle(
+                  chef.userName?.toString(),
+                ) !=
+                null
+            ? Text(
+              PublicUserIdentity.formatAtHandle(
+                chef.userName?.toString(),
+              ),
+              style: TextStyle(
+                color: Colors.grey.shade600,
+                fontSize: 13.sp,
+              ),
+            )
+            : null,
+        onTap: () async {
+          if (await _isUserAuthenticated()) {
+            Get.to(VisitProfileView(userId: chef.id!));
+          } else {
+            Get.toNamed(AppRoutes.signIn);
+          }
+        },
+      ),
+    );
+  }
+
+  Widget _buildBusinessUserTile(BusinessAccounts business) {
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border.all(color: Colors.grey.shade300),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: ListTile(
+        leading:
+            business.image != null && business.image!.isNotEmpty
+                ? CircleAvatar(
+                  backgroundImage: CachedNetworkImageProvider(
+                    business.image!.contains('http')
+                        ? business.image!
+                        : MediaUrlResolver.profileImageUrl(business.image!) ??
+                            '',
+                  ),
+                  radius: 25,
+                )
+                : const CircleAvatar(
+                  radius: 25,
+                  child: Icon(Icons.person, color: Colors.white),
+                ),
+        title: Text(business.name ?? 'Unknown Business'),
+        subtitle: PublicUserIdentity.subtitleHandle(
+                  business.userName?.toString(),
+                ) !=
+                null
+            ? Text(
+              PublicUserIdentity.formatAtHandle(
+                business.userName?.toString(),
+              ),
+              style: TextStyle(
+                color: Colors.grey.shade600,
+                fontSize: 13.sp,
+              ),
+            )
+            : null,
+        onTap: () async {
+          if (await _isUserAuthenticated()) {
+            Get.to(VisitProfileView(userId: business.id!));
+          } else {
+            Get.toNamed(AppRoutes.signIn);
+          }
+        },
+      ),
     );
   }
 
@@ -1082,11 +1066,13 @@ class _SearchViewState extends State<SearchView>
                       return AppButton(
                         text: "Submit",
                         isLoading: searchController.isCityLoading.value,
-                        onTap: () {
-                          searchController.isCityLoading.value
-                              ? null
-                              : searchController.saveLocationData();
+                        onTap: () async {
+                          if (searchController.isCityLoading.value) {
+                            return;
+                          }
+                          await searchController.saveLocationData();
                           Navigator.pop(context);
+                          await searchController.refetchWithCurrentFilters();
                         },
                       );
                     }),
@@ -1303,6 +1289,8 @@ class _SearchViewState extends State<SearchView>
                             int? selectedId =
                                 countryMap[selectedCountryName.value];
                             if (selectedId != null) {
+                              searchControllerNew.currentCountryId.value =
+                                  selectedId.toString();
                               Get.back(); // Close the country dialog
 
                               searchControllerNew.isCityLoading.value = true;

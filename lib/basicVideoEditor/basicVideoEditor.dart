@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:math';
 import 'dart:async';
+import 'package:cookster/core/video/upload_video_preview_service.dart';
 import 'package:cookster/basicVideoEditor/videoEditorControllers/audioSelectorController.dart';
 import 'package:cookster/basicVideoEditor/videoEditorControllers/videoFilterController.dart';
 import 'package:cookster/basicVideoEditor/videoFilterUi.dart';
@@ -8,6 +9,7 @@ import 'package:cookster/basicVideoEditor/videoFilterUi.dart';
 // import 'package:ffmpeg_kit_flutter_full_gpl/ffmpeg_kit.dart' show FFmpegKit;
 // import 'package:ffmpeg_kit_flutter_full_gpl/return_code.dart';
 import 'package:ffmpeg_kit_flutter_new/ffmpeg_kit.dart';
+import 'package:ffmpeg_kit_flutter_new/ffprobe_kit.dart';
 import 'package:ffmpeg_kit_flutter_new/return_code.dart';
 
 import 'package:file_picker/file_picker.dart';
@@ -223,46 +225,84 @@ class _VideoTextEditorState extends State<VideoTextEditor> {
     });
   }
 
+  Future<void> _applyVideoDimensions(double width, double height) async {
+    _videoWidth = width;
+    _videoHeight = height;
+    final currentAspectRatio = _videoWidth / _videoHeight;
+    const targetAspectRatio = 0.5623529411764706; // 9:16
+    if (currentAspectRatio > targetAspectRatio) {
+      final newWidth = _videoHeight * targetAspectRatio;
+      _cropSettings = CropSettings(
+        width: newWidth,
+        height: _videoHeight,
+        x: (_videoWidth - newWidth) / 2,
+        y: 0,
+      );
+    }
+  }
+
   Future<void> _initVideoController() async {
     _videoController?.dispose();
     _processedVideoController?.dispose();
     _processedVideoController = null;
 
-    final controller = VideoPlayerController.file(_selectedVideo!);
-    _videoController = controller;
-    try {
+    if (_selectedVideo == null) return;
+
+    Future<void> initFromFile(File file) async {
+      final controller = VideoPlayerController.file(file);
+      _videoController = controller;
       await controller.initialize();
-      if (!mounted) {
-        return;
-      }
-      setState(() {
-        _videoWidth = controller.value.size.width;
-        _videoHeight = controller.value.size.height;
-
-        final currentAspectRatio = _videoWidth / _videoHeight;
-        const targetAspectRatio = 0.5623529411764706; // 9:16
-
-        if (currentAspectRatio > targetAspectRatio) {
-          final newWidth = _videoHeight * targetAspectRatio;
-          _cropSettings = CropSettings(
-            width: newWidth,
-            height: _videoHeight,
-            x: (_videoWidth - newWidth) / 2,
-            y: 0,
-          );
-        }
-      });
+      if (!mounted) return;
+      await _applyVideoDimensions(
+        controller.value.size.width,
+        controller.value.size.height,
+      );
+      setState(() {});
       await controller.setLooping(true);
       await controller.play();
+    }
+
+    try {
+      await initFromFile(_selectedVideo!);
     } catch (error) {
       debugPrint('Error initializing video controller: $error');
-      if (!mounted) {
-        return;
+      if (!mounted) return;
+
+      setState(() => _isProcessing = true);
+      try {
+        final playable =
+            await UploadVideoPreviewService.transcodeForDevicePlayback(
+          _selectedVideo!,
+        );
+        if (playable != null) {
+          _videoController?.dispose();
+          await initFromFile(playable);
+          return;
+        }
+      } catch (transcodeError) {
+        debugPrint('Preview transcode failed: $transcodeError');
+      } finally {
+        if (mounted) {
+          setState(() => _isProcessing = false);
+        }
       }
+
+      final probed =
+          await UploadVideoPreviewService.probeVideoSize(_selectedVideo!);
+      if (probed != null && mounted) {
+        await _applyVideoDimensions(probed.width.toDouble(), probed.height.toDouble());
+        setState(() {});
+      }
+
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Failed to load video preview: $error'),
-          backgroundColor: Colors.red,
+          content: Text(
+            probed != null
+                ? 'Video preview unavailable on this device. You can still process and upload.'
+                : 'Failed to load video preview: $error',
+          ),
+          backgroundColor: Colors.orange,
         ),
       );
     }
@@ -717,11 +757,31 @@ class _VideoTextEditorState extends State<VideoTextEditor> {
 
       final outputPath =
           "${tempDir.path}/processed_${DateTime.now().millisecondsSinceEpoch}.mp4";
-      final duration = _videoController!.value.duration.inSeconds.toDouble();
 
-      // Update video dimensions from controller
-      _videoWidth = _videoController!.value.size.width;
-      _videoHeight = _videoController!.value.size.height;
+      double durationSeconds = 0;
+      if (_videoController != null && _videoController!.value.isInitialized) {
+        durationSeconds = _videoController!.value.duration.inSeconds.toDouble();
+        _videoWidth = _videoController!.value.size.width;
+        _videoHeight = _videoController!.value.size.height;
+      } else {
+        final probed =
+            await UploadVideoPreviewService.probeVideoSize(inputFile);
+        if (probed != null) {
+          _videoWidth = probed.width.toDouble();
+          _videoHeight = probed.height.toDouble();
+        }
+        final info =
+            await FFprobeKit.getMediaInformation(inputFile.path);
+        final mediaInfo = info.getMediaInformation();
+        final durationStr = mediaInfo?.getDuration();
+        if (durationStr != null) {
+          durationSeconds = double.tryParse(durationStr) ?? 0;
+        }
+      }
+      if (_videoWidth <= 0 || _videoHeight <= 0 || durationSeconds <= 0) {
+        throw Exception('Could not read video metadata');
+      }
+      final duration = durationSeconds;
 
       // Define target aspect ratio (9:16)
       const targetAspectRatio = 9 / 16;

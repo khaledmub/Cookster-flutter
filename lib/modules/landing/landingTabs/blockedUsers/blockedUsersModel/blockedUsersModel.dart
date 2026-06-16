@@ -28,14 +28,16 @@ class BlockedUsersList {
 class BlockedUsers {
   String? id;
   String? name;
+  String? userName;
   String? email;
   dynamic image;
 
-  BlockedUsers({this.id, this.name, this.email, this.image});
+  BlockedUsers({this.id, this.name, this.userName, this.email, this.image});
 
   BlockedUsers.fromJson(Map<String, dynamic> json) {
     id = json['id'];
     name = json['name'];
+    userName = json['user_name'];
     email = json['email'];
     image = json['image'];
   }
@@ -44,6 +46,7 @@ class BlockedUsers {
     final Map<String, dynamic> data = new Map<String, dynamic>();
     data['id'] = this.id;
     data['name'] = this.name;
+    data['user_name'] = this.userName;
     data['email'] = this.email;
     data['image'] = this.image;
     return data;

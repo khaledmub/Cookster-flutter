@@ -3,12 +3,14 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:get/get.dart';
+import 'package:cookster/core/navigation/route_back.dart';
 import 'package:cookster/core/widgets/grid_thumbnail_cache.dart';
+import 'package:cookster/core/video/profile_reel_prefetch.dart';
+import 'package:cookster/modules/collection_reel/collection_reel_screen.dart';
 
 import '../../appUtils/colorUtils.dart';
 import '../../core/widgets/paginated_scroll_mixin.dart';
 import '../../loaders/pulseLoader.dart';
-import '../singleVideoView/singleVideoView.dart';
 import 'liked_videos_controller/liked_videos_controller.dart';
 import 'liked_videos_model/liked_videos_model.dart';
 
@@ -45,20 +47,25 @@ class _LikedVideosScreenState extends State<LikedVideosScreen>
   Widget _buildVideoTile(LikedVideos video, int thumbCache) {
     return GestureDetector(
       onTap: () {
+        warmProfileReelTap(
+          videoUrl: video.videoUrl,
+          video: video.video,
+          hlsUrl: video.hlsUrl,
+          hlsPlaylistUrl: video.hlsPlaylistUrl,
+          transcodeStatus: video.transcodeStatus,
+          videoSources: video.videoSources,
+        );
         Get.to(
-          SingleVideoScreen(
-            followers: video.followersCount.toString(),
-            frondUserId: video.frontUserId,
-            userImage: video.userImage,
-            videoId: video.id,
-            videoUrl: video.resolvedPlaybackUrl,
-            title: video.title,
-            image: video.image,
-            allowComments: video.allowComments,
-            description: video.description,
-            tags: video.tags,
-            userName: video.userName,
-            createdAt: video.createdAt,
+          () => CollectionReelScreen(
+            kind: CollectionReelKind.liked,
+            anchorId: video.id?.toString(),
+            initialPosterUrl: profileReelPosterFromGrid(
+              processingStatus: video.processingStatus,
+              transcodeStatus: video.transcodeStatus,
+              thumbnailUrl: video.thumbnailUrl,
+              imageUrl: video.imageUrl,
+              image: video.image,
+            ),
           ),
         );
       },
@@ -130,7 +137,7 @@ class _LikedVideosScreenState extends State<LikedVideosScreen>
                     Directionality.of(context) == TextDirection.rtl ? 16 : null,
                 top: 25,
                 child: InkWell(
-                  onTap: Get.back,
+                  onTap: () => navigateBack(),
                   child: Container(
                     height: 40,
                     width: 40,
@@ -161,11 +168,19 @@ class _LikedVideosScreenState extends State<LikedVideosScreen>
 
         final videos = controller.likedVideos;
         if (videos.isEmpty) {
-          return Center(
-            child: Image.asset(
-              "assets/images/notfound.png",
-              fit: BoxFit.cover,
-            ),
+          return ListView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            children: [
+              SizedBox(
+                height: MediaQuery.sizeOf(context).height * 0.6,
+                child: Center(
+                  child: Image.asset(
+                    "assets/images/notfound.png",
+                    fit: BoxFit.cover,
+                  ),
+                ),
+              ),
+            ],
           );
         }
 

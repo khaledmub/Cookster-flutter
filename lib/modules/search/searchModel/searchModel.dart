@@ -1,5 +1,7 @@
 import 'package:cookster/core/media/media_url_resolver.dart';
+import 'package:cookster/core/media/playback_media.dart';
 import 'package:cookster/modules/landing/landingTabs/home/homeModel/videoFeedModel.dart';
+import 'package:cookster/modules/landing/landingTabs/home/homeModel/video_sources.dart';
 
 class SearchResult {
   bool? status;
@@ -76,7 +78,13 @@ class Videos {
   dynamic video;
   dynamic videoUrl;
   dynamic thumbnailUrl;
+  dynamic thumbnailBlur;
   dynamic imageUrl;
+  dynamic hlsUrl;
+  dynamic hlsPlaylistUrl;
+  dynamic transcodeStatus;
+  dynamic processingStatus;
+  VideoSources? videoSources;
   dynamic state;
   dynamic status;
   dynamic createdAt;
@@ -146,7 +154,13 @@ class Videos {
     video = json['video'];
     videoUrl = json['video_url'];
     thumbnailUrl = json['thumbnail_url'];
+    thumbnailBlur = json['thumbnail_blur'];
     imageUrl = json['image_url'];
+    hlsUrl = json['hls_url'];
+    hlsPlaylistUrl = json['hls_playlist_url'];
+    transcodeStatus = json['transcode_status'];
+    processingStatus = json['processing_status'];
+    videoSources = PlaybackMedia.parseSources(json['video_sources']);
     state = json['state'];
     status = json['status'];
     createdAt = json['created_at'];
@@ -213,12 +227,27 @@ extension SearchVideosMedia on Videos {
         videoUrl: videoUrl?.toString(),
         video: video?.toString(),
       );
+
+  bool get isTranscodeReady =>
+      PlaybackMedia.isReady(transcodeStatus?.toString());
+
+  String? get resolvedHlsUrl => PlaybackMedia.resolvedHls(
+        transcodeStatus: transcodeStatus?.toString(),
+        hlsPlaylistUrl: hlsPlaylistUrl?.toString(),
+        hlsUrl: hlsUrl?.toString(),
+      );
+
+  List<String> get qualityMp4Urls => PlaybackMedia.ladder(
+        transcodeStatus: transcodeStatus?.toString(),
+        sources: videoSources,
+      );
 }
 
 class BusinessAccounts {
   dynamic id;
   dynamic systemId;
   dynamic name;
+  dynamic userName;
   dynamic email;
   dynamic phone;
   dynamic password;
@@ -240,6 +269,7 @@ class BusinessAccounts {
     this.id,
     this.systemId,
     this.name,
+    this.userName,
     this.email,
     this.phone,
     this.password,
@@ -262,6 +292,7 @@ class BusinessAccounts {
     id = json['id'];
     systemId = json['system_id'];
     name = json['name'];
+    userName = json['user_name'];
     email = json['email'];
     phone = json['phone'];
     password = json['password'];
@@ -285,6 +316,7 @@ class BusinessAccounts {
     data['id'] = this.id;
     data['system_id'] = this.systemId;
     data['name'] = this.name;
+    data['user_name'] = this.userName;
     data['email'] = this.email;
     data['phone'] = this.phone;
     data['password'] = this.password;
@@ -309,6 +341,7 @@ class ChefAccounts {
   dynamic id;
   dynamic systemId;
   dynamic name;
+  dynamic userName;
   dynamic email;
   dynamic phone;
   dynamic password;
@@ -325,6 +358,7 @@ class ChefAccounts {
     this.id,
     this.systemId,
     this.name,
+    this.userName,
     this.email,
     this.phone,
     this.password,
@@ -342,6 +376,7 @@ class ChefAccounts {
     id = json['id'];
     systemId = json['system_id'];
     name = json['name'];
+    userName = json['user_name'];
     email = json['email'];
     phone = json['phone'];
     password = json['password'];
@@ -360,6 +395,7 @@ class ChefAccounts {
     data['id'] = this.id;
     data['system_id'] = this.systemId;
     data['name'] = this.name;
+    data['user_name'] = this.userName;
     data['email'] = this.email;
     data['phone'] = this.phone;
     data['password'] = this.password;

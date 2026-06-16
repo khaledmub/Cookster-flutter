@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:firebase_remote_config/firebase_remote_config.dart';
 
 class RemoteConfigService {
@@ -19,7 +21,14 @@ class RemoteConfigService {
       'reels_preload_limit_mobile': 2,
       'reels_data_saver_default': false,
     });
-    await _remoteConfig.fetchAndActivate();
+    await _remoteConfig.activate();
+    unawaited(_fetchInBackground());
+  }
+
+  Future<void> _fetchInBackground() async {
+    try {
+      await _remoteConfig.fetchAndActivate();
+    } catch (_) {}
   }
 
   bool get preloadEnabled => _remoteConfig.getBool('reels_preload_enabled');

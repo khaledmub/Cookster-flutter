@@ -1,14 +1,26 @@
 import 'dart:async';
 import 'dart:collection';
 
+import 'package:cookster/core/video/feed_ping_pong_controller.dart';
+import 'package:flutter/foundation.dart';
 import 'package:cookster/services/settings/settings_service.dart';
 import 'package:media_kit/media_kit.dart';
+import 'package:media_kit_video/media_kit_video.dart';
 
 class PooledMediaKitPlayer {
-  PooledMediaKitPlayer({required this.key, required this.player});
+  PooledMediaKitPlayer({
+    required this.key,
+    required this.player,
+    this.feedActiveSlotIndex,
+    this.feedFlipped = false,
+    this.feedOpenedMedia = false,
+  });
 
   final String key;
   final Player player;
+  final int? feedActiveSlotIndex;
+  final bool feedFlipped;
+  final bool feedOpenedMedia;
 }
 
 /// MediaKit player pool for reels with priority for the visible slot.
@@ -20,33 +32,82 @@ class PooledMediaKitPlayer {
 /// - Hard cap of [_maxPoolSize] players; LRU eviction for idle (lease 0) entries.
 /// - Warm slot cap: 2 on phone, 3 on tablet ([tabletBreakpoint] logical px).
 class MediaKitPlayerPool {
-  MediaKitPlayerPool._();
+  MediaKitPlayerPool._() {
+    _feedPingPong = FeedPingPongController();
+  }
 
   static final MediaKitPlayerPool instance = MediaKitPlayerPool._();
 
-  static const int maxPoolSizePhone = 4;
-  static const int maxPoolSizeTablet = 6;
+  // Pool size vs. warm slots are decoupled on purpose:
+  //   * [_maxWarmSlots] (1 on phone) caps how many *background* decoders may
+  //     actively buffer ahead — concurrent active 720p decode stays at 2
+  //     (visible + 1 ahead), which is what the MediaTek codec sustains without
+  //     starving (4 *actively* warming slots was what caused discardFps spikes).
+  //   * [maxPoolSizePhone] (4) keeps a couple of *recently played* decoders
+  //     resident but paused, so swiping back to the last 1-2 reels resumes
+  //     instantly instead of cold-reloading. Paused instances don't decode, so
+  //     they don't compete for the codec.
+  static const int maxPoolSizePhone = 2;
+  static const int maxPoolSizeTablet = 5;
   static const double tabletBreakpoint = 600;
 
   /// LRU order: oldest at [LinkedHashMap.keys.first], MRU at last.
   final LinkedHashMap<String, Player> _players = LinkedHashMap<String, Player>();
   final Map<String, int> _leaseCount = <String, int>{};
+  final Map<String, String> _sourceByKey = <String, String>{};
   final Set<String> _warmInFlight = <String>{};
   final Set<String> _frameReadyKeys = <String>{};
   final Set<String> _bufferPrimedKeys = <String>{};
 
   String? _activeKey;
+
+  String? get activePoolKey => _activeKey;
+
+  /// Dual-slot feed ping-pong: prefetch on hidden, flip on swipe, recycle hidden only.
+  late final FeedPingPongController _feedPingPong;
+  final ValueNotifier<int> feedSurfaceGeneration = ValueNotifier<int>(0);
+  /// Bumped on every feed present flip so the single [Video] surface rebinds.
+  final ValueNotifier<int> feedActiveSlotIndexNotifier = ValueNotifier<int>(0);
+  String? _feedVisibleKey;
+  int _feedOpenToken = 0;
+
+  Player? get _feedVisiblePlayer => _feedPingPong.activePlayer;
+
+  int get activeFeedSlotIndex => _feedPingPong.activeSlotIndex;
+
+  int feedSlotGeneration(int index) => _feedPingPong.slotGeneration(index);
+
+  VideoController? feedSlotVideoController(int index) =>
+      _feedPingPong.videoControllerForSlot(index);
+
+  Future<void> ensureFeedPingPongInitialized() =>
+      _feedPingPong.ensureInitialized();
+
+  bool _isFeedPingPongPlayer(Player? player) {
+    if (player == null) {
+      return false;
+    }
+    return identical(player, _feedPingPong.slot0.player) ||
+        identical(player, _feedPingPong.slot1.player);
+  }
   double _screenWidth = 400;
   int _priorityDepth = 0;
   /// Latest reel that should receive audio; older [activateVisible] calls bail out.
   String? _audibleTargetKey;
   final Set<String> _userPausedKeys = <String>{};
+  /// Bumped on [pauseAllImmediate] — in-flight unmute retries must bail out.
+  int _suspendEpoch = 0;
+
+  bool _isStaleFeedOpen(int openToken) => openToken < _feedOpenToken;
 
   /// Chains only priority (visible / active) operations.
   Future<void> _priorityChain = Future<void>.value();
 
   /// Chains background warm-ups; never awaited by [acquire].
   Future<void> _warmChain = Future<void>.value();
+
+  /// Bumped on [disposeAll] so in-flight [warmUp] tasks cannot register players.
+  int _disposeGeneration = 0;
 
   /// Call from UI (e.g. reels [MediaQuery.sizeOf].width) to tune warm limits.
   void setScreenWidth(double logicalWidth) {
@@ -59,9 +120,17 @@ class MediaKitPlayerPool {
 
   int get _maxPoolSize => _isTablet ? maxPoolSizeTablet : maxPoolSizePhone;
 
-  int get _maxWarmSlots => _isTablet ? 3 : 2;
+  /// Phone: 0 — one visible [Player] only; extra warm slots exhaust OpenSL on MTK.
+  int get _maxWarmSlots => _isTablet ? 2 : 0;
+
+  /// Off-screen warm cap (phone 2, tablet 3) — keep preload depth aligned.
+  int get maxWarmSlots => _maxWarmSlots;
 
   bool isWarmed(String key) => _players.containsKey(key);
+
+  String? sourceUrlForKey(String key) => _sourceByKey[key];
+
+  Player? playerForKey(String key) => _players[key];
 
   bool isFrameReady(String key) => _frameReadyKeys.contains(key);
 
@@ -71,6 +140,14 @@ class MediaKitPlayerPool {
   void clearUserPaused(String key) => _userPausedKeys.remove(key);
 
   bool isActiveAudible(String key) {
+    if (_feedVisibleKey != null && key == _feedVisibleKey) {
+      final player = _feedVisiblePlayer;
+      if (player == null) {
+        return false;
+      }
+      // Feed demux stays hot from open(play:true); MTK lies about [playing] after mute.
+      return player.state.volume > 50;
+    }
     if (_activeKey != key) {
       return false;
     }
@@ -84,8 +161,27 @@ class MediaKitPlayerPool {
   /// Demux/decode buffered without a [Video] surface (width stays null until attach).
   bool isBufferPrimed(String key) => _bufferPrimedKeys.contains(key);
 
+  /// True when [key] already has media opened in the pool — skip cold
+  /// [Player.open] and the heavy pause/seek/wait rewind path.
+  bool canInstantResume(String key) {
+    final player = _players[key];
+    if (player == null) {
+      return false;
+    }
+    final source = _sourceByKey[key];
+    if (source == null || source.isEmpty) {
+      return false;
+    }
+    return !player.state.completed;
+  }
+
   void markFrameReadyFromSurface(String key) {
     _markFrameReady(key);
+  }
+
+  /// Clears off-screen priming so UI does not skip the poster before attach.
+  void invalidatePrimedFrame(String key) {
+    _clearFrameReady(key);
   }
 
   void _markFrameReady(String key) {
@@ -97,7 +193,8 @@ class MediaKitPlayerPool {
     _bufferPrimedKeys.remove(key);
   }
 
-  bool _needsRewind(Player player) {
+  /// Only rewind background warm slots — never the visible audible reel.
+  bool _needsBackgroundReset(Player player) {
     return player.state.completed ||
         player.state.position.inMilliseconds > 250;
   }
@@ -108,7 +205,7 @@ class MediaKitPlayerPool {
       if (_players[key] != player) {
         return;
       }
-      if (!_needsRewind(player)) {
+      if (!_needsBackgroundReset(player)) {
         return;
       }
       try {
@@ -117,6 +214,36 @@ class MediaKitPlayerPool {
       await Future<void>.delayed(const Duration(milliseconds: 16));
       waited += 16;
     }
+  }
+
+  /// Fast visible entry for a pooled slot — media is already demuxed so we only
+  /// seek to the start and play. Avoids the pause/flush/wait loop that shows up
+  /// in device logs as multi-decoder stalls when swiping back to recent reels.
+  Future<void> _quickStartLocked(String key, {bool playMuted = true}) async {
+    if (key.isEmpty || !_players.containsKey(key)) {
+      return;
+    }
+    final player = _players[key];
+    if (player == null) {
+      return;
+    }
+    _activeKey = key;
+    _touchLru(key);
+    await _silenceOthersLocked(key);
+    if (_players[key] != player) {
+      return;
+    }
+    try {
+      if (player.state.completed ||
+          player.state.position.inMilliseconds > 32) {
+        await player.seek(Duration.zero);
+      }
+      await player.setVolume(0);
+      if (playMuted && !player.state.playing) {
+        await player.play();
+      }
+      _bufferPrimedKeys.add(key);
+    } catch (_) {}
   }
 
   /// Pause, seek to 0, wait for demuxer, then play muted (visible reel entry point).
@@ -147,6 +274,15 @@ class MediaKitPlayerPool {
         await player.play();
       }
     } catch (_) {}
+  }
+
+  Future<void> _prepareVisibleLocked(String key) async {
+    final player = _players[key];
+    if (player != null && canInstantResume(key)) {
+      await _quickStartLocked(key);
+    } else {
+      await _rewindToStartLocked(key);
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -202,14 +338,21 @@ class MediaKitPlayerPool {
 
   Future<void> _disposeKey(String key) async {
     _leaseCount.remove(key);
+    _sourceByKey.remove(key);
     _warmInFlight.remove(key);
     _clearFrameReady(key);
     final player = _players.remove(key);
     if (_activeKey == key) {
       _activeKey = null;
     }
+    if (_feedVisibleKey == key) {
+      _feedVisibleKey = null;
+    }
     _userPausedKeys.remove(key);
     if (player == null) {
+      return;
+    }
+    if (_isFeedPingPongPlayer(player)) {
       return;
     }
     try {
@@ -218,6 +361,165 @@ class MediaKitPlayerPool {
     try {
       await player.dispose();
     } catch (_) {}
+  }
+
+  void _unmapFeedVisibleKey(String oldKey) {
+    final mapped = _players[oldKey];
+    if (oldKey.isEmpty || !_isFeedPingPongPlayer(mapped)) {
+      return;
+    }
+    _players.remove(oldKey);
+    _leaseCount.remove(oldKey);
+    _sourceByKey.remove(oldKey);
+    _warmInFlight.remove(oldKey);
+    _clearFrameReady(oldKey);
+    _userPausedKeys.remove(oldKey);
+    if (_activeKey == oldKey) {
+      _activeKey = null;
+    }
+    if (_feedVisibleKey == oldKey) {
+      _feedVisibleKey = null;
+    }
+  }
+
+  /// Feed-only: ping-pong present — flip if prefetched, else open on active slot.
+  /// [openToken] must be the widget's [_playbackGeneration]; stale calls are ignored.
+  Future<PooledMediaKitPlayer> openVisibleReel({
+    required String key,
+    required String sourceUrl,
+    required int openToken,
+  }) {
+    return _runPriority(() async {
+      _feedOpenToken = openToken;
+      await _disposeIdleWarmExcept(key);
+
+      final previousKey = _feedVisibleKey;
+      if (previousKey != null &&
+          previousKey != key &&
+          previousKey.isNotEmpty) {
+        _unmapFeedVisibleKey(previousKey);
+      }
+
+      if (_isStaleFeedOpen(openToken)) {
+        final player = _feedPingPong.activePlayer;
+        if (player == null) {
+          throw StateError('Feed ping-pong player missing for stale open');
+        }
+        return PooledMediaKitPlayer(
+          key: _feedVisibleKey ?? key,
+          player: player,
+          feedActiveSlotIndex: _feedPingPong.activeSlotIndex,
+        );
+      }
+
+      final suspendEpoch = _suspendEpoch;
+      FeedPresentResult? result;
+      try {
+        result = await _feedPingPong.presentReel(
+          key: key,
+          sourceUrl: sourceUrl,
+          openToken: openToken,
+          suspended: _isSuspendedSince(suspendEpoch),
+          userPaused: _userPausedKeys.contains(key),
+        );
+      } catch (_) {
+        _unmapFeedVisibleKey(key);
+        rethrow;
+      }
+
+      if (result == null || _isStaleFeedOpen(openToken)) {
+        final player = _feedPingPong.activePlayer;
+        if (player == null) {
+          throw StateError('Feed ping-pong player missing after stale present');
+        }
+        return PooledMediaKitPlayer(
+          key: _feedVisibleKey ?? key,
+          player: player,
+          feedActiveSlotIndex: _feedPingPong.activeSlotIndex,
+        );
+      }
+
+      _feedVisibleKey = key;
+      _activeKey = key;
+      _audibleTargetKey = key;
+      feedActiveSlotIndexNotifier.value = result.activeSlotIndex;
+      _players[key] = result.player;
+      _sourceByKey[key] = sourceUrl;
+      _leaseCount[key] = 1;
+      _warmInFlight.remove(key);
+      _touchLru(key);
+      _bufferPrimedKeys.add(key);
+      if (result.openedMedia) {
+        _clearFrameReady(key);
+      } else {
+        _markFrameReady(key);
+      }
+
+      return PooledMediaKitPlayer(
+        key: key,
+        player: result.player,
+        feedActiveSlotIndex: result.activeSlotIndex,
+        feedFlipped: result.flipped,
+        feedOpenedMedia: result.openedMedia,
+      );
+    });
+  }
+
+  /// Opens the next reel on the hidden ping-pong slot (muted, demux ahead).
+  Future<void> prefetchFeedReel({
+    required String key,
+    required String sourceUrl,
+    int? prefetchToken,
+  }) {
+    if (key.isEmpty || sourceUrl.isEmpty) {
+      return Future<void>.value();
+    }
+    final token = prefetchToken ?? _feedOpenToken;
+    _enqueueWarm(() async {
+      await _waitForPriorityLane(maxMs: 8000);
+      if (_priorityDepth > 0) {
+        return;
+      }
+      await _feedPingPong.prefetchReel(
+        key: key,
+        sourceUrl: sourceUrl,
+        prefetchToken: token,
+      );
+      _sourceByKey[key] = sourceUrl;
+      _bufferPrimedKeys.add(key);
+    });
+    return Future<void>.value();
+  }
+
+  /// Resume feed audio after tab/background mute without re-opening media.
+  Future<void> resumeFeedVisible(String key) {
+    return feedResumeAudibleWhenReady(key);
+  }
+
+  /// Unmute only when [key] is on the active slot and a frame has painted.
+  Future<void> feedResumeAudibleWhenReady(String key) {
+    return _runPriority(() async {
+      if (key.isEmpty ||
+          _feedVisibleKey != key ||
+          _userPausedKeys.contains(key)) {
+        return;
+      }
+      if (_feedPingPong.visibleKey != key) {
+        return;
+      }
+      if (!isFrameReady(key)) {
+        return;
+      }
+      if (isActiveAudible(key)) {
+        return;
+      }
+      _audibleTargetKey = key;
+      _activeKey = key;
+      await _feedPingPong.resumeActiveAudible(
+        alreadyAudible: false,
+        expectedKey: key,
+      );
+    });
   }
 
   Future<void> _evictLruIfNeeded({String? protect}) async {
@@ -264,6 +566,13 @@ class MediaKitPlayerPool {
     }
   }
 
+  void _suspendPlayback() {
+    _suspendEpoch++;
+    _audibleTargetKey = null;
+  }
+
+  bool _isSuspendedSince(int epoch) => epoch != _suspendEpoch;
+
   /// Synchronous mute/pause for tab switches — stops audio before async cleanup runs.
   void silenceAllSync({String? exceptKey}) {
     if (exceptKey == null || exceptKey.isEmpty) {
@@ -278,6 +587,15 @@ class MediaKitPlayerPool {
         continue;
       }
       final player = entry.value;
+      if (_isFeedPingPongPlayer(player) &&
+          exceptKey != null &&
+          exceptKey.isNotEmpty &&
+          entry.key == exceptKey) {
+        continue;
+      }
+      if (_isFeedPingPongPlayer(player)) {
+        continue;
+      }
       try {
         unawaited(player.setVolume(0));
         if (player.state.playing) {
@@ -285,11 +603,19 @@ class MediaKitPlayerPool {
         }
       } catch (_) {}
     }
+    if (exceptKey == null || exceptKey.isEmpty) {
+      unawaited(_feedPingPong.silenceAllSlots());
+    } else if (_feedVisibleKey == exceptKey) {
+      unawaited(_feedPingPong.muteHiddenSlot());
+    } else {
+      unawaited(_feedPingPong.silenceAllSlots());
+    }
   }
 
   /// Mutes off-screen slots on swipe. When [exceptKey] is set, that slot is left
   /// alone so it can rewind/play without an extra pause→flush→stop cycle.
   void pauseAllImmediate({String? exceptKey}) {
+    _suspendPlayback();
     silenceAllSync(exceptKey: exceptKey);
     if (exceptKey != null && exceptKey.isNotEmpty) {
       unawaited(_runPriority(() => _silenceOthersLocked(exceptKey)));
@@ -309,9 +635,10 @@ class MediaKitPlayerPool {
   }
 
   Future<void> _silenceAllLocked() async {
-    for (final entry in _players.entries) {
+    final snapshot = Map<String, Player>.from(_players);
+    for (final entry in snapshot.entries) {
       final player = _players[entry.key];
-      if (player == null) {
+      if (player == null || _isFeedPingPongPlayer(player)) {
         continue;
       }
       try {
@@ -323,23 +650,25 @@ class MediaKitPlayerPool {
         }
       } catch (_) {}
     }
+    await _feedPingPong.silenceAllSlots();
   }
 
   /// Mutes/pauses every slot except [exceptKey] (used when unmuting the visible reel).
   Future<void> _silenceOthersLocked(String exceptKey) async {
-    for (final entry in _players.entries) {
+    final snapshot = Map<String, Player>.from(_players);
+    for (final entry in snapshot.entries) {
       if (entry.key == exceptKey) {
         continue;
       }
       final player = _players[entry.key];
-      if (player == null) {
+      if (player == null || _isFeedPingPongPlayer(player)) {
         continue;
       }
       try {
         if (player.state.playing) {
           await player.pause();
         }
-        if (_players[entry.key] == player && _needsRewind(player)) {
+        if (_players[entry.key] == player && _needsBackgroundReset(player)) {
           await player.seek(Duration.zero);
         }
         if (_players[entry.key] == player) {
@@ -353,6 +682,10 @@ class MediaKitPlayerPool {
     return _runPriority(() async {
       _userPausedKeys.add(key);
       _activeKey = key;
+      if (_feedVisibleKey == key) {
+        await _feedPingPong.muteActiveForUser();
+        return;
+      }
       final player = _players[key];
       if (player == null) {
         return;
@@ -364,8 +697,33 @@ class MediaKitPlayerPool {
     });
   }
 
-  Future<void> _unmuteAndPlayLocked(String key) async {
-    if (_userPausedKeys.contains(key)) {
+  /// Feed user resume after [pauseByUser] — play + unmute on the active slot.
+  Future<void> feedUserResume(String key) {
+    return _runPriority(() async {
+      if (_feedVisibleKey != key) {
+        return;
+      }
+      _userPausedKeys.remove(key);
+      _audibleTargetKey = key;
+      _activeKey = key;
+      await _feedPingPong.resumeActiveForUser(expectedKey: key);
+    });
+  }
+
+  Future<void> _unmuteAndPlayLocked(
+    String key, {
+    required int suspendEpoch,
+    int? openToken,
+  }) async {
+    if (openToken != null && _isStaleFeedOpen(openToken)) {
+      return;
+    }
+    if (_feedVisiblePlayer != null &&
+        _feedVisibleKey != null &&
+        key != _feedVisibleKey) {
+      return;
+    }
+    if (_userPausedKeys.contains(key) || _isSuspendedSince(suspendEpoch)) {
       return;
     }
     final player = _players[key];
@@ -373,35 +731,68 @@ class MediaKitPlayerPool {
       return;
     }
     _activeKey = key;
+    _audibleTargetKey = key;
     _touchLru(key);
-    for (final entry in _players.entries) {
-      if (entry.key == key) {
-        continue;
-      }
-      try {
-        if (entry.value.state.playing) {
-          await entry.value.pause();
-        }
-        if (_players[entry.key] == entry.value) {
-          await entry.value.setVolume(0);
-        }
-      } catch (_) {}
+    // Feed uses one physical [Player] — silencing pool slots here only flushes audio.
+    if (_feedVisiblePlayer == null ||
+        !identical(player, _feedVisiblePlayer)) {
+      await _silenceOthersLocked(key);
     }
-    if (_players[key] != player) {
+    if (_players[key] != player ||
+        _audibleTargetKey != key ||
+        _isSuspendedSince(suspendEpoch)) {
       return;
     }
-    if (_needsRewind(player)) {
-      await player.pause();
+    if (player.state.completed) {
       await player.seek(Duration.zero);
       await _waitForPositionNearStart(player, key);
-      if (_players[key] != player) {
+      if (_players[key] != player || _isSuspendedSince(suspendEpoch)) {
         return;
       }
     }
-    await player.setVolume(100);
-    if (!player.state.playing) {
-      await player.play();
+    await _tryAudiblePlayback(
+      player,
+      key,
+      suspendEpoch: suspendEpoch,
+      openToken: openToken,
+    );
+  }
+
+  /// Unmute + play once — pause/play retry loops were causing AudioTrack flush spam.
+  Future<bool> _tryAudiblePlayback(
+    Player player,
+    String key, {
+    required int suspendEpoch,
+    int? openToken,
+  }) async {
+    if (openToken != null && _isStaleFeedOpen(openToken)) {
+      return false;
     }
+    if (_feedVisiblePlayer != null &&
+        _feedVisibleKey != null &&
+        key != _feedVisibleKey) {
+      return false;
+    }
+    if (_isSuspendedSince(suspendEpoch) ||
+        _players[key] != player ||
+        _userPausedKeys.contains(key) ||
+        _audibleTargetKey != key) {
+      return false;
+    }
+    try {
+      if (player.state.volume <= 50) {
+        await player.setVolume(100);
+      }
+      final isFeedPlayer = _isFeedPingPongPlayer(player);
+      // Feed demux is started by open(play:true); never call play() again on MTK.
+      if (!isFeedPlayer && !player.state.playing) {
+        await player.play();
+      }
+    } catch (_) {}
+    return !_isSuspendedSince(suspendEpoch) &&
+        _players[key] == player &&
+        player.state.volume > 50 &&
+        player.state.playing;
   }
 
   String? _lastActivateKey;
@@ -410,13 +801,42 @@ class MediaKitPlayerPool {
   /// Single entry to make [key] the only audible reel (fixes multi-track fights).
   Future<void> activateVisible(String key) {
     return _runPriority(() async {
+      final suspendEpoch = _suspendEpoch;
       if (key.isEmpty ||
           !_players.containsKey(key) ||
-          _userPausedKeys.contains(key)) {
+          _userPausedKeys.contains(key) ||
+          _isSuspendedSince(suspendEpoch)) {
+        return;
+      }
+      if (_feedVisiblePlayer != null &&
+          _feedVisibleKey != null &&
+          key != _feedVisibleKey) {
+        return;
+      }
+      if (_feedVisibleKey == key && _isFeedPingPongPlayer(_players[key])) {
+        if (isActiveAudible(key)) {
+          return;
+        }
+        if (_feedPingPong.visibleKey != key) {
+          return;
+        }
+        _audibleTargetKey = key;
+        _activeKey = key;
+        await _feedPingPong.resumeActiveAudible(
+          alreadyAudible: false,
+          expectedKey: key,
+        );
         return;
       }
       final now = DateTime.now().millisecondsSinceEpoch;
-      if (_lastActivateKey == key && now - _lastActivateMs < 150) {
+      final player = _players[key];
+      final needsAudible = player == null ||
+          player.state.volume <= 50 ||
+          !player.state.playing;
+      if (!needsAudible &&
+          _feedVisibleKey == key &&
+          _lastActivateKey == key &&
+          now - _lastActivateMs < 400) {
         return;
       }
       _lastActivateKey = key;
@@ -424,13 +844,18 @@ class MediaKitPlayerPool {
 
       _audibleTargetKey = key;
       await _silenceOthersLocked(key);
-      if (_audibleTargetKey != key) {
+      if (_audibleTargetKey != key || _isSuspendedSince(suspendEpoch)) {
         return;
       }
 
       _activeKey = key;
-      await _unmuteAndPlayLocked(key);
+      await _unmuteAndPlayLocked(key, suspendEpoch: suspendEpoch);
     });
+  }
+
+  /// True when [key] is the sole feed-visible mapping and playing unmuted.
+  bool isFeedVisibleAudible(String key) {
+    return _feedVisibleKey == key && isActiveAudible(key);
   }
 
   /// Pauses/mutes off-screen slots and restores audible playback for [key].
@@ -450,18 +875,24 @@ class MediaKitPlayerPool {
     }
   }
 
-  /// Pauses off-screen warm slots so the visible reel gets the decoder first.
-  Future<void> _pauseBackgroundWarmExcept(String key) async {
+  /// Drop idle warm decoders before the visible reel unmutes.
+  ///
+  /// Paused warm slots were still holding OpenSL audio outputs; on MTK/Oppo
+  /// that triggers `SL_RESULT_MEMORY_FAILURE` and random silent reels.
+  Future<void> _disposeIdleWarmExcept(String key) async {
+    final toDispose = <String>[];
     for (final entry in _players.entries) {
-      if (entry.key == key || (_leaseCount[entry.key] ?? 0) > 0) {
+      final slotKey = entry.key;
+      if (slotKey == key || (_leaseCount[slotKey] ?? 0) > 0) {
         continue;
       }
-      try {
-        if (entry.value.state.playing) {
-          await entry.value.pause();
-        }
-        await entry.value.setVolume(0);
-      } catch (_) {}
+      if (_isFeedPingPongPlayer(entry.value)) {
+        continue;
+      }
+      toDispose.add(slotKey);
+    }
+    for (final slotKey in toDispose) {
+      await _disposeKey(slotKey);
     }
   }
 
@@ -475,7 +906,7 @@ class MediaKitPlayerPool {
         // Still allow one visible player in data saver.
       }
 
-      await _pauseBackgroundWarmExcept(key);
+      await _disposeIdleWarmExcept(key);
 
       if (_warmInFlight.contains(key)) {
         await _waitForWarmKey(key);
@@ -483,13 +914,20 @@ class MediaKitPlayerPool {
 
       final existing = _players[key];
       if (existing != null) {
+        if (_sourceByKey[key] != sourceUrl) {
+          return replaceSource(
+            key: key,
+            sourceUrl: sourceUrl,
+            autoPlay: autoPlay,
+          );
+        }
         _touchLru(key);
         if ((_leaseCount[key] ?? 0) == 0) {
           _leaseCount[key] = 1;
         }
         _warmInFlight.remove(key);
         if (autoPlay || _activeKey == key) {
-          await _rewindToStartLocked(key);
+          await _prepareVisibleLocked(key);
         }
         return PooledMediaKitPlayer(key: key, player: existing);
       }
@@ -499,7 +937,7 @@ class MediaKitPlayerPool {
         final recycled = await _recycleLruPlayer(key, sourceUrl);
         _leaseCount[key] = (_leaseCount[key] ?? 0) + 1;
         if (autoPlay || _activeKey == key) {
-          await _rewindToStartLocked(key);
+          await _prepareVisibleLocked(key);
         }
         return PooledMediaKitPlayer(key: key, player: recycled);
       }
@@ -509,9 +947,11 @@ class MediaKitPlayerPool {
       await player.open(Media(sourceUrl), play: false);
       await player.setVolume(0);
       _players[key] = player;
+      _sourceByKey[key] = sourceUrl;
+      _bufferPrimedKeys.add(key);
       _leaseCount[key] = 1;
       if (autoPlay || _activeKey == key) {
-        await _rewindToStartLocked(key);
+        await _prepareVisibleLocked(key);
       }
       return PooledMediaKitPlayer(key: key, player: player);
     });
@@ -529,6 +969,7 @@ class MediaKitPlayerPool {
         _clearFrameReady(key);
         await existing.open(Media(sourceUrl), play: false);
         await existing.setVolume(0);
+        _sourceByKey[key] = sourceUrl;
         _leaseCount[key] = (_leaseCount[key] ?? 0) + 1;
         if (autoPlay) {
           await _rewindToStartLocked(key);
@@ -541,16 +982,30 @@ class MediaKitPlayerPool {
   }
 
   Future<Player> _recycleLruPlayer(String key, String sourceUrl) async {
-    final lruKey = _lruEvictableKey(except: key);
+    var lruKey = _lruEvictableKey(except: key);
+    if (lruKey == null) {
+      // Leaked display leases (swipe without surrender) pin every slot; force-
+      // drop the oldest non-active entry instead of spawning a 5th decoder.
+      for (final candidate in _players.keys) {
+        if (candidate != key && candidate != _activeKey) {
+          await _disposeKey(candidate);
+          lruKey = _lruEvictableKey(except: key);
+          break;
+        }
+      }
+    }
     if (lruKey == null) {
       final player = Player();
       await player.open(Media(sourceUrl), play: false);
       await player.setVolume(0);
       _players[key] = player;
+      _sourceByKey[key] = sourceUrl;
+      _bufferPrimedKeys.add(key);
       return player;
     }
     final player = _players.remove(lruKey)!;
     _leaseCount.remove(lruKey);
+    _sourceByKey.remove(lruKey);
     _warmInFlight.remove(lruKey);
     _clearFrameReady(lruKey);
     if (_activeKey == lruKey) {
@@ -563,6 +1018,8 @@ class MediaKitPlayerPool {
     await player.open(Media(sourceUrl), play: false);
     await player.setVolume(0);
     _players[key] = player;
+    _sourceByKey[key] = sourceUrl;
+    _bufferPrimedKeys.add(key);
     return player;
   }
 
@@ -572,11 +1029,13 @@ class MediaKitPlayerPool {
 
   /// Rewinds to the start and plays muted while off-screen slots stay silent.
   Future<void> prepareVisiblePlayback(String key) {
-    return _runPriority(() => _rewindToStartLocked(key));
+    return _runPriority(() => _prepareVisibleLocked(key));
   }
 
   Future<void> unmuteAndPlay(String key) {
-    return _runPriority(() => _unmuteAndPlayLocked(key));
+    return _runPriority(
+      () => _unmuteAndPlayLocked(key, suspendEpoch: _suspendEpoch),
+    );
   }
 
   Future<void> pause(String key) {
@@ -618,6 +1077,12 @@ class MediaKitPlayerPool {
     await _disposeKey(key);
   }
 
+  Future<void> _disposeFeedVisiblePlayer() async {
+    _feedVisibleKey = null;
+    _feedOpenToken = 0;
+    await _feedPingPong.disposeAll();
+  }
+
   Future<void> releaseAll() {
     return _runPriority(() async {
       final keys = _players.keys.toList(growable: false);
@@ -625,18 +1090,21 @@ class MediaKitPlayerPool {
         _leaseCount[key] = 1;
         await _disposeKey(key);
       }
+      await _disposeFeedVisiblePlayer();
       _activeKey = null;
     });
   }
 
   Future<void> disposeAll() {
     return _runPriority(() async {
+      _disposeGeneration++;
+      _warmInFlight.clear();
       final keys = _players.keys.toList(growable: false);
       for (final key in keys) {
         await _disposeKey(key);
       }
+      await _disposeFeedVisiblePlayer();
       _activeKey = null;
-      _warmInFlight.clear();
     });
   }
 
@@ -673,7 +1141,8 @@ class MediaKitPlayerPool {
     if (SettingsService.instance.dataSaverEnabled.value) {
       return Future<void>.value();
     }
-    if (_players.containsKey(key) ||
+    if (key == _feedVisibleKey ||
+        _players.containsKey(key) ||
         (_leaseCount[key] ?? 0) > 0 ||
         _warmInFlight.contains(key)) {
       return Future<void>.value();
@@ -691,6 +1160,7 @@ class MediaKitPlayerPool {
     required String key,
     required String sourceUrl,
   }) async {
+    final generation = _disposeGeneration;
     try {
       while (_activeWarmTasks >= _maxWarmSlots) {
         await Future<void>.delayed(const Duration(milliseconds: 16));
@@ -709,14 +1179,22 @@ class MediaKitPlayerPool {
         return;
       }
 
-      final player = Player();
+      if (generation != _disposeGeneration) {
+        return;
+      }
+      final player = Player(
+        configuration: const PlayerConfiguration(muted: true),
+      );
       await player.open(Media(sourceUrl), play: false);
       await player.setVolume(0);
-      if (_players.containsKey(key) || (_leaseCount[key] ?? 0) > 0) {
+      if (generation != _disposeGeneration ||
+          _players.containsKey(key) ||
+          (_leaseCount[key] ?? 0) > 0) {
         await player.dispose();
         return;
       }
       _players[key] = player;
+      _sourceByKey[key] = sourceUrl;
       _leaseCount[key] = 0;
       unawaited(_primeFirstFrameOffScreen(key, player));
     } catch (_) {
@@ -747,13 +1225,6 @@ class MediaKitPlayerPool {
       if (active != null) {
         keepKeys.add(active);
       }
-      for (final primed in _frameReadyKeys) {
-        keepKeys.add(primed);
-      }
-      for (final buffered in _bufferPrimedKeys) {
-        keepKeys.add(buffered);
-      }
-
       final toRelease = _players.keys
           .where(
             (k) =>
@@ -778,7 +1249,12 @@ class MediaKitPlayerPool {
     return Future<void>.value();
   }
 
-  /// Buffers first frames during warm-up without starting audio (no [play]).
+  /// Marks a warmed slot demux-ready so the visible swap skips the cold
+  /// open + rewind. media_kit cannot decode a frame off-screen ([Player.state]
+  /// `width` stays null until a [Video] surface attaches, and a paused
+  /// `play:false` player never advances position), so "primed" here means the
+  /// media is opened and demuxed. The widget's paint-gate still keeps the
+  /// poster until the real frame paints on attach, so this never shows black.
   Future<void> _primeFirstFrameOffScreen(String key, Player player) async {
     try {
       await _waitForPriorityLane(maxMs: _warmPriorityWaitMs);
@@ -791,21 +1267,8 @@ class MediaKitPlayerPool {
           await player.pause();
         }
       } catch (_) {}
-
-      var waited = 0;
-      while (waited < 2500) {
-        if (_players[key] != player || (_leaseCount[key] ?? 0) > 0) {
-          return;
-        }
-        final w = player.state.width;
-        final pos = player.state.position.inMilliseconds;
-        if (w != null && w > 0 && pos > 32) {
-          _bufferPrimedKeys.add(key);
-          _markFrameReady(key);
-          return;
-        }
-        await Future<void>.delayed(const Duration(milliseconds: 32));
-        waited += 32;
+      if (_players[key] == player && (_leaseCount[key] ?? 0) == 0) {
+        _bufferPrimedKeys.add(key);
       }
     } catch (_) {}
   }

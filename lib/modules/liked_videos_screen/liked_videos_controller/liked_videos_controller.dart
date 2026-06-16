@@ -58,11 +58,26 @@ class LikedVideosController extends GetxController {
         );
   }
 
+  List<String> _parseVideoIds(String ids) {
+    return ids
+        .split(',')
+        .map((s) => s.trim())
+        .where((s) => s.isNotEmpty)
+        .toList();
+  }
+
   Future<void> sendVideoIdsToApi(
     String ids, {
     bool reset = true,
   }) async {
-    if (ids.isEmpty) return;
+    final idList = _parseVideoIds(ids);
+    if (idList.isEmpty) {
+      if (reset) {
+        likedVideos.clear();
+        listMeta.value = FeedMeta(hasMore: false);
+      }
+      return;
+    }
 
     if (reset) {
       if (isLoading.value) return;
@@ -77,7 +92,7 @@ class LikedVideosController extends GetxController {
     try {
       final page = reset ? 1 : currentPage.value + 1;
       final response = await ApiClient.postRequest(EndPoints.myLikedVideos, {
-        'video_ids': ids,
+        'video_ids': idList,
         'paginate': 1,
         'per_page': listPageSize,
         'page': page,
@@ -85,6 +100,11 @@ class LikedVideosController extends GetxController {
 
       if (response.statusCode != 200) {
         if (!reset) return;
+        if (kDebugMode) {
+          debugPrint(
+            'liked_videos_list failed (${response.statusCode}): ${response.body}',
+          );
+        }
         _showError('Failed to fetch liked videos: ${response.statusCode}');
         return;
       }

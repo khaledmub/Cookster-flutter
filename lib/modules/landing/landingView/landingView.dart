@@ -51,6 +51,7 @@ class Landing extends StatefulWidget {
 
 class _LandingState extends State<Landing> {
   NavBarController get navBarController => Get.find<NavBarController>();
+  final Widget _homeScreen = VideoReelScreen();
   Future<List<Widget>>? _screensFuture;
   StreamSubscription<Uri>? _deepLinkSubscription;
   Worker? _subscriptionExpiryWorker;
@@ -153,7 +154,6 @@ class _LandingState extends State<Landing> {
   Future<List<Widget>> _screens(BuildContext context) async {
     int entity = await getEntity();
     return [
-      VideoReelScreen(),
       NearestBusinessScreen(),
       Notifications(),
       entity == 2 ? ProfessionalProfileView() : ProfileView(),
@@ -380,8 +380,10 @@ class _LandingState extends State<Landing> {
         unawaited(_stopAllVideoAudio());
       }
     });
+    // Start loading secondary tabs immediately; home tab mounts above without
+    // waiting for this future.
+    _screensFuture = _screens(context);
     WidgetsBinding.instance.addPostFrameCallback((_) async {
-      _screensFuture = _screens(context);
       final entity = await getEntity();
       if (entity == 2) {
         ensureLandingProfileControllers();
@@ -423,10 +425,7 @@ class _LandingState extends State<Landing> {
           body: FutureBuilder<List<Widget>>(
             future: _screensFuture,
             builder: (context, snapshot) {
-              if (!snapshot.hasData) {
-                return const Center(child: CircularProgressIndicator());
-              }
-              final screens = snapshot.data!;
+              final otherScreens = snapshot.data;
               return Obx(
                 () {
                   final selected = navBarController.selectedIndex.value;
@@ -436,11 +435,17 @@ class _LandingState extends State<Landing> {
                     children: [
                       TickerMode(
                         enabled: selected == 0,
-                        child: screens[0],
+                        child: _homeScreen,
                       ),
-                      screens[1],
-                      screens[2],
-                      screens[3],
+                      if (otherScreens != null) ...[
+                        otherScreens[0],
+                        otherScreens[1],
+                        otherScreens[2],
+                      ] else ...[
+                        const SizedBox.shrink(),
+                        const SizedBox.shrink(),
+                        const SizedBox.shrink(),
+                      ],
                     ],
                   );
                 },
@@ -574,10 +579,16 @@ class _LandingState extends State<Landing> {
     } else if (Get.isRegistered<HomeController>()) {
       final home = Get.find<HomeController>();
       final hasRouteOverlay = Get.key.currentState?.canPop() ?? false;
+      final alreadyOnHome = navBarController.selectedIndex.value == 0;
       if (hasRouteOverlay) {
         home.isNavigating.value = true;
         home.setReelsTabVisible(false);
         MediaKitPlayerPool.instance.silenceAllSync();
+      } else if (alreadyOnHome) {
+        // Re-tapping Home while already on the feed refreshes it (TikTok-style).
+        home.isNavigating.value = false;
+        home.setReelsTabVisible(true);
+        unawaited(home.refreshHomeFeed());
       } else {
         home.isNavigating.value = false;
         home.setReelsTabVisible(true);

@@ -36,15 +36,27 @@ class HomeController extends GetxController with WidgetsBindingObserver {
   final RxBool isMuted = false.obs;
   var isNavigating = false.obs;
   var isAppInBackground = false.obs;
+  int _routeOverlayPauseDepth = 0;
 
   var lastVideoPosition = Duration.zero.obs;
   var wasPlaying = false.obs;
 
   Timer? _debounceTimer;
+  Timer? _fetchMoreDebounce;
   DateTime? _lastMemoryPressureCleanupAt;
+
+  /// Rebuild reels [PageView] only when list length changes (not every [videoFeed.refresh]).
+  final reelListLength = 0.obs;
+
+  /// Bumped after a full feed reset (tab switch, GPS refresh, filter apply) so
+  /// the reels UI reattaches the visible player — same lifecycle as General.
+  final feedPlaybackEpoch = 0.obs;
 
   /// Last successful feed per tab — instant UI when switching عام / بالقرب / المتابعة.
   final Map<String, VideoFeed> _tabFeedCache = {};
+
+  /// Last scroll position per tab so switching tabs doesn't rewind to reel 0.
+  final Map<String, int> _tabScrollIndex = {};
 
   // New reactive variables for location checks
   var isLocationServiceEnabled = true.obs; // Default to true until checked
@@ -70,11 +82,15 @@ class HomeController extends GetxController with WidgetsBindingObserver {
     }
     final city = prefs.getString('currentCity');
     final country = prefs.getString('currentCountry');
+    final cityId = prefs.getString('currentCityId');
     if (city != null && city.isNotEmpty) {
       currentCity.value = city;
     }
     if (country != null && country.isNotEmpty) {
       currentCountry.value = country;
+    }
+    if (cityId != null && cityId.isNotEmpty) {
+      currentCityId.value = cityId;
     }
   }
 
@@ -88,12 +104,34 @@ class HomeController extends GetxController with WidgetsBindingObserver {
     await fetchLocationOnce(refreshNearMeFeed: true);
   }
 
+  /// Only block the feed on the first Near Me cold start when we have no coords
+  /// and nothing to show yet. Background GPS refresh must not tear down a feed
+  /// that is already playing (same UX as General).
   bool get blocksUiForLocation =>
-      selectedType.value == 'Near Me' && isLocationFetching.value;
+      selectedType.value == 'Near Me' &&
+      isLocationFetching.value &&
+      !hasLocationBeenFetched.value &&
+      (videoFeed.value.videos?.isEmpty ?? true);
 
-  bool get _usesReelsApi => selectedType.value == 'General';
+  String get _reelsFeedMode {
+    switch (selectedType.value) {
+      case 'Near Me':
+        return 'near_me';
+      case 'Following':
+        return 'following';
+      default:
+        return 'general';
+    }
+  }
 
   Future<void> fetchMoreVideos() async {
+    _fetchMoreDebounce?.cancel();
+    _fetchMoreDebounce = Timer(const Duration(milliseconds: 300), () {
+      unawaited(_fetchMoreVideosNow());
+    });
+  }
+
+  Future<void> _fetchMoreVideosNow() async {
     if (isLoading.value ||
         isLoadingMore.value ||
         videoFeed.value.videos == null ||
@@ -108,9 +146,7 @@ class HomeController extends GetxController with WidgetsBindingObserver {
 
     isLoadingMore.value = true;
     try {
-      final parsed = _usesReelsApi
-          ? await _fetchReelsPage(reset: false)
-          : await _fetchLegacyFeedPage(reset: false);
+      final parsed = await _fetchFeedPage(reset: false);
       if (parsed == null) {
         return;
       }
@@ -137,7 +173,7 @@ class HomeController extends GetxController with WidgetsBindingObserver {
       if (parsed.meta?.page != null) {
         currentPage.value = parsed.meta!.page!;
       }
-      videoFeed.refresh();
+      reelListLength.value = videoFeed.value.videos!.length;
     } catch (e) {
       error.value = "Error loading more videos: $e";
     } finally {
@@ -146,69 +182,57 @@ class HomeController extends GetxController with WidgetsBindingObserver {
     }
   }
 
-  Map<String, dynamic> _buildFeedPayload({required bool reset}) {
-    final base = <String, dynamic>{
-      'paginate': 1,
-      'per_page': feedPageSize,
-    };
-
-    if (selectedType.value == "Following") {
-      base['is_following'] = 1;
-    } else if (selectedType.value == "Near Me") {
-      base['latitude'] = latitude.value;
-      base['longitude'] = longitude.value;
-      if (currentCityId.value.isNotEmpty) {
-        base['city'] = currentCityId.value;
-        base['country'] = currentCountry.value;
-      }
-    }
-
-    if (reset) {
-      base['page'] = 1;
-      return base;
-    }
-
-    final meta = videoFeed.value.meta;
-    if (meta != null) {
-      base.addAll(meta.toRequestPayload());
-    } else {
-      base['page'] = currentPage.value + 1;
-    }
-    return base;
-  }
-
   Future<VideoFeed?> _fetchFeedPage({required bool reset}) async {
-    if (_usesReelsApi) {
-      return _fetchReelsPage(reset: reset);
-    }
-    return _fetchLegacyFeedPage(reset: reset);
+    return _fetchReelsPage(reset: reset);
   }
 
   Future<VideoFeed?> _fetchReelsPage({required bool reset}) async {
-    var endpoint = EndPoints.reels;
+    final params = <String, String>{};
     if (!reset) {
       final cursor = videoFeed.value.meta?.nextCursor;
       if (cursor != null && cursor.isNotEmpty) {
-        endpoint =
-            '${EndPoints.reels}?cursor=${Uri.encodeQueryComponent(cursor)}';
+        params['cursor'] = cursor;
+      }
+    } else {
+      final feed = _reelsFeedMode;
+      if (feed != 'general') {
+        params['feed'] = feed;
+      }
+      if (selectedType.value == 'Near Me') {
+        if (latitude.value.isNotEmpty) {
+          params['latitude'] = latitude.value;
+        }
+        if (longitude.value.isNotEmpty) {
+          params['longitude'] = longitude.value;
+        }
+        if (currentCityId.value.isNotEmpty) {
+          params['city'] = currentCityId.value;
+        }
       }
     }
-    final response = await ApiClient.getRequest(endpoint);
-    if (response.statusCode != 200) {
-      error.value = "Failed to load reels: ${response.statusCode}";
-      return null;
-    }
-    return compute(parseVideoFeed, response.body);
-  }
 
-  Future<VideoFeed?> _fetchLegacyFeedPage({required bool reset}) async {
-    final payload = _buildFeedPayload(reset: reset);
-    final response = await ApiClient.postRequest(EndPoints.getVideos, payload);
-    if (response.statusCode != 200) {
-      error.value = "Failed to load videos: ${response.statusCode}";
+    var endpoint = EndPoints.reels;
+    if (params.isNotEmpty) {
+      endpoint = '$endpoint?${Uri(queryParameters: params).query}';
+    }
+
+    final response = await ApiClient.getRequest(endpoint);
+    if (response.statusCode == 401) {
+      error.value = 'Authentication required';
       return null;
     }
-    return compute(parseVideoFeed, response.body);
+    if (response.statusCode != 200) {
+      error.value = 'Failed to load reels: ${response.statusCode}';
+      return null;
+    }
+    final parsed = await compute(parseVideoFeed, response.body);
+    if (kDebugMode && selectedType.value == 'Near Me') {
+      debugPrint(
+        'Near Me reels: count=${parsed.videos?.length ?? 0} '
+        'geo_fallback=${parsed.meta?.geoFallback ?? false}',
+      );
+    }
+    return parsed;
   }
 
   Future<void> checkLocationStatus() async {
@@ -225,6 +249,7 @@ class HomeController extends GetxController with WidgetsBindingObserver {
   @override
   void onClose() {
     _debounceTimer?.cancel();
+    _fetchMoreDebounce?.cancel();
     pauseAllVideos();
     disposeControllers();
     WidgetsBinding.instance.removeObserver(this);
@@ -303,7 +328,12 @@ class HomeController extends GetxController with WidgetsBindingObserver {
   // import 'package:geocoding/geocoding.dart';
 
   Future<void> fetchLocationOnce({bool refreshNearMeFeed = false}) async {
-    if (selectedType.value == 'Near Me') {
+    final needsInitialLocation = !hasLocationBeenFetched.value &&
+        latitude.value.isEmpty &&
+        longitude.value.isEmpty;
+    final prevLat = double.tryParse(latitude.value);
+    final prevLng = double.tryParse(longitude.value);
+    if (selectedType.value == 'Near Me' && needsInitialLocation) {
       isLocationFetching.value = true;
     }
 
@@ -358,6 +388,10 @@ class HomeController extends GetxController with WidgetsBindingObserver {
 
         latitude.value = position.latitude.toString();
         longitude.value = position.longitude.toString();
+        // GPS moved — drop a manual city filter from a previous location.
+        currentCityId.value = '';
+        final prefsForCity = await SharedPreferences.getInstance();
+        await prefsForCity.remove('currentCityId');
 
         print('=== Location Details ===');
         print('Latitude: ${position.latitude}');
@@ -402,11 +436,32 @@ class HomeController extends GetxController with WidgetsBindingObserver {
       error.value = "Error fetching location: $e";
     } finally {
       isLocationFetching.value = false;
-      if (refreshNearMeFeed &&
-          selectedType.value == 'Near Me' &&
-          hasLocationBeenFetched.value) {
-        unawaited(fetchVideos(forceNetwork: true));
+      if (!refreshNearMeFeed ||
+          selectedType.value != 'Near Me' ||
+          !hasLocationBeenFetched.value) {
+        return;
       }
+      // Only skip while a fetch is in-flight if we already have a playable feed.
+      if (isLoading.value && (videoFeed.value.videos?.isNotEmpty ?? false)) {
+        return;
+      }
+      final hasFeed = videoFeed.value.videos?.isNotEmpty ?? false;
+      if (hasFeed) {
+        final newLat = double.tryParse(latitude.value);
+        final newLng = double.tryParse(longitude.value);
+        final moved = prevLat == null ||
+            prevLng == null ||
+            newLat == null ||
+            newLng == null ||
+            (newLat - prevLat).abs() > 0.02 ||
+            (newLng - prevLng).abs() > 0.02;
+        if (!moved) {
+          return;
+        }
+        unawaited(fetchVideos(backgroundRefresh: true));
+        return;
+      }
+      unawaited(fetchVideos(forceNetwork: true));
     }
   }
 
@@ -505,8 +560,7 @@ class HomeController extends GetxController with WidgetsBindingObserver {
     // Adjust current index if needed
     // _adjustCurrentIndexAfterRemoval(currentVideoId, updatedVideos);
 
-    // Refresh the observable
-    videoFeed.refresh();
+    reelListLength.value = updatedVideos.length;
   }
 
   String _getChatId(String userId1, String userId2) {
@@ -562,6 +616,9 @@ class HomeController extends GetxController with WidgetsBindingObserver {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('currentCountry', currentCountry.value);
     await prefs.setString('currentCity', currentCity.value);
+    if (currentCityId.value.isNotEmpty) {
+      await prefs.setString('currentCityId', currentCityId.value);
+    }
   }
 
   Future<void> fetchVideos({
@@ -569,6 +626,7 @@ class HomeController extends GetxController with WidgetsBindingObserver {
     String? city,
     bool forceNetwork = false,
     bool fromTabSwitch = false,
+    bool backgroundRefresh = false,
   }) async {
     final tab = selectedType.value;
     final cached = _tabFeedCache[tab];
@@ -577,8 +635,15 @@ class HomeController extends GetxController with WidgetsBindingObserver {
 
     if (hasCachedFeed) {
       videoFeed.value = cached!;
-      visiblePageIndex.value = 0;
-      currentIndex.value = 0;
+      reelListLength.value = cached.videos?.length ?? 0;
+      final saved = scrollIndexForTab(tab);
+      final maxIndex = (cached.videos?.length ?? 1) - 1;
+      final clamped = saved.clamp(0, maxIndex < 0 ? 0 : maxIndex);
+      visiblePageIndex.value = clamped;
+      currentIndex.value = clamped;
+      if (fromTabSwitch && (cached.videos?.isNotEmpty ?? false)) {
+        feedPlaybackEpoch.value++;
+      }
       update();
     }
 
@@ -586,30 +651,57 @@ class HomeController extends GetxController with WidgetsBindingObserver {
       return;
     }
 
-    if (!hasCachedFeed) {
+    if (!hasCachedFeed && !backgroundRefresh) {
       isLoading.value = true;
+      // Drop the previous tab's list so Near Me / Following never flash
+      // General reels while their own feed is loading.
+      videoFeed.value = VideoFeed(status: true, videos: []);
+      reelListLength.value = 0;
     }
     currentPage.value = 1;
 
     try {
       if (selectedType.value == "Near Me") {
-        if (city != null && country != null) {
-          currentCityId.value = city;
+        if (city != null && city.isNotEmpty) {
+          currentCity.value = city;
+        }
+        if (country != null && country.isNotEmpty) {
           currentCountry.value = country;
-        } else if (!hasLocationBeenFetched.value &&
+        }
+        if (!hasLocationBeenFetched.value &&
             latitude.value.isEmpty &&
-            longitude.value.isEmpty) {
+            longitude.value.isEmpty &&
+            currentCityId.value.isEmpty) {
+          videoFeed.value = VideoFeed(status: true, videos: []);
+          reelListLength.value = 0;
+          unawaited(fetchLocationOnce(refreshNearMeFeed: true));
           return;
         }
       }
 
       final parsed = await _fetchFeedPage(reset: true);
       if (parsed != null) {
+        if (backgroundRefresh && (parsed.videos?.isEmpty ?? true)) {
+          return;
+        }
         videoFeed.value = parsed;
-        _tabFeedCache[tab] = parsed;
+        reelListLength.value = parsed.videos?.length ?? 0;
+        if (parsed.videos?.isNotEmpty ?? false) {
+          _tabFeedCache[tab] = parsed;
+        } else {
+          _tabFeedCache.remove(tab);
+        }
         currentPage.value = parsed.meta?.page ?? 1;
-        visiblePageIndex.value = 0;
-        currentIndex.value = 0;
+        final saved = scrollIndexForTab(tab);
+        final maxIndex = (parsed.videos?.length ?? 1) - 1;
+        final clamped = saved.clamp(0, maxIndex < 0 ? 0 : maxIndex);
+        visiblePageIndex.value = clamped;
+        currentIndex.value = clamped;
+        if (tab == selectedType.value &&
+            (parsed.videos?.isNotEmpty ?? false) &&
+            !backgroundRefresh) {
+          feedPlaybackEpoch.value++;
+        }
       }
     } catch (e) {
       error.value = "Error: $e";
@@ -873,16 +965,52 @@ class HomeController extends GetxController with WidgetsBindingObserver {
     isReelsTabVisible.value = visible;
   }
 
-  /// Stops reel audio/video immediately when pushing another route (e.g. profile).
-  void pauseReelsForRouteOverlay() {
+  bool get canPlayHomeReels =>
+      !isAppInBackground.value &&
+      !isNavigating.value &&
+      isReelsTabVisible.value;
+
+  /// Immediate silence before a route push (no depth change). Pair with
+  /// [pauseReelsForRouteOverlay] on the pushed screen's [initState].
+  void silenceHomeReelsForTransition() {
     isNavigating.value = true;
     setReelsTabVisible(false);
     pauseAllVideosSync();
+    MediaKitPlayerPool.instance.pauseAllImmediate();
+    unawaited(pauseAllVideosAwait());
+  }
+
+  /// Stops reel audio/video immediately when pushing another route (e.g. profile).
+  void pauseReelsForRouteOverlay() {
+    _routeOverlayPauseDepth++;
+    isNavigating.value = true;
+    setReelsTabVisible(false);
+    pauseAllVideosSync();
+    MediaKitPlayerPool.instance.pauseAllImmediate();
+    unawaited(pauseAllVideosAwait());
+  }
+
+  /// Re-applies silence while an overlay stack is still open (no depth change).
+  void reinforceReelsPausedForOverlay() {
+    if (_routeOverlayPauseDepth <= 0) {
+      return;
+    }
+    isNavigating.value = true;
+    setReelsTabVisible(false);
+    pauseAllVideosSync();
+    MediaKitPlayerPool.instance.pauseAllImmediate();
     unawaited(pauseAllVideosAwait());
   }
 
   /// Resumes the visible reel after closing an overlay route, only on the home tab.
   void resumeReelsAfterRouteOverlay() {
+    if (_routeOverlayPauseDepth <= 0) {
+      return;
+    }
+    _routeOverlayPauseDepth--;
+    if (_routeOverlayPauseDepth > 0) {
+      return;
+    }
     isNavigating.value = false;
     if (isAppInBackground.value) {
       return;
@@ -892,6 +1020,7 @@ class HomeController extends GetxController with WidgetsBindingObserver {
       return;
     }
     setReelsTabVisible(true);
+    feedPlaybackEpoch.value++;
     unawaited(resumeVisibleVideo(visiblePageIndex.value));
   }
 
@@ -1040,12 +1169,36 @@ class HomeController extends GetxController with WidgetsBindingObserver {
 
   void disposeControllerAtIndex(int index) {}
 
-  /// Light reset when switching عام / بالقرب / المتابعة (keep pool warm).
-  void prepareForFeedTabSwitch() {
-    MediaKitPlayerPool.instance.pauseAllImmediate();
-    unawaited(VideoPlayerPool.instance.pauseAll());
+  int scrollIndexForTab(String tab) => _tabScrollIndex[tab] ?? 0;
+
+  void saveTabScrollIndex(String tab, int index) {
+    if (index < 0) {
+      return;
+    }
+    _tabScrollIndex[tab] = index;
+  }
+
+  /// TikTok-style refresh: reload the current feed from the network and jump
+  /// back to the first reel. Triggered by re-tapping the Home tab.
+  Future<void> refreshHomeFeed() async {
+    if (isLoading.value) {
+      return;
+    }
+    final tab = selectedType.value;
+    saveTabScrollIndex(tab, 0);
+    _tabFeedCache.remove(tab);
     visiblePageIndex.value = 0;
     currentIndex.value = 0;
+    await fetchVideos(forceNetwork: true);
+  }
+
+  /// Reset playback when switching عام / بالقرب / المتابعة so each tab gets
+  /// the same clean decoder lifecycle as General (no stale pool keys).
+  Future<void> prepareForFeedTabSwitch() async {
+    saveTabScrollIndex(selectedType.value, visiblePageIndex.value);
+    MediaKitPlayerPool.instance.pauseAllImmediate();
+    await VideoPlayerPool.instance.pauseAll();
+    await MediaKitPlayerPool.instance.releaseAll();
   }
 
   void disposeControllers() {

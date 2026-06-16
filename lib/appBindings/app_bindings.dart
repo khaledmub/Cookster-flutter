@@ -4,6 +4,7 @@ import 'package:cookster/modules/auth/signUp/signUpController/cityController.dar
 import 'package:cookster/modules/auth/signUp/signUpController/signUpController.dart';
 import 'package:cookster/modules/auth/signUp/signUpOtpView/signUpOtpController.dart';
 import 'package:cookster/modules/landing/landingTabs/add/videoAddController/videoAddController.dart';
+import 'package:cookster/modules/landing/landingTabs/home/homeController/addCommentControllr.dart';
 import 'package:cookster/modules/landing/landingTabs/home/homeController/homeController.dart';
 import 'package:cookster/modules/landing/landingTabs/home/homeController/saveController.dart';
 import 'package:cookster/modules/landing/landingTabs/home/homeController/sendEmailController.dart';
@@ -73,8 +74,19 @@ class PackagesBinding extends Bindings {
 /// Registers deps required by [VisitProfileView] and related flows outside landing.
 void ensureVisitProfileDependencies() {
   ensureLandingProfileControllers();
+  ensureReelOverlayDependencies();
   if (!Get.isRegistered<HomeController>()) {
     Get.put<HomeController>(HomeController());
+  }
+}
+
+/// Registers like / comment / save deps for profile reel and other overlay UIs.
+void ensureReelOverlayDependencies() {
+  if (!Get.isRegistered<VideoCommentsController>()) {
+    Get.put<VideoCommentsController>(VideoCommentsController());
+  }
+  if (!Get.isRegistered<SaveController>()) {
+    Get.lazyPut<SaveController>(() => SaveController());
   }
 }
 

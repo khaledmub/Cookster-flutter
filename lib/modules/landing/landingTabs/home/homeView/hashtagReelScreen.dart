@@ -165,7 +165,9 @@ class _HashtagReelScreenState extends State<HashtagReelScreen> {
                   key: ValueKey('${video.id}_$index'),
                   videoId: video.id,
                   videoUrl: video.resolvedPlaybackUrl ?? '',
-                  thumbnailUrl: video.resolvedReelPosterUrl ?? '',
+                  thumbnailUrl: video.resolvedReelPosterUrl ??
+                      video.resolvedThumbnailUrl ??
+                      '',
                   isImage: video.isImage,
                   autoPlay: index == _visibleIndex,
                   useMediaKit: true,

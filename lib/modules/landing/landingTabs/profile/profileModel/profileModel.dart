@@ -1,4 +1,5 @@
 import 'package:cookster/modules/auth/signUp/registrationSettingsModel/registrationModel.dart';
+import 'package:cookster/modules/landing/landingTabs/home/homeModel/video_sources.dart';
 
 class UserDetails {
   bool? status;
@@ -147,6 +148,7 @@ class User {
   dynamic city;
   dynamic cityName;
   dynamic name;
+  dynamic userName;
   dynamic email;
   dynamic phone;
   dynamic dob;
@@ -161,6 +163,7 @@ class User {
     this.id,
     this.systemId,
     this.name,
+    this.userName,
     this.coverImage,
     this.email,
     this.phone,
@@ -180,6 +183,7 @@ class User {
     id = json['id'];
     systemId = json['system_id'];
     name = json['name'];
+    userName = json['user_name'];
     email = json['email'];
     phone = json['phone'];
     country = json['country'];
@@ -200,6 +204,7 @@ class User {
     data['id'] = this.id;
     data['system_id'] = this.systemId;
     data['name'] = this.name;
+    data['user_name'] = this.userName;
     data['email'] = this.email;
     data['phone'] = this.phone;
     data['dob'] = this.dob;
@@ -487,6 +492,13 @@ class ProfessionalVideos {
   dynamic city;
   dynamic location;
   dynamic image;
+  dynamic imageUrl;
+  dynamic thumbnailUrl;
+  dynamic hlsUrl;
+  dynamic hlsPlaylistUrl;
+  dynamic transcodeStatus;
+  dynamic processingStatus;
+  VideoSources? videoSources;
   dynamic video;
   dynamic videoUrl;
   dynamic state;
@@ -560,6 +572,15 @@ class ProfessionalVideos {
     allowComments = json['allow_comments'];
     location = json['location'];
     image = json['image'];
+    imageUrl = json['image_url'];
+    thumbnailUrl = json['thumbnail_url'] ?? json['thumbnail'];
+    hlsUrl = json['hls_url'];
+    hlsPlaylistUrl = json['hls_playlist_url'];
+    transcodeStatus = json['transcode_status'];
+    processingStatus = json['processing_status'];
+    if (json['video_sources'] != null) {
+      videoSources = VideoSources.fromJson(json['video_sources']);
+    }
     video = json['video'];
     videoUrl = json['video_url'];
     state = json['state'];

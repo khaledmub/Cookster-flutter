@@ -1,4 +1,5 @@
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:cookster/core/navigation/route_back.dart';
 import 'package:cookster/appUtils/apiEndPoints.dart';
 import 'package:cookster/appUtils/appUtils.dart';
 import 'package:cookster/loaders/pulseLoader.dart';
@@ -79,7 +80,7 @@ class _ViewReviewsState extends State<ViewReviews> {
                 behavior: HitTestBehavior.opaque,
                 onTap: () {
                   try {
-                    Get.back();
+                    navigateBack();
                   } catch (e) {
                     print("Error navigating back: $e");
                   }

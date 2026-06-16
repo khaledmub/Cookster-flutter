@@ -25,6 +25,8 @@ import 'package:media_kit/media_kit.dart';
 import 'package:cookster/core/video/media_kit_player_pool.dart';
 import 'package:cookster/core/video/video_player_pool.dart';
 import 'package:cookster/modules/landing/landingTabs/home/homeController/homeController.dart';
+import 'package:cookster/appUtils/apiEndPoints.dart';
+import 'package:cookster/core/network/test_server_http_overrides.dart';
 import 'services/apiClient.dart';
 import 'services/feature_flags/remote_config_service.dart';
 import 'services/settings/settings_service.dart';
@@ -87,9 +89,13 @@ void _logFlutterError(FlutterErrorDetails details) {
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  if (Common.usesTestServerRouting) {
+    HttpOverrides.global = TestServerHttpOverrides();
+  }
   _configureImageCache();
   MediaKit.ensureInitialized();
   await runZonedGuarded(() async {
+    final prefs = await SharedPreferences.getInstance();
     try {
       await Firebase.initializeApp();
       FlutterError.onError = (FlutterErrorDetails details) {
@@ -104,7 +110,6 @@ void main() async {
         return true;
       };
 
-      final prefs = await SharedPreferences.getInstance();
       await Future.wait([
         ApiClient.hydrateFromPrefs(),
         RemoteConfigService.instance.initialize(),
@@ -129,7 +134,6 @@ void main() async {
       DeviceOrientation.portraitDown,
     ]);
 
-    final prefs = await SharedPreferences.getInstance();
     String? savedLang = prefs.getString('selectedLanguage');
 
     Locale initialLocale =
@@ -204,9 +208,8 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
 
-    // Request permissions
+    // Request permissions (location is requested via Geolocator in HomeController).
     requestNotificationPermission();
-    requestLocationPermission();
 
     _wasOnNoInternetScreen = !widget.hasInternet;
     _appLinks = AppLinks();
@@ -242,6 +245,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         clearNotificationBadge();
         if (Get.isRegistered<HomeController>()) {
           final home = Get.find<HomeController>();
+          home.isAppInBackground.value = false;
           unawaited(
             home.resumeVisibleVideo(
               home.visiblePageIndex.value,
@@ -254,7 +258,9 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       case AppLifecycleState.detached:
       case AppLifecycleState.hidden:
         if (Get.isRegistered<HomeController>()) {
-          Get.find<HomeController>().pauseAllVideos();
+          final home = Get.find<HomeController>();
+          home.isAppInBackground.value = true;
+          home.pauseAllVideos();
         } else {
           unawaited(MediaKitPlayerPool.instance.pauseAll());
           unawaited(VideoPlayerPool.instance.pauseAll());

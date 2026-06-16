@@ -10,6 +10,9 @@ class SaveController extends GetxController {
   var isLoading = false.obs;
   var isLoadingMore = false.obs;
   var savedVideos = <SavedVideos>[].obs;
+  /// Bumped when [savedVideos] membership changes — cheap Obx for reel save icons.
+  final savedIdRevision = 0.obs;
+  final Set<String> _savedVideoIds = {};
   var listMeta = Rxn<FeedMeta>();
   var currentPage = 1.obs;
 
@@ -18,8 +21,31 @@ class SaveController extends GetxController {
   @override
   void onClose() {
     savedVideos.clear();
+    _savedVideoIds.clear();
     listMeta.value = null;
     super.onClose();
+  }
+
+  bool isVideoSaved(String videoId) => _savedVideoIds.contains(videoId);
+
+  void setVideoSavedLocally(String videoId, {required bool saved}) {
+    if (saved) {
+      _savedVideoIds.add(videoId);
+    } else {
+      _savedVideoIds.remove(videoId);
+    }
+    savedIdRevision.value++;
+  }
+
+  void _syncSavedIdSet() {
+    _savedVideoIds
+      ..clear()
+      ..addAll(
+        savedVideos
+            .map((v) => v.id?.toString() ?? '')
+            .where((id) => id.isNotEmpty),
+      );
+    savedIdRevision.value++;
   }
 
   Future<bool> saveVideo(String videoId) async {
@@ -64,6 +90,7 @@ class SaveController extends GetxController {
 
       if (reset) {
         savedVideos.assignAll(incoming);
+        _syncSavedIdSet();
       } else if (incoming.isNotEmpty) {
         final existingIds = savedVideos
             .map((v) => v.id?.toString())
@@ -75,6 +102,7 @@ class SaveController extends GetxController {
             return id != null && !existingIds.contains(id);
           }),
         );
+        _syncSavedIdSet();
       }
 
       if (model.meta?.page != null) {

@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:cookster/core/navigation/route_back.dart';
 import 'package:cookster/appUtils/appCenterIcon.dart';
 import 'package:cookster/modules/auth/signUp/registrationSettingsModel/registrationModel.dart';
 import 'package:cookster/modules/auth/signUp/signUpController/cityController.dart';
@@ -26,6 +29,7 @@ class SignVpView extends StatefulWidget {
 
 class _SignVpViewState extends State<SignVpView> {
   late FocusNode nameFocusNode;
+  late FocusNode usernameFocusNode;
   late FocusNode locationFocusNode;
   late FocusNode emailFocusNode;
   late FocusNode phoneFocusNode;
@@ -41,8 +45,10 @@ class _SignVpViewState extends State<SignVpView> {
   final contactPhoneKey = GlobalKey<FormFieldState>();
   final contactEmailKey = GlobalKey<FormFieldState>();
   final nameKey = GlobalKey<FormFieldState>();
+  final usernameKey = GlobalKey<FormFieldState>();
   final websiteKey = GlobalKey<FormFieldState>();
   final locationController = TextEditingController();
+  Timer? _usernameDebounce;
   String _language = 'en'; // Default to English
   // Load language from SharedPreferences
   Future<void> _loadLanguage() async {
@@ -63,12 +69,15 @@ class _SignVpViewState extends State<SignVpView> {
     _loadLanguage();
     locationFocusNode = FocusNode();
     nameFocusNode = FocusNode();
+    usernameFocusNode = FocusNode();
     emailFocusNode = FocusNode();
     phoneFocusNode = FocusNode();
     passwordFocusNode = FocusNode();
     dobFocusNode = FocusNode();
     contactPhoneFocusNode = FocusNode();
     contactEmailFocusNode = FocusNode();
+
+    signUpController.usernameController.addListener(_onUsernameChanged);
 
     // Load SharedPreferences asynchronously in addPostFrameCallback
     WidgetsBinding.instance.addPostFrameCallback((_) async {
@@ -95,10 +104,22 @@ class _SignVpViewState extends State<SignVpView> {
     });
   }
 
+  void _onUsernameChanged() {
+    _usernameDebounce?.cancel();
+    signUpController.usernameError.value = '';
+    signUpController.isUsernameAvailable.value = null;
+    _usernameDebounce = Timer(const Duration(milliseconds: 500), () {
+      signUpController.checkUsernameAvailability();
+    });
+  }
+
   @override
   void dispose() {
+    _usernameDebounce?.cancel();
+    signUpController.usernameController.removeListener(_onUsernameChanged);
     locationFocusNode.dispose();
     nameFocusNode.dispose();
+    usernameFocusNode.dispose();
     emailFocusNode.dispose();
     phoneFocusNode.dispose();
     passwordFocusNode.dispose();
@@ -258,14 +279,7 @@ class _SignVpViewState extends State<SignVpView> {
                                     // Assuming .h is from a package like flutter_screenutil, replace with 20 if not using it
                                     child: GestureDetector(
                                       behavior: HitTestBehavior.opaque,
-                                      onTap: () {
-                                        try {
-                                          print("Tapped");
-                                          Get.back();
-                                        } catch (e) {
-                                          print(e);
-                                        }
-                                      },
+                                      onTap: () => navigateBack(),
                                       child: Container(
                                         height: 40,
                                         width: 40,
@@ -442,6 +456,110 @@ class _SignVpViewState extends State<SignVpView> {
                                           ),
                                         ],
                                       ),
+                                      Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          AppUtils.customPasswordTextField(
+                                            controller:
+                                                signUpController
+                                                    .usernameController,
+                                            validator:
+                                                signUpController.validateUsername,
+                                            focusNode: usernameFocusNode,
+                                            keyboardType:
+                                                TextInputType.visiblePassword,
+                                            fieldKey: usernameKey,
+                                            labelText: "username".tr,
+                                            svgIconPath:
+                                                "assets/icons/editProfile.svg",
+                                            textInputAction:
+                                                TextInputAction.next,
+                                            isPasswordField: false,
+                                          ),
+                                          SizedBox(height: 4),
+                                          Obx(() {
+                                            if (signUpController
+                                                .isCheckingUsername.value) {
+                                              return Padding(
+                                                padding: EdgeInsets.only(
+                                                  left: 16.w,
+                                                ),
+                                                child: Text(
+                                                  'checking_username'.tr,
+                                                  style: TextStyle(
+                                                    color: Colors.grey,
+                                                    fontSize: 12.sp,
+                                                  ),
+                                                ),
+                                              );
+                                            }
+                                            final available = signUpController
+                                                .isUsernameAvailable.value;
+                                            if (available == true) {
+                                              return Padding(
+                                                padding: EdgeInsets.only(
+                                                  left: 16.w,
+                                                ),
+                                                child: Text(
+                                                  'username_available'.tr,
+                                                  style: TextStyle(
+                                                    color: Colors.green,
+                                                    fontSize: 12.sp,
+                                                  ),
+                                                ),
+                                              );
+                                            }
+                                            if (available == false) {
+                                              return Padding(
+                                                padding: EdgeInsets.only(
+                                                  left: 16.w,
+                                                ),
+                                                child: Text(
+                                                  'username_unavailable_error'
+                                                      .tr,
+                                                  style: TextStyle(
+                                                    color: Theme.of(context)
+                                                        .colorScheme
+                                                        .error,
+                                                    fontSize: 12.sp,
+                                                  ),
+                                                ),
+                                              );
+                                            }
+                                            return const SizedBox.shrink();
+                                          }),
+                                          Obx(
+                                            () =>
+                                                signUpController
+                                                        .usernameError
+                                                        .value
+                                                        .isNotEmpty
+                                                    ? Padding(
+                                                      padding:
+                                                          EdgeInsets.only(
+                                                            top: 4.h,
+                                                            left: 16.w,
+                                                          ),
+                                                      child: Text(
+                                                        signUpController
+                                                            .usernameError
+                                                            .value,
+                                                        style: TextStyle(
+                                                          color:
+                                                              Theme.of(
+                                                                    context,
+                                                                  )
+                                                                  .colorScheme
+                                                                  .error,
+                                                          fontSize: 13,
+                                                        ),
+                                                      ),
+                                                    )
+                                                    : SizedBox.shrink(),
+                                          ),
+                                        ],
+                                      ),
                                       // Email Field
                                       Column(
                                         crossAxisAlignment:
@@ -576,8 +694,144 @@ class _SignVpViewState extends State<SignVpView> {
                                         ),
                                       SizedBox(height: 10),
 
+                                      if (signUpController
+                                              .selectedProfileId
+                                              .value ==
+                                          3)
+                                        Obx(
+                                          () =>
+                                              signUpController
+                                                          .selectedProfileId
+                                                          .value ==
+                                                      3
+                                                  ? Column(
+                                                    crossAxisAlignment:
+                                                        CrossAxisAlignment
+                                                            .start,
+                                                    children: [
+                                                      DropdownFlutter<
+                                                        String
+                                                      >.new(
+                                                        validator: (value) {
+                                                          if (value == null ||
+                                                              value.isEmpty) {
+                                                            signUpController
+                                                                    .accountTypeError
+                                                                    .value =
+                                                                'please_select_account_type'
+                                                                    .tr;
+                                                          }
+                                                          return null;
+                                                        },
+                                                        closedHeaderPadding:
+                                                            const EdgeInsets.symmetric(
+                                                              horizontal: 16,
+                                                              vertical: 16,
+                                                            ),
+                                                        decoration: CustomDropdownDecoration(
+                                                          hintStyle: TextStyle(
+                                                            color:
+                                                                Colors.black,
+                                                          ),
+                                                          prefixIcon: Padding(
+                                                            padding:
+                                                                const EdgeInsets.only(
+                                                                  right: 8.0,
+                                                                ),
+                                                            child: SvgPicture.asset(
+                                                              "assets/icons/business.svg",
+                                                            ),
+                                                          ),
+                                                          closedBorderRadius:
+                                                              BorderRadius.circular(
+                                                                8,
+                                                              ),
+                                                          expandedBorderRadius:
+                                                              BorderRadius.circular(
+                                                                8,
+                                                              ),
+                                                          closedFillColor:
+                                                              Colors
+                                                                  .transparent,
+                                                          closedBorder: Border.all(
+                                                            color:
+                                                                signUpController
+                                                                        .accountTypeError
+                                                                        .isNotEmpty
+                                                                    ? Colors
+                                                                        .red
+                                                                    : Color(
+                                                                      0xFFBDBDBD,
+                                                                    ).withOpacity(
+                                                                      0.3,
+                                                                    ),
+                                                          ),
+                                                          closedSuffixIcon:
+                                                              const Icon(
+                                                                Icons
+                                                                    .keyboard_arrow_down_rounded,
+                                                                size: 18,
+                                                              ),
+                                                        ),
+                                                        hintText:
+                                                            "select_account_type"
+                                                                .tr,
+                                                        items:
+                                                            typeOfAccountName,
+                                                        onChanged: (
+                                                          String?
+                                                          selectedValue,
+                                                        ) {
+                                                          if (selectedValue !=
+                                                              null) {
+                                                            int? selectedId =
+                                                                typeOfAccount[selectedValue];
+                                                            signUpController
+                                                                    .accountType
+                                                                    .value =
+                                                                selectedId
+                                                                    .toString();
+                                                            signUpController
+                                                                .accountTypeError
+                                                                .value = "";
+                                                          }
+                                                        },
+                                                      ),
+                                                      Obx(
+                                                        () =>
+                                                            signUpController
+                                                                    .accountTypeError
+                                                                    .value
+                                                                    .isNotEmpty
+                                                                ? Padding(
+                                                                  padding: EdgeInsets.only(
+                                                                    top: 4.h,
+                                                                    left: 8.w,
+                                                                    right: 8.w,
+                                                                  ),
+                                                                  child: Text(
+                                                                    signUpController
+                                                                        .accountTypeError
+                                                                        .value,
+                                                                    style: TextStyle(
+                                                                      color:
+                                                                          Theme.of(
+                                                                            context,
+                                                                          ).colorScheme.error,
+                                                                      fontSize:
+                                                                          13,
+                                                                    ),
+                                                                  ),
+                                                                )
+                                                                : SizedBox.shrink(),
+                                                      ),
+                                                    ],
+                                                  )
+                                                  : SizedBox.shrink(),
+                                        ),
+                                      SizedBox(height: 10),
+
                                       Obx(() {
-                                        print(signUpController.isLoading);
                                         return googleSignInBit == 0
                                             ? Column(
                                               children: [
@@ -859,153 +1113,6 @@ class _SignVpViewState extends State<SignVpView> {
                                                 )
                                                 : SizedBox.shrink(),
                                       ),
-                                      SizedBox(height: 10),
-
-                                      // ── COMPANY TYPE (MOVED HERE) ──
-                                      if (signUpController
-                                              .selectedProfileId
-                                              .value ==
-                                          2)
-                                        Obx(
-                                          () =>
-                                              signUpController
-                                                          .selectedProfileId
-                                                          .value ==
-                                                      2
-                                                  ? Column(
-                                                    crossAxisAlignment:
-                                                        CrossAxisAlignment
-                                                            .start,
-                                                    children: [
-                                                      DropdownFlutter<
-                                                        String
-                                                      >.new(
-                                                        validator: (value) {
-                                                          if (value == null ||
-                                                              value.isEmpty) {
-                                                            signUpController
-                                                                    .accountTypeError
-                                                                    .value =
-                                                                'please_select_account_type'
-                                                                    .tr;
-                                                          }
-                                                          return null;
-                                                        },
-                                                        closedHeaderPadding:
-                                                            const EdgeInsets.symmetric(
-                                                              horizontal: 16,
-                                                              vertical: 16,
-                                                            ),
-                                                        decoration: CustomDropdownDecoration(
-                                                          hintStyle: TextStyle(
-                                                            color:
-                                                                Colors.black,
-                                                          ),
-                                                          prefixIcon: Padding(
-                                                            padding:
-                                                                const EdgeInsets.only(
-                                                                  right: 8.0,
-                                                                ),
-                                                            child: SvgPicture.asset(
-                                                              "assets/icons/business.svg",
-                                                            ),
-                                                          ),
-                                                          closedBorderRadius:
-                                                              BorderRadius.circular(
-                                                                8,
-                                                              ),
-                                                          expandedBorderRadius:
-                                                              BorderRadius.circular(
-                                                                8,
-                                                              ),
-                                                          closedFillColor:
-                                                              Colors
-                                                                  .transparent,
-                                                          closedBorder: Border.all(
-                                                            color:
-                                                                signUpController
-                                                                        .accountTypeError
-                                                                        .isNotEmpty
-                                                                    ? Colors
-                                                                        .red
-                                                                    : Color(
-                                                                      0xFFBDBDBD,
-                                                                    ).withOpacity(
-                                                                      0.3,
-                                                                    ),
-                                                          ),
-                                                          closedSuffixIcon:
-                                                              const Icon(
-                                                                Icons
-                                                                    .keyboard_arrow_down_rounded,
-                                                                size: 18,
-                                                              ),
-                                                        ),
-                                                        hintText:
-                                                            "select_account_type"
-                                                                .tr,
-                                                        items:
-                                                            typeOfAccountName,
-                                                        onChanged: (
-                                                          String?
-                                                          selectedValue,
-                                                        ) {
-                                                          if (selectedValue !=
-                                                              null) {
-                                                            int? selectedId =
-                                                                typeOfAccount[selectedValue]; // Get ID from map
-                                                            signUpController
-                                                                    .accountType
-                                                                    .value =
-                                                                selectedId
-                                                                    .toString();
-                                                            signUpController
-                                                                .accountTypeError
-                                                                .value = "";
-                                                            print(
-                                                              "Selected Account Type: $selectedId",
-                                                            );
-                                                          }
-                                                        },
-                                                      ),
-                                                      Obx(
-                                                        () =>
-                                                            signUpController
-                                                                    .accountTypeError
-                                                                    .value
-                                                                    .isNotEmpty
-                                                                ? Padding(
-                                                                  padding: EdgeInsets.only(
-                                                                    top: 4.h,
-                                                                    left:
-                                                                        isRtl
-                                                                            ? 8.w
-                                                                            : 8.w,
-                                                                    right:
-                                                                        isRtl
-                                                                            ? 8.w
-                                                                            : 8.w,
-                                                                  ),
-                                                                  child: Text(
-                                                                    signUpController
-                                                                        .accountTypeError
-                                                                        .value,
-                                                                    style: TextStyle(
-                                                                      color:
-                                                                          Theme.of(
-                                                                            context,
-                                                                          ).colorScheme.error,
-                                                                      fontSize:
-                                                                          13,
-                                                                    ),
-                                                                  ),
-                                                                )
-                                                                : SizedBox.shrink(),
-                                                      ),
-                                                    ],
-                                                  )
-                                                  : SizedBox.shrink(),
-                                        ),
                                       SizedBox(height: 10),
 
                                       // Country Selection
@@ -1326,10 +1433,11 @@ class _SignVpViewState extends State<SignVpView> {
                                         SizedBox(height: 10),
 
                                       Obx(() {
-                                        return signUpController
-                                                    .selectedProfileId
-                                                    .value ==
-                                                2
+                                        final profileId =
+                                            signUpController
+                                                .selectedProfileId
+                                                .value;
+                                        return profileId == 2 || profileId == 3
                                             ? Column(
                                               children: [
                                                 AppUtils.customPasswordTextField(
@@ -1848,10 +1956,6 @@ class _SignVpViewState extends State<SignVpView> {
         .firstWhere(
           (entity) => entity.id == signUpController.selectedProfileId.value,
         );
-
-    print(selectedEntity.description);
-
-    print("THIS IS THE SELECTED ENTITY: ${selectedEntity.description}");
 
     // print(object)
 

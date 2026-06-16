@@ -779,16 +779,15 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget>
         return Stack(
       fit: StackFit.expand,
       children: [
-        Container(
-          color: Colors.black,
-          child: CachedNetworkImage(
+        if (widget.thumbnailUrl.trim().isNotEmpty)
+          CachedNetworkImage(
             imageUrl: widget.thumbnailUrl,
             fit: BoxFit.cover,
             memCacheWidth: memW,
             memCacheHeight: memH,
-            errorWidget: (context, url, error) => const SizedBox(),
+            placeholder: (_, __) => const ColoredBox(color: Colors.black),
+            errorWidget: (context, url, error) => const SizedBox.shrink(),
           ),
-        ),
         Container(
           color: Colors.black.withOpacity(0.3),
           child: showSpinner
@@ -810,14 +809,31 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget>
     );
   }
 
+  bool get _shouldShowPosterOverlay {
+    if (widget.hideThumbnail || !_isInitialized) {
+      return false;
+    }
+    if (_videoFrameVisible) {
+      return false;
+    }
+    if (_isPlaying) {
+      return false;
+    }
+    if (widget.useMediaKit) {
+      final player = _mediaKitVideoController?.player;
+      if (player != null && player.state.playing) {
+        return false;
+      }
+    }
+    return true;
+  }
+
   Widget _buildVideoContent() {
     final surface = Stack(
       fit: StackFit.expand,
       children: [
         _buildVideoSurface(),
-        if (!_videoFrameVisible &&
-            _isInitialized &&
-            !widget.hideThumbnail)
+        if (_shouldShowPosterOverlay)
           _buildThumbnailPlaceholder(showSpinner: false),
       ],
     );

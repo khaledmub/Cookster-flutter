@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:developer';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cookster/core/media/profile_video_visibility.dart';
 import 'package:cookster/core/parsing/feed_parsers.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -208,6 +209,22 @@ class VisitProfileController extends GetxController {
     var total = 0;
     for (final videoType in videoTypes) {
       for (final video in videoType.videos ?? const []) {
+        if (!ProfileVideoVisibility.shouldListOnProfileGrid(
+          status: video.status,
+          processingStatus: video.processingStatus,
+          transcodeStatus: video.transcodeStatus,
+          videoUrl: video.videoUrl,
+          video: video.video,
+          hlsUrl: video.hlsUrl,
+          hlsPlaylistUrl: video.hlsPlaylistUrl,
+          thumbnailUrl: video.thumbnailUrl,
+          imageUrl: video.imageUrl,
+          image: video.image,
+          isImage: video.isImage,
+          videoSources: video.videoSources,
+        )) {
+          continue;
+        }
         total += parseApiCount(video.likeCount);
       }
     }

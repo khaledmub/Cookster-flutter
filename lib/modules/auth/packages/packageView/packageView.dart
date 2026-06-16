@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:intl/intl.dart'; // Added for number formatting
+import 'package:cookster/core/navigation/route_back.dart';
 import 'package:cookster/appUtils/appUtils.dart';
 import 'package:cookster/modules/auth/signUp/signUpController/signUpController.dart';
 import 'package:flutter/material.dart';
@@ -212,7 +213,7 @@ class _PackagesScreenState extends State<PackagesScreen> {
                 onTap: () {
                   try {
                     print("Tapped");
-                    Get.back();
+                    navigateBack();
                   } catch (e) {
                     print(e);
                   }

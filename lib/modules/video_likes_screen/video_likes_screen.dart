@@ -69,7 +69,7 @@ class VideoLikesScreen extends StatelessWidget {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return Center(
               child: const PulseLogoLoader(
-                logoPath: "assets/images/applogo.png",
+                logoPath: "assets/images/appIcon.png",
               ),
             );
           }

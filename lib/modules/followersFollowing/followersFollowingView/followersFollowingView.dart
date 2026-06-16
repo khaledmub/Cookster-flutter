@@ -1,5 +1,7 @@
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:cookster/core/user/public_user_identity.dart';
 import 'package:cookster/core/widgets/grid_thumbnail_cache.dart';
+import 'package:cookster/modules/landing/landingTabs/home/homeController/homeController.dart';
 import 'package:cookster/modules/visitProfile/visitProfileView/visitProfileView.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -44,6 +46,9 @@ class _SocialListsScreenState extends State<SocialListsScreen>
   @override
   void initState() {
     super.initState();
+    if (Get.isRegistered<HomeController>()) {
+      Get.find<HomeController>().pauseReelsForRouteOverlay();
+    }
     _tabController = TabController(
       length: 2,
       vsync: this,
@@ -88,16 +93,16 @@ class _SocialListsScreenState extends State<SocialListsScreen>
     } else {
       _filteredFollowers.assignAll(
         _controller.followers.where((follower) {
-          final name = (follower.name ?? '').toLowerCase();
-          final email = (follower.email ?? '').toLowerCase();
-          return name.contains(query) || email.contains(query);
+          final name = follower.name.toLowerCase();
+          final handle = follower.userName.toLowerCase();
+          return name.contains(query) || handle.contains(query);
         }).toList(),
       );
       _filteredFollowing.assignAll(
         _controller.following.where((follow) {
-          final name = (follow.name ?? '').toLowerCase();
-          final email = (follow.email ?? '').toLowerCase();
-          return name.contains(query) || email.contains(query);
+          final name = follow.name.toLowerCase();
+          final handle = follow.userName.toLowerCase();
+          return name.contains(query) || handle.contains(query);
         }).toList(),
       );
     }
@@ -116,6 +121,9 @@ class _SocialListsScreenState extends State<SocialListsScreen>
     _followingWorker?.dispose();
     _tabController.dispose();
     _searchController.dispose();
+    if (Get.isRegistered<HomeController>()) {
+      Get.find<HomeController>().resumeReelsAfterRouteOverlay();
+    }
     Get.delete<SocialListsController>(tag: widget.userId);
     super.dispose();
   }
@@ -323,7 +331,10 @@ class _SocialListsScreenState extends State<SocialListsScreen>
 
             return InkWell(
               onTap: () {
-                Get.off(() => VisitProfileView(userId: user.id));
+                if (Get.isRegistered<HomeController>()) {
+                  Get.find<HomeController>().silenceHomeReelsForTransition();
+                }
+                Get.to(() => VisitProfileView(userId: user.id));
               },
               child: Container(
                 margin: const EdgeInsets.only(bottom: 12),
@@ -393,17 +404,15 @@ class _SocialListsScreenState extends State<SocialListsScreen>
                             ),
                           ),
                           const SizedBox(height: 2),
-                          if (user.email.isNotEmpty)
-                            Container(
-                              width: Get.width * 0.5,
-                              child: Text(
-                                user.email,
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  color: Colors.grey[600],
-                                  fontSize: 14,
-                                ),
+                          if (PublicUserIdentity.subtitleHandle(user.userName) !=
+                              null)
+                            Text(
+                              PublicUserIdentity.formatAtHandle(user.userName),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: Colors.grey[600],
+                                fontSize: 14,
                               ),
                             ),
                         ],

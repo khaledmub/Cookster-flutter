@@ -14,9 +14,10 @@ extension WallVideosMedia on WallVideos {
         image: image,
       );
 
-  /// Poster: CDN [thumbnail_url] when [processingStatus] is ready; else cover.
+  /// Poster for reel playback (CDN thumb only when pipeline fully ready).
   String? get resolvedReelPosterUrl => MediaUrlResolver.reelPosterUrl(
         processingStatus: processingStatus,
+        transcodeStatus: transcodeStatus,
         thumbnailUrl: thumbnailUrl,
         imageUrl: imageUrl,
         image: image,

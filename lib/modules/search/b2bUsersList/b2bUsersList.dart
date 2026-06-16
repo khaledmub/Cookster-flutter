@@ -1,4 +1,6 @@
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:cookster/core/navigation/route_back.dart';
+import 'package:cookster/core/user/public_user_identity.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:get/get.dart';
@@ -298,17 +300,19 @@ class _B2bUsersListState extends State<B2bUsersList> {
                                   fontSize: 16,
                                 ),
                               ),
-                              subtitle: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  if (user.email != null &&
-                                      user.email!.isNotEmpty)
-                                    Text("${user.email}"),
-                                  if (user.phone != null &&
-                                      user.phone!.isNotEmpty)
-                                    Text("${user.phone}"),
-                                ],
-                              ),
+                              subtitle: PublicUserIdentity.subtitleHandle(
+                                        user.userName,
+                                      ) != null
+                                  ? Text(
+                                      PublicUserIdentity.formatAtHandle(
+                                        user.userName,
+                                      ),
+                                      style: TextStyle(
+                                        color: Colors.grey.shade600,
+                                        fontSize: 13.sp,
+                                      ),
+                                    )
+                                  : null,
                               onTap: () {
                                 Get.to(VisitProfileView(userId: user.id!));
                               },

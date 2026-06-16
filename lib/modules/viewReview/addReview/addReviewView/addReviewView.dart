@@ -1,3 +1,4 @@
+import 'package:cookster/core/navigation/route_back.dart';
 import 'package:cookster/appUtils/appUtils.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -49,7 +50,7 @@ class _AddReviewViewState extends State<AddReviewView> {
             children: [
               GestureDetector(
                 behavior: HitTestBehavior.opaque,
-                onTap: () => Get.back(),
+                onTap: () => navigateBack(),
                 child: Container(
                   margin: EdgeInsets.symmetric(horizontal: 16.w, vertical: 8.h),
                   height: 40.h,

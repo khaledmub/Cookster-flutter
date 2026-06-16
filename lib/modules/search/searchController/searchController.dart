@@ -29,6 +29,7 @@ class UserSearchController extends GetxController {
   var currentCity = "".obs;
   var currentCityId = "".obs;
   var currentCountry = "".obs;
+  var currentCountryId = "".obs;
   var b2bList = B2BList().obs;
   var filteredB2bList = B2BList().obs;
   var b2bCategories = B2BCategoryModel().obs;
@@ -139,6 +140,23 @@ class UserSearchController extends GetxController {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('currentCountry', currentCountry.value);
     await prefs.setString('currentCity', currentCity.value);
+    await prefs.setString('currentCityId', currentCityId.value);
+    await prefs.setString('currentCountryId', currentCountryId.value);
+  }
+
+  Future<void> refetchWithCurrentFilters() async {
+    final keywords = _lastKeywords;
+    if (keywords == null || keywords.isEmpty) {
+      return;
+    }
+    await fetchSearchResults(
+      keywords,
+      city: _lastCity,
+      country: _lastCountry,
+      isGeneral: _lastIsGeneral,
+      isFollowing: _lastIsFollowing,
+      reset: true,
+    );
   }
 
   // Fetch search results
@@ -166,8 +184,6 @@ class UserSearchController extends GetxController {
     hasSearched.value = true;
 
     try {
-      final finalCountry = country ?? currentCountry.value;
-
       if (reset && keywords.isNotEmpty) {
         await _saveSearchQuery(keywords);
       }
@@ -200,14 +216,18 @@ class UserSearchController extends GetxController {
         requestBody['type'] = type.value;
         requestBody['keywords'] = keywords;
 
-        if (isGeneral != 1 || city != null || country != null) {
-          requestBody['latitude'] = homeController.latitude.value;
-          requestBody['longitude'] = homeController.longitude.value;
+        final lat = homeController.latitude.value.trim();
+        final lng = homeController.longitude.value.trim();
+        if (lat.isNotEmpty && lng.isNotEmpty) {
+          requestBody['latitude'] = lat;
+          requestBody['longitude'] = lng;
+        }
 
-          if (currentCityId.value.isNotEmpty) {
-            requestBody['city'] = currentCityId.value;
-            requestBody['country'] = finalCountry;
-          }
+        if (currentCityId.value.isNotEmpty) {
+          requestBody['city'] = currentCityId.value;
+        }
+        if (currentCountryId.value.isNotEmpty) {
+          requestBody['country'] = currentCountryId.value;
         }
       }
 
@@ -320,12 +340,16 @@ class UserSearchController extends GetxController {
     );
 
     if (b2bUsersList.value.b2bAccountsList != null) {
-      filtered.b2bAccountsList =
+          filtered.b2bAccountsList =
           b2bUsersList.value.b2bAccountsList!
               .where(
-                (account) =>
-                    account.name != null &&
-                    account.name!.toLowerCase().contains(query.toLowerCase()),
+                (account) {
+                  final queryLower = query.toLowerCase();
+                  final name = account.name?.toLowerCase() ?? '';
+                  final handle = account.userName?.toLowerCase() ?? '';
+                  return name.contains(queryLower) ||
+                      handle.contains(queryLower);
+                },
               )
               .toList();
     }
@@ -411,10 +435,23 @@ class UserSearchController extends GetxController {
     isLoading.value = true;
 
     try {
-      String endpoint = 'b2b/b2b_accounts_list'; // Base endpoint
+      String endpoint = 'b2b/b2b_accounts_list';
+      final params = <String, String>{};
       if (categoryId != null) {
-        endpoint +=
-            '?category_id=${categoryId}&country=${country}&city=${city}';
+        params['category_id'] = categoryId.toString();
+      }
+      final resolvedCountry =
+          (country != null && country.isNotEmpty) ? country : currentCountryId.value;
+      final resolvedCity =
+          (city != null && city.isNotEmpty) ? city : currentCityId.value;
+      if (resolvedCountry.isNotEmpty) {
+        params['country'] = resolvedCountry;
+      }
+      if (resolvedCity.isNotEmpty) {
+        params['city'] = resolvedCity;
+      }
+      if (params.isNotEmpty) {
+        endpoint += '?${Uri(queryParameters: params).query}';
       }
 
       final response = await ApiClient.getRequest(endpoint);

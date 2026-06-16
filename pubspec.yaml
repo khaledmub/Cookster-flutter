@@ -124,7 +124,8 @@ flutter:
           weight: 500
         - asset: assets/fonts/LamaRounded-Bold.ttf
           weight: 700
-    - family: CommonFonts  # New family for the uncommented fonts
+    # Editor-only (pro_image_editor); not used by main app theme — kept for image edit screen.
+    - family: CommonFonts
       fonts:
         - asset: assets/fonts/Arial.ttf
         - asset: assets/fonts/Courier.ttf

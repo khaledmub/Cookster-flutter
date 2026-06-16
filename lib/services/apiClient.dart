@@ -96,8 +96,9 @@ class ApiClient {
 
   static Future<http.Response> postRequest(
     String endpoint,
-    Map<String, dynamic> data,
-  ) async {
+    Map<String, dynamic> data, {
+    bool allowRetry = false,
+  }) async {
     final uri = _resolveUri(endpoint);
     if (kDebugMode) {
       debugPrint('POST $uri');
@@ -108,6 +109,7 @@ class ApiClient {
         headers: _headers(jsonBody: true),
         body: jsonEncode(data),
       ),
+      allowRetry: allowRetry,
     );
   }
 

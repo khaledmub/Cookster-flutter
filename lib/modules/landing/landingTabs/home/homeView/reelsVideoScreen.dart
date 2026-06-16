@@ -6,9 +6,11 @@ import 'package:cookster/appRoutes/appRoutes.dart';
 import 'package:cookster/appUtils/apiEndPoints.dart';
 import 'package:cookster/appUtils/appUtils.dart';
 import 'package:cookster/goLive/join_screen.dart';
+import 'package:cookster/core/text/hashtag_text.dart';
 import 'package:cookster/core/firestore/reel_video_stats.dart';
 import 'package:cookster/core/firestore/video_view_tracker.dart';
 import 'package:cookster/core/media/wall_video_media.dart';
+import 'package:cookster/core/user/public_user_identity.dart';
 import 'package:cookster/core/widgets/grid_thumbnail_cache.dart';
 import 'package:cookster/core/video/media_kit_player_pool.dart';
 import 'package:cookster/core/video/reels_playback_coordinator.dart';
@@ -54,6 +56,7 @@ import '../homeController/homeController.dart';
 import '../homeWidgets/chatIconWithCounter.dart';
 import '../homeWidgets/contactNowDialog.dart';
 import '../homeWidgets/reviewSheet.dart';
+import '../homeWidgets/reel_feed_player_kit.dart';
 import '../homeWidgets/reel_video_player.dart';
 import 'hashtagReelScreen.dart';
 
@@ -94,19 +97,57 @@ class _VideoReelScreenState extends State<VideoReelScreen>
   final ValueNotifier<int> _visibleIndexNotifier = ValueNotifier<int>(0);
   WallVideos? _activePlayerVideo;
   Worker? _feedRestoreWorker;
+  Worker? _feedPlaybackEpochWorker;
   Worker? _reelsVisibilityWorker;
   bool _pendingFeedTabPlayback = false;
+  Timer? _playbackAttachDebounce;
+  int _lastHandledPlaybackEpoch = -1;
   int? _scrollTowardActualIndex;
   final Map<String, int> _commentCounts = {};
   late final PageController _pageController;
   final GlobalKey<ReelVideoPlayerState> _reelPlayerKey =
       GlobalKey<ReelVideoPlayerState>();
 
-  void _schedulePlayerForPage(int pageIndex) {
+  void _resumeVisibleReelAfterOverlay() {
+    if (!mounted || !controller.canPlayHomeReels) {
+      return;
+    }
+    final videos = controller.videoFeed.value.videos;
+    if (videos == null || videos.isEmpty) {
+      return;
+    }
+    final index = _visibleIndexNotifier.value.clamp(0, videos.length - 1);
+    _preloadManager.prepareForVisibleAttach();
+    MediaKitPlayerPool.instance.setScreenWidth(
+      MediaQuery.sizeOf(context).width,
+    );
+    _playbackCoordinator.onPageSettled(index, context: context);
+    _schedulePlayerForPage(index, forceReattach: true);
+    unawaited(_reelPlayerKey.currentState?.resumeAfterRouteOverlay());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !controller.canPlayHomeReels) {
+        return;
+      }
+      _resumeFeedAudibleOnce();
+    });
+  }
+
+  void _resumeFeedAudibleOnce() {
+    if (!controller.canPlayHomeReels) {
+      return;
+    }
+    final key = _activePlayerVideo?.id;
+    if (key == null || key.isEmpty) {
+      return;
+    }
+    unawaited(MediaKitPlayerPool.instance.resumeFeedVisible(key));
+  }
+
+  void _schedulePlayerForPage(int pageIndex, {bool forceReattach = false}) {
     final videos = controller.videoFeed.value.videos;
     if (videos == null ||
         videos.isEmpty ||
-        !controller.isReelsTabVisible.value) {
+        !controller.canPlayHomeReels) {
       if (_activePlayerVideo != null && mounted) {
         setState(() => _activePlayerVideo = null);
       }
@@ -117,16 +158,35 @@ class _VideoReelScreenState extends State<VideoReelScreen>
     if (video.id == null || video.id!.isEmpty) {
       return;
     }
-    if (_activePlayerVideo?.id == video.id) {
+    if (!forceReattach && _activePlayerVideo?.id == video.id) {
+      final id = video.id;
+      if (id != null &&
+          id.isNotEmpty &&
+          !MediaKitPlayerPool.instance.isActiveAudible(id)) {
+        _resumeFeedAudibleOnce();
+      }
       return;
     }
     setState(() {
       _activePlayerVideo = video;
     });
+    if (forceReattach) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || !controller.canPlayHomeReels) {
+          return;
+        }
+        unawaited(_reelPlayerKey.currentState?.resumeAfterRouteOverlay());
+        _resumeFeedAudibleOnce();
+      });
+    }
   }
 
-  /// Switches عام / بالقرب / المتابعة and always rewinds to the first reel.
+  /// Switches عام / بالقرب / المتابعة — same playback lifecycle on every tab.
   void _switchFeedTab(String newTabType) {
+    unawaited(_switchFeedTabAsync(newTabType));
+  }
+
+  Future<void> _switchFeedTabAsync(String newTabType) async {
     if (newTabType != 'General' &&
         newTabType != 'Near Me' &&
         newTabType != 'Following') {
@@ -137,21 +197,72 @@ class _VideoReelScreenState extends State<VideoReelScreen>
       _finishFeedTabPlayback();
       return;
     }
-    _pendingFeedTabPlayback = true;
-    controller.prepareForFeedTabSwitch();
+    await controller.prepareForFeedTabSwitch();
+    _preloadManager.resetForTabSwitch();
     controller.setSelectedType(newTabType);
-    _visibleIndexNotifier.value = 0;
+    final savedIndex = controller.scrollIndexForTab(newTabType);
+    _visibleIndexNotifier.value = savedIndex;
     if (mounted) {
       setState(() => _activePlayerVideo = null);
     }
-    unawaited(
-      controller.fetchVideos(fromTabSwitch: true).whenComplete(() {
-        if (mounted && _pendingFeedTabPlayback) {
-          _finishFeedTabPlayback();
-        }
-      }),
-    );
-    _finishFeedTabPlayback();
+    await controller.fetchVideos(fromTabSwitch: true);
+    if (mounted &&
+        (controller.videoFeed.value.videos?.isNotEmpty ?? false)) {
+      _finishFeedTabPlayback();
+    }
+  }
+
+  void _onFeedTabHorizontalSwipe(DragEndDetails details) {
+    final vx = details.velocity.pixelsPerSecond.dx;
+    final vy = details.velocity.pixelsPerSecond.dy;
+    if (vx.abs() < 500 || vx.abs() <= vy.abs() * 1.5) {
+      return;
+    }
+
+    final availableTabs = <String>[];
+    if ((promoteVideoController
+                .siteSettings
+                .value
+                ?.settings
+                ?.allowGeneralVideos ??
+            0) ==
+        1) {
+      availableTabs.add('General');
+    }
+    availableTabs.add('Near Me');
+    if ((promoteVideoController
+                .siteSettings
+                .value
+                ?.settings
+                ?.allowGeneralVideos ??
+            0) ==
+        1) {
+      availableTabs.add('Following');
+    }
+    if (availableTabs.isEmpty) {
+      return;
+    }
+
+    var currentIndex = availableTabs.indexOf(controller.selectedType.value);
+    if (currentIndex == -1) {
+      currentIndex = 0;
+    }
+
+    if (vx > 0) {
+      currentIndex =
+          (currentIndex - 1 + availableTabs.length) % availableTabs.length;
+    } else {
+      currentIndex = (currentIndex + 1) % availableTabs.length;
+    }
+
+    final newTabType = availableTabs[currentIndex];
+    if (newTabType == 'Following' && !isAuthenticated) {
+      Get.toNamed(AppRoutes.signIn);
+      return;
+    }
+    if (newTabType != controller.selectedType.value) {
+      _switchFeedTab(newTabType);
+    }
   }
 
   void _finishFeedTabPlayback() {
@@ -163,28 +274,36 @@ class _VideoReelScreenState extends State<VideoReelScreen>
       return;
     }
     _pendingFeedTabPlayback = false;
-    _visibleIndexNotifier.value = 0;
-    controller.visiblePageIndex.value = 0;
+    _preloadManager.prepareForVisibleAttach();
+    final savedIndex = controller.scrollIndexForTab(controller.selectedType.value);
+    final targetIndex = savedIndex.clamp(0, videos.length - 1);
+    _visibleIndexNotifier.value = targetIndex;
+    controller.visiblePageIndex.value = targetIndex;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) {
         return;
       }
       if (_pageController.hasClients &&
-          (_pageController.page?.round() ?? 0) != 0) {
-        _pageController.jumpToPage(0);
+          (_pageController.page?.round() ?? 0) != targetIndex) {
+        _pageController.jumpToPage(targetIndex);
       }
-      _schedulePlayerForPage(0);
+      _schedulePlayerForPage(targetIndex);
       MediaKitPlayerPool.instance.setScreenWidth(
         MediaQuery.sizeOf(context).width,
       );
-      final firstId = videos[0].id;
-      if (firstId != null && firstId.isNotEmpty) {
-        unawaited(MediaKitPlayerPool.instance.prepareVisiblePlayback(firstId));
-      }
-      _playbackCoordinator.onPageSettled(0, context: context);
-      unawaited(_preloadManager.warmIndexNow(0, maxWaitMs: 1500));
-      unawaited(_reelPlayerKey.currentState?.syncAudibleIfNeeded());
+      _playbackCoordinator.onPageSettled(targetIndex, context: context);
+      _resumeFeedAudibleOnce();
     });
+  }
+
+  void _onVisibleReelReady() {
+    if (!mounted || !controller.isReelsTabVisible.value) {
+      return;
+    }
+    _preloadManager.decoderWarmEnabled = true;
+    _maybeBootstrapPreload();
+    final index = _visibleIndexNotifier.value;
+    unawaited(_preloadManager.onVisibleIndexChanged(index));
   }
 
 
@@ -211,29 +330,21 @@ class _VideoReelScreenState extends State<VideoReelScreen>
   }
 
   Widget _buildInlineReelPlayer(WallVideos video) {
-    return Positioned.fill(
-      child: ReelVideoPlayer(
-          key: _reelPlayerKey,
-          releaseOnDispose: false,
-          playerPoolKey: video.id,
-          videoId: video.id,
-          thumbnailUrl: video.resolvedReelPosterUrl ?? '',
-          posterFallbackUrl: video.resolvedReelPosterFallbackUrl,
-          blurThumbnailUrl: video.resolvedBlurThumbnailUrl,
-          videoUrl: video.resolvedPlaybackUrl ?? '',
-          hlsUrl: video.resolvedHlsUrl,
-          qualityMp4Urls:
-              video.isTranscodeReady ? video.qualityMp4Urls : const [],
-          onVideoCompleted: _onReelVideoCompleted,
-        ),
+    return ReelFeedPlayerKit.buildInlinePlayer(
+      video: video,
+      playerKey: _reelPlayerKey,
+      onPlaybackReady: () {
+        _onVisibleReelReady();
+      },
+      onVideoCompleted: _onReelVideoCompleted,
     );
   }
 
   Widget _buildPagePoster(WallVideos videoDetail, {required bool isActiveReel}) {
-    if (isActiveReel) {
-      return const SizedBox.shrink();
-    }
-    return _buildReelPoster(videoDetail);
+    // Always paint a poster under the active reel — on Oppo/MediaTek, CDN
+    // thumb.webp often fails to decode; without a page poster the active slot
+    // is just black until the decoder catches up.
+    return ReelFeedPlayerKit.buildPagePoster(videoDetail);
   }
 
   Future<bool> _isUserAuthenticated() async {
@@ -289,10 +400,31 @@ class _VideoReelScreenState extends State<VideoReelScreen>
     _pageController.addListener(_onPageScrollOffset);
     _feedRestoreWorker = ever(controller.videoFeed, (_) {
       _applyPendingRestoreIfPossible();
-      if (_pendingFeedTabPlayback) {
-        _finishFeedTabPlayback();
-      }
       _maybeBootstrapPreload();
+      final videos = controller.videoFeed.value.videos;
+      if (videos != null &&
+          videos.isNotEmpty &&
+          controller.canPlayHomeReels &&
+          _activePlayerVideo == null) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            _schedulePlayerForPage(_visibleIndexNotifier.value);
+          }
+        });
+      }
+    });
+    _feedPlaybackEpochWorker = ever(controller.feedPlaybackEpoch, (_) {
+      _scheduleFinishPlaybackIfReady();
+    });
+    ever(controller.reelListLength, (len) {
+      if (len is int && len > 0) {
+        _scheduleFinishPlaybackIfReady();
+      }
+    });
+    ever(controller.isLoading, (loading) {
+      if (loading == false) {
+        _scheduleFinishPlaybackIfReady();
+      }
     });
     _loadLanguage();
     _cacheStaticLabels();
@@ -300,6 +432,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
     SettingsService.instance.load();
     _preloadManager = VideoPreloadManager(
       sourceBuilder: (index) => _preloadTargetForIndex(index),
+      decoderWarmEnabled: false,
     );
     _playbackCoordinator = ReelsPlaybackCoordinator(
       preloadManager: _preloadManager,
@@ -309,7 +442,9 @@ class _VideoReelScreenState extends State<VideoReelScreen>
         if (videos == null || index < 0 || index >= videos.length) {
           return null;
         }
-        return videos[index].resolvedReelPosterUrl;
+        // Grid cover always exists; CDN thumb.webp often 404s mid-backfill.
+        return videos[index].resolvedReelPosterFallbackUrl ??
+            videos[index].resolvedReelPosterUrl;
       },
     );
     _reelsVisibilityWorker = ever(controller.isReelsTabVisible, (visible) {
@@ -317,16 +452,14 @@ class _VideoReelScreenState extends State<VideoReelScreen>
         MediaKitPlayerPool.instance.pauseAllImmediate();
         final key = _activePlayerVideo?.id;
         if (key != null && key.isNotEmpty) {
-          unawaited(MediaKitPlayerPool.instance.release(key));
+          unawaited(MediaKitPlayerPool.instance.surrenderLease(key));
         }
-        if (mounted) {
-          setState(() {
-            _activePlayerVideo = null;
-          });
-        }
+
         return;
       }
-      _schedulePlayerForPage(_visibleIndexNotifier.value);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _resumeVisibleReelAfterOverlay();
+      });
     });
     _restoreSession();
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -337,12 +470,47 @@ class _VideoReelScreenState extends State<VideoReelScreen>
         MediaQuery.sizeOf(context).width,
       );
       if (controller.isReelsTabVisible.value) {
-        final index = _visibleIndexNotifier.value;
-        _schedulePlayerForPage(index);
-        unawaited(_preloadManager.warmIndexNow(index, maxWaitMs: 1200));
-        _maybeBootstrapPreload();
+        _scheduleFinishPlaybackIfReady();
       }
     });
+  }
+
+  void _scheduleFinishPlaybackIfReady() {
+    if (!mounted || !controller.canPlayHomeReels) {
+      return;
+    }
+    final videos = controller.videoFeed.value.videos;
+    if (videos == null || videos.isEmpty || controller.isLoading.value) {
+      return;
+    }
+    final epoch = controller.feedPlaybackEpoch.value;
+    if (_lastHandledPlaybackEpoch == epoch && _activePlayerVideo != null) {
+      return;
+    }
+    // First attach for a new epoch runs immediately; duplicate signals for the
+    // same epoch are debounced (MTK was spawning 3 decoders on burst attach).
+    _playbackAttachDebounce?.cancel();
+    void attach() {
+      if (!mounted || !controller.isReelsTabVisible.value) {
+        return;
+      }
+      final latest = controller.videoFeed.value.videos;
+      if (latest == null || latest.isEmpty || controller.isLoading.value) {
+        return;
+      }
+      _lastHandledPlaybackEpoch = controller.feedPlaybackEpoch.value;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _finishFeedTabPlayback();
+        }
+      });
+    }
+
+    if (_lastHandledPlaybackEpoch != epoch) {
+      attach();
+    } else {
+      _playbackAttachDebounce = Timer(const Duration(milliseconds: 100), attach);
+    }
   }
 
   void _maybeBootstrapPreload() {
@@ -413,46 +581,6 @@ class _VideoReelScreenState extends State<VideoReelScreen>
         .catchError((_) {});
   }
 
-  Widget _buildReelPoster(WallVideos videoDetail) {
-    if (videoDetail.isImage == 1) {
-      return Container(
-        color: Colors.black,
-        width: double.infinity,
-        height: double.infinity,
-        child: Center(
-          child: CachedNetworkImage(
-            imageUrl: videoDetail.resolvedPlaybackUrl ?? '',
-            fit: BoxFit.contain,
-            width: double.infinity,
-            height: double.infinity,
-            errorWidget: (context, url, error) => const SizedBox(),
-          ),
-        ),
-      );
-    }
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final (memW, memH) = fullScreenPosterMemCacheSize(context);
-        return Stack(
-          fit: StackFit.expand,
-          children: [
-            Container(
-              color: Colors.black,
-              child: CachedNetworkImage(
-                imageUrl: videoDetail.resolvedReelPosterUrl ?? '',
-                fit: BoxFit.cover,
-                filterQuality: FilterQuality.medium,
-                memCacheWidth: memW,
-                memCacheHeight: memH,
-                errorWidget: (context, url, error) => const SizedBox(),
-              ),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
   VideoPreloadTarget? _preloadTargetForIndex(int index) {
     final videos = controller.videoFeed.value.videos;
     if (videos == null || videos.isEmpty) {
@@ -469,6 +597,9 @@ class _VideoReelScreenState extends State<VideoReelScreen>
     if (key.isEmpty) {
       return null;
     }
+    if (!video.isTranscodeReady) {
+      return VideoPreloadTarget(key: key, candidates: const []);
+    }
     return VideoPreloadTarget(
       key: key,
       candidates: _sourceResolver.resolveForWallVideo(video),
@@ -476,7 +607,6 @@ class _VideoReelScreenState extends State<VideoReelScreen>
   }
 
   void _schedulePageSideEffects(int actualIndex) {
-    unawaited(_reelPlayerKey.currentState?.syncAudibleIfNeeded());
     final videos = controller.videoFeed.value.videos;
     if (videos != null &&
         controller.videoFeed.value.meta?.hasMore != false &&
@@ -521,7 +651,9 @@ class _VideoReelScreenState extends State<VideoReelScreen>
     WidgetsBinding.instance.removeObserver(this);
     _pageController.removeListener(_onPageScrollOffset);
     _feedRestoreWorker?.dispose();
+    _feedPlaybackEpochWorker?.dispose();
     _reelsVisibilityWorker?.dispose();
+    _playbackAttachDebounce?.cancel();
     _viewTrackDebounce?.cancel();
     _positionSaveThrottle?.cancel();
     _visibleIndexNotifier.dispose();
@@ -569,33 +701,9 @@ class _VideoReelScreenState extends State<VideoReelScreen>
     }
   }
 
-  void _scrollToNext() {
-    if (!_pageController.hasClients) {
-      return;
-    }
-    _pageController.nextPage(
-      duration: const Duration(milliseconds: 300),
-      curve: Curves.easeInOut,
-    );
-  }
-
   void _onReelVideoCompleted() {
-    if (!mounted || !controller.isReelsTabVisible.value) {
-      return;
-    }
-    Future<void>.delayed(const Duration(milliseconds: 400), () {
-      if (!mounted || !controller.isReelsTabVisible.value) {
-        return;
-      }
-      _scrollToNext();
-    });
-  }
-
-  void _scrollToPrevious() {
-    _pageController.previousPage(
-      duration: const Duration(milliseconds: 300),
-      curve: Curves.easeInOut,
-    );
+    // Reels loop in place (PlaylistMode.single). The user swipes manually to
+    // move to the next post — no auto-advance.
   }
 
   // Add a variable to store the last viewed index
@@ -630,7 +738,6 @@ class _VideoReelScreenState extends State<VideoReelScreen>
   }
 
   Future<void> _restoreToIndex(int targetIndex) async {
-    await _preloadManager.warmIndexNow(targetIndex);
     if (!mounted) {
       return;
     }
@@ -664,64 +771,9 @@ class _VideoReelScreenState extends State<VideoReelScreen>
         backgroundColor: Colors.transparent,
       ),
 
-      body: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onHorizontalDragEnd: (DragEndDetails details) {
-          // Get available tab types based on settings
-          List<String> availableTabs = [];
-
-          if ((promoteVideoController
-                      .siteSettings
-                      .value
-                      ?.settings
-                      ?.allowGeneralVideos ??
-                  0) ==
-              1) {
-            availableTabs.add("General");
-          }
-          availableTabs.add("Near Me");
-          if ((promoteVideoController
-                      .siteSettings
-                      .value
-                      ?.settings
-                      ?.allowGeneralVideos ??
-                  0) ==
-              1) {
-            availableTabs.add("Following");
-          }
-
-          if (availableTabs.isEmpty) return;
-
-          // Get current tab index
-          int currentIndex = availableTabs.indexOf(
-            controller.selectedType.value,
-          );
-          if (currentIndex == -1) currentIndex = 0;
-
-          // Determine swipe direction and calculate new index
-          if (details.primaryVelocity! > 0) {
-            // Swiped right - go to previous tab
-            currentIndex =
-                (currentIndex - 1 + availableTabs.length) %
-                availableTabs.length;
-          } else if (details.primaryVelocity! < 0) {
-            // Swiped left - go to next tab
-            currentIndex = (currentIndex + 1) % availableTabs.length;
-          }
-
-          String newTabType = availableTabs[currentIndex];
-
-          // Handle authentication check for Following tab
-          if (newTabType == "Following" && !isAuthenticated) {
-            Get.toNamed(AppRoutes.signIn);
-            return;
-          }
-
-          if (newTabType != controller.selectedType.value) {
-            _switchFeedTab(newTabType);
-          }
-        },
-        child: Stack(
+      // Tab swipe lives on the header row only — a full-screen horizontal
+      // gesture was stealing vertical PageView scroll and switching tabs.
+      body: Stack(
             children: [
               Obx(() {
                 final showSkeleton = controller.isLoading.value &&
@@ -732,7 +784,9 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                 return const _ReelsSkeletonLoader();
               }),
               Obx(() {
-                if (controller.isLoading.value ||
+                final feedEmpty =
+                    controller.videoFeed.value.videos?.isEmpty ?? true;
+                if ((controller.isLoading.value && feedEmpty) ||
                     controller.blocksUiForLocation) {
                   return const SizedBox.shrink();
                 }
@@ -784,6 +838,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                                     controller.fetchVideos(
                                       city: controller.currentCity.value,
                                       country: controller.currentCountry.value,
+                                      forceNetwork: true,
                                     );
                                   });
                                 },
@@ -846,15 +901,27 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                 return const SizedBox.shrink();
               }),
               Obx(() {
-                if (controller.isLoading.value ||
-                    controller.blocksUiForLocation ||
-                    controller.videoFeed.value.videos == null ||
-                    controller.videoFeed.value.videos!.isEmpty) {
+                // Rebuild when the active tab changes, not only feed length.
+                final _activeTab = controller.selectedType.value;
+                final feedEmpty =
+                    controller.videoFeed.value.videos?.isEmpty ?? true;
+                if ((controller.isLoading.value && feedEmpty) ||
+                    controller.blocksUiForLocation) {
                   return const SizedBox.shrink();
                 }
-                final reelsActive = controller.isReelsTabVisible.value;
+                final listLen = controller.reelListLength.value;
+                if (listLen == 0) {
+                  return const SizedBox.shrink();
+                }
+                final videos = controller.videoFeed.value.videos;
+                if (videos == null || videos.isEmpty) {
+                  return const SizedBox.shrink();
+                }
                 return FocusDetector(
                     onFocusGained: () {
+                      if (!controller.canPlayHomeReels) {
+                        return;
+                      }
                       if (_pageController.hasClients) {
                         _pageController.jumpToPage(
                           controller.visiblePageIndex.value,
@@ -863,9 +930,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                       _schedulePlayerForPage(
                         controller.visiblePageIndex.value,
                       );
-                      unawaited(
-                        _reelPlayerKey.currentState?.syncAudibleIfNeeded(),
-                      );
+                      _resumeFeedAudibleOnce();
                     },
                     child: PageView.custom(
                       scrollDirection: Axis.vertical,
@@ -886,23 +951,16 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                           return;
                         }
                         final actualIndex = index % length;
-                        final v = controller.videoFeed.value.videos![
-                            actualIndex];
-                        final incomingKey = v.id ?? '';
                         controller.visiblePageIndex.value = actualIndex;
+                        controller.saveTabScrollIndex(
+                          controller.selectedType.value,
+                          actualIndex,
+                        );
                         _visibleIndexNotifier.value = actualIndex;
                         _schedulePlayerForPage(actualIndex);
-                        if (incomingKey.isNotEmpty) {
-                          MediaKitPlayerPool.instance.pauseAllImmediate(
-                            exceptKey: incomingKey,
-                          );
-                          unawaited(
-                            MediaKitPlayerPool.instance
-                                .prepareVisiblePlayback(incomingKey),
-                          );
-                        } else {
-                          MediaKitPlayerPool.instance.pauseAllImmediate();
-                        }
+                        _preloadManager.prepareForVisibleAttach();
+                        // Feed uses [openVisibleReel] — same surface, swap media;
+                        // pausing here caused the user-visible hitch on MTK.
                         MediaKitPlayerPool.instance.setScreenWidth(
                           MediaQuery.sizeOf(context).width,
                         );
@@ -966,15 +1024,12 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                                 Positioned.fill(
                                   child: GestureDetector(
                                     behavior: HitTestBehavior.translucent,
-                                    onTap: () {
-                                      _reelPlayerKey.currentState
-                                          ?.togglePlayPause();
-                                    },
                                     onDoubleTapDown: (_) {
                                       unawaited(
                                         _onReelDoubleTapLike(videoDetail),
                                       );
                                     },
+                                    child: const SizedBox.expand(),
                                   ),
                                 ),
                               VideoDescriptionWidget(
@@ -1016,12 +1071,14 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                                                 ? 1
                                                 : 0,
                                       ),
-                                    )!.then((_) {
-                                      controller.prepareForFeedTabSwitch();
-                                      controller.fetchVideos(
+                                    )!.then((_) async {
+                                      await controller
+                                          .prepareForFeedTabSwitch();
+                                      await controller.fetchVideos(
                                         city: controller.currentCity.value,
                                         country:
                                             controller.currentCountry.value,
+                                        forceNetwork: true,
                                       );
                                     });
                                   },
@@ -1059,10 +1116,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                             ),
                           );
                         },
-                        childCount:
-                            controller.videoFeed.value.videos != null
-                                ? controller.videoFeed.value.videos!.length
-                                : 1,
+                        childCount: listLen,
                       ),
                     ),
                   );
@@ -1089,7 +1143,10 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                         ),
                         const SizedBox(width: 8),
                         Expanded(
-                          child: Row(
+                          child: GestureDetector(
+                            behavior: HitTestBehavior.opaque,
+                            onHorizontalDragEnd: _onFeedTabHorizontalSwipe,
+                            child: Row(
                             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                             children: [
                               if ((promoteVideoController
@@ -1190,6 +1247,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                                 ),
                             ],
                           ),
+                          ),
                         ),
                         const SizedBox(width: 8),
                         ChatIconWithCounter(
@@ -1214,7 +1272,6 @@ class _VideoReelScreenState extends State<VideoReelScreen>
 
               // Optional: Swipe indicator at the bottom
             ],
-          ),
       ),
     );
   }
@@ -1278,9 +1335,10 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                         // Pass the initialCity ID to showCityDialog
                         showCityDialog(
                           context,
-                          initialCity: int.parse(
-                            controller.currentCityId.value,
-                          ),
+                          initialCity: int.tryParse(
+                                controller.currentCityId.value,
+                              ) ??
+                              0,
                         );
                       },
                       child: Row(
@@ -1325,6 +1383,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                                   .fetchVideos(
                                     city: controller.currentCity.value,
                                     country: controller.currentCountry.value,
+                                    forceNetwork: true,
                                   )
                                   .then((value) {
                                     controller.saveLocationData();
@@ -1486,7 +1545,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                                 ),
                               ),
                               // Comment Button
-                              if (videoDetail.allowComments == 1) ...[
+                              if (videoDetail.commentsEnabled) ...[
                                 SizedBox(height: 8),
                                 InkWell(
                                   onTap: () {
@@ -1494,19 +1553,23 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                                       Get.toNamed(AppRoutes.signIn);
                                       return;
                                     }
-                                    // controller.pauseCurrentVideo();
-                                    String? userId =
+                                    final uid =
                                         currentUserDetails?.id ??
-                                        currentUser!.id;
-                                    String? userImage =
+                                        currentUser?.id;
+                                    final userImage =
                                         currentUserDetails?.image ??
                                         currentUser?.image ??
-                                        "";
+                                        '';
+                                    if (videoDetail.id == null ||
+                                        uid == null ||
+                                        uid.isEmpty) {
+                                      return;
+                                    }
                                     showCommentsBottomSheetNew(
                                       context,
                                       videoDetail.id!,
-                                      userId!,
-                                      userImage!,
+                                      uid,
+                                      userImage,
                                     );
 
                                     if (mounted) {
@@ -1765,39 +1828,20 @@ class _VideoReelScreenState extends State<VideoReelScreen>
         // Save Button
         videoDetail.sponsorType == null
             ? Obx(() {
-              // Check if video is already saved
-              bool isSaved = saveController.savedVideos.any(
-                (video) => video.id.toString() == videoDetail.id,
-              );
+              saveController.savedIdRevision.value;
+              final videoId = videoDetail.id?.toString() ?? '';
+              final isSaved = saveController.isVideoSaved(videoId);
 
               return Column(
                 children: [
                   InkWell(
                     onTap: () async {
                       if (isAuthenticated) {
-                        if (isSaved) {
-                          // 1. Immediately remove from local list
-                          saveController.savedVideos.removeWhere(
-                            (video) =>
-                                video.id.toString() ==
-                                videoDetail.id.toString(),
-                          );
-
-                          // 2. Then hit API
-                          await saveController.saveVideo(videoDetail.id!);
-                        } else {
-                          // 1. Immediately add to local list
-                          saveController.savedVideos.add(
-                            SavedVideos(
-                              id: videoDetail.id,
-                              title: videoDetail.title,
-                              // Add other fields if needed, or just id is fine for now
-                            ),
-                          );
-
-                          // 2. Then hit API
-                          await saveController.saveVideo(videoDetail.id!);
-                        }
+                        saveController.setVideoSavedLocally(
+                          videoId,
+                          saved: !isSaved,
+                        );
+                        await saveController.saveVideo(videoDetail.id!);
                       } else {
                         Get.toNamed(AppRoutes.signIn);
                       }
@@ -1868,15 +1912,31 @@ class _VideoReelScreenState extends State<VideoReelScreen>
   }
 
   void _handleShare(WallVideos videoDetail) async {
-    // _handleScreenExit();
+    final videoId = videoDetail.id?.trim();
+    if (videoId == null || videoId.isEmpty) {
+      Get.snackbar(
+        'Error',
+        'Could not share this video',
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
+      return;
+    }
     try {
-      final String videoId = videoDetail.id!;
       final String appUrl = "cookster://open.cookster.app/video?id=$videoId";
       final String webUrl =
           "https://cookster.org/web/visitSingleVideo?id=$videoId";
       final String shareMessage =
           'Check out this amazing video on Cookster!\n$appUrl\n\nIf the app does not open, use this web link:\n$webUrl';
-      await Share.share(shareMessage, subject: 'Cookster Video');
+      final box = context.findRenderObject() as RenderBox?;
+      await Share.share(
+        shareMessage,
+        subject: 'Cookster Video',
+        sharePositionOrigin: box != null
+            ? box.localToGlobal(Offset.zero) & box.size
+            : null,
+      );
     } catch (e) {
       debugPrint('Error sharing video: $e');
       Get.snackbar(
@@ -2042,6 +2102,14 @@ class videoUserDetails extends StatelessWidget {
   final String? userId;
   final bool isAuthenticated;
 
+  Widget _avatarPlaceholder() {
+    return Container(
+      color: Colors.grey.shade800,
+      alignment: Alignment.center,
+      child: Icon(Icons.person, color: Colors.white, size: 18.r),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final overlayTop = MediaQuery.paddingOf(context).top + 64;
@@ -2091,6 +2159,7 @@ class videoUserDetails extends StatelessWidget {
                         children: [
                           InkWell(
                             onTap: () {
+                              controller.silenceHomeReelsForTransition();
                               unawaited(
                                 Get.to(
                                   () => VisitProfileView(
@@ -2106,27 +2175,29 @@ class videoUserDetails extends StatelessWidget {
                                     border: Border.all(color: Colors.white),
                                     shape: BoxShape.circle,
                                   ),
-                                  child: CircleAvatar(
-                                    radius: 16.r,
-                                    backgroundImage:
-                                        videoDetail.userImage != null &&
-                                                videoDetail
-                                                    .userImage!
-                                                    .isNotEmpty
-                                            ? CachedNetworkImageProvider(
-                                              videoDetail
-                                                      .resolvedUserAvatarUrl ??
-                                                  '',
-                                            )
-                                            : null,
-                                    child:
-                                        videoDetail.userImage == null ||
-                                                videoDetail.userImage!.isEmpty
-                                            ? Icon(
-                                              Icons.person,
-                                              color: Colors.white,
-                                            )
-                                            : null,
+                                  child: ClipOval(
+                                    child: SizedBox(
+                                      width: 32.r,
+                                      height: 32.r,
+                                      child:
+                                          (videoDetail
+                                                      .resolvedUserAvatarUrl
+                                                      ?.isNotEmpty ??
+                                                  false)
+                                              ? CachedNetworkImage(
+                                                imageUrl:
+                                                    videoDetail
+                                                        .resolvedUserAvatarUrl!,
+                                                fit: BoxFit.cover,
+                                                placeholder:
+                                                    (context, url) =>
+                                                        _avatarPlaceholder(),
+                                                errorWidget:
+                                                    (context, url, error) =>
+                                                        _avatarPlaceholder(),
+                                              )
+                                              : _avatarPlaceholder(),
+                                    ),
                                   ),
                                 ),
                                 SizedBox(width: 8),
@@ -2150,6 +2221,20 @@ class videoUserDetails extends StatelessWidget {
                                                 .ellipsis, // Ellipsis for overflow
                                       ),
                                     ),
+                                    if (PublicUserIdentity.subtitleHandle(
+                                          videoDetail.creatorHandle,
+                                        ) !=
+                                        null)
+                                      Text(
+                                        PublicUserIdentity.formatAtHandle(
+                                          videoDetail.creatorHandle,
+                                        ),
+                                        style: TextStyle(
+                                          color: Colors.white70,
+                                          fontSize: 10.sp,
+                                        ),
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
                                     videoDetail.sponsorType != null
                                         ? Text(
                                           "Sponsored",
@@ -2828,9 +2913,8 @@ class _VideoDescriptionWidgetState extends State<VideoDescriptionWidget>
     super.initState();
     SystemChrome.setSystemUIOverlayStyle(
       const SystemUiOverlayStyle(
-        statusBarIconBrightness: Brightness.light, // White icons ke liye
-        statusBarColor:
-            Colors.transparent, // Optional: Status bar background color
+        statusBarIconBrightness: Brightness.light,
+        statusBarColor: Colors.black,
       ),
     );
     if (widget.description != null) {
@@ -2839,9 +2923,8 @@ class _VideoDescriptionWidgetState extends State<VideoDescriptionWidget>
         _checkOverflowOnce();
         SystemChrome.setSystemUIOverlayStyle(
           const SystemUiOverlayStyle(
-            statusBarIconBrightness: Brightness.light, // White icons ke liye
-            statusBarColor:
-                Colors.transparent, // Optional: Status bar background color
+            statusBarIconBrightness: Brightness.light,
+            statusBarColor: Colors.black,
           ),
         );
       });
@@ -2869,8 +2952,9 @@ class _VideoDescriptionWidgetState extends State<VideoDescriptionWidget>
     )..layout(maxWidth: maxDescriptionWidth);
 
     // Check tag overflow
-    final String tagLine =
-        widget.tags?.split(',').map((t) => '#${t.trim()}').join(' ') ?? '';
+    final String tagLine = HashtagText.splitTags(widget.tags)
+        .map(HashtagText.displayLabel)
+        .join(' ');
     final TextPainter tagPainter = TextPainter(
       text: TextSpan(text: tagLine, style: tagStyle),
       maxLines: 1,
@@ -2988,26 +3072,21 @@ class _VideoDescriptionWidgetState extends State<VideoDescriptionWidget>
                                 ? TextOverflow.visible
                                 : TextOverflow.ellipsis,
                         text: TextSpan(
-                          children:
-                              widget.tags!.split(',').map((tag) {
-                                final trimmedTag = tag.trim();
-                                return TextSpan(
-                                  text: '#$trimmedTag ',
-                                  style: tagStyle,
-                                  recognizer:
-                                      TapGestureRecognizer()
-                                        ..onTap = () {
-                                          // widget.controller
-                                          //     ?.pauseCurrentVideo();
-
-                                          Get.to(
-                                            () => HashtagReelScreen(
-                                              tag: trimmedTag,
-                                            ),
-                                          );
-                                        },
-                                );
-                              }).toList(),
+                          children: HashtagText.splitTags(widget.tags).map((tag) {
+                            final searchKey = HashtagText.searchKey(tag);
+                            return TextSpan(
+                              text: '${HashtagText.displayLabel(tag)} ',
+                              style: tagStyle,
+                              recognizer: TapGestureRecognizer()
+                                ..onTap = () {
+                                  Get.to(
+                                    () => HashtagReelScreen(
+                                      tag: searchKey,
+                                    ),
+                                  );
+                                },
+                            );
+                          }).toList(),
                         ),
                       ),
                     ),
@@ -3032,9 +3111,7 @@ class _VideoDescriptionWidgetState extends State<VideoDescriptionWidget>
                       ),
                     ),
                 ],
-              )
-            else
-              Text("#", style: tagStyle),
+              ),
           ],
         ),
       ),

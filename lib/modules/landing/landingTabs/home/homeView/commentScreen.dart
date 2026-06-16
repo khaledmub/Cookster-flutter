@@ -1067,14 +1067,17 @@ void showCommentsBottomSheetNew(
   showModalBottomSheet(
     context: context,
     isScrollControlled: true,
-    backgroundColor: Colors.transparent,
-    builder:
-        (context) => SafeArea(
-          child: VideoCommentsScreen(
-            videoId: videoId,
-            userId: userId,
-            userImage: userImage,
-          ),
+    backgroundColor: Colors.white,
+    builder: (context) => ColoredBox(
+      color: Colors.white,
+      child: SafeArea(
+        top: false,
+        child: VideoCommentsScreen(
+          videoId: videoId,
+          userId: userId,
+          userImage: userImage,
         ),
+      ),
+    ),
   );
 }

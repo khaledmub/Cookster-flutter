@@ -81,6 +81,7 @@ class User {
   dynamic id;
   dynamic systemId;
   dynamic name;
+  dynamic userName;
   dynamic email;
   dynamic phone;
   dynamic password;
@@ -103,6 +104,7 @@ class User {
     this.id,
     this.systemId,
     this.name,
+    this.userName,
     this.email,
     this.phone,
     this.password,
@@ -124,12 +126,13 @@ class User {
     id = json['id'] as dynamic;
     systemId = json['system_id'] as dynamic;
     name = json['name'] as dynamic;
+    userName = json['user_name'] as dynamic;
     email = json['email'] as dynamic;
     phone = json['phone'] as dynamic;
     password = json['password'] as dynamic;
     dob = json['dob'] as dynamic;
-    image = json['image'] as dynamic;
-    coverImage = json['cover_image'];
+    image = json['image'] ?? json['image_url'] as dynamic;
+    coverImage = json['cover_image'] ?? json['cover_image_url'] as dynamic;
     country = json['country'] as dynamic;
     countryName = json['country_name'] as dynamic;
     state = json['state'] as dynamic;
@@ -148,6 +151,7 @@ class User {
     data['id'] = id;
     data['system_id'] = systemId;
     data['name'] = name;
+    data['user_name'] = userName;
     data['email'] = email;
     data['phone'] = phone;
     data['password'] = password;
@@ -303,6 +307,7 @@ class Videos {
   dynamic allowComments;
   dynamic location;
   dynamic image;
+  dynamic imageUrl;
   dynamic video;
   dynamic videoUrl;
   dynamic country;
@@ -370,6 +375,7 @@ class Videos {
     allowComments = json['allow_comments'] as dynamic;
     location = json['location'] as dynamic;
     image = json['image'] as dynamic;
+    imageUrl = json['image_url'] as dynamic;
     video = json['video'] as dynamic;
     videoUrl = json['video_url'] as dynamic;
     country = json['country'] as dynamic;

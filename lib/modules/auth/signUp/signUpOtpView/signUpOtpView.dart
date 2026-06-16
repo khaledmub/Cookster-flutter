@@ -1,3 +1,4 @@
+import 'package:cookster/core/navigation/route_back.dart';
 import 'package:cookster/appUtils/appUtils.dart';
 import 'package:cookster/appUtils/colorUtils.dart';
 import 'package:flutter/material.dart';
@@ -197,22 +198,25 @@ class _SignUpOtpViewState extends State<SignUpOtpView> {
 
     return Column(
       children: [
-        Pinput(
-          length: 5,
-          defaultPinTheme: defaultPinTheme,
-          focusedPinTheme: focusedPinTheme,
-          submittedPinTheme: submittedPinTheme,
-          controller: controller.otpController,
-          focusNode: _otpFocusNodes[0],
-          keyboardType: TextInputType.number,
-          onChanged: (value) {
-            controller.otpValue.value = value;
-          },
-          onCompleted: (pin) {
-            if (!controller.isLoading.value) {
-              controller.verifyOtp();
-            }
-          },
+        Directionality(
+          textDirection: TextDirection.ltr,
+          child: Pinput(
+            length: 5,
+            defaultPinTheme: defaultPinTheme,
+            focusedPinTheme: focusedPinTheme,
+            submittedPinTheme: submittedPinTheme,
+            controller: controller.otpController,
+            focusNode: _otpFocusNodes[0],
+            keyboardType: TextInputType.number,
+            onChanged: (value) {
+              controller.otpValue.value = value;
+            },
+            onCompleted: (pin) {
+              if (!controller.isLoading.value) {
+                controller.verifyOtp();
+              }
+            },
+          ),
         ),
         SizedBox(height: 10.h),
         Obx(

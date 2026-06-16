@@ -1,3 +1,4 @@
+import 'package:cookster/core/navigation/route_back.dart';
 import 'package:cookster/appUtils/appCenterIcon.dart';
 import 'package:cookster/appUtils/colorUtils.dart';
 import 'package:cookster/modules/auth/signUp/signUpController/cityController.dart';
@@ -364,14 +365,7 @@ class _EditVideoViewState extends State<EditVideoView> {
                                     // Assuming .h is from a package like flutter_screenutil, replace with 20 if not using it
                                     child: GestureDetector(
                                       behavior: HitTestBehavior.opaque,
-                                      onTap: () {
-                                        try {
-                                          print("Tapped");
-                                          Get.back();
-                                        } catch (e) {
-                                          print(e);
-                                        }
-                                      },
+                                      onTap: () => navigateBack(),
                                       child: Container(
                                         height: 40,
                                         width: 40,

@@ -6,10 +6,10 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:shimmer/shimmer.dart';
-import '../../appUtils/apiEndPoints.dart';
 import '../../core/widgets/grid_thumbnail_cache.dart';
 import '../../appUtils/colorUtils.dart';
 import 'chatController/chatController.dart';
+import 'package:cookster/core/navigation/route_back.dart';
 import 'package:cookster/core/media/media_url_resolver.dart';
 
 class ChatView extends StatefulWidget {
@@ -78,13 +78,7 @@ class _ChatViewState extends State<ChatView> {
                     // top: 10.h,
                     child: GestureDetector(
                       behavior: HitTestBehavior.opaque,
-                      onTap: () {
-                        try {
-                          Get.back();
-                        } catch (e) {
-                          print("Error navigating back: $e");
-                        }
-                      },
+                      onTap: () => navigateBack(),
                       child: Container(
                         height: 40,
                         width: 40,
@@ -162,8 +156,12 @@ class _ChatViewState extends State<ChatView> {
                     );
                   }
 
-                  List<Widget> messageWidgets = [];
+                  final List<_ChatListItem> chatItems = [];
                   DateTime? previousDate;
+
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    controller.scrollToBottom(animated: false);
+                  });
 
                   for (var messageDoc in messages) {
                     final message = messageDoc.data() as Map<String, dynamic>;
@@ -173,13 +171,38 @@ class _ChatViewState extends State<ChatView> {
                     final messageDate = timestamp.toDate();
                     final isMe = message['senderId'] == widget.senderId;
 
-                    WidgetsBinding.instance.addPostFrameCallback((_) {
-                      controller.scrollToBottom(animated: false);
-                    });
-
                     if (_shouldShowDateHeader(messageDate, previousDate)) {
-                      messageWidgets.add(
-                        Center(
+                      chatItems.add(
+                        _ChatListItem.date(
+                          label: _formatDateHeader(messageDate),
+                          key: ValueKey<String>(
+                            'date_${messageDate.year}_${messageDate.month}_${messageDate.day}',
+                          ),
+                        ),
+                      );
+                    }
+
+                    chatItems.add(
+                      _ChatListItem.message(
+                        message: message['message'] ?? '',
+                        date: messageDate,
+                        isMe: isMe,
+                        key: ValueKey<String>(messageDoc.id),
+                      ),
+                    );
+
+                    previousDate = messageDate;
+                  }
+
+                  return ListView.builder(
+                    controller: controller.scrollController,
+                    padding: EdgeInsets.symmetric(vertical: 16),
+                    itemCount: chatItems.length,
+                    itemBuilder: (context, index) {
+                      final item = chatItems[index];
+                      if (item.isDateHeader) {
+                        return Center(
+                          key: item.key,
                           child: Container(
                             margin: EdgeInsets.symmetric(vertical: 12),
                             padding: EdgeInsets.symmetric(
@@ -198,7 +221,7 @@ class _ChatViewState extends State<ChatView> {
                               ],
                             ),
                             child: Text(
-                              _formatDateHeader(messageDate),
+                              item.dateLabel!,
                               style: TextStyle(
                                 fontSize: 12,
                                 color: Colors.grey[600],
@@ -206,12 +229,13 @@ class _ChatViewState extends State<ChatView> {
                               ),
                             ),
                           ),
-                        ),
-                      );
-                    }
+                        );
+                      }
 
-                    messageWidgets.add(
-                      Align(
+                      final messageDate = item.date!;
+                      final isMe = item.isMe!;
+                      return Align(
+                        key: item.key,
                         alignment:
                             isMe ? Alignment.centerRight : Alignment.centerLeft,
                         child: Container(
@@ -248,7 +272,7 @@ class _ChatViewState extends State<ChatView> {
                                   ],
                                 ),
                                 child: Text(
-                                  message['message'] ?? '',
+                                  item.messageText!,
                                   style: TextStyle(
                                     fontSize: 16,
                                     color: isMe ? Colors.white : Colors.black87,
@@ -266,16 +290,8 @@ class _ChatViewState extends State<ChatView> {
                             ],
                           ),
                         ),
-                      ),
-                    );
-
-                    previousDate = messageDate;
-                  }
-
-                  return ListView(
-                    controller: controller.scrollController,
-                    padding: EdgeInsets.symmetric(vertical: 16),
-                    children: messageWidgets,
+                      );
+                    },
                     keyboardDismissBehavior:
                         ScrollViewKeyboardDismissBehavior.onDrag,
                   );
@@ -502,4 +518,40 @@ class _ChatViewState extends State<ChatView> {
     return DateTime(current.year, current.month, current.day) !=
         DateTime(previous.year, previous.month, previous.day);
   }
+}
+
+class _ChatListItem {
+  const _ChatListItem._({
+    required this.key,
+    this.dateLabel,
+    this.messageText,
+    this.date,
+    this.isMe,
+  });
+
+  factory _ChatListItem.date({required String label, required Key key}) {
+    return _ChatListItem._(key: key, dateLabel: label);
+  }
+
+  factory _ChatListItem.message({
+    required String message,
+    required DateTime date,
+    required bool isMe,
+    required Key key,
+  }) {
+    return _ChatListItem._(
+      key: key,
+      messageText: message,
+      date: date,
+      isMe: isMe,
+    );
+  }
+
+  final Key key;
+  final String? dateLabel;
+  final String? messageText;
+  final DateTime? date;
+  final bool? isMe;
+
+  bool get isDateHeader => dateLabel != null;
 }

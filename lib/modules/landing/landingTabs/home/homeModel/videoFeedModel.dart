@@ -1,4 +1,10 @@
 import 'package:cookster/core/parsing/feed_parsers.dart';
+import 'package:cookster/modules/landing/landingTabs/home/homeModel/userSaveUnsave.dart';
+import 'package:cookster/modules/landing/landingTabs/profile/profileModel/profileModel.dart'
+    as pro_profile;
+import 'package:cookster/modules/landing/landingTabs/profile/profileModel/simpleUserProfileModel.dart'
+    as simple_profile;
+import 'package:cookster/modules/liked_videos_screen/liked_videos_model/liked_videos_model.dart';
 import 'package:cookster/modules/visitProfile/visitProfileModel/visitProfileModel.dart'
     as visit_profile;
 
@@ -14,6 +20,9 @@ class FeedMeta {
   int? sponsoredIndex;
   int? patternIndex;
   int? normalOffset;
+  /// True when Near Me geo filter returned nothing and the server fell back
+  /// to the general reels feed (`GET /api/reels?feed=near_me`).
+  bool geoFallback;
 
   FeedMeta({
     this.page,
@@ -25,6 +34,7 @@ class FeedMeta {
     this.sponsoredIndex,
     this.patternIndex,
     this.normalOffset,
+    this.geoFallback = false,
   });
 
   factory FeedMeta.fromJson(Map<String, dynamic>? json) {
@@ -41,6 +51,7 @@ class FeedMeta {
       sponsoredIndex: json['sponsored_index'] as int?,
       patternIndex: json['pattern_index'] as int?,
       normalOffset: json['normal_offset'] as int?,
+      geoFallback: json['geo_fallback'] == true,
     );
   }
 
@@ -107,6 +118,32 @@ class WallVideos {
   int? publishType;
   int? takeOrder;
   int? allowComments;
+  /// Comments are enabled unless the API explicitly sets `allow_comments` to 0.
+  bool get commentsEnabled => allowComments != 0;
+
+  static int? parseAllowComments(dynamic raw) {
+    if (raw == null) {
+      return 1;
+    }
+    if (raw is bool) {
+      return raw ? 1 : 0;
+    }
+    if (raw is int) {
+      return raw;
+    }
+    if (raw is String) {
+      final lower = raw.trim().toLowerCase();
+      if (lower == 'true' || lower == '1') {
+        return 1;
+      }
+      if (lower == 'false' || lower == '0') {
+        return 0;
+      }
+      return int.tryParse(raw) ?? 1;
+    }
+    return 1;
+  }
+
   String? location;
   String? image;
   String? video;
@@ -127,6 +164,7 @@ class WallVideos {
   String? updatedAt;
   String? videoTypeName;
   String? userName;
+  String? creatorHandle;
   String? userImage;
   String? userEmail;
   int? followersCount;
@@ -171,6 +209,7 @@ class WallVideos {
     this.updatedAt,
     this.videoTypeName,
     this.userName,
+    this.creatorHandle,
     this.userImage,
     this.userEmail,
     this.followersCount,
@@ -196,7 +235,7 @@ class WallVideos {
     menu = json['menu'] as String?;
     publishType = json['publish_type'] as int?;
     takeOrder = json['take_order'] as int?;
-    allowComments = json['allow_comments'] as int?;
+    allowComments = parseAllowComments(json['allow_comments']);
     isImage = json['is_image'];
     location = json['location'] as String?;
     image = json['image'] as String?;
@@ -220,6 +259,7 @@ class WallVideos {
     updatedAt = json['updated_at'] as String?;
     videoTypeName = json['video_type_name'] as String?;
     userName = json['user_name'] as String?;
+    creatorHandle = json['creator_handle'] as String?;
     userEmail = json['user_email'] as String?;
     followersCount = parseApiCount(
       json['followers_count'] ?? json['followers'],
@@ -237,7 +277,7 @@ class WallVideos {
     final user = json['user'];
     if (user is Map<String, dynamic>) {
       frontUserId ??= user['id']?.toString();
-      userName ??= user['name'] as String?;
+      userName ??= (user['user_name'] ?? user['name']) as String?;
       userImageFromNested = (user['image_url'] ?? user['image']) as String?;
       final nestedFollowers = parseApiCount(
         user['followers_count'] ?? user['followers'],
@@ -268,6 +308,7 @@ class WallVideos {
     w.videoUrl = v.videoUrl?.toString();
     w.video = v.video?.toString();
     w.image = v.image?.toString();
+    w.imageUrl = v.imageUrl?.toString();
     w.thumbnailUrl = v.thumbnailUrl?.toString();
     w.hlsUrl = v.hlsUrl?.toString();
     w.hlsPlaylistUrl = v.hlsPlaylistUrl?.toString();
@@ -280,13 +321,177 @@ class WallVideos {
     w.userImage = v.userImage?.toString() ?? ownerImage;
     w.followersCount = parseApiCount(v.followersCount ?? ownerFollowers);
     w.isImage = v.isImage;
-    final allow = v.allowComments;
-    if (allow is int) {
-      w.allowComments = allow;
-    } else if (allow != null) {
-      w.allowComments = int.tryParse(allow.toString());
-    }
+    w.allowComments = parseAllowComments(v.allowComments);
     w.createdAt = v.createdAt?.toString();
+    return w;
+  }
+
+  static WallVideos fromSavedVideo(SavedVideos v) {
+    return _fromGridVideo(
+      id: v.id,
+      frontUserId: v.frontUserId,
+      title: v.title,
+      description: v.description,
+      tags: v.tags,
+      videoUrl: v.videoUrl,
+      video: v.video,
+      image: v.image,
+      imageUrl: v.imageUrl,
+      thumbnailUrl: v.thumbnailUrl,
+      hlsUrl: v.hlsUrl,
+      hlsPlaylistUrl: v.hlsPlaylistUrl,
+      transcodeStatus: v.transcodeStatus,
+      processingStatus: v.processingStatus,
+      videoSources: v.videoSources,
+      userName: v.userName,
+      userImage: v.userImage,
+      followersCount: v.followersCount,
+      allowComments: v.allowComments,
+      createdAt: v.createdAt,
+    );
+  }
+
+  static WallVideos fromLikedVideo(LikedVideos v) {
+    return _fromGridVideo(
+      id: v.id,
+      frontUserId: v.frontUserId,
+      title: v.title,
+      description: v.description,
+      tags: v.tags,
+      videoUrl: v.videoUrl,
+      video: v.video,
+      image: v.image,
+      imageUrl: v.imageUrl,
+      thumbnailUrl: v.thumbnailUrl,
+      hlsUrl: v.hlsUrl,
+      hlsPlaylistUrl: v.hlsPlaylistUrl,
+      transcodeStatus: v.transcodeStatus,
+      processingStatus: v.processingStatus,
+      videoSources: v.videoSources,
+      userName: v.userName,
+      userImage: v.userImage,
+      followersCount: v.followersCount,
+      allowComments: v.allowComments,
+      createdAt: v.createdAt,
+    );
+  }
+
+  static WallVideos fromSimpleUserVideo(
+    simple_profile.UserVideos v, {
+    String? ownerId,
+    String? ownerName,
+    String? ownerImage,
+    int? ownerFollowers,
+  }) {
+    return _fromGridVideo(
+      id: v.id,
+      frontUserId: v.frontUserId ?? ownerId,
+      title: v.title,
+      description: v.description,
+      tags: v.tags,
+      videoUrl: v.videoUrl,
+      video: v.video,
+      image: v.image,
+      imageUrl: v.imageUrl,
+      thumbnailUrl: v.thumbnailUrl,
+      hlsUrl: v.hlsUrl,
+      hlsPlaylistUrl: v.hlsPlaylistUrl,
+      transcodeStatus: v.transcodeStatus,
+      processingStatus: v.processingStatus,
+      videoSources: v.videoSources,
+      userName: v.userName ?? ownerName,
+      userImage: v.userImage ?? ownerImage,
+      followersCount: ownerFollowers,
+      allowComments: v.allowComments,
+      isImage: v.isImage,
+      createdAt: v.createdAt,
+      likesCount: v.likeCount,
+    );
+  }
+
+  static WallVideos fromProfessionalVideo(
+    pro_profile.ProfessionalVideos v, {
+    String? ownerId,
+    String? ownerName,
+    String? ownerImage,
+    int? ownerFollowers,
+  }) {
+    return _fromGridVideo(
+      id: v.id,
+      frontUserId: v.frontUserId ?? ownerId,
+      title: v.title,
+      description: v.description,
+      tags: v.tags,
+      videoUrl: v.videoUrl,
+      video: v.video,
+      image: v.image,
+      imageUrl: v.imageUrl,
+      thumbnailUrl: v.thumbnailUrl,
+      hlsUrl: v.hlsUrl,
+      hlsPlaylistUrl: v.hlsPlaylistUrl,
+      transcodeStatus: v.transcodeStatus,
+      processingStatus: v.processingStatus,
+      videoSources: v.videoSources,
+      userName: v.userName ?? ownerName,
+      userImage: v.userImage ?? ownerImage,
+      followersCount: ownerFollowers,
+      allowComments: v.allowComments,
+      isImage: v.isImage,
+      createdAt: v.createdAt,
+      likesCount: v.likeCount,
+      userEmail: v.userEmail,
+    );
+  }
+
+  static WallVideos _fromGridVideo({
+    dynamic id,
+    dynamic frontUserId,
+    dynamic title,
+    dynamic description,
+    dynamic tags,
+    dynamic videoUrl,
+    dynamic video,
+    dynamic image,
+    dynamic imageUrl,
+    dynamic thumbnailUrl,
+    dynamic hlsUrl,
+    dynamic hlsPlaylistUrl,
+    dynamic transcodeStatus,
+    dynamic processingStatus,
+    VideoSources? videoSources,
+    dynamic userName,
+    dynamic userImage,
+    dynamic followersCount,
+    dynamic allowComments,
+    dynamic isImage,
+    dynamic createdAt,
+    dynamic likesCount,
+    dynamic userEmail,
+  }) {
+    final w = WallVideos();
+    w.id = id?.toString();
+    w.frontUserId = frontUserId?.toString();
+    w.title = title?.toString();
+    w.description = description?.toString();
+    w.tags = tags?.toString();
+    w.videoUrl = videoUrl?.toString();
+    w.video = video?.toString();
+    w.image = image?.toString();
+    w.imageUrl = imageUrl?.toString();
+    w.thumbnailUrl = thumbnailUrl?.toString();
+    w.hlsUrl = hlsUrl?.toString();
+    w.hlsPlaylistUrl = hlsPlaylistUrl?.toString();
+    w.transcodeStatus = transcodeStatus?.toString();
+    w.processingStatus = processingStatus?.toString();
+    w.videoSources = videoSources;
+    w.userName = userName?.toString();
+    w.userImage = userImage?.toString();
+    w.userEmail = userEmail?.toString();
+    w.followersCount = parseApiCount(followersCount);
+    w.likesCount = parseApiCount(likesCount);
+    w.isImage = isImage;
+    w.allowComments = parseAllowComments(allowComments);
+    w.createdAt = createdAt?.toString();
     return w;
   }
 

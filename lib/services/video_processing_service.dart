@@ -1,8 +1,14 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:cookster/appBindings/app_bindings.dart';
 import 'package:cookster/appUtils/apiEndPoints.dart';
+import 'package:cookster/modules/landing/landingTabs/home/homeModel/videoFeedModel.dart';
+import 'package:cookster/modules/landing/landingTabs/professionalProfile/profileControlller/professionalProfileController.dart';
+import 'package:cookster/modules/landing/landingTabs/profile/profileControlller/profileController.dart';
 import 'package:cookster/services/apiClient.dart';
+import 'package:get/get.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 /// Server-side thumbnail cover + HLS transcode status after upload.
 class VideoProcessingStatusResult {
@@ -11,16 +17,37 @@ class VideoProcessingStatusResult {
     this.transcodeStatus,
     this.hlsUrl,
     this.hlsPlaylistUrl,
+    this.video,
   });
 
   final String? processingStatus;
   final String? transcodeStatus;
   final String? hlsUrl;
   final String? hlsPlaylistUrl;
+  final WallVideos? video;
 
   bool get thumbnailReady => processingStatus == 'ready';
   bool get transcodeReady => transcodeStatus == 'ready';
   bool get transcodeFailed => transcodeStatus == 'failed';
+
+  factory VideoProcessingStatusResult.fromJson(Map<String, dynamic> data) {
+    WallVideos? parsedVideo;
+    final nested = data['video'];
+    if (nested is Map<String, dynamic>) {
+      parsedVideo = WallVideos.fromJson(nested);
+    }
+    return VideoProcessingStatusResult(
+      processingStatus:
+          (data['processing_status'] ?? parsedVideo?.processingStatus)
+              ?.toString(),
+      transcodeStatus:
+          (data['transcode_status'] ?? parsedVideo?.transcodeStatus)?.toString(),
+      hlsUrl: (data['hls_url'] ?? parsedVideo?.hlsUrl)?.toString(),
+      hlsPlaylistUrl:
+          (data['hls_playlist_url'] ?? parsedVideo?.hlsPlaylistUrl)?.toString(),
+      video: parsedVideo,
+    );
+  }
 }
 
 /// Polls server-side thumbnail / HLS processing after upload.
@@ -36,12 +63,7 @@ class VideoProcessingService {
     try {
       final data = jsonDecode(response.body) as Map<String, dynamic>;
       if (data['status'] != true) return null;
-      return VideoProcessingStatusResult(
-        processingStatus: data['processing_status'] as String?,
-        transcodeStatus: data['transcode_status'] as String?,
-        hlsUrl: data['hls_url'] as String?,
-        hlsPlaylistUrl: data['hls_playlist_url'] as String?,
-      );
+      return VideoProcessingStatusResult.fromJson(data);
     } catch (_) {
       return null;
     }
@@ -77,11 +99,33 @@ class VideoProcessingService {
     return null;
   }
 
+  static Future<void> _refreshProfilesAfterProcessing() async {
+    ensureLandingProfileControllers();
+    final prefs = await SharedPreferences.getInstance();
+    final entity = prefs.getInt('entity') ?? 0;
+    if (entity == 2) {
+      await Get.find<ProfessionalProfileController>().getUserDetails();
+    } else {
+      await Get.find<ProfileController>().getUserDetails();
+    }
+  }
+
   static void scheduleBackgroundPoll(
     String videoId, {
     bool waitForTranscode = true,
   }) {
-    unawaited(pollUntilSettled(videoId, waitForTranscode: waitForTranscode));
+    unawaited(() async {
+      final result = await pollUntilSettled(
+        videoId,
+        waitForTranscode: waitForTranscode,
+      );
+      if (result == null) {
+        return;
+      }
+      if (result.transcodeReady || result.thumbnailReady) {
+        await _refreshProfilesAfterProcessing();
+      }
+    }());
   }
 
   static String? extractVideoIdFromUploadResponse(String body) {

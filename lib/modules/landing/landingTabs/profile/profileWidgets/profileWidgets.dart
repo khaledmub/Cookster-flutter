@@ -1,10 +1,13 @@
 import 'package:cookster/appUtils/colorUtils.dart';
+import 'package:cookster/core/auth/account_deletion.dart';
+import 'package:cookster/core/profile/profile_share.dart';
 import 'package:cookster/modules/landing/landingTabs/profile/profileControlller/profileController.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_svg/svg.dart';
 import 'package:get/get.dart';
 import 'package:qr_flutter/qr_flutter.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../../../tawkLiveChat/tawkLiveChat.dart';
 import '../../blockedUsers/blockedUsersView/blockedUsersView.dart';
@@ -143,8 +146,7 @@ class CustomButtonWidget extends StatelessWidget {
 }
 
 void showProfileQrCodeDialog(String userEmail) {
-  final String profileUrl =
-      'https://cookster.org/profile?email=${Uri.encodeComponent(userEmail)}';
+  final String profileUrl = profileShareUrl(email: userEmail);
   Get.dialog(
     Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -162,6 +164,14 @@ void showProfileQrCodeDialog(String userEmail) {
               data: profileUrl,
               size: 220,
               backgroundColor: Colors.white,
+            ),
+            const SizedBox(height: 12),
+            TextButton.icon(
+              onPressed: () async {
+                await Share.share(profileUrl, subject: 'Cookster Profile');
+              },
+              icon: const Icon(Icons.share_outlined),
+              label: Text('share_profile'.tr),
             ),
           ],
         ),

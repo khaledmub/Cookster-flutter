@@ -1,3 +1,4 @@
+import 'package:cookster/core/navigation/route_back.dart';
 import 'package:cookster/loaders/pulseLoader.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
@@ -6,11 +7,12 @@ import 'package:get/get.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 
 import 'package:cookster/core/widgets/grid_thumbnail_cache.dart';
+import 'package:cookster/core/video/profile_reel_prefetch.dart';
+import 'package:cookster/modules/collection_reel/collection_reel_screen.dart';
 import 'package:cookster/modules/landing/landingTabs/home/homeModel/userSaveUnsave.dart';
 
 import '../../../../../core/widgets/paginated_scroll_mixin.dart';
 import '../../../../../appUtils/colorUtils.dart';
-import '../../../../singleVideoView/singleVideoView.dart';
 import 'package:cookster/modules/landing/landingTabs/home/homeController/saveController.dart';
 
 class SavedVideosView extends StatefulWidget {
@@ -50,20 +52,25 @@ class _SavedVideosViewState extends State<SavedVideosView>
   Widget _buildVideoTile(SavedVideos video, int thumbCache) {
     return GestureDetector(
       onTap: () {
+        warmProfileReelTap(
+          videoUrl: video.videoUrl,
+          video: video.video,
+          hlsUrl: video.hlsUrl,
+          hlsPlaylistUrl: video.hlsPlaylistUrl,
+          transcodeStatus: video.transcodeStatus,
+          videoSources: video.videoSources,
+        );
         Get.to(
-          SingleVideoScreen(
-            followers: video.followersCount.toString(),
-            frondUserId: video.frontUserId,
-            userImage: video.userImage,
-            videoId: video.id,
-            videoUrl: video.resolvedPlaybackUrl,
-            title: video.title,
-            image: video.image,
-            allowComments: video.allowComments,
-            description: video.description,
-            tags: video.tags,
-            userName: video.userName,
-            createdAt: video.createdAt,
+          () => CollectionReelScreen(
+            kind: CollectionReelKind.saved,
+            anchorId: video.id?.toString(),
+            initialPosterUrl: profileReelPosterFromGrid(
+              processingStatus: video.processingStatus,
+              transcodeStatus: video.transcodeStatus,
+              thumbnailUrl: video.thumbnailUrl,
+              imageUrl: video.imageUrl,
+              image: video.image,
+            ),
           ),
         );
       },
@@ -134,8 +141,9 @@ class _SavedVideosViewState extends State<SavedVideosView>
                 right:
                     Directionality.of(context) == TextDirection.rtl ? 16 : null,
                 top: 25,
-                child: InkWell(
-                  onTap: Get.back,
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () => navigateBack(),
                   child: Container(
                     height: 40,
                     width: 40,

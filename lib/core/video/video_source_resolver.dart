@@ -1,6 +1,6 @@
-import 'package:cookster/appUtils/apiEndPoints.dart';
 import 'package:cookster/core/media/media_url_resolver.dart';
 import 'package:cookster/core/media/wall_video_media.dart';
+import 'package:cookster/core/video/network_policy.dart';
 import 'package:cookster/modules/landing/landingTabs/home/homeModel/videoFeedModel.dart';
 
 class VideoSourceCandidate {
@@ -23,7 +23,7 @@ class VideoSourceResolver {
     return resolveCandidates(
       hlsUrl: ready ? video.resolvedHlsUrl : null,
       mp4Url: video.resolvedPlaybackUrl,
-      legacyPath: video.video,
+      legacyPath: null,
       qualityMp4Urls: ready ? video.qualityMp4Urls : const [],
     );
   }
@@ -64,51 +64,77 @@ class VideoSourceResolver {
       candidates.add(VideoSourceCandidate(url: normalizedLegacy, type: 'legacy'));
     }
 
-    return _withCdnFallbacks(candidates);
+    return candidates;
   }
 
-  List<VideoSourceCandidate> _withCdnFallbacks(
+  /// Reels: 720p MP4 first (sharp on phone screens, single fast-start request,
+  /// disk-cacheable so a pre-cached reel paints instantly). 360p stays as the
+  /// next fallback for slow networks / decode failures, then 1080p, then HLS,
+  /// then full/legacy MP4 last.
+  ///
+  /// Every reel plays the same tier — speed comes from pre-caching the 720p
+  /// bytes ([VideoPreloadManager]), not from downgrading quality.
+  List<VideoSourceCandidate> prioritizeForNetwork(
     List<VideoSourceCandidate> candidates,
+    NetworkClass network,
   ) {
-    const cdnHost = 'cdn.cookster.org';
-    const gcsHost = 'storage.googleapis.com/cookster-storage-v1';
-    final seen = <String>{};
-    final expanded = <VideoSourceCandidate>[];
-    for (final candidate in candidates) {
-      for (final url in <String>[
-        candidate.url,
-        if (candidate.url.contains(cdnHost))
-          candidate.url.replaceFirst(cdnHost, gcsHost),
-      ]) {
-        if (seen.add(url)) {
-          expanded.add(VideoSourceCandidate(url: url, type: candidate.type));
+    if (candidates.length <= 1) {
+      return candidates;
+    }
+    final mp4Quality =
+        candidates.where((c) => c.type == 'mp4_quality').toList(growable: false);
+    final hls = candidates.where((c) => c.type == 'hls').toList(growable: false);
+    final rest = candidates
+        .where((c) => c.type != 'mp4_quality' && c.type != 'hls')
+        .toList(growable: false);
+    final orderedMp4 = _orderMp4ByTier(mp4Quality, const ['720', '360', '1080']);
+    return [...orderedMp4, ...hls, ...rest];
+  }
+
+  List<VideoSourceCandidate> _orderMp4ByTier(
+    List<VideoSourceCandidate> mp4,
+    List<String> tiers,
+  ) {
+    if (mp4.length <= 1) {
+      return mp4;
+    }
+    final ordered = <VideoSourceCandidate>[];
+    final remaining = List<VideoSourceCandidate>.from(mp4);
+    for (final tier in tiers) {
+      for (final c in List<VideoSourceCandidate>.from(remaining)) {
+        if (mp4Tier(c.url) == tier) {
+          ordered.add(c);
+          remaining.remove(c);
         }
       }
     }
-    return expanded;
+    ordered.addAll(remaining);
+    return ordered;
+  }
+
+  /// Quality tier ('360' | '720' | '1080') parsed from a ladder MP4 URL.
+  String? mp4Tier(String url) {
+    final lower = url.toLowerCase();
+    if (lower.contains('/360.mp4') || lower.contains('_360')) {
+      return '360';
+    }
+    if (lower.contains('/720.mp4') || lower.contains('_720')) {
+      return '720';
+    }
+    if (lower.contains('/1080.mp4') || lower.contains('_1080')) {
+      return '1080';
+    }
+    return null;
   }
 
   String? _normalize(String? value) {
     if (value == null || value.trim().isEmpty) {
       return null;
     }
-    final trimmed = value.trim();
-    if (MediaUrlResolver.isAbsolute(trimmed)) {
-      return trimmed;
-    }
-    return '${Common.videoUrl}/$trimmed';
+    return MediaUrlResolver.playbackUrl(videoUrl: value);
   }
 
-  String? _normalizeLegacy(String? value) {
-    if (value == null || value.trim().isEmpty) {
-      return null;
-    }
-    final trimmed = value.trim();
-    if (MediaUrlResolver.isAbsolute(trimmed)) {
-      return trimmed;
-    }
-    return '${Common.videoUrl}/$trimmed';
-  }
+  String? _normalizeLegacy(String? value) => _normalize(value);
 }
 
 extension WallVideosPlayback on WallVideos {
@@ -117,23 +143,10 @@ extension WallVideosPlayback on WallVideos {
     if (!isTranscodeReady) {
       return null;
     }
-    final fromApi = MediaUrlResolver.firstAbsolute([
-      hlsPlaylistUrl,
-      hlsUrl,
-    ]);
-    if (fromApi != null) {
-      return fromApi;
-    }
-    final legacy = video;
-    if (legacy != null &&
-        legacy.contains('.m3u8') &&
-        MediaUrlResolver.isAbsolute(legacy)) {
-      return legacy;
-    }
-    if (legacy != null && legacy.contains('.m3u8')) {
-      return '${Common.videoUrl}/$legacy';
-    }
-    return null;
+    return MediaUrlResolver.playbackUrl(
+      videoUrl: hlsPlaylistUrl,
+      video: hlsUrl,
+    );
   }
 
   /// Ladder order for mid-range devices: 360 → 720 → 1080.

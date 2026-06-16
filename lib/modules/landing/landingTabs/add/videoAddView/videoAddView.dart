@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'package:cookster/core/navigation/route_back.dart';
 import 'package:cookster/appUtils/appCenterIcon.dart';
 import 'package:cookster/modules/landing/landingTabs/add/videoAddController/videoAddController.dart';
 import 'package:cookster/services/video_settings_service.dart';
@@ -76,6 +77,22 @@ class _VideoPreviewScreenState extends State<VideoPreviewScreen> {
     });
   }
 
+  /// Only mount the active step so video player / heavy widgets are disposed off-step.
+  Widget _buildActiveStep() {
+    switch (_currentStep) {
+      case 1:
+        return UploadVideoStep1(
+          key: const ValueKey('upload_step_1'),
+          videoFile: widget.videoFile,
+        );
+      case 2:
+        return const UploadVideoStep2(key: ValueKey('upload_step_2'));
+      case 3:
+      default:
+        return const UploadVideoStep3(key: ValueKey('upload_step_3'));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final isRtl = _language == 'ar';
@@ -109,7 +126,7 @@ class _VideoPreviewScreenState extends State<VideoPreviewScreen> {
                               if (await videoAddController.onWillPop(
                                 Get.context!,
                               )) {
-                                Get.back();
+                                navigateBack();
                               }
                             },
                             child: Container(
@@ -152,22 +169,7 @@ class _VideoPreviewScreenState extends State<VideoPreviewScreen> {
                       keyboardDismissBehavior:
                           ScrollViewKeyboardDismissBehavior.onDrag,
                       padding: const EdgeInsets.only(bottom: _navBarHeight + 16),
-                      child: IndexedStack(
-                        index: _currentStep - 1,
-                        sizing: StackFit.loose,
-                        children: [
-                          UploadVideoStep1(
-                            key: const ValueKey('upload_step_1'),
-                            videoFile: widget.videoFile,
-                          ),
-                          const UploadVideoStep2(
-                            key: ValueKey('upload_step_2'),
-                          ),
-                          const UploadVideoStep3(
-                            key: ValueKey('upload_step_3'),
-                          ),
-                        ],
-                      ),
+                      child: _buildActiveStep(),
                     ),
                   ),
                 ],
@@ -186,7 +188,7 @@ class _VideoPreviewScreenState extends State<VideoPreviewScreen> {
   }
 }
 
-/// Nav bar pinned above the keyboard — isolated rebuild (does not shrink the form).
+/// Nav bar pinned above the keyboard — keyboard padding isolated from step state.
 class _UploadNavBarOverlay extends StatelessWidget {
   const _UploadNavBarOverlay({required this.videoFile});
 
@@ -194,40 +196,55 @@ class _UploadNavBarOverlay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final keyboardBottom = MediaQuery.viewInsetsOf(context).bottom;
-
-    return AnimatedPadding(
-      duration: const Duration(milliseconds: 120),
-      curve: Curves.easeOut,
-      padding: EdgeInsets.only(bottom: keyboardBottom),
+    return _KeyboardNavPadding(
       child: SafeArea(
         top: false,
         child: Padding(
           padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-          child: Obx(() {
-            final controller = Get.find<VideoAddController>();
-            final step = controller.currentStep.value;
-            final isBusy =
-                controller.isVideoUploading.value ||
-                controller.isCompressing.value;
-            final buttonLabel = controller.isCompressing.value
-                ? "compressing_video".tr
-                : controller.isVideoUploading.value
-                    ? "uploading_video_label".tr
-                    : step < 3
-                        ? "next_button".tr
-                        : "upload_video_button".tr;
+          child: GetBuilder<VideoAddController>(
+            id: VideoAddController.idUploadNav,
+            builder: (controller) {
+              final step = controller.currentStep.value;
+              final isBusy =
+                  controller.isVideoUploading.value ||
+                  controller.isCompressing.value;
+              final buttonLabel = controller.isCompressing.value
+                  ? "compressing_video".tr
+                  : controller.isVideoUploading.value
+                      ? "uploading_video_label".tr
+                      : step < 3
+                          ? "next_button".tr
+                          : "upload_video_button".tr;
 
-            return _UploadNavBar(
-              controller: controller,
-              videoFile: videoFile,
-              currentStep: step,
-              isBusy: isBusy,
-              buttonLabel: buttonLabel,
-            );
-          }),
+              return _UploadNavBar(
+                controller: controller,
+                videoFile: videoFile,
+                currentStep: step,
+                isBusy: isBusy,
+                buttonLabel: buttonLabel,
+              );
+            },
+          ),
         ),
       ),
+    );
+  }
+}
+
+/// Only this subtree rebuilds when the keyboard animates.
+class _KeyboardNavPadding extends StatelessWidget {
+  const _KeyboardNavPadding({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final keyboardBottom = MediaQuery.viewInsetsOf(context).bottom;
+    return AnimatedPadding(
+      duration: const Duration(milliseconds: 120),
+      curve: Curves.easeOut,
+      padding: EdgeInsets.only(bottom: keyboardBottom),
+      child: child,
     );
   }
 }

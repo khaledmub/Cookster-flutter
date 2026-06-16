@@ -4,6 +4,7 @@ import 'dart:developer';
 import 'package:awesome_dialog/awesome_dialog.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cookster/appUtils/apiEndPoints.dart';
+import 'package:cookster/core/user/public_user_identity.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
@@ -14,6 +15,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../../../appBindings/app_bindings.dart';
 import '../../../../appRoutes/appRoutes.dart';
 import '../../../../services/apiClient.dart';
+import '../../../../services/username_availability_service.dart';
 import '../../../landing/landingView/landingView.dart';
 import '../../../promoteVideo/promoteVideoModel/promoteVideoModel.dart';
 import '../registrationSettingsModel/packagesModel.dart';
@@ -47,6 +49,7 @@ class SignUpController extends GetxController {
   var selectedProfileId = 1.obs;
   var isSubscriptionRequired = 0.obs;
   final TextEditingController nameController = TextEditingController();
+  final TextEditingController usernameController = TextEditingController();
   final TextEditingController emailController = TextEditingController();
   final TextEditingController phoneController = TextEditingController();
   final TextEditingController dobController = TextEditingController();
@@ -67,6 +70,9 @@ class SignUpController extends GetxController {
 
   var phoneError = ''.obs;
   var nameError = ''.obs;
+  var usernameError = ''.obs;
+  var isCheckingUsername = false.obs;
+  var isUsernameAvailable = RxnBool();
   var passwordError = ''.obs;
   var dobError = ''.obs;
   var businessTypeError = ''.obs;
@@ -81,6 +87,8 @@ class SignUpController extends GetxController {
     emailError.value = '';
     phoneError.value = '';
     nameError.value = '';
+    usernameError.value = '';
+    isUsernameAvailable.value = null;
     passwordError.value = '';
     dobError.value = '';
     contactPhoneError.value = '';
@@ -178,8 +186,13 @@ class SignUpController extends GetxController {
   void setProfile(String type, int id) {
     selectedProfile.value = type;
     selectedProfileId.value = id;
-    if (id != 1 && accountType.value.isEmpty) {
+    accountTypeError.value = '';
+    if (id == 2) {
       accountType.value = id.toString();
+    } else if (id == 3) {
+      accountType.value = '';
+    } else {
+      accountType.value = '';
     }
     print('Updated selectedProfileId: ${selectedProfileId.value}');
     print('Updated selectedProfile: ${selectedProfile.value}');
@@ -209,6 +222,7 @@ class SignUpController extends GetxController {
       }
     } else if (selectedProfileId.value == 3) {
       if (phoneController.text.trim().isEmpty ||
+          accountType.value.trim().isEmpty ||
           contactPhoneController.text.trim().isEmpty ||
           contactEmailController.text.trim().isEmpty) {
         return false;
@@ -273,6 +287,28 @@ class SignUpController extends GetxController {
     return null;
   }
 
+  String? validateUsername(String? value) {
+    return PublicUserIdentity.validateUsernameFormat(value);
+  }
+
+  Future<void> checkUsernameAvailability() async {
+    final normalized =
+        PublicUserIdentity.normalizeUsername(usernameController.text);
+    final formatError = validateUsername(normalized);
+    if (formatError != null) {
+      isUsernameAvailable.value = null;
+      return;
+    }
+
+    isCheckingUsername.value = true;
+    try {
+      isUsernameAvailable.value =
+          await UsernameAvailabilityService.checkAvailability(normalized);
+    } finally {
+      isCheckingUsername.value = false;
+    }
+  }
+
   String? validateName(String? value) {
     final normalized = value?.trim() ?? '';
     if (normalized.isEmpty) {
@@ -326,10 +362,11 @@ class SignUpController extends GetxController {
       print('Step 5: Form validation failed, isValid set to $isValid');
     }
 
-    if (selectedProfileId.value == 2 && !validateBusinessTypeFields()) {
+    if ((selectedProfileId.value == 2 || selectedProfileId.value == 3) &&
+        !validateBusinessTypeFields()) {
       isValid = false;
       print(
-        'Step 6: Business type validation failed for profile ID 2, isValid set to $isValid',
+        'Step 6: Profile-specific validation failed for profile ID ${selectedProfileId.value}, isValid set to $isValid',
       );
     }
 
@@ -349,6 +386,14 @@ class SignUpController extends GetxController {
       print(
         'Step 9: Name validation failed for "${nameController.text}", isValid set to $isValid',
       );
+    }
+
+    if (validateUsername(usernameController.text) != null) {
+      usernameError.value = validateUsername(usernameController.text)!;
+      isValid = false;
+    } else if (isUsernameAvailable.value != true) {
+      usernameError.value = 'username_unavailable_error'.tr;
+      isValid = false;
     }
 
     if (validateEmail(emailController.text) != null) {
@@ -373,7 +418,7 @@ class SignUpController extends GetxController {
       );
     }
 
-    if (selectedProfileId.value == 2 &&
+    if ((selectedProfileId.value == 2 || selectedProfileId.value == 3) &&
         validatePhoneNumber(phoneController.text) != null) {
       // phoneError.value = validatePhoneNumber(phoneController.text)!;
       isValid = false;
@@ -382,7 +427,7 @@ class SignUpController extends GetxController {
       );
     }
 
-    if (selectedProfileId.value == 2 &&
+    if ((selectedProfileId.value == 2 || selectedProfileId.value == 3) &&
         validateContactPhoneNumber(contactPhoneController.text) != null) {
       // contactPhoneError.value = validatePhoneNumber(contactPhoneController.text)!;
       isValid = false;
@@ -391,7 +436,7 @@ class SignUpController extends GetxController {
       );
     }
 
-    if (selectedProfileId.value == 2 &&
+    if ((selectedProfileId.value == 2 || selectedProfileId.value == 3) &&
         validateContactEmail(contactEmailController.text) != null) {
       // contactEmailError.value = validateEmail(contactEmailController.text)!;
       isValid = false;
@@ -436,14 +481,15 @@ class SignUpController extends GetxController {
       "entity": selectedProfileId.value,
       if (selectedProfileId.value != 1) "phone": phoneController.text,
       "name": nameController.text,
+      "user_name": PublicUserIdentity.normalizeUsername(usernameController.text),
       "password": passwordController.text,
       "dob": dobController.text,
       "country": selectCountryId.value,
       "city": selectedCityId.value,
       if (selectedProfileId.value == 2) "business_type": businessType.value,
-      if (selectedProfileId.value == 2)
+      if (selectedProfileId.value == 2 || selectedProfileId.value == 3)
         "contact_phone": contactPhoneController.text,
-      if (selectedProfileId.value == 2)
+      if (selectedProfileId.value == 2 || selectedProfileId.value == 3)
         "contact_email": contactEmailController.text,
       if (selectedProfileId.value == 2) "website": websiteController.text,
       if (selectedProfileId.value == 2) "location": locationController.text,
@@ -495,6 +541,9 @@ class SignUpController extends GetxController {
                   break;
                 case 'name':
                   nameError.value = errorMsg;
+                  break;
+                case 'user_name':
+                  usernameError.value = errorMsg;
                   break;
                 case 'password':
                   passwordError.value = errorMsg;
@@ -586,6 +635,7 @@ class SignUpController extends GetxController {
     Map<String, dynamic> requestBody = {
       "entity": selectedProfileId.value,
       "name": nameController.text,
+      "user_name": PublicUserIdentity.normalizeUsername(usernameController.text),
       "email": emailController.text,
       if (selectedProfileId.value != 1) "phone": phoneController.text,
       "password": passwordController.text,
@@ -593,9 +643,9 @@ class SignUpController extends GetxController {
       "country": selectCountryId.value,
       "city": selectedCityId.value,
       if (selectedProfileId.value == 2) "business_type": businessType.value,
-      if (selectedProfileId.value == 2)
+      if (selectedProfileId.value == 2 || selectedProfileId.value == 3)
         "contact_phone": contactPhoneController.text,
-      if (selectedProfileId.value == 2)
+      if (selectedProfileId.value == 2 || selectedProfileId.value == 3)
         "contact_email": contactEmailController.text,
       if (selectedProfileId.value == 2) "website": websiteController.text,
       if (selectedProfileId.value == 2) "location": locationController.text,
@@ -665,6 +715,9 @@ class SignUpController extends GetxController {
                   break;
                 case 'name':
                   nameError.value = errorMsg;
+                  break;
+                case 'user_name':
+                  usernameError.value = errorMsg;
                   break;
                 case 'password':
                   passwordError.value = errorMsg;

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart' as dir;
 
 import 'package:awesome_dialog/awesome_dialog.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:cookster/core/auth/account_deletion.dart';
 import 'package:cookster/appRoutes/appRoutes.dart';
 import 'package:cookster/appUtils/appUtils.dart';
 import 'package:dropdown_flutter/custom_dropdown.dart';
@@ -22,6 +23,7 @@ import '../../../../../auth/signUp/signUpController/cityController.dart';
 import '../../../../../promoteVideo/promoteVideoController/promoteVideoController.dart';
 import '../../profileControlller/profileController.dart';
 import 'package:cookster/core/media/media_url_resolver.dart';
+import 'package:cookster/core/user/public_user_identity.dart';
 
 class EditProfileView extends StatefulWidget {
   const EditProfileView({super.key});
@@ -37,6 +39,7 @@ class _EditProfileViewState extends State<EditProfileView> {
   final _formKey = GlobalKey<FormState>();
 
   late String initialName;
+  late String initialUsername;
   late String initialEmail;
   late String initialDob;
   late String initialPhone;
@@ -60,6 +63,7 @@ class _EditProfileViewState extends State<EditProfileView> {
         profileController.simpleUserDetails.value?.additionalData;
     if (userDetails != null) {
       initialName = userDetails.name ?? '';
+      initialUsername = userDetails.userName?.toString() ?? '';
       initialEmail = userDetails.email ?? '';
       initialDob = userDetails.dob ?? '';
       initialPhone = userDetails.phone ?? '';
@@ -79,11 +83,17 @@ class _EditProfileViewState extends State<EditProfileView> {
           userDetails.country; // Use string '-1' or another valid string
 
       profileController.nameController.text = initialName;
+      profileController.usernameController.text = initialUsername;
+      profileController.initialUsername = initialUsername;
       profileController.emailController.text = initialEmail;
       profileController.birthdayController.text = initialDob;
       profileController.phoneNumberController.text = initialPhone;
-      profileController.countryId = initialCountry;
-      profileController.cityId = initialCity;
+      profileController.countryId = initialCountry is int
+          ? initialCountry
+          : int.tryParse(initialCountry?.toString() ?? '') ?? -1;
+      profileController.cityId = initialCity is int
+          ? initialCity
+          : int.tryParse(initialCity?.toString() ?? '') ?? -1;
       profileController.selectedCityId.value = initialCity.toString();
       profileController.selectCountryId.value = initialCountry.toString();
       if (initialCountry != 0) {
@@ -94,6 +104,7 @@ class _EditProfileViewState extends State<EditProfileView> {
     } else {
       // Handle null userDetails case with defaults
       initialName = '';
+      initialUsername = '';
       initialEmail = '';
       initialDob = '';
       initialPhone = '';
@@ -108,13 +119,12 @@ class _EditProfileViewState extends State<EditProfileView> {
 
   bool hasChanges() {
     return profileController.nameController.text != initialName ||
+        profileController.usernameController.text != initialUsername ||
         profileController.emailController.text != initialEmail ||
         profileController.birthdayController.text != initialDob ||
         profileController.phoneNumberController.text != initialPhone ||
         profileController.passwordController.text.isNotEmpty ||
-        // profileController.selectedCityId.value != initialCity.toString() ||
-        // profileController.selectedAccountType.value !=
-        //     initialAccountType.toString() ||
+        profileController.selectedCityId.value != initialCity.toString() ||
         profileController.selectCountryId.value != initialCountry.toString() ||
         profileController.selectedImage.value !=
             null; // Check if a new image is selected
@@ -139,6 +149,10 @@ class _EditProfileViewState extends State<EditProfileView> {
             name:
                 profileController.nameController.text.trim().isNotEmpty
                     ? profileController.nameController.text.trim()
+                    : null,
+            userName:
+                profileController.usernameController.text.trim().isNotEmpty
+                    ? profileController.usernameController.text.trim()
                     : null,
             dob:
                 profileController.birthdayController.text.trim().isNotEmpty
@@ -450,7 +464,13 @@ class _EditProfileViewState extends State<EditProfileView> {
                         ],
                       ),
                       Text(
-                        "@${userDetails.name}",
+                        PublicUserIdentity.formatAtHandle(
+                          userDetails.userName?.toString(),
+                        ).isNotEmpty
+                            ? PublicUserIdentity.formatAtHandle(
+                                userDetails.userName?.toString(),
+                              )
+                            : userDetails.name?.toString() ?? '',
                         style: TextStyle(
                           color: ColorUtils.darkBrown,
                           fontSize: 16.sp,
@@ -465,6 +485,16 @@ class _EditProfileViewState extends State<EditProfileView> {
                           hintText: "Enter Name",
                           iconPath: "assets/icons/editProfile.svg",
                           controller: profileController.nameController,
+                        ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                        child: CustomTextField(
+                          validator: profileController.usernameValidator,
+                          label: "username".tr,
+                          hintText: "enter_username".tr,
+                          iconPath: "assets/icons/editProfile.svg",
+                          controller: profileController.usernameController,
                         ),
                       ),
                       IgnorePointer(
@@ -620,7 +650,7 @@ class _EditProfileViewState extends State<EditProfileView> {
                             allCountries,
                             countryName,
                             // selectedCountryName,
-                            countryId: int.parse(
+                            initialCountryId: int.parse(
                               profileController.selectCountryId.value,
                             ),
                           );
@@ -692,7 +722,7 @@ class _EditProfileViewState extends State<EditProfileView> {
                             allCities,
                             cityName,
                             selectedCityName,
-                            cityId: int.parse(
+                            initialCityId: int.parse(
                               profileController.selectedCityId.value,
                             ),
                           );
@@ -849,82 +879,32 @@ class _EditProfileViewState extends State<EditProfileView> {
                             },
                             btnOkOnPress: () async {
                               try {
-                                // Call the delete_account API
-                                final response =
-                                    await ApiClient.postDeleteAccount({});
-
-                                print(response.body);
-
-                                if (response.statusCode == 200) {
-                                  SharedPreferences prefs =
-                                      await SharedPreferences.getInstance();
-
-                                  // Store the onboarding_completed, language, and selectedLanguage values before clearing
-                                  bool onboardingCompleted =
-                                      prefs.getBool('onboarding_completed') ??
-                                      false;
-                                  String language =
-                                      prefs.getString('language') ??
-                                      'en'; // Default to 'en' as per ApiClient
-                                  String selectedLanguage =
-                                      prefs.getString('selectedLanguage') ??
-                                      'English'; // Default to 'English' as per LanguageController
-                                  bool initLanguage =
-                                      prefs.getBool('initLanguage') ?? false;
-
-                                  // Clear all preferences
-                                  await prefs.clear();
-
-                                  // Restore the onboarding_completed, language, and selectedLanguage values
-                                  await prefs.setBool(
-                                    'onboarding_completed',
-                                    onboardingCompleted,
-                                  );
-                                  await prefs.setString('language', language);
-                                  await prefs.setString(
-                                    'selectedLanguage',
-                                    selectedLanguage,
-                                  );
-                                  await prefs.setBool(
-                                    'initLanguage',
-                                    initLanguage,
-                                  );
-
-                                  // Clear in-memory user data
-                                  profileController.userDetails.value =
-                                      null; // Assuming this is defined elsewhere
-                                  profileController.simpleUserDetails.value =
-                                      null; // Assuming this is defined elsewhere
-                                  profileController.followersList
-                                      .clear(); // Assuming this is defined elsewhere
-                                  profileController.followingList
-                                      .clear(); // Assuming this is defined elsewhere
-
-                                  // Reinitialize ApiClient language
-                                  await ApiClient.initLanguage();
-                                  // Navigate to SignIn screen
-                                  Get.offAllNamed(
-                                    AppRoutes.signIn,
-                                  ); // Replace with your sign-in route
-                                } else {
-                                  // Show error in ScaffoldMessenger
+                                final deleted = await deleteAccountAndSignOut();
+                                if (!deleted && context.mounted) {
                                   ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
+                                    const SnackBar(
                                       content: Text(
-                                        'Failed to delete account: ${response.statusCode}',
+                                        'Failed to delete account',
                                       ),
                                       backgroundColor: Colors.redAccent,
                                     ),
                                   );
+                                } else {
+                                  profileController.userDetails.value = null;
+                                  profileController.simpleUserDetails.value =
+                                      null;
+                                  profileController.followersList.clear();
+                                  profileController.followingList.clear();
                                 }
                               } catch (e) {
-                                // Show error in ScaffoldMessenger
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text('Error deleting account: $e'),
-                                    backgroundColor: Colors.redAccent,
-                                  ),
-                                );
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text('Error deleting account: $e'),
+                                      backgroundColor: Colors.redAccent,
+                                    ),
+                                  );
+                                }
                               }
                             },
                             btnCancelColor: const Color(0xFF00CA71),
@@ -1013,7 +993,7 @@ void showProfileCountrySelectionDialog(
   BuildContext context,
   Map<String, int> allCountries,
   List<String> countryName, {
-  int? countryId, // Optional parameter for initial country ID
+  int? initialCountryId,
 }) {
   final ProfileController profileController = Get.find();
   final CityController cityController = Get.put(CityController());
@@ -1022,13 +1002,13 @@ void showProfileCountrySelectionDialog(
   final TextEditingController searchController = TextEditingController();
   RxList<String> filteredCountryName = countryName.obs;
 
-  // Initialize selected country name based on countryId
+  // Initialize selected country name based on initialCountryId
   String initialCountryName = '';
-  if (countryId != null) {
+  if (initialCountryId != null) {
     initialCountryName =
         allCountries.entries
             .firstWhere(
-              (entry) => entry.value == countryId,
+              (entry) => entry.value == initialCountryId,
               orElse: () => MapEntry('', 0),
             )
             .key;
@@ -1261,7 +1241,7 @@ void showProfileCitySelectionDialog(
   Map<String, int> allCities,
   List<String> cityName,
   String? selectedCityName, {
-  int? cityId,
+  int? initialCityId,
 }) {
   final ProfileController profileController = Get.find();
 
@@ -1275,14 +1255,14 @@ void showProfileCitySelectionDialog(
   final TextEditingController searchController = TextEditingController();
   RxList<Map<String, dynamic>> filteredCityList = cityList.obs;
 
-  // Set initial selected city - Fixed the logic to prioritize cityId over cityName
+  // Set initial selected city - Fixed the logic to prioritize initialCityId over cityName
   Rx<Map<String, dynamic>> selectedCity = Rx<Map<String, dynamic>>(
-    cityId != null
+    initialCityId != null
         ? cityList.firstWhere(
-          (city) => city['id'] == cityId,
+          (city) => city['id'] == initialCityId,
           orElse: () => {'name': '', 'id': 0},
         )
-        : {'name': '', 'id': 0}, // Only use cityId for initial selection
+        : {'name': '', 'id': 0}, // Only use initialCityId for initial selection
   );
 
   // Filter cities based on search input

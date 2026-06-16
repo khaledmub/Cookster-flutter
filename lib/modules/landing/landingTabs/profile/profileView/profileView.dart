@@ -4,10 +4,16 @@ import 'package:cookster/appRoutes/appRoutes.dart';
 import 'package:cookster/core/firestore/reel_video_stats.dart';
 import 'package:cookster/core/parsing/feed_parsers.dart';
 import 'package:cookster/appUtils/feature_flags.dart';
-import 'package:cookster/appUtils/apiEndPoints.dart';
 import 'package:cookster/core/video/media_kit_player_pool.dart';
+import 'package:cookster/core/media/profile_video_visibility.dart';
+import 'package:cookster/core/profile/profile_share.dart';
+import 'package:cookster/core/user/public_user_identity.dart';
 import 'package:cookster/core/widgets/grid_thumbnail_cache.dart';
+import 'package:cookster/core/widgets/profile_grid_thumbnail.dart';
 import 'package:cookster/modules/landing/landingTabs/home/homeController/homeController.dart';
+import 'package:cookster/modules/landing/landingTabs/home/homeModel/videoFeedModel.dart';
+import 'package:cookster/core/video/profile_reel_prefetch.dart';
+import 'package:cookster/modules/visitProfile/profile_reel_screen.dart';
 import 'package:cookster/modules/landing/landingTabs/profile/profileControlller/profileController.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
@@ -25,7 +31,6 @@ import '../../../../liked_videos_screen/liked_videos_screen.dart';
 import '../../../../popup_like/popup_like_dialog.dart';
 import '../../../../promoteVideo/promoteVideoController/promoteVideoController.dart';
 import '../../../../promoteVideo/promoteVideoView/promoteVideoView.dart';
-import '../../../../singleVideoView/singleVideoView.dart';
 import '../../add/editVideo/editVideoView.dart';
 import '../../packagePopupDialog/packagePopupDialog.dart';
 import '../../savedVideosScreen/savedVideosView/savedVideosView.dart';
@@ -49,8 +54,16 @@ class _ProfileViewState extends State<ProfileView>
   int? entity;
 
   TabController? _tabController;
-  int _currentTabIndex = 0;
   Worker? _videoTypesWorker;
+
+  void _applySystemUiStyle() {
+    SystemChrome.setSystemUIOverlayStyle(
+      const SystemUiOverlayStyle(
+        statusBarIconBrightness: Brightness.dark,
+        statusBarColor: Colors.transparent,
+      ),
+    );
+  }
 
   Future<void> _loadEntity() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
@@ -61,7 +74,7 @@ class _ProfileViewState extends State<ProfileView>
 
   void _onTabChanged() {
     if (_tabController?.indexIsChanging ?? false) {
-      setState(() => _currentTabIndex = _tabController!.index);
+      setState(() {});
     }
   }
 
@@ -72,7 +85,7 @@ class _ProfileViewState extends State<ProfileView>
       _tabController?.removeListener(_onTabChanged);
       _tabController?.dispose();
       _tabController = null;
-      if (mounted) setState(() => _currentTabIndex = 0);
+      if (mounted) setState(() {});
       return;
     }
     if (_tabController == null) {
@@ -98,6 +111,7 @@ class _ProfileViewState extends State<ProfileView>
   @override
   void initState() {
     super.initState();
+    _applySystemUiStyle();
     _loadEntity();
     _videoTypesWorker = ever(profileController.simpleUserDetails, (_) {
       _syncTabController();
@@ -115,14 +129,6 @@ class _ProfileViewState extends State<ProfileView>
 
   @override
   Widget build(BuildContext context) {
-    SystemChrome.setSystemUIOverlayStyle(
-      const SystemUiOverlayStyle(
-        statusBarIconBrightness: Brightness.dark, // White icons ke liye
-        statusBarColor:
-        Colors.transparent, // Optional: Status bar background color
-      ),
-    );
-
     return RefreshIndicator(
         onRefresh: () async {
           await profileController.getUserDetails();
@@ -224,24 +230,32 @@ class _ProfileViewState extends State<ProfileView>
             ],
           ),
 
-          body: Obx(() {
-            if (profileController.isLoading.value) {
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      PulseLogoLoader(
-                        logoPath: "assets/images/appIcon.png",
-                        size: 80,
-                      ),
-                    ],
-                  ),
-                ],
-              );
-            }
+          body: Stack(
+            children: [
+              Obx(() {
+                if (!profileController.isLoading.value) {
+                  return const SizedBox.shrink();
+                }
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        PulseLogoLoader(
+                          logoPath: "assets/images/appIcon.png",
+                          size: 80,
+                        ),
+                      ],
+                    ),
+                  ],
+                );
+              }),
+              Obx(() {
+                if (profileController.isLoading.value) {
+                  return const SizedBox.shrink();
+                }
 
             final userDetails =
                 profileController.simpleUserDetails.value?.user;
@@ -253,274 +267,299 @@ class _ProfileViewState extends State<ProfileView>
               return const SizedBox.shrink();
             }
 
-            return SingleChildScrollView(
-              physics: AlwaysScrollableScrollPhysics(),
-              child: Column(
-                spacing: 16.h,
-                crossAxisAlignment: CrossAxisAlignment.center,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  SizedBox(height: 16.h),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
+            final selectedVideos = (displayVideoTypes.isNotEmpty &&
+                    _tabController != null &&
+                    _tabController!.index < displayVideoTypes.length)
+                ? displayVideoTypes[_tabController!.index].videos
+                : null;
+
+            return CustomScrollView(
+              cacheExtent: 400,
+              physics: const AlwaysScrollableScrollPhysics(),
+              slivers: [
+                SliverToBoxAdapter(
+                  child: Column(
                     children: [
-                      Stack(
+                      SizedBox(height: 10.h),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Container(
-                            height: 80.h,
-                            width: 80.h,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              border: Border.all(
-                                color: ColorUtils.primaryColor,
-                              ),
-                            ),
-                            child: ClipOval(
-                              child:
-                              userDetails!.image == null
-                                  ? Image.asset(
-                                "assets/images/sd.png",
-                                fit: BoxFit.cover,
-                              )
-                                  : CachedNetworkImage(
-                                imageUrl:
-                                '${MediaUrlResolver.profileImageUrl(userDetails.image!) ?? ''}?v=${profileController.profileImageRefreshToken.value}',
-                                fit: BoxFit.cover,
-                                memCacheWidth: gridThumbnailMemCacheSize(48),
-                                memCacheHeight: gridThumbnailMemCacheSize(48),
-                                placeholder: (_, __) => Image.asset(
-                                  "assets/images/sd.png",
-                                  fit: BoxFit.cover,
+                          Stack(
+                            children: [
+                              Container(
+                                height: 80.h,
+                                width: 80.h,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  border: Border.all(color: ColorUtils.primaryColor),
                                 ),
-                                errorWidget: (_, __, ___) => Image.asset(
-                                  "assets/images/sd.png",
-                                  fit: BoxFit.cover,
+                                child: ClipOval(
+                                  child: userDetails.image == null
+                                      ? Image.asset(
+                                          "assets/images/sd.png",
+                                          fit: BoxFit.cover,
+                                        )
+                                      : CachedNetworkImage(
+                                          imageUrl:
+                                              '${MediaUrlResolver.profileImageUrl(userDetails.image!) ?? ''}?v=${profileController.profileImageRefreshToken.value}',
+                                          fit: BoxFit.cover,
+                                          memCacheWidth:
+                                              avatarMemCacheSize(80.h),
+                                          memCacheHeight:
+                                              avatarMemCacheSize(80.h),
+                                          placeholder: (_, __) => Image.asset(
+                                            "assets/images/sd.png",
+                                            fit: BoxFit.cover,
+                                          ),
+                                          errorWidget: (_, __, ___) =>
+                                              Image.asset(
+                                            "assets/images/sd.png",
+                                            fit: BoxFit.cover,
+                                          ),
+                                        ),
                                 ),
                               ),
-                            ),
+                            ],
                           ),
                         ],
                       ),
-                    ],
-                  ),
-                  Text(
-                    "@${userDetails.name}",
-                    style: TextStyle(
-                      color: ColorUtils.darkBrown,
-                      fontSize: 16.sp,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-
-                  Obx(() {
-                    return Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                      children: [
-                        InkWell(
-                          onTap: () {
-                            Get.to(
-                              SocialListsScreen(
-                                initialTab: SocialTab.followers,
-                                userName: userDetails.name,
-                                userId: userDetails.id,
-                              ),
-                            )?.then((value) async {
-                              await profileController.getUserDetails();
-                            });
-                          },
-                          child: ProfileStat(
-                            number:
-                            "${profileController.followersList.length}",
-                            label: "Followers".tr,
+                      SizedBox(height: 8.h),
+                      if ((userDetails.countryName ?? '').toString().isNotEmpty ||
+                          (userDetails.cityName ?? '').toString().isNotEmpty)
+                        Text(
+                          [
+                            userDetails.cityName?.toString(),
+                            userDetails.countryName?.toString(),
+                          ].whereType<String>().where((s) => s.isNotEmpty).join(', '),
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: ColorUtils.darkBrown.withValues(alpha: 0.8),
+                            fontSize: 12.sp,
+                            fontWeight: FontWeight.w500,
                           ),
                         ),
-                        InkWell(
-                          onTap: () {
-                            Get.to(
-                              SocialListsScreen(
-                                initialTab: SocialTab.following,
-                                userName: userDetails.name,
-                                userId: userDetails.id,
-                              ),
-                            )?.then((value) async {
-                              await profileController.getUserDetails();
-                            });
-                          },
-                          child: ProfileStat(
-                            number:
-                            "${profileController.followingList.length}",
-                            label: "Following".tr,
-                          ),
+                      SizedBox(height: 10.h),
+                      Text(
+                        PublicUserIdentity.formatAtHandle(
+                          userDetails.userName?.toString(),
+                        ).isNotEmpty
+                            ? PublicUserIdentity.formatAtHandle(
+                                userDetails.userName?.toString(),
+                              )
+                            : userDetails.name?.toString() ?? '',
+                        style: TextStyle(
+                          color: ColorUtils.darkBrown,
+                          fontSize: 16.sp,
+                          fontWeight: FontWeight.w700,
                         ),
-                        InkWell(
-                          onTap: () {
-                            showDialog(
-                              context: context,
-                              builder: (BuildContext context) {
-                                return LikePopup(
-                                  username: userDetails.name,
-                                  likeCount:
-                                  profileController
-                                      .totalLikes
-                                      .value,
+                      ),
+                      SizedBox(height: 12.h),
+                      Obx(() {
+                        return Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                          children: [
+                            InkWell(
+                              onTap: () {
+                                Get.to(
+                                  SocialListsScreen(
+                                    initialTab: SocialTab.followers,
+                                    userName: userDetails.name,
+                                    userId: userDetails.id,
+                                  ),
+                                )?.then((value) async {
+                                  await profileController.getUserDetails();
+                                });
+                              },
+                              child: ProfileStat(
+                                number: "${profileController.followersList.length}",
+                                label: "Followers".tr,
+                              ),
+                            ),
+                            InkWell(
+                              onTap: () {
+                                Get.to(
+                                  SocialListsScreen(
+                                    initialTab: SocialTab.following,
+                                    userName: userDetails.name,
+                                    userId: userDetails.id,
+                                  ),
+                                )?.then((value) async {
+                                  await profileController.getUserDetails();
+                                });
+                              },
+                              child: ProfileStat(
+                                number: "${profileController.followingList.length}",
+                                label: "Following".tr,
+                              ),
+                            ),
+                            InkWell(
+                              onTap: () {
+                                showDialog(
+                                  context: context,
+                                  builder: (BuildContext context) {
+                                    return LikePopup(
+                                      username: userDetails.name,
+                                      likeCount: profileController.totalLikes.value,
+                                    );
+                                  },
                                 );
                               },
-                            );
-                          },
-                          child: ProfileStat(
-                            number: "${profileController.totalLikes}",
-                            label: "likes".tr,
-                          ),
-                        ),
-                      ],
-                    );
-                  }),
-
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16.0,
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Expanded(
-                          child: InkWell(
-                            onTap: () {
-                              Get.to(SavedVideosView());
-                            },
-                            child: CustomButtonWidget(
-                              icon: "assets/icons/bookmark.svg",
-                              label: "Saved Reels".tr,
+                              child: ProfileStat(
+                                number: "${profileController.totalLikes}",
+                                label: "likes".tr,
+                              ),
                             ),
-                          ),
-                        ),
-                        SizedBox(width: 4),
-                        Expanded(
-                          child: InkWell(
-                            onTap: () {
-                              Get.to(
-                                () => LikedVideosScreen(
-                                  userId: userDetails.id,
+                          ],
+                        );
+                      }),
+                      SizedBox(height: 12.h),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Expanded(
+                              child: InkWell(
+                                onTap: () {
+                                  Get.to(SavedVideosView());
+                                },
+                                child: CustomButtonWidget(
+                                  icon: "assets/icons/bookmark.svg",
+                                  label: "Saved Reels".tr,
                                 ),
-                                binding: LikedVideosBinding(userDetails.id),
-                              );
-                            },
-                            child: CustomButtonWidget(
-                              icon: "assets/icons/heart.svg",
-                              label: "liked_videos".tr,
+                              ),
                             ),
-                          ),
+                            SizedBox(width: 4),
+                            Expanded(
+                              child: InkWell(
+                                onTap: () {
+                                  Get.to(
+                                    () => LikedVideosScreen(
+                                      userId: userDetails.id,
+                                    ),
+                                    binding: LikedVideosBinding(userDetails.id),
+                                  );
+                                },
+                                child: CustomButtonWidget(
+                                  icon: "assets/icons/heart.svg",
+                                  label: "liked_videos".tr,
+                                ),
+                              ),
+                            ),
+                            SizedBox(width: 4),
+                            InkWell(
+                              onTap: () {
+                                shareProfile(
+                                  context: context,
+                                  email: userDetails.email?.toString(),
+                                  userId: userDetails.id?.toString(),
+                                  displayName: userDetails.name?.toString(),
+                                );
+                              },
+                              child: Container(
+                                padding: EdgeInsets.all(8),
+                                height: 40,
+                                width: 40,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  border: Border.all(color: ColorUtils.darkBrown),
+                                ),
+                                child: Center(
+                                  child: Icon(
+                                    Icons.share_outlined,
+                                    color: ColorUtils.darkBrown,
+                                    size: 20,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            SizedBox(width: 4),
+                            InkWell(
+                              onTap: () {
+                                showProfileQrCodeDialog(userDetails.email);
+                              },
+                              child: Container(
+                                padding: EdgeInsets.all(8),
+                                height: 40,
+                                width: 40,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  border: Border.all(color: ColorUtils.darkBrown),
+                                ),
+                                child: Center(
+                                  child: Icon(
+                                    Icons.qr_code_rounded,
+                                    color: ColorUtils.darkBrown,
+                                    size: 20,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            SizedBox(width: 4),
+                            InkWell(
+                              onTap: () {
+                                showMoreOptionsProfile(
+                                  context,
+                                  userDetails.name,
+                                  userDetails.email,
+                                );
+                              },
+                              child: Container(
+                                padding: EdgeInsets.all(8),
+                                height: 40,
+                                width: 40,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  border: Border.all(color: ColorUtils.darkBrown),
+                                ),
+                                child: Center(
+                                  child: SvgPicture.asset(
+                                    color: ColorUtils.darkBrown,
+                                    "assets/icons/chevron-down.svg",
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
-                        SizedBox(width: 4),
-                        InkWell(
-                          onTap: () {
-                            showProfileQrCodeDialog(userDetails.email);
-                          },
-                          child: Container(
-                            padding: EdgeInsets.all(8),
-                            height: 40,
-                            width: 40,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              border: Border.all(
-                                color: ColorUtils.darkBrown,
-                              ),
-                            ),
-                            child: Center(
-                              child: Icon(
-                                Icons.qr_code_rounded,
-                                color: ColorUtils.darkBrown,
-                                size: 20,
-                              ),
-                            ),
-                          ),
-                        ),
-                        SizedBox(width: 4),
-
-                        InkWell(
-                          onTap: () {
-                            showMoreOptionsProfile(
-                              context,
-                              userDetails.name,
-                              userDetails.email,
-                            );
-                          },
-                          child: Container(
-                            padding: EdgeInsets.all(8),
-                            height: 40,
-                            width: 40,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              border: Border.all(
-                                color: ColorUtils.darkBrown,
-                              ),
-                            ),
-                            child: Center(
-                              child: SvgPicture.asset(
-                                color: ColorUtils.darkBrown,
-                                "assets/icons/chevron-down.svg",
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  if (displayVideoTypes.isNotEmpty)
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Custom Tab Bar
+                      ),
+                      if (displayVideoTypes.isNotEmpty) ...[
+                        SizedBox(height: 16.h),
                         Container(
                           margin: EdgeInsets.symmetric(horizontal: 16),
                           width: double.infinity,
                           padding: EdgeInsets.all(4),
                           decoration: BoxDecoration(
-                            color: Color(
-                              0xFFFFF8D6,
-                            ), // Light Yellow Background
+                            color: const Color(0xFFFFF8D6),
                             borderRadius: BorderRadius.circular(50.r),
                           ),
                           child: Row(
-                            mainAxisAlignment:
-                            MainAxisAlignment.spaceBetween,
-                            children: List.generate(
-                                displayVideoTypes.length, (index,) {
-                              bool isSelected =
-                                  _tabController!.index == index;
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: List.generate(displayVideoTypes.length, (index) {
+                              final isSelected = _tabController!.index == index;
                               return Expanded(
                                 child: GestureDetector(
-                                  onTap: () {
-                                    _tabController!.animateTo(index);
-                                    setState(
-                                          () {},
-                                    );
-                                  },
+                                  onTap: () => _tabController!.animateTo(index),
                                   child: Container(
                                     padding: EdgeInsets.symmetric(
                                       horizontal: 8,
                                       vertical: 8,
                                     ),
                                     decoration: BoxDecoration(
-                                      color:
-                                      isSelected
+                                      color: isSelected
                                           ? ColorUtils.primaryColor
                                           : Colors.transparent,
-                                      borderRadius: BorderRadius.circular(
-                                        50.r,
-                                      ),
+                                      borderRadius: BorderRadius.circular(50.r),
                                     ),
                                     child: Center(
                                       child: Text(
-                                        ((displayVideoTypes[index].name ??
-                                                            "Unknown")
+                                        ((displayVideoTypes[index].name ?? "Unknown")
                                                         .toString()
                                                         .toLowerCase() ==
                                                     'others'
                                                 ? 'Others'.tr
                                                 : (displayVideoTypes[index].name ??
-                                                    "Unknown")
+                                                        "Unknown")
                                                     .toString()),
                                         style: TextStyle(
                                           fontSize: 13.sp,
@@ -537,321 +576,284 @@ class _ProfileViewState extends State<ProfileView>
                             }),
                           ),
                         ),
-                        SizedBox(height: 16.h),
-
-                        // Video List based on selected tab
-                        if (displayVideoTypes.isNotEmpty)
-                          Padding(
-                            padding: EdgeInsets.symmetric(
-                              horizontal: 16,
-                            ),
-                            child: Builder(
-                              builder: (context) {
-                                final selectedVideoType =
-                                    displayVideoTypes[_tabController!.index];
-                                final videos = selectedVideoType.videos;
-                                if (videos == null || videos.isEmpty) {
-                                  return Center(
-                                    child: Image.asset(
-                                      "assets/images/notfound.png",
-                                      fit: BoxFit.cover,
-                                      height: 150.h,
-                                    ),
-                                  );
-                                }
-                                return GridView.builder(
-                                  shrinkWrap: true,
-                                  physics: const NeverScrollableScrollPhysics(),
-                                  gridDelegate:
-                                      SliverGridDelegateWithFixedCrossAxisCount(
-                                    crossAxisCount: 3,
-                                    crossAxisSpacing: 8,
-                                    mainAxisSpacing: 8,
-                                    childAspectRatio: 100.w / 133.h,
+                        SizedBox(height: 10.h),
+                      ],
+                    ],
+                  ),
+                ),
+                if (displayVideoTypes.isNotEmpty &&
+                    (selectedVideos == null || selectedVideos.isEmpty))
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 16),
+                      child: Center(
+                        child: Image.asset(
+                          "assets/images/notfound.png",
+                          fit: BoxFit.cover,
+                          height: 150.h,
+                        ),
+                      ),
+                    ),
+                  ),
+                if (displayVideoTypes.isNotEmpty &&
+                    selectedVideos != null &&
+                    selectedVideos.isNotEmpty)
+                  SliverPadding(
+                    padding: EdgeInsets.symmetric(horizontal: 16),
+                    sliver: SliverGrid(
+                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: 3,
+                        crossAxisSpacing: 8,
+                        mainAxisSpacing: 8,
+                        childAspectRatio: 100.w / 133.h,
+                      ),
+                      delegate: SliverChildBuilderDelegate(
+                        addAutomaticKeepAlives: false,
+                        addRepaintBoundaries: true,
+                        (context, videoIndex) {
+                          final video = selectedVideos[videoIndex];
+                          return GestureDetector(
+                            onTap: () {
+                              if (Get.isRegistered<HomeController>()) {
+                                Get.find<HomeController>().pauseReelsForRouteOverlay();
+                              } else {
+                                MediaKitPlayerPool.instance.silenceAllSync();
+                              }
+                              _openProfileReel(
+                                video,
+                                displayVideoTypes[_tabController!.index],
+                              );
+                            },
+                            child: Stack(
+                              children: [
+                                ProfileGridThumbnail(
+                                  coverUrl: MediaUrlResolver.reelPosterUrl(
+                                    processingStatus:
+                                        video.processingStatus?.toString(),
+                                    transcodeStatus:
+                                        video.transcodeStatus?.toString(),
+                                    thumbnailUrl:
+                                        video.thumbnailUrl?.toString(),
+                                    imageUrl: video.imageUrl?.toString(),
+                                    image: video.image?.toString(),
                                   ),
-                                  itemCount: videos.length,
-                                  itemBuilder: (context, videoIndex) {
-                                    final video = videos[videoIndex];
-                                    return GestureDetector(
-                                      onTap: () {
-                                        if (Get.isRegistered<HomeController>()) {
-                                          Get.find<HomeController>()
-                                              .pauseReelsForRouteOverlay();
-                                        } else {
-                                          MediaKitPlayerPool.instance
-                                              .silenceAllSync();
-                                        }
-                                        Get.to(
-                                          SingleVideoScreen(
-                                            followers:
-                                            '${profileController.followersList
-                                                .length}',
-                                            frondUserId:
-                                            video.frontUserId,
-                                            userImage: video.userImage,
-                                            videoId: video.id,
-                                            videoUrl: video.videoUrl?.toString().isNotEmpty == true
-                                                ? video.videoUrl
-                                                : video.video,
-                                            title: video.title,
-                                            image: video.image,
-                                            allowComments:
-                                            video.allowComments,
-                                            description:
-                                            video.description,
-                                            tags: video.tags,
-                                            userName: video.userName,
-
-                                            createdAt: video.createdAt,
-                                            isImage:
-                                            video.isImage
-                                                .toString(),
-                                          ),
-                                        )!.then((_) {
-                                          // Only refresh likes count, not the entire profile
-                                          profileController.refreshLikesOnly();
-                                        });
-                                      },
-                                      child: Stack(
-                                        children: [
-                                          Container(
-                                            decoration: BoxDecoration(
-                                              borderRadius:
-                                              BorderRadius.circular(
-                                                12.r,
-                                              ),
-                                              image: DecorationImage(
-                                                image:
-                                                video.image !=
-                                                    null &&
-                                                    video
-                                                        .image!
-                                                        .isNotEmpty
-                                                    ? CachedNetworkImageProvider(
-                                                  '${Common.videoUrl}/${video
-                                                      .image}',
-                                                )
-                                                as ImageProvider
-                                                    : AssetImage(
-                                                  "assets/images/food1.jpg",
-                                                ),
-                                                fit: BoxFit.cover,
-                                              ),
-                                            ),
-                                          ),
-                                          Center(
-                                            child: Icon(
-                                              Icons.play_circle_outline,
-                                              color: Colors.white
-                                                  .withOpacity(0.7),
-                                              size: 30.sp,
-                                            ),
-                                          ),
-                                          Positioned(
-                                            bottom: 0,
-                                            left: 0,
-                                            right: 0,
-                                            child: Container(
-                                              height: 40,
-                                              decoration: BoxDecoration(
-                                                borderRadius:
-                                                BorderRadius.vertical(
-                                                  bottom:
-                                                  Radius.circular(
-                                                    12.r,
-                                                  ),
-                                                ),
-                                                gradient: LinearGradient(
-                                                  begin:
-                                                  Alignment
-                                                      .bottomCenter,
-                                                  end:
-                                                  Alignment
-                                                      .topCenter,
-                                                  colors: [
-                                                    Colors.black,
-                                                    Colors.transparent,
-                                                  ],
-                                                ),
-                                              ),
-                                            ),
-                                          ),
-                                          Positioned(
-                                            bottom: 8,
-                                            left: 8,
-                                            child: Row(
-                                              children: [
-                                                Icon(
-                                                  CupertinoIcons
-                                                      .heart_fill,
-                                                  color: Colors.white,
-                                                  size: 14.sp,
-                                                ),
-                                                const SizedBox(width: 4),
-                                                Text(
-                                                  ReelVideoStats.formatCount(
-                                                    parseApiCount(
-                                                      video.likeCount,
-                                                    ),
-                                                  ),
-                                                  style: TextStyle(
-                                                    color: Colors.white,
-                                                    fontSize: 10.sp,
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-
-                                          Positioned(
-                                            top: 8.h,
-                                            // Adjusted for better spacing, using flutter_screenutil for responsiveness
-                                            right: 8.w,
-                                            // Adjusted for better spacing
-                                            child: InkWell(
-                                              onTap: () {
-                                                showMoreOptions(
-                                                  context,
-                                                  video.id,
-                                                  video.frontUserId,
-                                                  video.image,
-                                                  video,
-                                                );
-                                              },
-                                              splashColor: Colors.grey
-                                                  .withOpacity(0.3),
-                                              // Add subtle splash effect for feedback
-                                              borderRadius:
-                                              BorderRadius.circular(
-                                                10.r,
-                                              ),
-                                              // Rounded touch area
-                                              child: Container(
-                                                // padding: EdgeInsets.all(6.w), // Larger touch area
-                                                decoration: BoxDecoration(
-                                                  color: Colors.black
-                                                      .withOpacity(0.6),
-                                                  // Semi-transparent dark background for contrast
-                                                  shape:
-                                                  BoxShape.circle,
-                                                  // Circular shape
-                                                  boxShadow: [
-                                                    BoxShadow(
-                                                      color: Colors
-                                                          .black
-                                                          .withOpacity(
-                                                        0.2,
-                                                      ),
-                                                      // Subtle shadow for depth
-                                                      blurRadius: 4,
-                                                      offset: Offset(
-                                                        0,
-                                                        2,
-                                                      ),
-                                                    ),
-                                                  ],
-                                                ),
-                                                child: Icon(
-                                                  Icons.more_vert,
-                                                  color:
-                                                  Colors
-                                                      .white, // Keep white color for icon
-                                                ),
-                                              ),
-                                            ),
-                                          ),
-                                          Positioned(
-                                            bottom: 8,
-                                            right: 8,
-                                            child: Row(
-                                              children: [
-                                                Icon(
-                                                  CupertinoIcons.eye_fill,
-                                                  color: Colors.white,
-                                                  size: 14.sp,
-                                                ),
-                                                const SizedBox(width: 4),
-                                                Text(
-                                                  ReelVideoStats.formatCount(
-                                                    parseApiCount(
-                                                      video.viewCount,
-                                                    ),
-                                                  ),
-                                                  style: TextStyle(
-                                                    color: Colors.white,
-                                                    fontSize: 10.sp,
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-
-                                          if (video.sponsorType != null)
-                                            Positioned(
-                                              top: 10,
-                                              left: 0,
-                                              child: InkWell(
-                                                onTap: () {
-                                                  if (kDisableVideoPromotionTemporarily) {
-                                                    ScaffoldMessenger.of(context).showSnackBar(
-                                                      const SnackBar(
-                                                        content: Text('Video promotion is temporarily unavailable.'),
-                                                      ),
-                                                    );
-                                                    return;
-                                                  }
-                                                  showPackageDialog(
-                                                    context,
-                                                    videos: [video],
-                                                  );
-                                                },
-                                                child: Container(
-                                                  margin:
-                                                  EdgeInsets.only(
-                                                    left: 8,
-                                                  ),
-                                                  decoration: BoxDecoration(
-                                                    shape:
-                                                    BoxShape.circle,
-                                                    color:
-                                                    video.sponsorType ==
-                                                        2
-                                                        ? Color(
-                                                      0xFFFFD700,
-                                                    ) // Golden for Premium
-                                                        : Color(
-                                                      0xFFC0C0C0,
-                                                    ), // Silver for Basic
-                                                  ),
-                                                  child: Icon(
-                                                    Icons.star_rounded,
-                                                    color: Colors.white,
-                                                  ),
-                                                ),
-                                              ),
-                                            ),
+                                  borderRadius: 12.r,
+                                  logicalSize: 100,
+                                ),
+                                Center(
+                                  child: Icon(
+                                    Icons.play_circle_outline,
+                                    color: Colors.white.withOpacity(0.7),
+                                    size: 30.sp,
+                                  ),
+                                ),
+                                Positioned(
+                                  bottom: 0,
+                                  left: 0,
+                                  right: 0,
+                                  child: Container(
+                                    height: 40,
+                                    decoration: BoxDecoration(
+                                      borderRadius: BorderRadius.vertical(
+                                        bottom: Radius.circular(12.r),
+                                      ),
+                                      gradient: LinearGradient(
+                                        begin: Alignment.bottomCenter,
+                                        end: Alignment.topCenter,
+                                        colors: [
+                                          Colors.black,
+                                          Colors.transparent,
                                         ],
                                       ),
-                                    );
-                                  },
-                                );
-                              },
+                                    ),
+                                  ),
+                                ),
+                                Positioned(
+                                  bottom: 8,
+                                  left: 8,
+                                  child: Row(
+                                    children: [
+                                      Icon(
+                                        CupertinoIcons.heart_fill,
+                                        color: Colors.white,
+                                        size: 14.sp,
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        ReelVideoStats.formatCount(
+                                          parseApiCount(video.likeCount),
+                                        ),
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 10.sp,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                Positioned(
+                                  top: 8.h,
+                                  right: 8.w,
+                                  child: InkWell(
+                                    onTap: () {
+                                      showMoreOptions(
+                                        context,
+                                        video.id,
+                                        video.frontUserId,
+                                        video.image,
+                                        video,
+                                      );
+                                    },
+                                    splashColor: Colors.grey.withOpacity(0.3),
+                                    borderRadius: BorderRadius.circular(10.r),
+                                    child: Container(
+                                      decoration: BoxDecoration(
+                                        color: Colors.black.withOpacity(0.6),
+                                        shape: BoxShape.circle,
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: Colors.black.withOpacity(0.2),
+                                            blurRadius: 4,
+                                            offset: Offset(0, 2),
+                                          ),
+                                        ],
+                                      ),
+                                      child: Icon(
+                                        Icons.more_vert,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                Positioned(
+                                  bottom: 8,
+                                  right: 8,
+                                  child: Row(
+                                    children: [
+                                      Icon(
+                                        CupertinoIcons.eye_fill,
+                                        color: Colors.white,
+                                        size: 14.sp,
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        ReelVideoStats.formatCount(
+                                          parseApiCount(video.viewCount),
+                                        ),
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 10.sp,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                if (video.sponsorType != null)
+                                  Positioned(
+                                    top: 10,
+                                    left: 0,
+                                    child: InkWell(
+                                      onTap: () {
+                                        if (kDisableVideoPromotionTemporarily) {
+                                          ScaffoldMessenger.of(context).showSnackBar(
+                                            const SnackBar(
+                                              content: Text(
+                                                'Video promotion is temporarily unavailable.',
+                                              ),
+                                            ),
+                                          );
+                                          return;
+                                        }
+                                        showPackageDialog(context, videos: [video]);
+                                      },
+                                      child: Container(
+                                        margin: EdgeInsets.only(left: 8),
+                                        decoration: BoxDecoration(
+                                          shape: BoxShape.circle,
+                                          color: video.sponsorType == 2
+                                              ? const Color(0xFFFFD700)
+                                              : const Color(0xFFC0C0C0),
+                                        ),
+                                        child: Icon(
+                                          Icons.star_rounded,
+                                          color: Colors.white,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                              ],
                             ),
-                          ),
-                      ],
+                          );
+                        },
+                        childCount: selectedVideos.length,
+                      ),
                     ),
-
-                  SizedBox(height: 70.h),
-                ],
-              ),
+                  ),
+                SliverToBoxAdapter(child: SizedBox(height: 70.h)),
+              ],
             );
-          }),
+              }),
+            ],
+          ),
         ),
       );
   }
 
+  void _openProfileReel(UserVideos tapped, VideoTypes activeTab) {
+    final user = profileController.simpleUserDetails.value?.user;
+    final userId = user?.id?.toString();
+    if (userId == null || userId.isEmpty) {
+      return;
+    }
+    warmProfileReelTap(
+      videoUrl: tapped.videoUrl,
+      video: tapped.video,
+      hlsUrl: tapped.hlsUrl,
+      hlsPlaylistUrl: tapped.hlsPlaylistUrl,
+      transcodeStatus: tapped.transcodeStatus,
+      videoSources: tapped.videoSources,
+    );
+    Get.to(
+      () => ProfileReelScreen(
+        userId: userId,
+        videoTypeId: activeTab.id?.toString(),
+        anchorId: tapped.id?.toString(),
+        ownerName: user?.name?.toString(),
+        ownerImage: user?.image?.toString(),
+        ownerFollowers: profileController.followersList.length,
+        initialPosterUrl: profileReelPosterFromGrid(
+          processingStatus: tapped.processingStatus,
+          transcodeStatus: tapped.transcodeStatus,
+          thumbnailUrl: tapped.thumbnailUrl,
+          imageUrl: tapped.imageUrl,
+          image: tapped.image,
+        ),
+      ),
+    );
+  }
+
   List<VideoTypes> _buildDisplayVideoTypes(List<VideoTypes>? sourceTypes) {
     final existing = List<VideoTypes>.from(sourceTypes ?? <VideoTypes>[]);
+    for (final type in existing) {
+      type.videos = (type.videos ?? <UserVideos>[])
+          .where(
+            (video) => ProfileVideoVisibility.shouldListOnProfileGrid(
+              status: video.status,
+              processingStatus: video.processingStatus,
+              transcodeStatus: video.transcodeStatus,
+              videoUrl: video.videoUrl,
+              video: video.video,
+              hlsUrl: video.hlsUrl,
+              hlsPlaylistUrl: video.hlsPlaylistUrl,
+              thumbnailUrl: video.thumbnailUrl,
+              imageUrl: video.imageUrl,
+              image: video.image,
+              isImage: video.isImage,
+              videoSources: video.videoSources,
+            ),
+          )
+          .toList();
+    }
     final hasOthers = existing.any(
       (type) => (type.name ?? '').toLowerCase() == 'others',
     );
@@ -897,7 +899,7 @@ class _ProfileViewState extends State<ProfileView>
                     leading: Icon(Icons.campaign_rounded),
                     trailing: Icon(Icons.chevron_right_rounded),
                     title: Text(
-                      'promote_video'.tr,
+                      'promote_post'.tr,
                       style: TextStyle(fontSize: 14.sp),
                     ),
                     onTap: () async {

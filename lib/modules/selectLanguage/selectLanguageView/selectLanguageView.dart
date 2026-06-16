@@ -1,3 +1,4 @@
+import 'package:cookster/core/navigation/route_back.dart';
 import 'package:cookster/appBindings/app_bindings.dart';
 import 'package:cookster/appRoutes/appRoutes.dart';
 import 'package:cookster/appUtils/appCenterIcon.dart';
@@ -150,7 +151,7 @@ class _SelectLanguageViewState extends State<SelectLanguageView> {
                 onTap: () {
                   try {
                     print("Tapped");
-                    Get.back();
+                    navigateBack();
                   } catch (e) {
                     print(e);
                   }

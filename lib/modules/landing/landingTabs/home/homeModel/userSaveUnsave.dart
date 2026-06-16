@@ -1,6 +1,8 @@
 import 'package:cookster/core/media/media_url_resolver.dart';
+import 'package:cookster/core/media/playback_media.dart';
 
 import 'videoFeedModel.dart';
+import 'video_sources.dart';
 
 class SavedVideosModel {
   bool? status;
@@ -49,7 +51,13 @@ class SavedVideos {
   dynamic video;
   dynamic videoUrl;
   dynamic thumbnailUrl;
+  dynamic thumbnailBlur;
   dynamic imageUrl;
+  dynamic hlsUrl;
+  dynamic hlsPlaylistUrl;
+  dynamic transcodeStatus;
+  dynamic processingStatus;
+  VideoSources? videoSources;
   dynamic state;
   dynamic status;
   dynamic createdAt;
@@ -103,7 +111,13 @@ class SavedVideos {
     video = json['video'];
     videoUrl = json['video_url'];
     thumbnailUrl = json['thumbnail_url'];
+    thumbnailBlur = json['thumbnail_blur'];
     imageUrl = json['image_url'];
+    hlsUrl = json['hls_url'];
+    hlsPlaylistUrl = json['hls_playlist_url'];
+    transcodeStatus = json['transcode_status'];
+    processingStatus = json['processing_status'];
+    videoSources = PlaybackMedia.parseSources(json['video_sources']);
     state = json['state'];
     status = json['status'];
     createdAt = json['created_at'];
@@ -155,5 +169,19 @@ extension SavedVideosMedia on SavedVideos {
   String? get resolvedPlaybackUrl => MediaUrlResolver.playbackUrl(
         videoUrl: videoUrl?.toString(),
         video: video?.toString(),
+      );
+
+  bool get isTranscodeReady =>
+      PlaybackMedia.isReady(transcodeStatus?.toString());
+
+  String? get resolvedHlsUrl => PlaybackMedia.resolvedHls(
+        transcodeStatus: transcodeStatus?.toString(),
+        hlsPlaylistUrl: hlsPlaylistUrl?.toString(),
+        hlsUrl: hlsUrl?.toString(),
+      );
+
+  List<String> get qualityMp4Urls => PlaybackMedia.ladder(
+        transcodeStatus: transcodeStatus?.toString(),
+        sources: videoSources,
       );
 }

@@ -14,6 +14,7 @@ import 'package:cookster/appUtils/apiEndPoints.dart';
 import 'package:cookster/appUtils/colorUtils.dart';
 import 'package:cookster/loaders/pulseLoader.dart';
 import 'package:cookster/modules/singleVideoVisit/singleVideoController/singleVisitVideoController.dart';
+import 'package:cookster/modules/singleVideoVisit/singleVideoModel/singleVisitVideoModel.dart';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -167,9 +168,8 @@ class _SingleVideoVisitState extends State<SingleVisitVideo>
       return;
     }
 
-    _resolvedVideoUrl = video.videoUrl?.isNotEmpty == true
-        ? video.videoUrl!
-        : '${Common.videoUrl}/${video.video}';
+    _resolvedVideoUrl =
+        video.resolvedPlaybackUrl ?? video.resolvedHlsUrl;
     _playerKey = video.id?.isNotEmpty == true ? video.id : _resolvedVideoUrl;
     print("PRINTING VIDEO URL: $_resolvedVideoUrl");
 
@@ -353,8 +353,9 @@ class _SingleVideoVisitState extends State<SingleVisitVideo>
                             : _resolvedVideoUrl != null
                             ? VideoPlayerWidget(
                               videoUrl: _resolvedVideoUrl!,
-                              thumbnailUrl:
-                                  "${Common.imageBaseUrl}/videos/${video.video ?? ''}",
+                              hlsUrl: video.resolvedHlsUrl,
+                              qualityMp4Urls: video.qualityMp4Urls,
+                              thumbnailUrl: video.resolvedThumbnailUrl ?? '',
                               isImage: video.isImage,
                               videoId: _playerKey,
                               autoPlay: true,

@@ -28,15 +28,17 @@ class B2BUsersList {
 class B2bAccountsList {
   String? id;
   String? name;
+  String? userName;
   String? email;
   String? phone;
   dynamic image;
 
-  B2bAccountsList({this.id, this.name, this.email, this.phone, this.image});
+  B2bAccountsList({this.id, this.name, this.userName, this.email, this.phone, this.image});
 
   B2bAccountsList.fromJson(Map<String, dynamic> json) {
     id = json['id'];
     name = json['name'];
+    userName = json['user_name'];
     email = json['email'];
     phone = json['phone'];
     image = json['image'];
@@ -46,6 +48,7 @@ class B2bAccountsList {
     final Map<String, dynamic> data = new Map<String, dynamic>();
     data['id'] = this.id;
     data['name'] = this.name;
+    data['user_name'] = this.userName;
     data['email'] = this.email;
     data['phone'] = this.phone;
     data['image'] = this.image;

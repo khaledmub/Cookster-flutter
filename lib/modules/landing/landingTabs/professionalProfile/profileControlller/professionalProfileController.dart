@@ -5,6 +5,8 @@ import 'package:awesome_dialog/awesome_dialog.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cookster/appRoutes/appRoutes.dart';
 import 'package:cookster/appUtils/apiEndPoints.dart';
+import 'package:cookster/core/user/public_user_identity.dart';
+import 'package:cookster/services/username_availability_service.dart';
 import 'package:cookster/core/parsing/feed_parsers.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -74,6 +76,7 @@ class ProfessionalProfileController extends GetxController {
   RxList<String> followingList = <String>[].obs;
 
   final TextEditingController nameController = TextEditingController();
+  final TextEditingController usernameController = TextEditingController();
   final TextEditingController emailController = TextEditingController();
   final TextEditingController birthdayController = TextEditingController();
   final TextEditingController phoneNumberController = TextEditingController();
@@ -89,6 +92,9 @@ class ProfessionalProfileController extends GetxController {
   var countryId = -1;
   var cityId = -1;
   var menuId = -1;
+  var isCheckingUsername = false.obs;
+  var isUsernameAvailable = RxnBool();
+  String? initialUsername;
   var videoUploadSettings = Rxn<VideoUploadSettings>();
 
   var profileLikesCount = 0.obs;
@@ -589,13 +595,29 @@ class ProfessionalProfileController extends GetxController {
   }
 
   String? usernameValidator(String? value) {
-    if (value == null || value.isEmpty) {
-      return null; // No error if empty (optional field)
+    return PublicUserIdentity.validateUsernameFormat(value);
+  }
+
+  Future<void> checkUsernameAvailability() async {
+    final normalized =
+        PublicUserIdentity.normalizeUsername(usernameController.text);
+    if (normalized == (initialUsername ?? '')) {
+      isUsernameAvailable.value = true;
+      return;
     }
-    if (value.length < 3) {
-      return "name_length_error".tr;
+    final formatError = usernameValidator(normalized);
+    if (formatError != null) {
+      isUsernameAvailable.value = null;
+      return;
     }
-    return null; // Valid username
+
+    isCheckingUsername.value = true;
+    try {
+      isUsernameAvailable.value =
+          await UsernameAvailabilityService.checkAvailability(normalized);
+    } finally {
+      isCheckingUsername.value = false;
+    }
   }
 
   String? dobValidator(String? value) {
@@ -607,6 +629,7 @@ class ProfessionalProfileController extends GetxController {
 
   Future<void> updateUserProfile({
     String? name,
+    String? userName,
     String? dob,
     String? password,
     File? imageFile,
@@ -635,6 +658,9 @@ class ProfessionalProfileController extends GetxController {
       final files = <http.MultipartFile>[];
 
       if (name != null && name.isNotEmpty) fields['name'] = name;
+      if (userName != null && userName.isNotEmpty) {
+        fields['user_name'] = PublicUserIdentity.normalizeUsername(userName);
+      }
       if (dob != null && dob.isNotEmpty) fields['dob'] = dob;
       if (password != null && password.isNotEmpty) fields['password'] = password;
       if (businessType != null && businessType.isNotEmpty) {

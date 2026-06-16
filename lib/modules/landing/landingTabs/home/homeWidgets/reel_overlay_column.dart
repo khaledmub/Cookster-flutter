@@ -128,7 +128,7 @@ class ReelOverlayColumn extends StatelessWidget {
             ReelVideoStats.formatCount(stats.viewCount),
             style: TextStyle(color: Colors.white, fontSize: 10.sp),
           ),
-          if (video.allowComments == 1) ...[
+          if (video.commentsEnabled) ...[
             SizedBox(height: 8),
             InkWell(
               onTap: () {
@@ -139,7 +139,7 @@ class ReelOverlayColumn extends StatelessWidget {
                 final uid = currentUserDetails?.id ?? currentUser?.id;
                 final avatar =
                     currentUserDetails?.image ?? currentUser?.image ?? '';
-                if (video.id == null || uid == null) {
+                if (video.id == null || uid == null || uid.isEmpty) {
                   return;
                 }
                 showCommentsBottomSheetNew(
@@ -170,7 +170,7 @@ class ReelOverlayColumn extends StatelessWidget {
             SizedBox(height: 8),
           ],
           InkWell(
-            onTap: () => _shareVideo(video),
+            onTap: () => _shareVideo(context, video),
             child: SizedBox(
               height: 20.h,
               width: 20.h,
@@ -189,9 +189,9 @@ class ReelOverlayColumn extends StatelessWidget {
           SizedBox(height: 8),
           if (video.sponsorType == null)
             Obx(() {
-              final isSaved = saveController.savedVideos.any(
-                (v) => v.id.toString() == video.id.toString(),
-              );
+              saveController.savedIdRevision.value;
+              final videoId = video.id?.toString() ?? '';
+              final isSaved = saveController.isVideoSaved(videoId);
               return Column(
                 children: [
                   InkWell(
@@ -203,15 +203,10 @@ class ReelOverlayColumn extends StatelessWidget {
                       if (video.id == null) {
                         return;
                       }
-                      if (isSaved) {
-                        saveController.savedVideos.removeWhere(
-                          (v) => v.id.toString() == video.id.toString(),
-                        );
-                      } else {
-                        saveController.savedVideos.add(
-                          SavedVideos(id: video.id, title: video.title),
-                        );
-                      }
+                      saveController.setVideoSavedLocally(
+                        videoId,
+                        saved: !isSaved,
+                      );
                       await saveController.saveVideo(video.id!);
                     },
                     child: SizedBox(
@@ -251,17 +246,39 @@ class ReelOverlayColumn extends StatelessWidget {
     );
   }
 
-  void _shareVideo(WallVideos video) {
-    final id = video.id;
+  Future<void> _shareVideo(BuildContext context, WallVideos video) async {
+    final id = video.id?.trim();
     if (id == null || id.isEmpty) {
+      Get.snackbar(
+        'Error',
+        'Could not share this video',
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
       return;
     }
     final appUrl = 'cookster://open.cookster.app/video?id=$id';
     final webUrl = 'https://cookster.org/web/visitSingleVideo?id=$id';
-    Share.share(
-      'Check out this amazing video on Cookster!\n$appUrl\n\n'
-      'If the app does not open, use this web link:\n$webUrl',
-      subject: 'Cookster Video',
-    );
+    final box = context.findRenderObject() as RenderBox?;
+    try {
+      await Share.share(
+        'Check out this amazing video on Cookster!\n$appUrl\n\n'
+        'If the app does not open, use this web link:\n$webUrl',
+        subject: 'Cookster Video',
+        sharePositionOrigin: box != null
+            ? box.localToGlobal(Offset.zero) & box.size
+            : null,
+      );
+    } catch (e) {
+      debugPrint('Error sharing video: $e');
+      Get.snackbar(
+        'Error',
+        'Could not share this video',
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
+    }
   }
 }

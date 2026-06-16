@@ -1,7 +1,6 @@
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cookster/core/navigation/route_back.dart';
 import 'package:cookster/appUtils/appUtils.dart';
-import 'package:cookster/appUtils/apiEndPoints.dart';
 import 'package:cookster/core/parsing/feed_parsers.dart';
 import 'package:cookster/appBindings/app_bindings.dart';
 import 'package:cookster/modules/landing/landingTabs/home/homeController/homeController.dart';
@@ -18,6 +17,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../appRoutes/appRoutes.dart';
 import 'package:cookster/core/firestore/reel_video_stats.dart';
 import 'package:cookster/core/widgets/grid_thumbnail_cache.dart';
+import 'package:cookster/core/widgets/profile_grid_thumbnail.dart';
 import '../../../appUtils/colorUtils.dart';
 import '../../../appUtils/openToWork.dart';
 import '../../../loaders/pulseLoader.dart';
@@ -28,8 +28,10 @@ import '../../followersFollowing/followersFollowingView/followersFollowingView.d
 import '../../landing/landingTabs/professionalProfile/profileControlller/professionalProfileController.dart';
 import '../../landing/landingTabs/professionalProfile/profileWidgets/professsionalProfileWidgets.dart';
 import '../../landing/landingTabs/profile/profileControlller/profileController.dart';
-import 'package:cookster/modules/landing/landingTabs/home/homeModel/videoFeedModel.dart';
+import 'package:cookster/core/video/profile_reel_prefetch.dart';
+import 'package:cookster/core/user/public_user_identity.dart';
 import 'package:cookster/modules/visitProfile/profile_reel_screen.dart';
+import 'package:cookster/core/media/profile_video_visibility.dart';
 import 'package:cookster/core/media/media_url_resolver.dart';
 
 class VisitProfileView extends StatefulWidget {
@@ -49,7 +51,6 @@ class _VisitProfileViewState extends State<VisitProfileView>
   late final ProfessionalProfileController professionalProfileController;
 
   TabController? _tabController;
-  int _currentTabIndex = 0;
   Worker? _videoTypesWorker;
 
   // Add an RxInt to track followers count locally
@@ -87,11 +88,14 @@ class _VisitProfileViewState extends State<VisitProfileView>
     _videoTypesWorker = ever(visitProfileController.visitProfile, (_) {
       _syncTabController();
     });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      homeController.reinforceReelsPausedForOverlay();
+    });
   }
 
   void _onTabChanged() {
     if (_tabController?.indexIsChanging ?? false) {
-      setState(() => _currentTabIndex = _tabController!.index);
+      setState(() {});
     }
   }
 
@@ -102,7 +106,7 @@ class _VisitProfileViewState extends State<VisitProfileView>
       _tabController?.removeListener(_onTabChanged);
       _tabController?.dispose();
       _tabController = null;
-      if (mounted) setState(() => _currentTabIndex = 0);
+      if (mounted) setState(() {});
       return;
     }
     if (_tabController == null) {
@@ -163,49 +167,61 @@ class _VisitProfileViewState extends State<VisitProfileView>
 
   bool _followerChanged = false; // Track if follow status changed
 
-  List<Videos> _flattenProfileVideos(List<VideoTypes> types) {
-    return types
-        .expand((t) => t.videos ?? const <Videos>[])
-        .where((v) => v.id != null && '${v.id}'.isNotEmpty)
-        .toList();
-  }
-
-  void _openProfileReel(Videos tapped, List<VideoTypes> displayTypes) {
+  void _openProfileReel(Videos tapped, VideoTypes activeTab) {
     final profile = visitProfileController.visitProfile.value;
     final owner = profile?.user;
-    final flat = _flattenProfileVideos(displayTypes);
-    if (flat.isEmpty) {
+    if (widget.userId.isEmpty) {
       return;
     }
-    final reels = flat
-        .map(
-          (v) => WallVideos.fromProfileVideo(
-            v,
-            ownerId: widget.userId,
-            ownerName: owner?.name?.toString(),
-            ownerImage: owner?.image?.toString(),
-            ownerFollowers: visitProfileController.localFollowersCount.value,
-          ),
-        )
-        .toList();
-    var start = flat.indexWhere((v) => '${v.id}' == '${tapped.id}');
-    if (start < 0) {
-      start = 0;
-    }
+    warmProfileReelTap(
+      videoUrl: tapped.videoUrl,
+      video: tapped.video,
+      hlsUrl: tapped.hlsUrl,
+      hlsPlaylistUrl: tapped.hlsPlaylistUrl,
+      transcodeStatus: tapped.transcodeStatus,
+      videoSources: tapped.videoSources,
+    );
     Get.to(
       () => ProfileReelScreen(
-        videos: reels,
-        initialIndex: start,
-        ownerId: widget.userId,
+        userId: widget.userId,
+        videoTypeId: activeTab.id?.toString(),
+        anchorId: tapped.id?.toString(),
         ownerName: owner?.name?.toString(),
         ownerImage: owner?.image?.toString(),
         ownerFollowers: visitProfileController.localFollowersCount.value,
+        initialPosterUrl: profileReelPosterFromGrid(
+          processingStatus: tapped.processingStatus,
+          transcodeStatus: tapped.transcodeStatus,
+          thumbnailUrl: tapped.thumbnailUrl,
+          imageUrl: tapped.imageUrl,
+          image: tapped.image,
+        ),
       ),
     );
   }
 
   List<VideoTypes> _buildDisplayVideoTypes(List<VideoTypes>? sourceTypes) {
     final existing = List<VideoTypes>.from(sourceTypes ?? <VideoTypes>[]);
+    for (final type in existing) {
+      type.videos = (type.videos ?? <Videos>[])
+          .where(
+            (video) => ProfileVideoVisibility.shouldListOnProfileGrid(
+              status: video.status,
+              processingStatus: video.processingStatus,
+              transcodeStatus: video.transcodeStatus,
+              videoUrl: video.videoUrl,
+              video: video.video,
+              hlsUrl: video.hlsUrl,
+              hlsPlaylistUrl: video.hlsPlaylistUrl,
+              thumbnailUrl: video.thumbnailUrl,
+              imageUrl: video.imageUrl,
+              image: video.image,
+              isImage: video.isImage,
+              videoSources: video.videoSources,
+            ),
+          )
+          .toList();
+    }
     final hasOthers = existing.any(
       (type) => (type.name ?? '').toLowerCase() == 'others',
     );
@@ -218,163 +234,166 @@ class _VisitProfileViewState extends State<VisitProfileView>
 
   @override
   Widget build(BuildContext context) {
-    bool isRtl = _language == 'ar';
-
-    return WillPopScope(
-      onWillPop: () async {
-        Get.back(result: {'followerChanged': _followerChanged});
-        return false; // Return false since we're handling navigation manually
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        navigateBack({'followerChanged': _followerChanged});
       },
       child: Scaffold(
         backgroundColor: Colors.white,
         appBar: PreferredSize(
-          preferredSize: Size.fromHeight(155.h),
-          // Adjusted height to fit content
+          preferredSize: Size.fromHeight(
+            kToolbarHeight + MediaQuery.paddingOf(context).top,
+          ),
           child: Container(
-            padding: EdgeInsets.only(top: 40.h),
-            decoration: BoxDecoration(
-              borderRadius: const BorderRadius.only(
+            decoration: const BoxDecoration(
+              borderRadius: BorderRadius.only(
                 bottomRight: Radius.circular(30),
                 bottomLeft: Radius.circular(30),
               ),
-              gradient: const LinearGradient(
+              gradient: LinearGradient(
                 colors: [Color(0xFFFFD700), Color(0xFFFFFADC)],
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
               ),
             ),
-            child: Stack(
-              children: [
-                // Back Button
-                GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onTap: () {
-                    try {
-                      Get.back(result: {'followerChanged': _followerChanged});
-                    } catch (e) {
-                      print("Error navigating back: $e");
-                    }
-                  },
-                  child: Container(
-                    margin: EdgeInsets.symmetric(horizontal: 16),
-                    height: 40,
-                    width: 40,
-                    decoration: const BoxDecoration(
-                      color: Color(0xFFE6BE00),
-                      shape: BoxShape.circle,
-                    ),
-                    child: Center(
-                      child: Icon(
-                        isRtl ? Icons.arrow_back : Icons.arrow_back,
-                        color: ColorUtils.darkBrown,
-                        size: 24,
+            child: SafeArea(
+              bottom: false,
+              child: SizedBox(
+                height: kToolbarHeight,
+                child: Row(
+                  children: [
+                    SizedBox(
+                      width: 56,
+                      child: Center(
+                        child: GestureDetector(
+                          behavior: HitTestBehavior.opaque,
+                          onTap: () {
+                            navigateBack({'followerChanged': _followerChanged});
+                          },
+                          child: Container(
+                            height: 40,
+                            width: 40,
+                            decoration: const BoxDecoration(
+                              color: Color(0xFFE6BE00),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(
+                              Icons.arrow_back,
+                              color: ColorUtils.darkBrown,
+                              size: 24,
+                            ),
+                          ),
+                        ),
                       ),
                     ),
-                  ),
-                ),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      textAlign: TextAlign.center,
-                      "Profile".tr,
-                      style: TextStyle(
-                        fontSize: 20.sp,
-                        fontWeight: FontWeight.w700,
+                    Expanded(
+                      child: Text(
+                        "Profile".tr,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 20.sp,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.black,
+                        ),
                       ),
                     ),
-                  ],
-                ),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    PopupMenuButton<String>(
-                      icon: const Icon(Icons.more_vert),
-                      offset: const Offset(0, 50),
-                      color: Colors.white,
-                      onSelected: (value) async {
-                        if (value == 'block') {
-                          bool isAuthenticated = await _isUserAuthenticated();
-                          if (!isAuthenticated) {
-                            Get.toNamed(AppRoutes.signIn);
-                            return;
-                          }
-                          final user =
-                              visitProfileController.visitProfile.value?.user;
-                          if (user != null) {
-                            // Prepare the image provider
-                            ImageProvider imageProvider =
-                                user.image != null && user.image!.isNotEmpty
-                                    ? CachedNetworkImageProvider(
-                                      MediaUrlResolver.profileImageUrl(user.image!) ?? '',
-                                      maxWidth: gridThumbnailMemCacheSize(48),
-                                      maxHeight: gridThumbnailMemCacheSize(48),
-                                    )
-                                    : const AssetImage('assets/images/sd.png')
-                                        as ImageProvider;
+                    SizedBox(
+                      width: 56,
+                      child: PopupMenuButton<String>(
+                        padding: EdgeInsets.zero,
+                        icon: const Icon(
+                          Icons.more_vert,
+                          color: ColorUtils.darkBrown,
+                        ),
+                        splashRadius: 20,
+                        offset: const Offset(0, 40),
+                        color: Colors.white,
+                        onSelected: (value) async {
+                          if (value == 'block') {
+                            bool isAuthenticated = await _isUserAuthenticated();
+                            if (!isAuthenticated) {
+                              Get.toNamed(AppRoutes.signIn);
+                              return;
+                            }
+                            final user =
+                                visitProfileController.visitProfile.value?.user;
+                            if (user != null) {
+                              ImageProvider imageProvider =
+                                  user.image != null && user.image!.isNotEmpty
+                                      ? CachedNetworkImageProvider(
+                                        MediaUrlResolver.profileImageUrl(
+                                              user.image!,
+                                            ) ??
+                                            '',
+                                        maxWidth: gridThumbnailMemCacheSize(48),
+                                        maxHeight: gridThumbnailMemCacheSize(48),
+                                      )
+                                      : const AssetImage('assets/images/sd.png')
+                                          as ImageProvider;
 
-                            // Show the block confirmation dialog
-                            showBlockConfirmationBottomSheet(
-                              context: context,
-                              name: user.name ?? 'Unknown',
-                              image: imageProvider,
-                              onBlock: () async {
-                                try {
-                                  await homeController.blockUser(
-                                    userId,
-                                    widget.userId,
-                                  );
-                                  Get.back(
-                                    result: {
-                                      'followerChanged': _followerChanged,
-                                    },
-                                  );
-                                } catch (e) {
-                                  Fluttertoast.showToast(
-                                    msg: "Failed to block user",
-                                    toastLength: Toast.LENGTH_SHORT,
-                                    gravity: ToastGravity.BOTTOM,
-                                  );
-                                }
-                              },
-                            );
-                          } else {
-                            Fluttertoast.showToast(
-                              msg: "User data not available",
-                              toastLength: Toast.LENGTH_SHORT,
-                              gravity: ToastGravity.BOTTOM,
+                              showBlockConfirmationBottomSheet(
+                                context: context,
+                                name: user.name ?? 'Unknown',
+                                image: imageProvider,
+                                onBlock: () async {
+                                  try {
+                                    await homeController.blockUser(
+                                      userId,
+                                      widget.userId,
+                                    );
+                                    Get.back(
+                                      result: {
+                                        'followerChanged': _followerChanged,
+                                      },
+                                    );
+                                  } catch (e) {
+                                    Fluttertoast.showToast(
+                                      msg: "Failed to block user",
+                                      toastLength: Toast.LENGTH_SHORT,
+                                      gravity: ToastGravity.BOTTOM,
+                                    );
+                                  }
+                                },
+                              );
+                            } else {
+                              Fluttertoast.showToast(
+                                msg: "User data not available",
+                                toastLength: Toast.LENGTH_SHORT,
+                                gravity: ToastGravity.BOTTOM,
+                              );
+                            }
+                          } else if (value == 'message_label'.tr) {
+                            Get.to(
+                              ChatView(
+                                senderId: userId!,
+                                receiverId: widget.userId,
+                              ),
                             );
                           }
-                        } else if (value == 'message_label'.tr) {
-                          Get.to(
-                            ChatView(
-                              senderId: userId!,
-                              receiverId: widget.userId,
+                        },
+                        itemBuilder: (context) => [
+                          PopupMenuItem<String>(
+                            value: 'message_label'.tr,
+                            child: Text(
+                              'message_label'.tr,
+                              style: const TextStyle(color: Colors.black),
                             ),
-                          );
-                        }
-                      },
-                      itemBuilder:
-                          (context) => [
-                            PopupMenuItem<String>(
-                              value: 'message_label'.tr,
-                              child: Text(
-                                'message_label'.tr,
-                                style: const TextStyle(color: Colors.black),
-                              ),
+                          ),
+                          PopupMenuItem<String>(
+                            value: 'block',
+                            child: Text(
+                              'block'.tr,
+                              style: const TextStyle(color: Colors.red),
                             ),
-                            PopupMenuItem<String>(
-                              value: 'block',
-                              child: Text(
-                                'block'.tr,
-                                style: const TextStyle(color: Colors.red),
-                              ),
-                            ),
-                          ],
+                          ),
+                        ],
+                      ),
                     ),
                   ],
                 ),
-              ],
+              ),
             ),
           ),
         ),
@@ -399,9 +418,12 @@ class _VisitProfileViewState extends State<VisitProfileView>
             onRefresh: () async {
               await visitProfileController.fetchUserProfile(widget.userId);
             },
-            child: SingleChildScrollView(
+            child: CustomScrollView(
+              cacheExtent: 400,
               physics: const AlwaysScrollableScrollPhysics(),
-              child: Column(
+              slivers: [
+                SliverToBoxAdapter(
+                  child: Column(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   SizedBox(height: 16),
@@ -517,7 +539,13 @@ class _VisitProfileViewState extends State<VisitProfileView>
                               flex: 3,
                               child: Center(
                                 child: Text(
-                                  "@${userDetails.name}",
+                                  PublicUserIdentity.formatAtHandle(
+                                    userDetails.userName?.toString(),
+                                  ).isNotEmpty
+                                      ? PublicUserIdentity.formatAtHandle(
+                                          userDetails.userName?.toString(),
+                                        )
+                                      : userDetails.name?.toString() ?? '',
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                   style: TextStyle(
@@ -566,7 +594,13 @@ class _VisitProfileViewState extends State<VisitProfileView>
                         ),
                       )
                       : Text(
-                        "@${userDetails.name}",
+                        PublicUserIdentity.formatAtHandle(
+                          userDetails.userName?.toString(),
+                        ).isNotEmpty
+                            ? PublicUserIdentity.formatAtHandle(
+                                userDetails.userName?.toString(),
+                              )
+                            : userDetails.name?.toString() ?? '',
                         style: TextStyle(
                           color: ColorUtils.darkBrown,
                           fontSize: 16.sp,
@@ -592,7 +626,7 @@ class _VisitProfileViewState extends State<VisitProfileView>
                     children: [
                       InkWell(
                         onTap: () {
-                          Get.off(
+                          Get.to(
                             SocialListsScreen(
                               initialTab: SocialTab.following,
                               userName: user.user!.name,
@@ -609,7 +643,7 @@ class _VisitProfileViewState extends State<VisitProfileView>
                       Obx(
                         () => InkWell(
                           onTap: () {
-                            Get.off(
+                            Get.to(
                               SocialListsScreen(
                                 initialTab: SocialTab.followers,
                                 userName: user.user!.name,
@@ -711,8 +745,6 @@ class _VisitProfileViewState extends State<VisitProfileView>
                   if (widget.userId != userId) SizedBox(height: 16.h),
                   if (widget.userId != userId)
                     Obx(() {
-                      var currentUserDetails =
-                          profileController.simpleUserDetails.value?.user;
                       var currentUser =
                           professionalProfileController.userDetails.value?.user;
                       bool isProfileNull = currentUser == null;
@@ -842,7 +874,6 @@ class _VisitProfileViewState extends State<VisitProfileView>
                                 child: GestureDetector(
                                   onTap: () {
                                     _tabController!.animateTo(index);
-                                    setState(() {});
                                   },
                                   child: Container(
                                     padding: const EdgeInsets.symmetric(
@@ -883,169 +914,159 @@ class _VisitProfileViewState extends State<VisitProfileView>
                           ),
                         ),
                         SizedBox(height: 16.h),
-
-                        if (displayVideoTypes.isNotEmpty)
-                          Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 16),
-                            child: Builder(
-                              builder: (context) {
-                                final selectedVideoType =
-                                    displayVideoTypes[_tabController!.index];
-                                final videos = selectedVideoType.videos;
-                                if (videos == null || videos.isEmpty) {
-                                  return Center(
-                                    child: Image.asset(
-                                      "assets/images/notfound.png",
-                                      fit: BoxFit.cover,
-                                      height: 150.h,
-                                    ),
-                                  );
-                                }
-                                return GridView.builder(
-                                  shrinkWrap: true,
-                                  physics: const NeverScrollableScrollPhysics(),
-                                  gridDelegate:
-                                      SliverGridDelegateWithFixedCrossAxisCount(
-                                    crossAxisCount: 3,
-                                    crossAxisSpacing: 8,
-                                    mainAxisSpacing: 8,
-                                    childAspectRatio: 100.w / 133.h,
-                                  ),
-                                  itemCount: videos.length,
-                                  itemBuilder: (context, videoIndex) {
-                                    final video = videos[videoIndex];
-                                    return GestureDetector(
-                                      onTap: () {
-                                        _openProfileReel(
-                                          video,
-                                          displayVideoTypes,
-                                        );
-                                      },
-                                      child: Stack(
-                                        children: [
-                                          Container(
-                                            decoration: BoxDecoration(
-                                              borderRadius:
-                                                  BorderRadius.circular(12.r),
-                                              image: DecorationImage(
-                                                image:
-                                                    video.image != null &&
-                                                            video
-                                                                .image!
-                                                                .isNotEmpty
-                                                        ? CachedNetworkImageProvider(
-                                                              '${Common.videoUrl}/${video.image}',
-                                                            )
-                                                            as ImageProvider
-                                                        : const AssetImage(
-                                                          "assets/images/food1.jpg",
-                                                        ),
-                                                fit: BoxFit.cover,
-                                              ),
-                                            ),
-                                          ),
-                                          Center(
-                                            child: Icon(
-                                              Icons.play_circle_outline,
-                                              color: Colors.white.withOpacity(
-                                                0.7,
-                                              ),
-                                              size: 30.sp,
-                                            ),
-                                          ),
-                                          Positioned(
-                                            bottom: 0,
-                                            left: 0,
-                                            right: 0,
-                                            child: Container(
-                                              height: 40,
-                                              decoration: BoxDecoration(
-                                                borderRadius:
-                                                    BorderRadius.vertical(
-                                                      bottom: Radius.circular(
-                                                        12.r,
-                                                      ),
-                                                    ),
-                                                gradient: const LinearGradient(
-                                                  begin: Alignment.bottomCenter,
-                                                  end: Alignment.topCenter,
-                                                  colors: [
-                                                    Colors.black,
-                                                    Colors.transparent,
-                                                  ],
-                                                ),
-                                              ),
-                                            ),
-                                          ),
-                                          Positioned(
-                                            bottom: 8,
-                                            left: 8,
-                                            child: Row(
-                                              children: [
-                                                Icon(
-                                                  CupertinoIcons.heart_fill,
-                                                  color: Colors.white,
-                                                  size: 14.sp,
-                                                ),
-                                                const SizedBox(width: 4),
-                                                Text(
-                                                  ReelVideoStats.formatCount(
-                                                    parseApiCount(
-                                                      video.likeCount,
-                                                    ),
-                                                  ),
-                                                  style: TextStyle(
-                                                    color: Colors.white,
-                                                    fontSize: 10.sp,
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                          Positioned(
-                                            bottom: 8,
-                                            right: 8,
-                                            child: Row(
-                                              children: [
-                                                Icon(
-                                                  CupertinoIcons.eye_fill,
-                                                  color: Colors.white,
-                                                  size: 14.sp,
-                                                ),
-                                                SizedBox(width: 4),
-                                                Text(
-                                                  ReelVideoStats.formatCount(
-                                                    parseApiCount(
-                                                      video.viewCount,
-                                                    ),
-                                                  ),
-                                                  style: TextStyle(
-                                                    color: Colors.white,
-                                                    fontSize: 10.sp,
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    );
-                                  },
-                                );
-                              },
-                            ),
-                          ),
                       ],
                     ),
 
-                  SizedBox(height: 40.h),
+                  SizedBox(height: 16.h),
                 ],
               ),
+                ),
+                if (displayVideoTypes.isNotEmpty)
+                  ..._visitProfileVideoSlivers(displayVideoTypes),
+                SliverToBoxAdapter(child: SizedBox(height: 40.h)),
+              ],
             ),
           );
         }),
       ),
     );
+  }
+
+  List<Widget> _visitProfileVideoSlivers(List<VideoTypes> displayVideoTypes) {
+    if (_tabController == null) {
+      return const [];
+    }
+    final selectedVideoType = displayVideoTypes[_tabController!.index];
+    final videos = selectedVideoType.videos;
+    if (videos == null || videos.isEmpty) {
+      return [
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: EdgeInsets.symmetric(horizontal: 16),
+            child: Center(
+              child: Image.asset(
+                'assets/images/notfound.png',
+                fit: BoxFit.cover,
+                height: 150.h,
+              ),
+            ),
+          ),
+        ),
+      ];
+    }
+    return [
+      SliverPadding(
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        sliver: SliverGrid(
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 3,
+            crossAxisSpacing: 8,
+            mainAxisSpacing: 8,
+            childAspectRatio: 100.w / 133.h,
+          ),
+          delegate: SliverChildBuilderDelegate(
+            addAutomaticKeepAlives: false,
+            addRepaintBoundaries: true,
+            (context, videoIndex) {
+              final video = videos[videoIndex];
+              return GestureDetector(
+                onTap: () => _openProfileReel(
+                  video,
+                  displayVideoTypes[_tabController!.index],
+                ),
+                child: Stack(
+                  children: [
+                    ProfileGridThumbnail(
+                      coverUrl: MediaUrlResolver.reelPosterUrl(
+                        processingStatus: video.processingStatus?.toString(),
+                        transcodeStatus: video.transcodeStatus?.toString(),
+                        thumbnailUrl: video.thumbnailUrl?.toString(),
+                        imageUrl: video.imageUrl?.toString(),
+                        image: video.image?.toString(),
+                      ),
+                      borderRadius: 12.r,
+                      logicalSize: 100,
+                    ),
+                    Center(
+                      child: Icon(
+                        Icons.play_circle_outline,
+                        color: Colors.white.withOpacity(0.7),
+                        size: 30.sp,
+                      ),
+                    ),
+                    Positioned(
+                      bottom: 0,
+                      left: 0,
+                      right: 0,
+                      child: Container(
+                        height: 40,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.vertical(
+                            bottom: Radius.circular(12.r),
+                          ),
+                          gradient: const LinearGradient(
+                            begin: Alignment.bottomCenter,
+                            end: Alignment.topCenter,
+                            colors: [Colors.black, Colors.transparent],
+                          ),
+                        ),
+                      ),
+                    ),
+                    Positioned(
+                      bottom: 8,
+                      left: 8,
+                      child: Row(
+                        children: [
+                          Icon(
+                            CupertinoIcons.heart_fill,
+                            color: Colors.white,
+                            size: 14.sp,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            ReelVideoStats.formatCount(
+                              parseApiCount(video.likeCount),
+                            ),
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 10.sp,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Positioned(
+                      bottom: 8,
+                      right: 8,
+                      child: Row(
+                        children: [
+                          Icon(
+                            CupertinoIcons.eye_fill,
+                            color: Colors.white,
+                            size: 14.sp,
+                          ),
+                          SizedBox(width: 4),
+                          Text(
+                            ReelVideoStats.formatCount(
+                              parseApiCount(video.viewCount),
+                            ),
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 10.sp,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
+            childCount: videos.length,
+          ),
+        ),
+      ),
+    ];
   }
 
   Future<void> _launchPhone(String? phone) async {
@@ -1055,17 +1076,6 @@ class _VisitProfileViewState extends State<VisitProfileView>
         await launchUrl(phoneUri);
       } else {
         debugPrint('Could not launch phone dialer');
-      }
-    }
-  }
-
-  Future<void> _launchEmail(String? email) async {
-    if (email != null && email.isNotEmpty) {
-      final Uri emailUri = Uri(scheme: 'mailto', path: email);
-      if (await canLaunchUrl(emailUri)) {
-        await launchUrl(emailUri);
-      } else {
-        debugPrint('Could not launch email client');
       }
     }
   }

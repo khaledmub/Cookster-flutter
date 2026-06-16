@@ -1,3 +1,4 @@
+import 'package:cookster/core/navigation/route_back.dart';
 import 'package:cookster/appUtils/appCenterIcon.dart';
 import 'package:cookster/appUtils/appUtils.dart';
 import 'package:cookster/modules/auth/signUp/signUpController/cityController.dart';
@@ -81,13 +82,7 @@ class _PromoteVideoViewState extends State<PromoteVideoView> {
                         behavior: HitTestBehavior.opaque,
                         onTap: () {
                           controller.resetController();
-
-                          try {
-                            print("Tapped");
-                            Get.back();
-                          } catch (e) {
-                            print(e);
-                          }
+                          navigateBack();
                         },
                         child: Container(
                           height: 40,
