@@ -60,6 +60,24 @@ import '../homeWidgets/reel_feed_player_kit.dart';
 import '../homeWidgets/reel_video_player.dart';
 import 'hashtagReelScreen.dart';
 
+class _FeedTabLayer {
+  _FeedTabLayer({required int initialIndex})
+      : visibleIndexNotifier = ValueNotifier<int>(initialIndex),
+        pageController = PageController(initialPage: initialIndex);
+
+  final PageController pageController;
+  final ValueNotifier<int> visibleIndexNotifier;
+  final GlobalKey<ReelVideoPlayerState> reelPlayerKey =
+      GlobalKey<ReelVideoPlayerState>();
+  WallVideos? activePlayerVideo;
+  int? scrollTowardActualIndex;
+
+  void dispose() {
+    pageController.dispose();
+    visibleIndexNotifier.dispose();
+  }
+}
+
 class VideoReelScreen extends StatefulWidget {
   @override
   _VideoReelScreenState createState() => _VideoReelScreenState();
@@ -94,36 +112,118 @@ class _VideoReelScreenState extends State<VideoReelScreen>
   Timer? _viewTrackDebounce;
   Timer? _positionSaveThrottle;
   final Set<String> _trackedVideoIds = {};
-  final ValueNotifier<int> _visibleIndexNotifier = ValueNotifier<int>(0);
-  WallVideos? _activePlayerVideo;
+  final Map<String, _FeedTabLayer> _tabLayers = {};
+  final Map<String, VoidCallback> _pageScrollListeners = {};
   Worker? _feedRestoreWorker;
   Worker? _feedPlaybackEpochWorker;
   Worker? _reelsVisibilityWorker;
   bool _pendingFeedTabPlayback = false;
+  bool _feedTabSwitchInFlight = false;
+  bool _suppressFocusPlayback = false;
   Timer? _playbackAttachDebounce;
   int _lastHandledPlaybackEpoch = -1;
-  int? _scrollTowardActualIndex;
   final Map<String, int> _commentCounts = {};
-  late final PageController _pageController;
-  final GlobalKey<ReelVideoPlayerState> _reelPlayerKey =
-      GlobalKey<ReelVideoPlayerState>();
+
+  String get _activeTabType => controller.selectedType.value;
+
+  _FeedTabLayer _layerFor(String tab) {
+    return _tabLayers.putIfAbsent(tab, () {
+      final cached = controller.cachedVideosForTab(tab);
+      final initialIndex = cached != null && cached.isNotEmpty
+          ? controller.resolveScrollIndexForTab(tab, cached)
+          : controller.scrollIndexForTab(tab);
+      return _FeedTabLayer(initialIndex: initialIndex);
+    });
+  }
+
+  _FeedTabLayer get _activeLayer => _layerFor(_activeTabType);
+
+  List<String> _availableFeedTabs() {
+    final tabs = <String>[];
+    if ((promoteVideoController
+                .siteSettings
+                .value
+                ?.settings
+                ?.allowGeneralVideos ??
+            0) ==
+        1) {
+      tabs.add('General');
+    }
+    tabs.add('Near Me');
+    if ((promoteVideoController
+                .siteSettings
+                .value
+                ?.settings
+                ?.allowGeneralVideos ??
+            0) ==
+        1) {
+      tabs.add('Following');
+    }
+    return tabs;
+  }
+
+  int _feedIndexedStackIndex() {
+    final tabs = _availableFeedTabs();
+    final idx = tabs.indexOf(_activeTabType);
+    return idx == -1 ? 0 : idx;
+  }
+
+  void _ensurePageScrollListener(String tab) {
+    final layer = _layerFor(tab);
+    _pageScrollListeners.putIfAbsent(tab, () {
+      void listener() => _onPageScrollOffsetForTab(tab);
+      layer.pageController.addListener(listener);
+      return listener;
+    });
+  }
+
+  void _removePageScrollListener(String tab) {
+    final listener = _pageScrollListeners.remove(tab);
+    final layer = _tabLayers[tab];
+    if (listener != null && layer != null) {
+      layer.pageController.removeListener(listener);
+    }
+  }
+
+  void _syncActiveTabScrollListener(String previousTab, String newTab) {
+    if (previousTab != newTab) {
+      _removePageScrollListener(previousTab);
+    }
+    _ensurePageScrollListener(newTab);
+  }
+
+  List<WallVideos>? _videosForTab(String tab, {required bool isActiveTab}) {
+    if (isActiveTab) {
+      return controller.videoFeed.value.videos;
+    }
+    return controller.cachedVideosForTab(tab);
+  }
+
+  int _listLenForTab(String tab, {required bool isActiveTab}) {
+    if (isActiveTab) {
+      return controller.reelListLength.value;
+    }
+    return controller.cachedListLengthForTab(tab);
+  }
 
   void _resumeVisibleReelAfterOverlay() {
     if (!mounted || !controller.canPlayHomeReels) {
       return;
     }
-    final videos = controller.videoFeed.value.videos;
+    final tab = _activeTabType;
+    final videos = _videosForTab(tab, isActiveTab: true);
     if (videos == null || videos.isEmpty) {
       return;
     }
-    final index = _visibleIndexNotifier.value.clamp(0, videos.length - 1);
+    final layer = _activeLayer;
+    final index = layer.visibleIndexNotifier.value.clamp(0, videos.length - 1);
     _preloadManager.prepareForVisibleAttach();
     MediaKitPlayerPool.instance.setScreenWidth(
       MediaQuery.sizeOf(context).width,
     );
     _playbackCoordinator.onPageSettled(index, context: context);
-    _schedulePlayerForPage(index, forceReattach: true);
-    unawaited(_reelPlayerKey.currentState?.resumeAfterRouteOverlay());
+    _schedulePlayerForPage(tab, index, forceReattach: true);
+    unawaited(layer.reelPlayerKey.currentState?.resumeAfterRouteOverlay());
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || !controller.canPlayHomeReels) {
         return;
@@ -136,29 +236,33 @@ class _VideoReelScreenState extends State<VideoReelScreen>
     if (!controller.canPlayHomeReels) {
       return;
     }
-    final key = _activePlayerVideo?.id;
+    final key = _activeLayer.activePlayerVideo?.id;
     if (key == null || key.isEmpty) {
       return;
     }
     unawaited(MediaKitPlayerPool.instance.resumeFeedVisible(key));
   }
 
-  void _schedulePlayerForPage(int pageIndex, {bool forceReattach = false}) {
-    final videos = controller.videoFeed.value.videos;
+  void _schedulePlayerForPage(
+    String tab,
+    int pageIndex, {
+    bool forceReattach = false,
+  }) {
+    final isActiveTab = tab == _activeTabType;
+    final videos = _videosForTab(tab, isActiveTab: isActiveTab);
     if (videos == null ||
         videos.isEmpty ||
-        !controller.canPlayHomeReels) {
-      if (_activePlayerVideo != null && mounted) {
-        setState(() => _activePlayerVideo = null);
-      }
+        !controller.canPlayHomeReels ||
+        !isActiveTab) {
       return;
     }
+    final layer = _layerFor(tab);
     final actualIndex = pageIndex % videos.length;
     final video = videos[actualIndex];
     if (video.id == null || video.id!.isEmpty) {
       return;
     }
-    if (!forceReattach && _activePlayerVideo?.id == video.id) {
+    if (!forceReattach && layer.activePlayerVideo?.id == video.id) {
       final id = video.id;
       if (id != null &&
           id.isNotEmpty &&
@@ -167,15 +271,16 @@ class _VideoReelScreenState extends State<VideoReelScreen>
       }
       return;
     }
-    setState(() {
-      _activePlayerVideo = video;
-    });
+    layer.activePlayerVideo = video;
+    if (mounted) {
+      setState(() {});
+    }
     if (forceReattach) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted || !controller.canPlayHomeReels) {
           return;
         }
-        unawaited(_reelPlayerKey.currentState?.resumeAfterRouteOverlay());
+        unawaited(layer.reelPlayerKey.currentState?.resumeAfterRouteOverlay());
         _resumeFeedAudibleOnce();
       });
     }
@@ -194,21 +299,40 @@ class _VideoReelScreenState extends State<VideoReelScreen>
     }
     if (newTabType == controller.selectedType.value &&
         (controller.videoFeed.value.videos?.isNotEmpty ?? false)) {
-      _finishFeedTabPlayback();
+      _finishFeedTabPlayback(newTabType);
       return;
     }
-    await controller.prepareForFeedTabSwitch();
-    _preloadManager.resetForTabSwitch();
-    controller.setSelectedType(newTabType);
-    final savedIndex = controller.scrollIndexForTab(newTabType);
-    _visibleIndexNotifier.value = savedIndex;
-    if (mounted) {
-      setState(() => _activePlayerVideo = null);
-    }
-    await controller.fetchVideos(fromTabSwitch: true);
-    if (mounted &&
-        (controller.videoFeed.value.videos?.isNotEmpty ?? false)) {
-      _finishFeedTabPlayback();
+    _feedTabSwitchInFlight = true;
+    _suppressFocusPlayback = true;
+    try {
+      final previousTab = controller.selectedType.value;
+      await controller.prepareForFeedTabSwitch();
+      _preloadManager.resetForTabSwitch();
+      final layer = _layerFor(newTabType);
+      final cached = controller.cachedVideosForTab(newTabType);
+      int? targetIndex;
+      if (cached != null && cached.isNotEmpty) {
+        targetIndex = controller.resolveScrollIndexForTab(newTabType, cached);
+        layer.visibleIndexNotifier.value = targetIndex;
+        controller.visiblePageIndex.value = targetIndex;
+        if (layer.pageController.hasClients) {
+          layer.pageController.jumpToPage(targetIndex);
+        }
+      }
+      // Apply scroll + visiblePageIndex before showing the tab — otherwise
+      // FocusDetector jumps using the previous tab's index (wrong reel poster).
+      controller.setSelectedType(newTabType);
+      _syncActiveTabScrollListener(previousTab, newTabType);
+      await controller.fetchVideos(fromTabSwitch: true);
+      if (mounted &&
+          (controller.videoFeed.value.videos?.isNotEmpty ?? false)) {
+        _finishFeedTabPlayback(newTabType);
+      }
+    } finally {
+      _feedTabSwitchInFlight = false;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _suppressFocusPlayback = false;
+      });
     }
   }
 
@@ -265,29 +389,46 @@ class _VideoReelScreenState extends State<VideoReelScreen>
     }
   }
 
-  void _finishFeedTabPlayback() {
-    if (!mounted || !controller.isReelsTabVisible.value) {
+  void _finishFeedTabPlayback([String? tabType]) {
+    final tab = tabType ?? _activeTabType;
+    if (!mounted || !controller.isReelsTabVisible.value || tab != _activeTabType) {
       return;
     }
-    final videos = controller.videoFeed.value.videos;
+    final videos = _videosForTab(tab, isActiveTab: true);
     if (videos == null || videos.isEmpty) {
       return;
     }
     _pendingFeedTabPlayback = false;
+    final targetIndex = controller.resolveScrollIndexForTab(tab, videos);
+    final targetVideo = videos[targetIndex];
+    final targetId = targetVideo.id;
+    final layer = _layerFor(tab);
+    final currentPage = layer.pageController.hasClients
+        ? (layer.pageController.page?.round() ?? -1) % videos.length
+        : -1;
+    final alreadyOnTarget = layer.visibleIndexNotifier.value == targetIndex &&
+        currentPage == targetIndex &&
+        layer.activePlayerVideo?.id == targetId &&
+        targetId != null &&
+        targetId.isNotEmpty;
+    if (alreadyOnTarget) {
+      _resumeFeedAudibleOnce();
+      return;
+    }
     _preloadManager.prepareForVisibleAttach();
-    final savedIndex = controller.scrollIndexForTab(controller.selectedType.value);
-    final targetIndex = savedIndex.clamp(0, videos.length - 1);
-    _visibleIndexNotifier.value = targetIndex;
+    layer.visibleIndexNotifier.value = targetIndex;
     controller.visiblePageIndex.value = targetIndex;
+    controller.saveTabScrollIndex(tab, targetIndex);
+    controller.saveTabVideoId(tab, targetId);
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) {
+      if (!mounted || tab != _activeTabType) {
         return;
       }
-      if (_pageController.hasClients &&
-          (_pageController.page?.round() ?? 0) != targetIndex) {
-        _pageController.jumpToPage(targetIndex);
+      if (layer.pageController.hasClients &&
+          (layer.pageController.page?.round() ?? 0) != targetIndex) {
+        layer.pageController.jumpToPage(targetIndex);
       }
-      _schedulePlayerForPage(targetIndex);
+      _schedulePlayerForPage(tab, targetIndex);
       MediaKitPlayerPool.instance.setScreenWidth(
         MediaQuery.sizeOf(context).width,
       );
@@ -302,7 +443,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
     }
     _preloadManager.decoderWarmEnabled = true;
     _maybeBootstrapPreload();
-    final index = _visibleIndexNotifier.value;
+    final index = _activeLayer.visibleIndexNotifier.value;
     unawaited(_preloadManager.onVisibleIndexChanged(index));
   }
 
@@ -329,10 +470,10 @@ class _VideoReelScreenState extends State<VideoReelScreen>
     }
   }
 
-  Widget _buildInlineReelPlayer(WallVideos video) {
+  Widget _buildInlineReelPlayer(WallVideos video, {required String tab}) {
     return ReelFeedPlayerKit.buildInlinePlayer(
       video: video,
-      playerKey: _reelPlayerKey,
+      playerKey: _layerFor(tab).reelPlayerKey,
       onPlaybackReady: () {
         _onVisibleReelReady();
       },
@@ -393,11 +534,10 @@ class _VideoReelScreenState extends State<VideoReelScreen>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _visibleIndexNotifier.value = controller.visiblePageIndex.value;
-    _pageController = PageController(
-      initialPage: controller.visiblePageIndex.value,
-    );
-    _pageController.addListener(_onPageScrollOffset);
+    final initialTab = _activeTabType;
+    final initialLayer = _layerFor(initialTab);
+    initialLayer.visibleIndexNotifier.value = controller.visiblePageIndex.value;
+    _ensurePageScrollListener(initialTab);
     _feedRestoreWorker = ever(controller.videoFeed, (_) {
       _applyPendingRestoreIfPossible();
       _maybeBootstrapPreload();
@@ -405,10 +545,13 @@ class _VideoReelScreenState extends State<VideoReelScreen>
       if (videos != null &&
           videos.isNotEmpty &&
           controller.canPlayHomeReels &&
-          _activePlayerVideo == null) {
+          _activeLayer.activePlayerVideo == null) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (mounted) {
-            _schedulePlayerForPage(_visibleIndexNotifier.value);
+            _schedulePlayerForPage(
+              _activeTabType,
+              _activeLayer.visibleIndexNotifier.value,
+            );
           }
         });
       }
@@ -450,7 +593,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
     _reelsVisibilityWorker = ever(controller.isReelsTabVisible, (visible) {
       if (!visible) {
         MediaKitPlayerPool.instance.pauseAllImmediate();
-        final key = _activePlayerVideo?.id;
+        final key = _activeLayer.activePlayerVideo?.id;
         if (key != null && key.isNotEmpty) {
           unawaited(MediaKitPlayerPool.instance.surrenderLease(key));
         }
@@ -476,7 +619,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
   }
 
   void _scheduleFinishPlaybackIfReady() {
-    if (!mounted || !controller.canPlayHomeReels) {
+    if (!mounted || !controller.canPlayHomeReels || _feedTabSwitchInFlight) {
       return;
     }
     final videos = controller.videoFeed.value.videos;
@@ -484,7 +627,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
       return;
     }
     final epoch = controller.feedPlaybackEpoch.value;
-    if (_lastHandledPlaybackEpoch == epoch && _activePlayerVideo != null) {
+    if (_lastHandledPlaybackEpoch == epoch && _activeLayer.activePlayerVideo != null) {
       return;
     }
     // First attach for a new epoch runs immediately; duplicate signals for the
@@ -501,7 +644,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
       _lastHandledPlaybackEpoch = controller.feedPlaybackEpoch.value;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {
-          _finishFeedTabPlayback();
+          _finishFeedTabPlayback(_activeTabType);
         }
       });
     }
@@ -520,46 +663,55 @@ class _VideoReelScreenState extends State<VideoReelScreen>
         !controller.isReelsTabVisible.value) {
       return;
     }
-    _playbackCoordinator.bootstrapFromVisible(_visibleIndexNotifier.value);
+    _playbackCoordinator.bootstrapFromVisible(
+      _activeLayer.visibleIndexNotifier.value,
+    );
   }
 
-  void _onPageScrollOffset() {
-    if (!_pageController.hasClients || !mounted) {
+  void _onPageScrollOffsetForTab(String tab) {
+    if (tab != _activeTabType) {
       return;
     }
-    final videos = controller.videoFeed.value.videos;
+    final layer = _layerFor(tab);
+    if (!layer.pageController.hasClients || !mounted) {
+      return;
+    }
+    final videos = _videosForTab(tab, isActiveTab: true);
     if (videos == null || videos.isEmpty) {
       return;
     }
     final length = videos.length;
-    final page = _pageController.page;
+    final page = layer.pageController.page;
     if (page == null) {
       return;
     }
     final rounded = page.roundToDouble();
     if ((page - rounded).abs() < 0.02) {
-      _scrollTowardActualIndex = null;
+      layer.scrollTowardActualIndex = null;
       return;
     }
     final towardRaw = page > rounded ? page.ceil() : page.floor();
     final toward = towardRaw % length;
-    if (_scrollTowardActualIndex == toward) {
+    if (layer.scrollTowardActualIndex == toward) {
       return;
     }
-    _scrollTowardActualIndex = toward;
+    layer.scrollTowardActualIndex = toward;
     _playbackCoordinator.onPageScrollToward(
-      fromActualIndex: _visibleIndexNotifier.value,
+      fromActualIndex: layer.visibleIndexNotifier.value,
       towardActualIndex: toward,
       context: context,
     );
   }
 
-  bool _shouldListenFirestoreStats(int actualIndex) {
+  bool _shouldListenFirestoreStats(String tab, int actualIndex) {
+    if (tab != _activeTabType) {
+      return false;
+    }
     final length = controller.videoFeed.value.videos?.length ?? 0;
     if (length == 0) {
       return false;
     }
-    final visibleActual = _visibleIndexNotifier.value % length;
+    final visibleActual = _activeLayer.visibleIndexNotifier.value % length;
     return (actualIndex - visibleActual).abs() <= 1;
   }
 
@@ -649,16 +801,19 @@ class _VideoReelScreenState extends State<VideoReelScreen>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    _pageController.removeListener(_onPageScrollOffset);
+    for (final tab in _pageScrollListeners.keys.toList()) {
+      _removePageScrollListener(tab);
+    }
     _feedRestoreWorker?.dispose();
     _feedPlaybackEpochWorker?.dispose();
     _reelsVisibilityWorker?.dispose();
     _playbackAttachDebounce?.cancel();
     _viewTrackDebounce?.cancel();
     _positionSaveThrottle?.cancel();
-    _visibleIndexNotifier.dispose();
     _playbackCoordinator.dispose();
-    _pageController.dispose();
+    for (final layer in _tabLayers.values) {
+      layer.dispose();
+    }
     WakelockPlus.disable();
     super.dispose();
   }
@@ -741,18 +896,225 @@ class _VideoReelScreenState extends State<VideoReelScreen>
     if (!mounted) {
       return;
     }
+    final tab = _activeTabType;
+    final layer = _layerFor(tab);
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || !_pageController.hasClients) {
+      if (!mounted || !layer.pageController.hasClients) {
         return;
       }
-      if (_pageController.page?.round() != targetIndex) {
-        _pageController.jumpToPage(targetIndex);
+      if (layer.pageController.page?.round() != targetIndex) {
+        layer.pageController.jumpToPage(targetIndex);
       }
-      _visibleIndexNotifier.value = targetIndex;
+      layer.visibleIndexNotifier.value = targetIndex;
       controller.visiblePageIndex.value = targetIndex;
-      _schedulePlayerForPage(targetIndex);
-      _maybeBootstrapPreload();
+      controller.saveTabScrollIndex(tab, targetIndex);
+      final videos = controller.videoFeed.value.videos;
+      if (videos != null && targetIndex < videos.length) {
+        controller.saveTabVideoId(tab, videos[targetIndex].id);
+      }
+      _schedulePlayerForPage(tab, targetIndex);
     });
+  }
+
+  Widget _buildFeedTabLayer(String tab, bool isActiveTab) {
+    final listLen = _listLenForTab(tab, isActiveTab: isActiveTab);
+    if (listLen == 0) {
+      return const SizedBox.shrink();
+    }
+    final videos = _videosForTab(tab, isActiveTab: isActiveTab);
+    if (videos == null || videos.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    final layer = _layerFor(tab);
+    var currentUserDetails = profileController.simpleUserDetails.value?.user;
+    var currentUser = professionalProfileController.userDetails.value?.user;
+    final String? userId = currentUser?.id ?? currentUserDetails?.id;
+    final bool isRtl = _language == 'ar';
+
+    return FocusDetector(
+      onFocusGained: isActiveTab
+          ? () {
+              if (_suppressFocusPlayback || _feedTabSwitchInFlight) {
+                return;
+              }
+              if (!controller.canPlayHomeReels) {
+                return;
+              }
+              if (layer.pageController.hasClients) {
+                layer.pageController.jumpToPage(
+                  controller.visiblePageIndex.value,
+                );
+              }
+              _schedulePlayerForPage(
+                tab,
+                controller.visiblePageIndex.value,
+              );
+              _resumeFeedAudibleOnce();
+            }
+          : null,
+      child: PageView.custom(
+        scrollDirection: Axis.vertical,
+        controller: layer.pageController,
+        clipBehavior: Clip.hardEdge,
+        dragStartBehavior: DragStartBehavior.down,
+        allowImplicitScrolling: false,
+        pageSnapping: true,
+        physics: isActiveTab
+            ? const ClampingScrollPhysics()
+            : const NeverScrollableScrollPhysics(),
+        padEnds: false,
+        onPageChanged: isActiveTab
+            ? (index) {
+                final length = videos.length;
+                if (length == 0) {
+                  return;
+                }
+                final actualIndex = index % length;
+                controller.visiblePageIndex.value = actualIndex;
+                controller.saveTabScrollIndex(tab, actualIndex);
+                controller.saveTabVideoId(tab, videos[actualIndex].id);
+                layer.visibleIndexNotifier.value = actualIndex;
+                _schedulePlayerForPage(tab, actualIndex);
+                _preloadManager.prepareForVisibleAttach();
+                MediaKitPlayerPool.instance.setScreenWidth(
+                  MediaQuery.sizeOf(context).width,
+                );
+                _playbackCoordinator.onPageSettled(
+                  actualIndex,
+                  context: context,
+                );
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (!mounted || tab != _activeTabType) {
+                    return;
+                  }
+                  _schedulePageSideEffects(actualIndex);
+                });
+              }
+            : null,
+        childrenDelegate: SliverChildBuilderDelegate(
+          (context, index) {
+            final actualIndex = index % videos.length;
+            final videoDetail = videos[actualIndex];
+
+            return KeyedSubtree(
+              key: ValueKey<String>(
+                '${tab}_${videoDetail.id ?? 'video'}_$index',
+              ),
+              child: ValueListenableBuilder<int>(
+                valueListenable: layer.visibleIndexNotifier,
+                builder: (context, visibleIndex, _) {
+                  final isActiveReel = isActiveTab &&
+                      actualIndex == visibleIndex &&
+                      videoDetail.isImage != 1;
+                  return Stack(
+                    clipBehavior: Clip.none,
+                    alignment: Alignment.bottomLeft,
+                    children: [
+                      _buildPagePoster(
+                        videoDetail,
+                        isActiveReel: isActiveReel,
+                      ),
+                      if (isActiveReel)
+                        _buildInlineReelPlayer(
+                          videoDetail,
+                          tab: tab,
+                        ),
+                      if (isActiveReel)
+                        Positioned.fill(
+                          child: GestureDetector(
+                            behavior: HitTestBehavior.translucent,
+                            onDoubleTapDown: (_) {
+                              unawaited(
+                                _onReelDoubleTapLike(videoDetail),
+                              );
+                            },
+                            child: const SizedBox.expand(),
+                          ),
+                        ),
+                      VideoDescriptionWidget(
+                        title: videoDetail.title,
+                        description: videoDetail.description,
+                        tags: videoDetail.tags,
+                        controller: controller,
+                      ),
+                      videoUserDetails(
+                        profileController: profileController,
+                        professionalProfileController:
+                            professionalProfileController,
+                        videoDetail: videoDetail,
+                        controller: controller,
+                        userId: userId,
+                        isAuthenticated: isAuthenticated,
+                      ),
+                      videoActions(
+                        videoDetail,
+                        currentUserDetails,
+                        currentUser,
+                        isAuthenticated,
+                        context,
+                        listenLive: _shouldListenFirestoreStats(
+                          tab,
+                          actualIndex,
+                        ),
+                      ),
+                      if (isActiveTab)
+                        Positioned(
+                          top: MediaQuery.paddingOf(context).top + 64,
+                          left: isRtl ? 0 : null,
+                          right: isRtl ? null : 0,
+                          child: GestureDetector(
+                            onTap: () {
+                              Get.to(
+                                () => SearchView(
+                                  isGeneral: tab == 'General' ? 1 : 0,
+                                ),
+                              )!.then((_) async {
+                                await controller.prepareForFeedTabSwitch();
+                                await controller.fetchVideos(
+                                  city: controller.currentCity.value,
+                                  country: controller.currentCountry.value,
+                                  forceNetwork: true,
+                                );
+                              });
+                            },
+                            child: Container(
+                              margin: EdgeInsets.symmetric(
+                                horizontal: 16,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.transparent,
+                                shape: BoxShape.circle,
+                              ),
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(100),
+                                child: Container(
+                                  padding: const EdgeInsets.all(6),
+                                  decoration: BoxDecoration(
+                                    color: Colors.black.withValues(
+                                      alpha: 0.45,
+                                    ),
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const Icon(
+                                    Icons.search,
+                                    color: Colors.white,
+                                    size: 40,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  );
+                },
+              ),
+            );
+          },
+          childCount: listLen,
+        ),
+      ),
+    );
   }
 
   @override
@@ -901,225 +1263,29 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                 return const SizedBox.shrink();
               }),
               Obx(() {
-                // Rebuild when the active tab changes, not only feed length.
-                final _activeTab = controller.selectedType.value;
+                final activeTab = controller.selectedType.value;
                 final feedEmpty =
                     controller.videoFeed.value.videos?.isEmpty ?? true;
                 if ((controller.isLoading.value && feedEmpty) ||
                     controller.blocksUiForLocation) {
                   return const SizedBox.shrink();
                 }
-                final listLen = controller.reelListLength.value;
-                if (listLen == 0) {
+                final tabs = _availableFeedTabs();
+                if (tabs.isEmpty) {
                   return const SizedBox.shrink();
                 }
-                final videos = controller.videoFeed.value.videos;
-                if (videos == null || videos.isEmpty) {
-                  return const SizedBox.shrink();
-                }
-                return FocusDetector(
-                    onFocusGained: () {
-                      if (!controller.canPlayHomeReels) {
-                        return;
-                      }
-                      if (_pageController.hasClients) {
-                        _pageController.jumpToPage(
-                          controller.visiblePageIndex.value,
-                        );
-                      }
-                      _schedulePlayerForPage(
-                        controller.visiblePageIndex.value,
-                      );
-                      _resumeFeedAudibleOnce();
-                    },
-                    child: PageView.custom(
-                      scrollDirection: Axis.vertical,
-                      controller: _pageController,
-                      clipBehavior: Clip.hardEdge,
-                      dragStartBehavior: DragStartBehavior.down,
-                      // allowImplicitScrolling kept off: with heavy video
-                      // widgets it spawns extra decoders for off-screen pages,
-                      // which is the dominant cause of swipe lag.
-                      allowImplicitScrolling: false,
-                      pageSnapping: true,
-                      physics: const ClampingScrollPhysics(),
-                      padEnds: false,
-                      onPageChanged: (index) {
-                        final length =
-                            controller.videoFeed.value.videos?.length ?? 0;
-                        if (length == 0) {
-                          return;
-                        }
-                        final actualIndex = index % length;
-                        controller.visiblePageIndex.value = actualIndex;
-                        controller.saveTabScrollIndex(
-                          controller.selectedType.value,
-                          actualIndex,
-                        );
-                        _visibleIndexNotifier.value = actualIndex;
-                        _schedulePlayerForPage(actualIndex);
-                        _preloadManager.prepareForVisibleAttach();
-                        // Feed uses [openVisibleReel] — same surface, swap media;
-                        // pausing here caused the user-visible hitch on MTK.
-                        MediaKitPlayerPool.instance.setScreenWidth(
-                          MediaQuery.sizeOf(context).width,
-                        );
-                        _playbackCoordinator.onPageSettled(
-                          actualIndex,
-                          context: context,
-                        );
-                        WidgetsBinding.instance.addPostFrameCallback((_) {
-                          if (!mounted) {
-                            return;
-                          }
-                          _schedulePageSideEffects(actualIndex);
-                        });
-                      },
-                      childrenDelegate: SliverChildBuilderDelegate(
-                        (context, index) {
-                          if (controller.videoFeed.value.videos == null ||
-                              controller.videoFeed.value.videos!.isEmpty) {
-                            return Container(
-                              width: MediaQuery.sizeOf(context).width,
-                              height: MediaQuery.sizeOf(context).height,
-                              color: Colors.black,
-                              child: const Center(
-                                child: Text(
-                                  'No videos available',
-                                  style: TextStyle(
-                                    fontSize: 18,
-                                    color: Colors.grey,
-                                  ),
-                                ),
-                              ),
-                            );
-                          }
-
-                          int actualIndex =
-                              index % controller.videoFeed.value.videos!.length;
-                          var videoDetail =
-                              controller.videoFeed.value.videos![actualIndex];
-
-                          return KeyedSubtree(
-                            key: ValueKey<String>(
-                              '${videoDetail.id ?? 'video'}_$index',
-                            ),
-                            child: ValueListenableBuilder<int>(
-                              valueListenable: _visibleIndexNotifier,
-                              builder: (context, visibleIndex, _) {
-                                final isActiveReel =
-                                    actualIndex == visibleIndex &&
-                                    videoDetail.isImage != 1;
-                                return Stack(
-                              clipBehavior: Clip.none,
-                              alignment: Alignment.bottomLeft,
-                              children: [
-                              _buildPagePoster(
-                                videoDetail,
-                                isActiveReel: isActiveReel,
-                              ),
-                              if (isActiveReel)
-                                _buildInlineReelPlayer(videoDetail),
-                              if (isActiveReel)
-                                Positioned.fill(
-                                  child: GestureDetector(
-                                    behavior: HitTestBehavior.translucent,
-                                    onDoubleTapDown: (_) {
-                                      unawaited(
-                                        _onReelDoubleTapLike(videoDetail),
-                                      );
-                                    },
-                                    child: const SizedBox.expand(),
-                                  ),
-                                ),
-                              VideoDescriptionWidget(
-                                title: videoDetail.title,
-                                description: videoDetail.description,
-                                tags: videoDetail.tags,
-                                controller: controller,
-                              ),
-                              videoUserDetails(
-                                profileController: profileController,
-                                professionalProfileController:
-                                    professionalProfileController,
-                                videoDetail: videoDetail,
-                                controller: controller,
-                                userId: userId,
-                                isAuthenticated: isAuthenticated,
-                              ),
-                              videoActions(
-                                videoDetail,
-                                currentUserDetails,
-                                currentUser,
-                                isAuthenticated,
-                                context,
-                                listenLive: _shouldListenFirestoreStats(
-                                  actualIndex,
-                                ),
-                              ),
-                              Positioned(
-                                top: MediaQuery.paddingOf(context).top + 64,
-                                left: isRtl ? 0 : null,
-                                right: isRtl ? null : 0,
-                                child: GestureDetector(
-                                  onTap: () {
-                                    Get.to(
-                                      () => SearchView(
-                                        isGeneral:
-                                            controller.selectedType.value ==
-                                                    "General"
-                                                ? 1
-                                                : 0,
-                                      ),
-                                    )!.then((_) async {
-                                      await controller
-                                          .prepareForFeedTabSwitch();
-                                      await controller.fetchVideos(
-                                        city: controller.currentCity.value,
-                                        country:
-                                            controller.currentCountry.value,
-                                        forceNetwork: true,
-                                      );
-                                    });
-                                  },
-                                  child: Container(
-                                    margin: EdgeInsets.symmetric(
-                                      horizontal: 16,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: Colors.transparent,
-                                      shape: BoxShape.circle,
-                                    ),
-                                    child: ClipRRect(
-                                      borderRadius: BorderRadius.circular(100),
-                                      child: Container(
-                                        padding: const EdgeInsets.all(6),
-                                        decoration: BoxDecoration(
-                                          color: Colors.black.withValues(
-                                            alpha: 0.45,
-                                          ),
-                                          shape: BoxShape.circle,
-                                        ),
-                                        child: const Icon(
-                                          Icons.search,
-                                          color: Colors.white,
-                                          size: 40,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              ],
-                            );
-                              },
-                            ),
-                          );
-                        },
-                        childCount: listLen,
-                      ),
-                    ),
-                  );
+                return IndexedStack(
+                  index: _feedIndexedStackIndex(),
+                  sizing: StackFit.expand,
+                  children: tabs
+                      .map(
+                        (tab) => _buildFeedTabLayer(
+                          tab,
+                          tab == activeTab,
+                        ),
+                      )
+                      .toList(),
+                );
               }),
 
               SafeArea(

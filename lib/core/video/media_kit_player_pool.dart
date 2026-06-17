@@ -161,6 +161,11 @@ class MediaKitPlayerPool {
   /// Demux/decode buffered without a [Video] surface (width stays null until attach).
   bool isBufferPrimed(String key) => _bufferPrimedKeys.contains(key);
 
+  String? get feedVisibleKey => _feedVisibleKey;
+
+  bool isFeedVisibleKey(String key) =>
+      _feedVisibleKey != null && _feedVisibleKey == key;
+
   /// True when [key] already has media opened in the pool — skip cold
   /// [Player.open] and the heavy pause/seek/wait rewind path.
   bool canInstantResume(String key) {

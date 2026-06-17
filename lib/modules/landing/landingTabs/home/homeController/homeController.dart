@@ -58,6 +58,9 @@ class HomeController extends GetxController with WidgetsBindingObserver {
   /// Last scroll position per tab so switching tabs doesn't rewind to reel 0.
   final Map<String, int> _tabScrollIndex = {};
 
+  /// Last visible video id per tab — restores exact reel if feed order shifts.
+  final Map<String, String> _tabVideoId = {};
+
   // New reactive variables for location checks
   var isLocationServiceEnabled = true.obs; // Default to true until checked
   var isLocationPermissionGranted = false.obs; // Default to false until checked
@@ -634,17 +637,21 @@ class HomeController extends GetxController with WidgetsBindingObserver {
         !forceNetwork && cached != null && (cached.videos?.isNotEmpty ?? false);
 
     if (hasCachedFeed) {
-      videoFeed.value = cached!;
-      reelListLength.value = cached.videos?.length ?? 0;
-      final saved = scrollIndexForTab(tab);
-      final maxIndex = (cached.videos?.length ?? 1) - 1;
-      final clamped = saved.clamp(0, maxIndex < 0 ? 0 : maxIndex);
-      visiblePageIndex.value = clamped;
-      currentIndex.value = clamped;
-      if (fromTabSwitch && (cached.videos?.isNotEmpty ?? false)) {
-        feedPlaybackEpoch.value++;
-      }
+      final cachedVideos = cached!.videos!;
+      final target = resolveScrollIndexForTab(tab, cachedVideos);
+      videoFeed.value = cached;
+      reelListLength.value = cachedVideos.length;
+      visiblePageIndex.value = target;
+      currentIndex.value = target;
       update();
+
+      // Tab switch with a warm cache: show instantly and refresh cache in the
+      // background without replacing the live feed (network reorder was jumping
+      // to the wrong reel and re-attaching the decoder on MTK).
+      if (fromTabSwitch) {
+        unawaited(_refreshTabCacheSilently(tab));
+        return;
+      }
     }
 
     if (isLoading.value && !hasCachedFeed && !fromTabSwitch) {
@@ -692,11 +699,12 @@ class HomeController extends GetxController with WidgetsBindingObserver {
           _tabFeedCache.remove(tab);
         }
         currentPage.value = parsed.meta?.page ?? 1;
-        final saved = scrollIndexForTab(tab);
-        final maxIndex = (parsed.videos?.length ?? 1) - 1;
-        final clamped = saved.clamp(0, maxIndex < 0 ? 0 : maxIndex);
-        visiblePageIndex.value = clamped;
-        currentIndex.value = clamped;
+        final parsedVideos = parsed.videos;
+        if (parsedVideos != null && parsedVideos.isNotEmpty) {
+          final target = resolveScrollIndexForTab(tab, parsedVideos);
+          visiblePageIndex.value = target;
+          currentIndex.value = target;
+        }
         if (tab == selectedType.value &&
             (parsed.videos?.isNotEmpty ?? false) &&
             !backgroundRefresh) {
@@ -709,6 +717,23 @@ class HomeController extends GetxController with WidgetsBindingObserver {
       isLoading.value = false;
       update();
     }
+  }
+
+  /// Refresh tab cache from network without touching live feed / playback.
+  Future<void> _refreshTabCacheSilently(String tab) async {
+    if (selectedType.value != tab) {
+      return;
+    }
+    try {
+      final parsed = await _fetchFeedPage(reset: true);
+      if (selectedType.value != tab) {
+        return;
+      }
+      if (parsed == null || (parsed.videos?.isEmpty ?? true)) {
+        return;
+      }
+      _tabFeedCache[tab] = parsed;
+    } catch (_) {}
   }
 
   // Method to manually refresh location if needed
@@ -1171,11 +1196,41 @@ class HomeController extends GetxController with WidgetsBindingObserver {
 
   int scrollIndexForTab(String tab) => _tabScrollIndex[tab] ?? 0;
 
+  String? videoIdForTab(String tab) => _tabVideoId[tab];
+
+  List<WallVideos>? cachedVideosForTab(String tab) =>
+      _tabFeedCache[tab]?.videos;
+
+  int cachedListLengthForTab(String tab) =>
+      _tabFeedCache[tab]?.videos?.length ?? 0;
+
   void saveTabScrollIndex(String tab, int index) {
     if (index < 0) {
       return;
     }
     _tabScrollIndex[tab] = index;
+  }
+
+  void saveTabVideoId(String tab, String? videoId) {
+    if (videoId == null || videoId.isEmpty) {
+      return;
+    }
+    _tabVideoId[tab] = videoId;
+  }
+
+  int resolveScrollIndexForTab(String tab, List<WallVideos> videos) {
+    if (videos.isEmpty) {
+      return 0;
+    }
+    final savedId = _tabVideoId[tab];
+    if (savedId != null && savedId.isNotEmpty) {
+      final byId = videos.indexWhere((video) => video.id == savedId);
+      if (byId != -1) {
+        return byId;
+      }
+    }
+    final savedIndex = scrollIndexForTab(tab);
+    return savedIndex.clamp(0, videos.length - 1);
   }
 
   /// TikTok-style refresh: reload the current feed from the network and jump
@@ -1186,19 +1241,25 @@ class HomeController extends GetxController with WidgetsBindingObserver {
     }
     final tab = selectedType.value;
     saveTabScrollIndex(tab, 0);
+    _tabVideoId.remove(tab);
     _tabFeedCache.remove(tab);
     visiblePageIndex.value = 0;
     currentIndex.value = 0;
     await fetchVideos(forceNetwork: true);
   }
 
-  /// Reset playback when switching عام / بالقرب / المتابعة so each tab gets
-  /// the same clean decoder lifecycle as General (no stale pool keys).
+  /// Pause feed playback when switching عام / بالقرب / المتابعة. Keeps the
+  /// decoder pool warm so returning to a tab resumes without a full reload.
   Future<void> prepareForFeedTabSwitch() async {
-    saveTabScrollIndex(selectedType.value, visiblePageIndex.value);
+    final tab = selectedType.value;
+    final index = visiblePageIndex.value;
+    saveTabScrollIndex(tab, index);
+    final videos = videoFeed.value.videos;
+    if (videos != null && index >= 0 && index < videos.length) {
+      saveTabVideoId(tab, videos[index].id);
+    }
     MediaKitPlayerPool.instance.pauseAllImmediate();
     await VideoPlayerPool.instance.pauseAll();
-    await MediaKitPlayerPool.instance.releaseAll();
   }
 
   void disposeControllers() {

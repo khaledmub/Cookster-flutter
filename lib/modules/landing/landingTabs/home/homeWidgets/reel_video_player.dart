@@ -111,6 +111,13 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
     if (_usesFeedVisibleChannel) {
       _pool.feedActiveSlotIndexNotifier.addListener(_onFeedActiveSlotChanged);
       _activeFeedSlotIndex = _pool.activeFeedSlotIndex;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || _isDisposed) {
+          return;
+        }
+        unawaited(_loadVideo());
+      });
+      return;
     }
     unawaited(_loadVideo());
   }
@@ -560,17 +567,28 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
       _showThumbnail = false;
       unawaited(_onFrameReady(player, generation: _attachGeneration));
     } else {
-      _frameReady = false;
-      _surfacePaintFrames = 0;
-      _afterSurfaceMounted(player, paintTicks: 4);
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted || _isDisposed || _frameReady) {
-          return;
-        }
-        if (_canShowVideo(player)) {
-          unawaited(_onFrameReady(player, generation: _attachGeneration));
-        }
-      });
+      final key = _pooledKey;
+      if (key != null &&
+          key.isNotEmpty &&
+          _pool.isFrameReady(key) &&
+          _hasRealFrame(player)) {
+        _surfacePaintFrames = _minSurfacePaintFramesBuffered;
+        _showThumbnail = false;
+        _frameReady = true;
+        unawaited(_onFrameReady(player, generation: _attachGeneration));
+      } else {
+        _frameReady = false;
+        _surfacePaintFrames = 0;
+        _afterSurfaceMounted(player, paintTicks: 4);
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted || _isDisposed || _frameReady) {
+            return;
+          }
+          if (_canShowVideo(player)) {
+            unawaited(_onFrameReady(player, generation: _attachGeneration));
+          }
+        });
+      }
     }
   }
 
@@ -672,9 +690,14 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
     }
     final generation = ++_playbackGeneration;
     _isInitializing = true;
-    _resetFrameStateForKey(_poolKey);
+    final poolKey = _poolKey;
+    if (_usesFeedVisibleChannel) {
+      _prepareSwitchUiState(poolKey);
+    } else {
+      _resetFrameStateForKey(poolKey);
+    }
     try {
-      if (_poolKey.isEmpty) {
+      if (poolKey.isEmpty) {
         return;
       }
       if (_usesFeedVisibleChannel) {
@@ -684,11 +707,33 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
         } else {
           _videoSurfaceMounted = true;
         }
+
+        // Tab return while this reel is still the feed-visible key — rebind the
+        // surface and resume audio without Player.open (MTK surface churn).
+        if (_pool.isFeedVisibleKey(poolKey) && _pool.canInstantResume(poolKey)) {
+          final slotIndex = _pool.activeFeedSlotIndex;
+          final player =
+              _pool.feedSlotVideoController(slotIndex)?.player;
+          if (player != null) {
+            _pooledKey = poolKey;
+            _attachGeneration = generation;
+            await _attachPlayer(
+              player,
+              generation: generation,
+              afterFlip: _pool.isFrameReady(poolKey),
+            );
+            if (!mounted || _isDisposed || generation != _playbackGeneration) {
+              return;
+            }
+            await _pool.resumeFeedVisible(poolKey);
+            return;
+          }
+        }
       }
 
       await _openWithCandidates(
         generation: generation,
-        poolKey: _poolKey,
+        poolKey: poolKey,
         onFailure: () {
           if (mounted && !_isDisposed) {
             setState(() => _showRetry = true);
@@ -762,7 +807,7 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
         await _attachPlayer(
           pooled.player,
           generation: generation,
-          afterFlip: false,
+          afterFlip: _usesFeedVisibleChannel && !pooled.feedOpenedMedia,
         );
         return;
       } catch (e) {
