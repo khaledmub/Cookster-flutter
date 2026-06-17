@@ -17,6 +17,8 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../appRoutes/appRoutes.dart';
 import 'package:cookster/core/firestore/reel_video_stats.dart';
 import 'package:cookster/core/widgets/grid_thumbnail_cache.dart';
+import 'package:cookster/core/widgets/profile_user_title.dart';
+import 'package:cookster/modules/landing/landingTabs/home/homeModel/videoFeedModel.dart';
 import 'package:cookster/core/widgets/profile_grid_thumbnail.dart';
 import '../../../appUtils/colorUtils.dart';
 import '../../../appUtils/openToWork.dart';
@@ -30,8 +32,8 @@ import '../../landing/landingTabs/professionalProfile/profileWidgets/professsion
 import '../../landing/landingTabs/profile/profileControlller/profileController.dart';
 import 'package:cookster/core/video/profile_reel_prefetch.dart';
 import 'package:cookster/core/user/public_user_identity.dart';
+import 'package:cookster/core/profile/profile_video_type_utils.dart';
 import 'package:cookster/modules/visitProfile/profile_reel_screen.dart';
-import 'package:cookster/core/media/profile_video_visibility.dart';
 import 'package:cookster/core/media/media_url_resolver.dart';
 
 class VisitProfileView extends StatefulWidget {
@@ -173,6 +175,20 @@ class _VisitProfileViewState extends State<VisitProfileView>
     if (widget.userId.isEmpty) {
       return;
     }
+    final gridVideos = activeTab.videos ?? <Videos>[];
+    final seedVideos = gridVideos
+        .map(
+          (v) => WallVideos.fromProfileVideo(
+            v,
+            ownerId: widget.userId,
+            ownerName: owner?.name?.toString(),
+            ownerImage: owner?.image?.toString(),
+          ),
+        )
+        .toList();
+    final initialIndex = seedVideos.indexWhere(
+      (v) => v.id == tapped.id?.toString(),
+    );
     warmProfileReelTap(
       videoUrl: tapped.videoUrl,
       video: tapped.video,
@@ -186,9 +202,11 @@ class _VisitProfileViewState extends State<VisitProfileView>
         userId: widget.userId,
         videoTypeId: activeTab.id?.toString(),
         anchorId: tapped.id?.toString(),
-        ownerName: owner?.name?.toString(),
+        ownerDisplayName: owner?.name?.toString(),
+        ownerUserName: owner?.userName?.toString(),
         ownerImage: owner?.image?.toString(),
-        ownerFollowers: visitProfileController.localFollowersCount.value,
+        seedVideos: seedVideos,
+        initialIndex: initialIndex < 0 ? 0 : initialIndex,
         initialPosterUrl: profileReelPosterFromGrid(
           processingStatus: tapped.processingStatus,
           transcodeStatus: tapped.transcodeStatus,
@@ -202,34 +220,27 @@ class _VisitProfileViewState extends State<VisitProfileView>
 
   List<VideoTypes> _buildDisplayVideoTypes(List<VideoTypes>? sourceTypes) {
     final existing = List<VideoTypes>.from(sourceTypes ?? <VideoTypes>[]);
+    final deduped = <VideoTypes>[];
+    VideoTypes? othersKeeper;
     for (final type in existing) {
-      type.videos = (type.videos ?? <Videos>[])
-          .where(
-            (video) => ProfileVideoVisibility.shouldListOnProfileGrid(
-              status: video.status,
-              processingStatus: video.processingStatus,
-              transcodeStatus: video.transcodeStatus,
-              videoUrl: video.videoUrl,
-              video: video.video,
-              hlsUrl: video.hlsUrl,
-              hlsPlaylistUrl: video.hlsPlaylistUrl,
-              thumbnailUrl: video.thumbnailUrl,
-              imageUrl: video.imageUrl,
-              image: video.image,
-              isImage: video.isImage,
-              videoSources: video.videoSources,
-            ),
-          )
-          .toList();
+      if (ProfileVideoTypeUtils.isOthersVideoTypeName(type.name?.toString())) {
+        if (othersKeeper == null) {
+          othersKeeper = type;
+          deduped.add(type);
+        } else {
+          othersKeeper.videos = <Videos>[
+            ...?othersKeeper.videos,
+            ...?type.videos,
+          ];
+        }
+        continue;
+      }
+      deduped.add(type);
     }
-    final hasOthers = existing.any(
-      (type) => (type.name ?? '').toLowerCase() == 'others',
-    );
-    if (hasOthers) {
-      return existing;
+    if (othersKeeper == null) {
+      deduped.add(VideoTypes(name: 'Others', videos: <Videos>[]));
     }
-    existing.add(VideoTypes(name: 'Others', videos: <Videos>[]));
-    return existing;
+    return deduped;
   }
 
   @override
@@ -538,20 +549,18 @@ class _VisitProfileViewState extends State<VisitProfileView>
                             Expanded(
                               flex: 3,
                               child: Center(
-                                child: Text(
-                                  PublicUserIdentity.formatAtHandle(
-                                    userDetails.userName?.toString(),
-                                  ).isNotEmpty
-                                      ? PublicUserIdentity.formatAtHandle(
-                                          userDetails.userName?.toString(),
-                                        )
-                                      : userDetails.name?.toString() ?? '',
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
+                                child: ProfileUserTitle(
+                                  displayName: userDetails.name?.toString(),
+                                  userName: userDetails.userName?.toString(),
+                                  nameStyle: TextStyle(
                                     color: ColorUtils.darkBrown,
                                     fontSize: 16.sp,
                                     fontWeight: FontWeight.w700,
+                                  ),
+                                  handleStyle: TextStyle(
+                                    color: ColorUtils.darkBrown.withValues(alpha: 0.55),
+                                    fontSize: 13.sp,
+                                    fontWeight: FontWeight.w400,
                                   ),
                                 ),
                               ),
@@ -593,18 +602,18 @@ class _VisitProfileViewState extends State<VisitProfileView>
                           ],
                         ),
                       )
-                      : Text(
-                        PublicUserIdentity.formatAtHandle(
-                          userDetails.userName?.toString(),
-                        ).isNotEmpty
-                            ? PublicUserIdentity.formatAtHandle(
-                                userDetails.userName?.toString(),
-                              )
-                            : userDetails.name?.toString() ?? '',
-                        style: TextStyle(
+                      : ProfileUserTitle(
+                        displayName: userDetails.name?.toString(),
+                        userName: userDetails.userName?.toString(),
+                        nameStyle: TextStyle(
                           color: ColorUtils.darkBrown,
                           fontSize: 16.sp,
                           fontWeight: FontWeight.w700,
+                        ),
+                        handleStyle: TextStyle(
+                          color: ColorUtils.darkBrown.withValues(alpha: 0.55),
+                          fontSize: 13.sp,
+                          fontWeight: FontWeight.w400,
                         ),
                       ),
 
@@ -889,15 +898,10 @@ class _VisitProfileViewState extends State<VisitProfileView>
                                     ),
                                     child: Center(
                                       child: Text(
-                                        ((displayVideoTypes[index].name ??
-                                                            "Unknown")
-                                                        .toString()
-                                                        .toLowerCase() ==
-                                                    'others'
-                                                ? 'Others'.tr
-                                                : (displayVideoTypes[index].name ??
-                                                    "Unknown")
-                                                    .toString()),
+                                        ProfileVideoTypeUtils.displayLabel(
+                                          displayVideoTypes[index].name
+                                              ?.toString(),
+                                        ),
                                         style: TextStyle(
                                           fontSize: 13.sp,
                                           fontWeight: FontWeight.w500,

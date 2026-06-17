@@ -323,3 +323,152 @@ class DynamicStyledText extends StatelessWidget {
     );
   }
 }
+
+/// Edit-profile text field — matches country/city row styling (label above value).
+class ProfileEditStyledField extends StatefulWidget {
+  const ProfileEditStyledField({
+    super.key,
+    required this.label,
+    required this.hintText,
+    required this.iconPath,
+    required this.controller,
+    this.validator,
+    this.readOnly = false,
+    this.onTap,
+    this.isPassword = false,
+  });
+
+  final String label;
+  final String hintText;
+  final String iconPath;
+  final TextEditingController controller;
+  final String? Function(String?)? validator;
+  final bool readOnly;
+  final VoidCallback? onTap;
+  final bool isPassword;
+
+  @override
+  State<ProfileEditStyledField> createState() => _ProfileEditStyledFieldState();
+}
+
+class _ProfileEditStyledFieldState extends State<ProfileEditStyledField> {
+  bool _obscure = true;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 8.h),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        color: Colors.grey.shade100,
+        border: Border.all(color: ColorUtils.greyTextFieldBorderColor),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: EdgeInsets.only(top: 4.h),
+            child: SvgPicture.asset(widget.iconPath, height: 15.h),
+          ),
+          SizedBox(width: 8.w),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                DynamicStyledText(text: widget.label),
+                TextFormField(
+                  controller: widget.controller,
+                  readOnly: widget.readOnly,
+                  onTap: widget.onTap,
+                  validator: widget.validator,
+                  obscureText: widget.isPassword ? _obscure : false,
+                  onTapOutside: (_) =>
+                      FocusManager.instance.primaryFocus?.unfocus(),
+                  style: TextStyle(fontSize: 14.sp, color: Colors.black),
+                  decoration: InputDecoration(
+                    isDense: true,
+                    contentPadding: EdgeInsets.only(top: 2.h),
+                    border: InputBorder.none,
+                    focusedBorder: InputBorder.none,
+                    enabledBorder: InputBorder.none,
+                    hintText: widget.hintText.tr,
+                    hintStyle: TextStyle(
+                      fontSize: 14.sp,
+                      color: Colors.grey.shade500,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (widget.isPassword)
+            IconButton(
+              icon: Icon(
+                _obscure ? Icons.visibility_off : Icons.visibility,
+                color: Colors.grey,
+                size: 20,
+              ),
+              onPressed: () => setState(() => _obscure = !_obscure),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+String? normalizeLocationId(dynamic id) {
+  final value = id?.toString().trim();
+  if (value == null ||
+      value.isEmpty ||
+      value == '0' ||
+      value == '-1' ||
+      value == 'null') {
+    return null;
+  }
+  return value;
+}
+
+String resolveCountryDisplayLabel({
+  required String selectedId,
+  required String savedName,
+  required Map<String, int> allCountries,
+  required List<String> countryNames,
+  required String placeholder,
+}) {
+  final trimmedSaved = savedName.trim();
+  if (trimmedSaved.isNotEmpty) {
+    return trimmedSaved;
+  }
+  final id = normalizeLocationId(selectedId);
+  if (id != null) {
+    for (final name in countryNames) {
+      if (allCountries[name]?.toString() == id) {
+        return name;
+      }
+    }
+  }
+  return placeholder.tr;
+}
+
+String resolveCityDisplayLabel({
+  required String selectedId,
+  required String savedName,
+  required Map<String, int> allCities,
+  required List<String> cityNames,
+  required String placeholder,
+}) {
+  final trimmedSaved = savedName.trim();
+  if (trimmedSaved.isNotEmpty) {
+    return trimmedSaved;
+  }
+  final id = normalizeLocationId(selectedId);
+  if (id != null) {
+    for (final name in cityNames) {
+      if (allCities[name]?.toString() == id) {
+        return name;
+      }
+    }
+  }
+  return placeholder.tr;
+}

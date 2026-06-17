@@ -89,18 +89,36 @@ class ProfileStat extends StatelessWidget {
 
 class IconButtonWidget extends StatelessWidget {
   final String icon;
+  final VoidCallback? onTap;
 
-  const IconButtonWidget({super.key, required this.icon});
+  const IconButtonWidget({super.key, required this.icon, this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: EdgeInsets.all(16),
+    final child = Container(
+      padding: EdgeInsets.all(8),
+      height: 40,
+      width: 40,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
+        color: Colors.white,
         border: Border.all(color: ColorUtils.darkBrown),
       ),
-      child: SvgPicture.asset(icon, height: 20.sp, color: ColorUtils.darkBrown),
+      child: Center(
+        child: SvgPicture.asset(
+          icon,
+          height: 20,
+          color: ColorUtils.darkBrown,
+        ),
+      ),
+    );
+    if (onTap == null) {
+      return child;
+    }
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(20),
+      child: child,
     );
   }
 }

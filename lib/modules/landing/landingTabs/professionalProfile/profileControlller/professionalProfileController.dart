@@ -38,6 +38,8 @@ class ProfessionalProfileController extends GetxController {
   final coverImageRefreshToken = 0.obs;
   var selectCountryId = "".obs;
   var selectedCityId = "".obs;
+  var selectedCountryName = ''.obs;
+  var selectedCityName = ''.obs;
 
   final isB2B = false.obs;
 

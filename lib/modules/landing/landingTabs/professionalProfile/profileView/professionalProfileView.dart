@@ -5,8 +5,10 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cookster/core/firestore/reel_video_stats.dart';
 import 'package:cookster/core/parsing/feed_parsers.dart';
 import 'package:cookster/core/widgets/profile_grid_thumbnail.dart';
+import 'package:cookster/core/widgets/profile_user_title.dart';
+import 'package:cookster/modules/landing/landingTabs/home/homeModel/videoFeedModel.dart';
 import 'package:cookster/core/video/media_kit_player_pool.dart';
-import 'package:cookster/core/media/profile_video_visibility.dart';
+import 'package:cookster/core/profile/profile_video_type_utils.dart';
 import 'package:cookster/core/profile/profile_share.dart';
 import 'package:cookster/core/user/public_user_identity.dart';
 import 'package:cookster/modules/landing/landingTabs/home/homeController/homeController.dart';
@@ -122,6 +124,49 @@ class _ProfessionalProfileViewState extends State<ProfessionalProfileView>
     if (!(_tabController?.indexIsChanging ?? true)) {
       setState(() => currentTabIndex = _tabController!.index);
     }
+  }
+
+  Widget _savedLikedAppBarIcons(String? userId) {
+    Widget circleIcon(String asset, VoidCallback onTap) {
+      return InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(20),
+        child: Container(
+          padding: const EdgeInsets.all(8),
+          height: 40,
+          width: 40,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: Colors.white,
+            border: Border.all(color: ColorUtils.darkBrown),
+          ),
+          child: Center(
+            child: SvgPicture.asset(
+              asset,
+              height: 20,
+              color: ColorUtils.darkBrown,
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        circleIcon("assets/icons/bookmark.svg", () => Get.to(SavedVideosView())),
+        SizedBox(width: 8.w),
+        circleIcon("assets/icons/heart.svg", () {
+          if (userId == null) {
+            return;
+          }
+          Get.to(
+            () => LikedVideosScreen(userId: userId),
+            binding: LikedVideosBinding(userId),
+          );
+        }),
+      ],
+    );
   }
 
   void _syncFromUserDetails() {
@@ -247,10 +292,25 @@ class _ProfessionalProfileViewState extends State<ProfessionalProfileView>
               style: TextStyle(fontSize: 20.sp, fontWeight: FontWeight.w700),
             ),
             actions: [
+              if (!isRtl)
+                Padding(
+                  padding: EdgeInsets.only(right: 12.w),
+                  child: _savedLikedAppBarIcons(userDetails?.id?.toString()),
+                ),
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                padding: EdgeInsets.only(
+                  left: 16,
+                  right: isRtl ? 4.w : 16,
+                ),
                 child: Row(
                   children: [
+                    if (isRtl)
+                      Padding(
+                        padding: EdgeInsets.only(right: 8.w),
+                        child: _savedLikedAppBarIcons(
+                          userDetails?.id?.toString(),
+                        ),
+                      ),
                     InkWell(
                       onTap: () async {
                         // Get email from controller
@@ -496,20 +556,18 @@ class _ProfessionalProfileViewState extends State<ProfessionalProfileView>
                             Expanded(
                               flex: 3,
                               child: Center(
-                                child: Text(
-                                  PublicUserIdentity.formatAtHandle(
-                                    userDetails.userName?.toString(),
-                                  ).isNotEmpty
-                                      ? PublicUserIdentity.formatAtHandle(
-                                          userDetails.userName?.toString(),
-                                        )
-                                      : userDetails.name?.toString() ?? '',
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
+                                child: ProfileUserTitle(
+                                  displayName: userDetails.name?.toString(),
+                                  userName: userDetails.userName?.toString(),
+                                  nameStyle: TextStyle(
                                     color: ColorUtils.darkBrown,
                                     fontSize: 16.sp,
                                     fontWeight: FontWeight.w700,
+                                  ),
+                                  handleStyle: TextStyle(
+                                    color: ColorUtils.darkBrown.withValues(alpha: 0.55),
+                                    fontSize: 13.sp,
+                                    fontWeight: FontWeight.w400,
                                   ),
                                 ),
                               ),
@@ -741,43 +799,6 @@ class _ProfessionalProfileViewState extends State<ProfessionalProfileView>
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Expanded(
-                              child: FittedBox(
-                                fit: BoxFit.scaleDown,
-                                alignment: Alignment.centerLeft,
-                                child: InkWell(
-                                  onTap: () {
-                                    Get.to(SavedVideosView());
-                                  },
-                                  child: CustomButtonWidget(
-                                    icon: "assets/icons/bookmark.svg",
-                                    label: "Saved Reels".tr,
-                                  ),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 6),
-                            Expanded(
-                              child: FittedBox(
-                                fit: BoxFit.scaleDown,
-                                alignment: Alignment.centerRight,
-                                child: InkWell(
-                                  onTap: () {
-                                    Get.to(
-                                      () => LikedVideosScreen(
-                                        userId: userDetails.id,
-                                      ),
-                                      binding: LikedVideosBinding(userDetails.id),
-                                    );
-                                  },
-                                  child: CustomButtonWidget(
-                                    icon: "assets/icons/heart.svg",
-                                    label: "liked_videos".tr,
-                                  ),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 6),
                             InkWell(
                               onTap: () {
                                 shareProfile(
@@ -806,7 +827,6 @@ class _ProfessionalProfileViewState extends State<ProfessionalProfileView>
                                 ),
                               ),
                             ),
-                            const SizedBox(width: 6),
                             InkWell(
                               onTap: () {
                                 showProfileQrCodeDialog(userDetails.email);
@@ -901,15 +921,10 @@ class _ProfessionalProfileViewState extends State<ProfessionalProfileView>
                                         ),
                                         child: Center(
                                           child: Text(
-                                            ((displayVideoTypes[index].name ??
-                                                            "Unknown")
-                                                        .toString()
-                                                        .toLowerCase() ==
-                                                    'others'
-                                                ? 'Others'.tr
-                                                : (displayVideoTypes[index].name ??
-                                                    "Unknown")
-                                                    .toString()),
+                                            ProfileVideoTypeUtils.displayLabel(
+                                              displayVideoTypes[index].name
+                                                  ?.toString(),
+                                            ),
                                             style: TextStyle(
                                               fontSize: 13.sp,
                                               fontWeight: FontWeight.w500,
@@ -1291,6 +1306,20 @@ class _ProfessionalProfileViewState extends State<ProfessionalProfileView>
     if (userId == null || userId.isEmpty) {
       return;
     }
+    final gridVideos = activeTab.videos ?? <ProfessionalVideos>[];
+    final seedVideos = gridVideos
+        .map(
+          (v) => WallVideos.fromProfessionalVideo(
+            v,
+            ownerId: userId,
+            ownerName: user?.name?.toString(),
+            ownerImage: user?.image?.toString(),
+          ),
+        )
+        .toList();
+    final initialIndex = seedVideos.indexWhere(
+      (v) => v.id == tapped.id?.toString(),
+    );
     warmProfileReelTap(
       videoUrl: tapped.videoUrl,
       video: tapped.video,
@@ -1304,9 +1333,11 @@ class _ProfessionalProfileViewState extends State<ProfessionalProfileView>
         userId: userId,
         videoTypeId: activeTab.id?.toString(),
         anchorId: tapped.id?.toString(),
-        ownerName: user?.name?.toString(),
+        ownerDisplayName: user?.name?.toString(),
+        ownerUserName: user?.userName?.toString(),
         ownerImage: user?.image?.toString(),
-        ownerFollowers: profileController.followersList.length,
+        seedVideos: seedVideos,
+        initialIndex: initialIndex < 0 ? 0 : initialIndex,
         initialPosterUrl: profileReelPosterFromGrid(
           processingStatus: tapped.processingStatus,
           transcodeStatus: tapped.transcodeStatus,
@@ -1320,35 +1351,28 @@ class _ProfessionalProfileViewState extends State<ProfessionalProfileView>
 
   List<VideoTypes> _buildDisplayVideoTypes(List<VideoTypes>? sourceTypes) {
     final existing = List<VideoTypes>.from(sourceTypes ?? <VideoTypes>[]);
+    final deduped = <VideoTypes>[];
+    VideoTypes? othersKeeper;
     for (final type in existing) {
-      type.videos = (type.videos ?? <ProfessionalVideos>[])
-          .where(
-            (video) => ProfileVideoVisibility.shouldListOnProfileGrid(
-              status: video.status,
-              state: video.state,
-              processingStatus: video.processingStatus,
-              transcodeStatus: video.transcodeStatus,
-              videoUrl: video.videoUrl,
-              video: video.video,
-              hlsUrl: video.hlsUrl,
-              hlsPlaylistUrl: video.hlsPlaylistUrl,
-              thumbnailUrl: video.thumbnailUrl,
-              imageUrl: video.imageUrl,
-              image: video.image,
-              isImage: video.isImage,
-              videoSources: video.videoSources,
-            ),
-          )
-          .toList();
+      if (ProfileVideoTypeUtils.isOthersVideoTypeName(type.name?.toString())) {
+        if (othersKeeper == null) {
+          othersKeeper = type;
+          deduped.add(type);
+        } else {
+          othersKeeper.videos = <ProfessionalVideos>[
+            ...?othersKeeper.videos,
+            ...?type.videos,
+          ];
+        }
+        continue;
+      }
+      deduped.add(type);
     }
-    final hasOthers = existing.any(
-      (type) => (type.name ?? '').toLowerCase() == 'others',
-    );
-    if (!hasOthers) {
-      existing.add(
+    if (othersKeeper == null) {
+      deduped.add(
         VideoTypes(name: 'Others', videos: <ProfessionalVideos>[]),
       );
     }
-    return existing;
+    return deduped;
   }
 }

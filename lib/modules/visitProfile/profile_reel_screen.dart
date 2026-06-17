@@ -1,11 +1,13 @@
 import 'dart:async';
 
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cookster/core/firestore/reel_video_stats.dart';
 import 'package:cookster/appBindings/app_bindings.dart';
 import 'package:cookster/core/navigation/route_back.dart';
 import 'package:cookster/core/firestore/video_view_tracker.dart';
 import 'package:cookster/core/media/media_url_resolver.dart';
-import 'package:cookster/core/media/profile_video_visibility.dart';
+import 'package:cookster/core/widgets/profile_user_title.dart';
 import 'package:cookster/core/media/wall_video_media.dart';
 import 'package:cookster/core/video/fullscreen_video_playback.dart';
 import 'package:cookster/core/video/media_kit_player_pool.dart';
@@ -37,18 +39,23 @@ class ProfileReelScreen extends StatefulWidget {
     required this.userId,
     this.videoTypeId,
     this.anchorId,
-    this.ownerName,
+    this.ownerDisplayName,
+    this.ownerUserName,
     this.ownerImage,
-    this.ownerFollowers = 0,
+    this.seedVideos,
+    this.initialIndex = 0,
     this.initialPosterUrl,
   });
 
   final String userId;
   final String? videoTypeId;
   final String? anchorId;
-  final String? ownerName;
+  final String? ownerDisplayName;
+  final String? ownerUserName;
   final String? ownerImage;
-  final int ownerFollowers;
+  /// Grid rows shown immediately — API may return empty while transcode catches up.
+  final List<WallVideos>? seedVideos;
+  final int initialIndex;
   /// Grid poster shown while the feed API loads (avoids black spinner screen).
   final String? initialPosterUrl;
 
@@ -83,7 +90,17 @@ class _ProfileReelScreenState extends State<ProfileReelScreen> {
     ensureVisitProfileDependencies();
     _homeController = Get.find<HomeController>();
     _homeController.reinforceReelsPausedForOverlay();
-    _pageController = PageController(initialPage: 0);
+
+    var startIndex = 0;
+    final seeds = widget.seedVideos;
+    if (seeds != null && seeds.isNotEmpty) {
+      _videos.addAll(seeds);
+      startIndex = widget.initialIndex.clamp(0, _videos.length - 1);
+      _visibleIndexNotifier.value = startIndex;
+      _isLoading = false;
+    }
+
+    _pageController = PageController(initialPage: startIndex);
     _pageController.addListener(_onPageScrollOffset);
     // Profile shares the pool with home — never spawn off-screen MTK decoders
     // here (renderFps=0 zombies). Disk prefetch only; one visible decoder.
@@ -96,7 +113,36 @@ class _ProfileReelScreenState extends State<ProfileReelScreen> {
       targetForIndex: _preloadTargetForIndex,
       thumbnailUrlForIndex: _thumbnailUrlForIndex,
     );
+    if (seeds != null && seeds.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) {
+          return;
+        }
+        _startPlaybackAt(startIndex);
+      });
+    }
     unawaited(_bootstrap());
+  }
+
+  int _resolveAnchorIndex(List<WallVideos> videos) {
+    final anchor = widget.anchorId?.trim();
+    if (anchor != null && anchor.isNotEmpty) {
+      final idx = videos.indexWhere((v) => v.id == anchor);
+      if (idx != -1) {
+        return idx;
+      }
+    }
+    return widget.initialIndex.clamp(0, videos.length - 1);
+  }
+
+  void _startPlaybackAt(int index) {
+    if (index < 0 || index >= _videos.length) {
+      return;
+    }
+    _visibleIndexNotifier.value = index;
+    _preloadManager.prepareForVisibleAttach();
+    unawaited(_preloadManager.bootstrapFromVisible(index));
+    _attachPlaybackForIndex(index);
   }
 
   /// API fetch overlaps pool teardown — serial await was adding hundreds of ms.
@@ -146,33 +192,138 @@ class _ProfileReelScreenState extends State<ProfileReelScreen> {
       return;
     }
     if (result.feed == null) {
-      setState(() {
-        _isLoading = false;
-        _error = result.error ?? 'Failed to load videos';
-      });
+      if (_videos.isEmpty) {
+        setState(() {
+          _isLoading = false;
+          _error = result.error ?? 'Failed to load videos';
+        });
+      } else {
+        setState(() => _isLoading = false);
+        _startPlaybackAt(_visibleIndexNotifier.value);
+      }
       return;
     }
-    final incoming = (result.feed!.videos ?? [])
-        .where(ProfileVideoVisibility.isWallVideoListable)
-        .toList();
+
+    final incoming = List<WallVideos>.from(result.feed!.videos ?? []);
+    _meta = result.feed!.meta;
+
+    if (incoming.isEmpty) {
+      setState(() => _isLoading = false);
+      if (_videos.isNotEmpty) {
+        _startPlaybackAt(_visibleIndexNotifier.value);
+      }
+      return;
+    }
+
+    final seeds = widget.seedVideos ?? const <WallVideos>[];
+    final merged = _mergeApiWithSeedVideos(incoming, seeds);
+    if (merged.isEmpty) {
+      setState(() => _isLoading = false);
+      return;
+    }
+
+    final visibleId = _videos.isNotEmpty
+        ? _videos[_visibleIndexNotifier.value.clamp(0, _videos.length - 1)].id
+        : widget.anchorId;
+    var startIndex = _resolveAnchorIndex(merged);
+    if (visibleId != null && visibleId.trim().isNotEmpty) {
+      final keepIdx = merged.indexWhere((v) => v.id == visibleId);
+      if (keepIdx != -1) {
+        startIndex = keepIdx;
+      }
+    }
+
     setState(() {
       _videos
         ..clear()
-        ..addAll(incoming);
-      _meta = result.feed!.meta;
+        ..addAll(merged);
       _isLoading = false;
+      _error = null;
+      _visibleIndexNotifier.value = startIndex;
     });
-    if (_videos.isNotEmpty) {
-      _visibleIndexNotifier.value = 0;
-      _preloadManager.prepareForVisibleAttach();
-      unawaited(_preloadManager.bootstrapFromVisible(0));
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) {
-          return;
-        }
-        _attachPlaybackForIndex(0);
-      });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      if (_pageController.hasClients &&
+          (_pageController.page?.round() ?? startIndex) != startIndex) {
+        _pageController.jumpToPage(startIndex);
+      }
+      _startPlaybackAt(startIndex);
+    });
+  }
+
+  /// API rows enrich grid seeds; seed-only rows stay when the reel API omits them.
+  List<WallVideos> _mergeApiWithSeedVideos(
+    List<WallVideos> api,
+    List<WallVideos> seeds,
+  ) {
+    if (seeds.isEmpty) {
+      return List<WallVideos>.from(api);
     }
+    if (api.isEmpty) {
+      return List<WallVideos>.from(seeds);
+    }
+
+    final seedById = <String, WallVideos>{
+      for (final v in seeds)
+        if ((v.id ?? '').trim().isNotEmpty) v.id!.trim(): v,
+    };
+
+    final merged = <WallVideos>[];
+    final seen = <String>{};
+
+    for (final apiRow in api) {
+      final id = apiRow.id?.trim() ?? '';
+      if (id.isEmpty) {
+        merged.add(apiRow);
+        continue;
+      }
+      if (!seen.add(id)) {
+        continue;
+      }
+      final seed = seedById[id];
+      merged.add(seed != null ? _enrichApiVideoFromSeed(apiRow, seed) : apiRow);
+    }
+
+    for (final seed in seeds) {
+      final id = seed.id?.trim() ?? '';
+      if (id.isEmpty || seen.contains(id)) {
+        continue;
+      }
+      merged.add(seed);
+      seen.add(id);
+    }
+
+    return merged;
+  }
+
+  WallVideos _enrichApiVideoFromSeed(WallVideos api, WallVideos seed) {
+    String? pick(String? primary, String? fallback) {
+      final p = primary?.trim();
+      if (p != null && p.isNotEmpty) {
+        return p;
+      }
+      final f = fallback?.trim();
+      if (f != null && f.isNotEmpty) {
+        return f;
+      }
+      return primary;
+    }
+
+    api.videoUrl = pick(api.videoUrl, seed.videoUrl);
+    api.video = pick(api.video, seed.video);
+    api.hlsUrl = pick(api.hlsUrl, seed.hlsUrl);
+    api.hlsPlaylistUrl = pick(api.hlsPlaylistUrl, seed.hlsPlaylistUrl);
+    api.thumbnailUrl = pick(api.thumbnailUrl, seed.thumbnailUrl);
+    api.imageUrl = pick(api.imageUrl, seed.imageUrl);
+    api.image = pick(api.image, seed.image);
+    api.transcodeStatus = pick(api.transcodeStatus, seed.transcodeStatus);
+    api.processingStatus = pick(api.processingStatus, seed.processingStatus);
+    if (api.videoSources == null && seed.videoSources != null) {
+      api.videoSources = seed.videoSources;
+    }
+    return api;
   }
 
   void _resumeProfileAudibleOnce() {
@@ -230,12 +381,16 @@ class _ProfileReelScreenState extends State<ProfileReelScreen> {
     }
     final video = _videos[index];
     final key = video.id ?? video.resolvedPlaybackUrl ?? '';
-    if (key.isEmpty || !video.isTranscodeReady) {
+    if (key.isEmpty) {
+      return VideoPreloadTarget(key: key, candidates: const []);
+    }
+    final candidates = _sourceResolver.resolveForWallVideo(video);
+    if (candidates.isEmpty) {
       return VideoPreloadTarget(key: key, candidates: const []);
     }
     return VideoPreloadTarget(
       key: key,
-      candidates: _sourceResolver.resolveForWallVideo(video),
+      candidates: candidates,
     );
   }
 
@@ -303,9 +458,7 @@ class _ProfileReelScreenState extends State<ProfileReelScreen> {
       if (!mounted || result.feed == null) {
         return;
       }
-      final incoming = (result.feed!.videos ?? [])
-          .where(ProfileVideoVisibility.isWallVideoListable)
-          .toList();
+      final incoming = List<WallVideos>.from(result.feed!.videos ?? []);
       if (incoming.isEmpty) {
         if (_meta != null) {
           _meta!.hasMore = false;
@@ -381,18 +534,68 @@ class _ProfileReelScreenState extends State<ProfileReelScreen> {
     navigateBack();
   }
 
+
+  Widget _buildTopRightVideoStats(WallVideos? video) {
+    if (video == null) {
+      return const SizedBox.shrink();
+    }
+    final videoId = video.id ?? '';
+    Widget statsRow(ReelVideoStats stats) {
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.visibility_outlined, color: Colors.white, size: 18),
+          const SizedBox(width: 4),
+          Text(
+            ReelVideoStats.formatCount(stats.viewCount),
+            style: TextStyle(color: Colors.white, fontSize: 12.sp),
+          ),
+          const SizedBox(width: 12),
+          const Icon(Icons.favorite_border, color: Colors.white, size: 18),
+          const SizedBox(width: 4),
+          Text(
+            ReelVideoStats.formatCount(stats.likeCount),
+            style: TextStyle(color: Colors.white, fontSize: 12.sp),
+          ),
+        ],
+      );
+    }
+
+    if (videoId.isEmpty) {
+      return statsRow(ReelVideoStats.empty);
+    }
+
+    return StreamBuilder<DocumentSnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('videos')
+          .doc(videoId)
+          .snapshots(),
+      builder: (context, snapshot) {
+        return statsRow(ReelVideoStats.fromDoc(snapshot.data));
+      },
+    );
+  }
+
   Widget _buildTopBar() {
     final topInset = MediaQuery.paddingOf(context).top;
-    final WallVideos? video = _videos.isNotEmpty
-        ? _videos[
-            _visibleIndexNotifier.value.clamp(0, _videos.length - 1).toInt()]
-        : null;
-
     return Positioned(
       top: 0,
       left: 0,
       right: 0,
-      child: Container(
+      child: ValueListenableBuilder<int>(
+        valueListenable: _visibleIndexNotifier,
+        builder: (context, visibleIndex, _) {
+          final WallVideos? video = _videos.isNotEmpty
+              ? _videos[visibleIndex.clamp(0, _videos.length - 1)]
+              : null;
+          return _buildTopBarContent(video, topInset);
+        },
+      ),
+    );
+  }
+
+  Widget _buildTopBarContent(WallVideos? video, double topInset) {
+    return Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topCenter,
@@ -441,34 +644,28 @@ class _ProfileReelScreenState extends State<ProfileReelScreen> {
                 ),
               const SizedBox(width: 8),
               Expanded(
-                child: Column(
+                child: ProfileUserTitle(
+                  displayName: widget.ownerDisplayName ?? video?.title,
+                  userName:
+                      widget.ownerUserName ?? video?.creatorHandle ?? video?.userName,
+                  textAlign: TextAlign.start,
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      widget.ownerName ?? video?.userName ?? '',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 14.sp,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    Text(
-                      '${widget.ownerFollowers > 0 ? widget.ownerFollowers : video?.displayFollowersCount ?? 0} ${'Followers'.tr}',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 10.sp,
-                      ),
-                    ),
-                  ],
+                  nameStyle: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 15.sp,
+                  ),
+                  handleStyle: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.65),
+                    fontWeight: FontWeight.w400,
+                    fontSize: 12.sp,
+                  ),
                 ),
               ),
+              _buildTopRightVideoStats(video),
             ],
           ),
         ),
-      ),
     );
   }
 
@@ -580,6 +777,8 @@ class _ProfileReelScreenState extends State<ProfileReelScreen> {
                             ReelOverlayColumn(
                               video: video,
                               isAuthenticated: _isAuthenticated,
+                              iconOnlyLikeAndSave: true,
+                              hideViewAndLikeCounts: true,
                             ),
                           ],
                         ],

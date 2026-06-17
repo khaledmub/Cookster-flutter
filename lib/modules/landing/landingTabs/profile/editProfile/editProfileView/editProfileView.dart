@@ -23,7 +23,7 @@ import '../../../../../auth/signUp/signUpController/cityController.dart';
 import '../../../../../promoteVideo/promoteVideoController/promoteVideoController.dart';
 import '../../profileControlller/profileController.dart';
 import 'package:cookster/core/media/media_url_resolver.dart';
-import 'package:cookster/core/user/public_user_identity.dart';
+import 'package:cookster/core/widgets/profile_user_title.dart';
 
 class EditProfileView extends StatefulWidget {
   const EditProfileView({super.key});
@@ -94,13 +94,30 @@ class _EditProfileViewState extends State<EditProfileView> {
       profileController.cityId = initialCity is int
           ? initialCity
           : int.tryParse(initialCity?.toString() ?? '') ?? -1;
-      profileController.selectedCityId.value = initialCity.toString();
-      profileController.selectCountryId.value = initialCountry.toString();
-      if (initialCountry != 0) {
-        cityController.fetchCities(
-          int.parse('${profileController.selectCountryId.value}'),
-        );
-      }
+      profileController.selectedCityId.value =
+          normalizeLocationId(initialCity) ?? '';
+      profileController.selectCountryId.value =
+          normalizeLocationId(initialCountry) ?? '';
+      profileController.selectedCountryName.value =
+          userDetails.countryName?.toString().trim() ?? '';
+      profileController.selectedCityName.value =
+          userDetails.cityName?.toString().trim() ?? '';
+
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        if (profileController.countryId > 0) {
+          await cityController.fetchCities(profileController.countryId);
+          if (profileController.selectedCityName.value.isEmpty) {
+            for (final city in cityController.cityList) {
+              if (city.id?.toString() ==
+                  profileController.selectedCityId.value) {
+                profileController.selectedCityName.value =
+                    city.name?.toString() ?? '';
+                break;
+              }
+            }
+          }
+        }
+      });
     } else {
       // Handle null userDetails case with defaults
       initialName = '';
@@ -463,39 +480,33 @@ class _EditProfileViewState extends State<EditProfileView> {
                           ),
                         ],
                       ),
-                      Text(
-                        PublicUserIdentity.formatAtHandle(
-                          userDetails.userName?.toString(),
-                        ).isNotEmpty
-                            ? PublicUserIdentity.formatAtHandle(
-                                userDetails.userName?.toString(),
-                              )
-                            : userDetails.name?.toString() ?? '',
-                        style: TextStyle(
+                      ProfileUserTitle(
+                        displayName: userDetails.name?.toString(),
+                        userName: userDetails.userName?.toString(),
+                        nameStyle: TextStyle(
                           color: ColorUtils.darkBrown,
                           fontSize: 16.sp,
                           fontWeight: FontWeight.w700,
                         ),
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                        child: CustomTextField(
-                          validator: profileController.nameValidator,
-                          label: "Name",
-                          hintText: "Enter Name",
-                          iconPath: "assets/icons/editProfile.svg",
-                          controller: profileController.nameController,
+                        handleStyle: TextStyle(
+                          color: ColorUtils.darkBrown.withValues(alpha: 0.55),
+                          fontSize: 13.sp,
+                          fontWeight: FontWeight.w400,
                         ),
                       ),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                        child: CustomTextField(
-                          validator: profileController.usernameValidator,
-                          label: "username".tr,
-                          hintText: "enter_username".tr,
-                          iconPath: "assets/icons/editProfile.svg",
-                          controller: profileController.usernameController,
-                        ),
+                      ProfileEditStyledField(
+                        validator: profileController.nameValidator,
+                        label: "Name",
+                        hintText: "Enter Name",
+                        iconPath: "assets/icons/editProfile.svg",
+                        controller: profileController.nameController,
+                      ),
+                      ProfileEditStyledField(
+                        validator: profileController.usernameValidator,
+                        label: "username",
+                        hintText: "enter_username",
+                        iconPath: "assets/icons/editProfile.svg",
+                        controller: profileController.usernameController,
                       ),
                       IgnorePointer(
                         child: Padding(
@@ -649,10 +660,10 @@ class _EditProfileViewState extends State<EditProfileView> {
                             context,
                             allCountries,
                             countryName,
-                            // selectedCountryName,
-                            initialCountryId: int.parse(
-                              profileController.selectCountryId.value,
-                            ),
+                            initialCountryId: int.tryParse(
+                                  profileController.selectCountryId.value,
+                                ) ??
+                                profileController.countryId,
                           );
                         },
                         child: Container(
@@ -680,26 +691,21 @@ class _EditProfileViewState extends State<EditProfileView> {
                                         CrossAxisAlignment.start,
                                     children: [
                                       DynamicStyledText(text: "country".tr),
-                                      Text(
-                                        profileController
-                                                .selectCountryId
-                                                .value
-                                                .isEmpty
-                                            ? "Select your country".tr
-                                            : countryName.firstWhere(
-                                              (name) =>
-                                                  allCountries[name]
-                                                      .toString() ==
-                                                  profileController
-                                                      .selectCountryId
-                                                      .value,
-                                              orElse:
-                                                  () =>
-                                                      "Select your country".tr,
-                                            ),
-                                        style: TextStyle(
-                                          fontSize: 14.sp,
-                                          color: Colors.black,
+                                      Obx(
+                                        () => Text(
+                                          resolveCountryDisplayLabel(
+                                            selectedId: profileController
+                                                .selectCountryId.value,
+                                            savedName: profileController
+                                                .selectedCountryName.value,
+                                            allCountries: allCountries,
+                                            countryNames: countryName,
+                                            placeholder: "Select your country",
+                                          ),
+                                          style: TextStyle(
+                                            fontSize: 14.sp,
+                                            color: Colors.black,
+                                          ),
                                         ),
                                       ),
                                     ],
@@ -722,9 +728,10 @@ class _EditProfileViewState extends State<EditProfileView> {
                             allCities,
                             cityName,
                             selectedCityName,
-                            initialCityId: int.parse(
-                              profileController.selectedCityId.value,
-                            ),
+                            initialCityId: int.tryParse(
+                                  profileController.selectedCityId.value,
+                                ) ??
+                                profileController.cityId,
                           );
                         },
                         child: Container(
@@ -749,32 +756,26 @@ class _EditProfileViewState extends State<EditProfileView> {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   DynamicStyledText(text: "city".tr),
-
-                                  Container(
-                                    width: Get.width * 0.6,
-                                    // Set your desired maximum width here
-                                    child: Text(
-                                      profileController
-                                              .selectedCityId
-                                              .value
-                                              .isEmpty
-                                          ? "Select your city".tr
-                                          : cityName.firstWhere(
-                                            (name) =>
-                                                allCities[name].toString() ==
-                                                profileController
-                                                    .selectedCityId
-                                                    .value,
-                                            orElse: () => "Select your city".tr,
-                                          ),
-                                      style: TextStyle(
-                                        fontSize: 14.sp,
-                                        color: Colors.black,
+                                  Obx(
+                                    () => SizedBox(
+                                      width: Get.width * 0.6,
+                                      child: Text(
+                                        resolveCityDisplayLabel(
+                                          selectedId: profileController
+                                              .selectedCityId.value,
+                                          savedName: profileController
+                                              .selectedCityName.value,
+                                          allCities: allCities,
+                                          cityNames: cityName,
+                                          placeholder: "Select your city",
+                                        ),
+                                        style: TextStyle(
+                                          fontSize: 14.sp,
+                                          color: Colors.black,
+                                        ),
+                                        overflow: TextOverflow.ellipsis,
+                                        maxLines: 1,
                                       ),
-                                      overflow: TextOverflow.ellipsis,
-                                      // Adds ellipsis when text exceeds width
-                                      maxLines:
-                                          1, // Restricts text to a single line
                                     ),
                                   ),
                                 ],
@@ -1189,8 +1190,11 @@ void showProfileCountrySelectionDialog(
                             profileController.countryId = selectedId;
                             profileController.selectCountryId.value =
                                 selectedId.toString();
+                            profileController.selectedCountryName.value =
+                                selectedCountryName.value;
                             profileController.cityId = 0;
                             profileController.selectedCityId.value = '';
+                            profileController.selectedCityName.value = '';
                             cityController.cityList.clear();
 
                             await cityController.fetchCities(selectedId);
@@ -1439,8 +1443,8 @@ void showProfileCitySelectionDialog(
                           profileController.cityId = selectedId;
                           profileController.selectedCityId.value =
                               selectedId.toString();
-                          print('Selected City ID: $selectedId');
-                          print('Selected City Name: $selectedName');
+                          profileController.selectedCityName.value =
+                              selectedName;
                           Get.back();
                         }
                         : null,

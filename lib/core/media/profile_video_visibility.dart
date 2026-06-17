@@ -7,23 +7,8 @@ import 'package:cookster/modules/landing/landingTabs/home/homeModel/video_source
 class ProfileVideoVisibility {
   ProfileVideoVisibility._();
 
-  static bool isWallVideoListable(WallVideos video) {
-    return shouldListOnProfileGrid(
-      status: video.status,
-      state: video.state,
-      processingStatus: video.processingStatus,
-      transcodeStatus: video.transcodeStatus,
-      videoUrl: video.videoUrl,
-      video: video.video,
-      hlsUrl: video.hlsUrl,
-      hlsPlaylistUrl: video.hlsPlaylistUrl,
-      thumbnailUrl: video.thumbnailUrl,
-      imageUrl: video.imageUrl,
-      image: video.image,
-      isImage: video.isImage,
-      videoSources: video.videoSources,
-    );
-  }
+  /// Reel viewer: never drop rows client-side — grid seeds + API merge handle gaps.
+  static bool isWallVideoListable(WallVideos video) => true;
 
   static bool shouldListOnProfileGrid({
     dynamic status,
@@ -40,10 +25,6 @@ class ProfileVideoVisibility {
     dynamic isImage,
     VideoSources? videoSources,
   }) {
-    // Only hide videos that are explicitly inactive/deleted or failed to
-    // transcode. Everything else (including still-processing uploads with only
-    // relative storage keys) shows on the owner's profile grid — the grid has a
-    // poster/fallback so a not-yet-playable row is still a valid entry.
     if (!_isActiveFlag(status) || !_isActiveFlag(state)) {
       return false;
     }
@@ -55,8 +36,6 @@ class ProfileVideoVisibility {
     return true;
   }
 
-  /// Stricter check for reel playback lists — needs resolvable media, not just
-  /// a grid entry. Used where a black/un-playable reel would be a dead end.
   static bool hasPlayableMedia({
     dynamic videoUrl,
     dynamic video,
@@ -103,11 +82,14 @@ class ProfileVideoVisibility {
       return false;
     }
     if (value is num && value == 0) {
-      return false;
+      // status/state 0 is often draft/processing on profile — still show on grid.
+      return true;
     }
     final normalized = value.toString().trim().toLowerCase();
-    return normalized != '0' &&
-        normalized != 'false' &&
+    if (normalized == '0') {
+      return true;
+    }
+    return normalized != 'false' &&
         normalized != 'inactive' &&
         normalized != 'deleted' &&
         normalized != 'disabled';

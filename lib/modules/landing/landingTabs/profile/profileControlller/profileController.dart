@@ -47,6 +47,8 @@ class ProfileController extends GetxController {
   int countryId = -1;
   var selectCountryId = "".obs;
   var selectedCityId = "".obs;
+  var selectedCountryName = ''.obs;
+  var selectedCityName = ''.obs;
   var selectedAccountType = "".obs;
   var isSettingsLoading = false.obs;
 

@@ -25,11 +25,17 @@ class ReelOverlayColumn extends StatelessWidget {
     required this.video,
     required this.isAuthenticated,
     this.listenLive = true,
+    this.iconOnlyLikeAndSave = false,
+    this.hideViewAndLikeCounts = false,
   });
 
   final WallVideos video;
   final bool isAuthenticated;
   final bool listenLive;
+  /// Profile reels: heart / bookmark icons without "save" label text.
+  final bool iconOnlyLikeAndSave;
+  /// Profile reels: views + likes move to the top bar.
+  final bool hideViewAndLikeCounts;
 
   @override
   Widget build(BuildContext context) {
@@ -103,31 +109,35 @@ class ReelOverlayColumn extends StatelessWidget {
               ),
             ),
           ),
-          SizedBox(height: 2),
-          InkWell(
-            onTap: () {
-              if (video.id != null) {
-                Get.to(VideoLikesScreen(videoId: video.id!));
-              }
-            },
-            child: Text(
-              ReelVideoStats.formatCount(stats.likeCount),
+          if (!iconOnlyLikeAndSave) ...[
+            SizedBox(height: 2),
+            InkWell(
+              onTap: () {
+                if (video.id != null) {
+                  Get.to(VideoLikesScreen(videoId: video.id!));
+                }
+              },
+              child: Text(
+                ReelVideoStats.formatCount(stats.likeCount),
+                style: TextStyle(color: Colors.white, fontSize: 10.sp),
+              ),
+            ),
+          ],
+          if (!hideViewAndLikeCounts) ...[
+            SizedBox(
+              height: 20.h,
+              width: 20.h,
+              child: SvgPicture.asset(
+                'assets/icons/eye.svg',
+                fit: BoxFit.fill,
+                colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn),
+              ),
+            ),
+            Text(
+              ReelVideoStats.formatCount(stats.viewCount),
               style: TextStyle(color: Colors.white, fontSize: 10.sp),
             ),
-          ),
-          SizedBox(
-            height: 20.h,
-            width: 20.h,
-            child: SvgPicture.asset(
-              'assets/icons/eye.svg',
-              fit: BoxFit.fill,
-              colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn),
-            ),
-          ),
-          Text(
-            ReelVideoStats.formatCount(stats.viewCount),
-            style: TextStyle(color: Colors.white, fontSize: 10.sp),
-          ),
+          ],
           if (video.commentsEnabled) ...[
             SizedBox(height: 8),
             InkWell(
@@ -219,11 +229,13 @@ class ReelOverlayColumn extends StatelessWidget {
                       ),
                     ),
                   ),
-                  SizedBox(height: 2),
-                  Text(
-                    'save'.tr,
-                    style: TextStyle(color: Colors.white, fontSize: 10.sp),
-                  ),
+                  if (!iconOnlyLikeAndSave) ...[
+                    SizedBox(height: 2),
+                    Text(
+                      'save'.tr,
+                      style: TextStyle(color: Colors.white, fontSize: 10.sp),
+                    ),
+                  ],
                 ],
               );
             }),

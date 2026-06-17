@@ -5,7 +5,6 @@ import 'package:cookster/core/firestore/reel_video_stats.dart';
 import 'package:cookster/core/parsing/feed_parsers.dart';
 import 'package:cookster/appUtils/feature_flags.dart';
 import 'package:cookster/core/video/media_kit_player_pool.dart';
-import 'package:cookster/core/media/profile_video_visibility.dart';
 import 'package:cookster/core/profile/profile_share.dart';
 import 'package:cookster/core/user/public_user_identity.dart';
 import 'package:cookster/core/widgets/grid_thumbnail_cache.dart';
@@ -13,6 +12,8 @@ import 'package:cookster/core/widgets/profile_grid_thumbnail.dart';
 import 'package:cookster/modules/landing/landingTabs/home/homeController/homeController.dart';
 import 'package:cookster/modules/landing/landingTabs/home/homeModel/videoFeedModel.dart';
 import 'package:cookster/core/video/profile_reel_prefetch.dart';
+import 'package:cookster/core/profile/profile_video_type_utils.dart';
+import 'package:cookster/core/widgets/profile_user_title.dart';
 import 'package:cookster/modules/visitProfile/profile_reel_screen.dart';
 import 'package:cookster/modules/landing/landingTabs/profile/profileControlller/profileController.dart';
 import 'package:flutter/cupertino.dart';
@@ -78,6 +79,31 @@ class _ProfileViewState extends State<ProfileView>
     }
   }
 
+  Widget _savedLikedAppBarIcons(String? userId) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        IconButtonWidget(
+          icon: "assets/icons/bookmark.svg",
+          onTap: () => Get.to(SavedVideosView()),
+        ),
+        SizedBox(width: 8.w),
+        IconButtonWidget(
+          icon: "assets/icons/heart.svg",
+          onTap: () {
+            if (userId == null) {
+              return;
+            }
+            Get.to(
+              () => LikedVideosScreen(userId: userId),
+              binding: LikedVideosBinding(userId),
+            );
+          },
+        ),
+      ],
+    );
+  }
+
   void _syncTabController() {
     final videoTypes = profileController.simpleUserDetails.value?.videoTypes;
     final displayVideoTypes = _buildDisplayVideoTypes(videoTypes);
@@ -129,6 +155,11 @@ class _ProfileViewState extends State<ProfileView>
 
   @override
   Widget build(BuildContext context) {
+    return Obx(() {
+    final isRtl = Directionality.of(context) == TextDirection.rtl;
+    final userId =
+        profileController.simpleUserDetails.value?.user?.id?.toString();
+
     return RefreshIndicator(
         onRefresh: () async {
           await profileController.getUserDetails();
@@ -141,11 +172,23 @@ class _ProfileViewState extends State<ProfileView>
             surfaceTintColor: Colors.transparent,
             backgroundColor: Colors.white,
             centerTitle: true,
+            leadingWidth: isRtl ? 104.w : null,
+            leading: isRtl
+                ? Padding(
+                    padding: EdgeInsets.only(left: 8.w, right: 12.w),
+                    child: _savedLikedAppBarIcons(userId),
+                  )
+                : null,
             title: Text(
               "Profile".tr,
               style: TextStyle(fontSize: 20.sp, fontWeight: FontWeight.w700),
             ),
             actions: [
+              if (!isRtl)
+                Padding(
+                  padding: EdgeInsets.only(right: 12.w),
+                  child: _savedLikedAppBarIcons(userId),
+                ),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16.0),
                 child: Row(
@@ -339,18 +382,18 @@ class _ProfileViewState extends State<ProfileView>
                           ),
                         ),
                       SizedBox(height: 10.h),
-                      Text(
-                        PublicUserIdentity.formatAtHandle(
-                          userDetails.userName?.toString(),
-                        ).isNotEmpty
-                            ? PublicUserIdentity.formatAtHandle(
-                                userDetails.userName?.toString(),
-                              )
-                            : userDetails.name?.toString() ?? '',
-                        style: TextStyle(
+                      ProfileUserTitle(
+                        displayName: userDetails.name?.toString(),
+                        userName: userDetails.userName?.toString(),
+                        nameStyle: TextStyle(
                           color: ColorUtils.darkBrown,
                           fontSize: 16.sp,
                           fontWeight: FontWeight.w700,
+                        ),
+                        handleStyle: TextStyle(
+                          color: ColorUtils.darkBrown.withValues(alpha: 0.55),
+                          fontSize: 13.sp,
+                          fontWeight: FontWeight.w400,
                         ),
                       ),
                       SizedBox(height: 12.h),
@@ -418,35 +461,6 @@ class _ProfileViewState extends State<ProfileView>
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Expanded(
-                              child: InkWell(
-                                onTap: () {
-                                  Get.to(SavedVideosView());
-                                },
-                                child: CustomButtonWidget(
-                                  icon: "assets/icons/bookmark.svg",
-                                  label: "Saved Reels".tr,
-                                ),
-                              ),
-                            ),
-                            SizedBox(width: 4),
-                            Expanded(
-                              child: InkWell(
-                                onTap: () {
-                                  Get.to(
-                                    () => LikedVideosScreen(
-                                      userId: userDetails.id,
-                                    ),
-                                    binding: LikedVideosBinding(userDetails.id),
-                                  );
-                                },
-                                child: CustomButtonWidget(
-                                  icon: "assets/icons/heart.svg",
-                                  label: "liked_videos".tr,
-                                ),
-                              ),
-                            ),
-                            SizedBox(width: 4),
                             InkWell(
                               onTap: () {
                                 shareProfile(
@@ -553,14 +567,10 @@ class _ProfileViewState extends State<ProfileView>
                                     ),
                                     child: Center(
                                       child: Text(
-                                        ((displayVideoTypes[index].name ?? "Unknown")
-                                                        .toString()
-                                                        .toLowerCase() ==
-                                                    'others'
-                                                ? 'Others'.tr
-                                                : (displayVideoTypes[index].name ??
-                                                        "Unknown")
-                                                    .toString()),
+                                        ProfileVideoTypeUtils.displayLabel(
+                                          displayVideoTypes[index].name
+                                              ?.toString(),
+                                        ),
                                         style: TextStyle(
                                           fontSize: 13.sp,
                                           fontWeight: FontWeight.w500,
@@ -797,6 +807,7 @@ class _ProfileViewState extends State<ProfileView>
           ),
         ),
       );
+    });
   }
 
   void _openProfileReel(UserVideos tapped, VideoTypes activeTab) {
@@ -805,6 +816,20 @@ class _ProfileViewState extends State<ProfileView>
     if (userId == null || userId.isEmpty) {
       return;
     }
+    final gridVideos = activeTab.videos ?? <UserVideos>[];
+    final seedVideos = gridVideos
+        .map(
+          (v) => WallVideos.fromSimpleUserVideo(
+            v,
+            ownerId: userId,
+            ownerName: user?.name?.toString(),
+            ownerImage: user?.image?.toString(),
+          ),
+        )
+        .toList();
+    final initialIndex = seedVideos.indexWhere(
+      (v) => v.id == tapped.id?.toString(),
+    );
     warmProfileReelTap(
       videoUrl: tapped.videoUrl,
       video: tapped.video,
@@ -818,9 +843,11 @@ class _ProfileViewState extends State<ProfileView>
         userId: userId,
         videoTypeId: activeTab.id?.toString(),
         anchorId: tapped.id?.toString(),
-        ownerName: user?.name?.toString(),
+        ownerDisplayName: user?.name?.toString(),
+        ownerUserName: user?.userName?.toString(),
         ownerImage: user?.image?.toString(),
-        ownerFollowers: profileController.followersList.length,
+        seedVideos: seedVideos,
+        initialIndex: initialIndex < 0 ? 0 : initialIndex,
         initialPosterUrl: profileReelPosterFromGrid(
           processingStatus: tapped.processingStatus,
           transcodeStatus: tapped.transcodeStatus,
@@ -834,36 +861,27 @@ class _ProfileViewState extends State<ProfileView>
 
   List<VideoTypes> _buildDisplayVideoTypes(List<VideoTypes>? sourceTypes) {
     final existing = List<VideoTypes>.from(sourceTypes ?? <VideoTypes>[]);
+    final deduped = <VideoTypes>[];
+    VideoTypes? othersKeeper;
     for (final type in existing) {
-      type.videos = (type.videos ?? <UserVideos>[])
-          .where(
-            (video) => ProfileVideoVisibility.shouldListOnProfileGrid(
-              status: video.status,
-              processingStatus: video.processingStatus,
-              transcodeStatus: video.transcodeStatus,
-              videoUrl: video.videoUrl,
-              video: video.video,
-              hlsUrl: video.hlsUrl,
-              hlsPlaylistUrl: video.hlsPlaylistUrl,
-              thumbnailUrl: video.thumbnailUrl,
-              imageUrl: video.imageUrl,
-              image: video.image,
-              isImage: video.isImage,
-              videoSources: video.videoSources,
-            ),
-          )
-          .toList();
+      if (ProfileVideoTypeUtils.isOthersVideoTypeName(type.name?.toString())) {
+        if (othersKeeper == null) {
+          othersKeeper = type;
+          deduped.add(type);
+        } else {
+          othersKeeper.videos = <UserVideos>[
+            ...?othersKeeper.videos,
+            ...?type.videos,
+          ];
+        }
+        continue;
+      }
+      deduped.add(type);
     }
-    final hasOthers = existing.any(
-      (type) => (type.name ?? '').toLowerCase() == 'others',
-    );
-    if (hasOthers) {
-      return existing;
+    if (othersKeeper == null) {
+      deduped.add(VideoTypes(name: 'Others', videos: <UserVideos>[]));
     }
-    existing.add(
-      VideoTypes(name: 'Others', videos: <UserVideos>[]),
-    );
-    return existing;
+    return deduped;
   }
 
   void showMoreOptions(BuildContext context,
