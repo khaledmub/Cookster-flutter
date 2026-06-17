@@ -70,6 +70,7 @@ class ReelFeedPlayerKit {
     bool wrapPositioned = true,
   }) {
     final player = ReelVideoPlayer(
+      // Shared [GlobalKey] from [VideoReelScreen] — one player state across tabs.
       key: playerKey,
       releaseOnDispose: false,
       playerPoolKey: video.id,

@@ -61,6 +61,16 @@ class HomeController extends GetxController with WidgetsBindingObserver {
   /// Last visible video id per tab — restores exact reel if feed order shifts.
   final Map<String, String> _tabVideoId = {};
 
+  /// Blocks [_refreshTabCacheSilently] while a feed tab switch is in flight
+  /// (cache reorder race — see tab-switch handler in [VideoReelScreen]).
+  bool _feedTabSwitchLocked = false;
+
+  bool get isFeedTabSwitchLocked => _feedTabSwitchLocked;
+
+  void beginFeedTabSwitch() => _feedTabSwitchLocked = true;
+
+  void endFeedTabSwitch() => _feedTabSwitchLocked = false;
+
   // New reactive variables for location checks
   var isLocationServiceEnabled = true.obs; // Default to true until checked
   var isLocationPermissionGranted = false.obs; // Default to false until checked
@@ -645,11 +655,9 @@ class HomeController extends GetxController with WidgetsBindingObserver {
       currentIndex.value = target;
       update();
 
-      // Tab switch with a warm cache: show instantly and refresh cache in the
-      // background without replacing the live feed (network reorder was jumping
-      // to the wrong reel and re-attaching the decoder on MTK).
+      // Tab switch with warm cache: show instantly, no network replace, and no
+      // silent cache refresh while the switch lock is held (cache reorder race).
       if (fromTabSwitch) {
-        unawaited(_refreshTabCacheSilently(tab));
         return;
       }
     }
@@ -705,9 +713,13 @@ class HomeController extends GetxController with WidgetsBindingObserver {
           visiblePageIndex.value = target;
           currentIndex.value = target;
         }
+        // Skip epoch bump during tab switch — serialized attach runs from the
+        // tab handler; a concurrent epoch was spawning duplicate decoders on MTK.
         if (tab == selectedType.value &&
             (parsed.videos?.isNotEmpty ?? false) &&
-            !backgroundRefresh) {
+            !backgroundRefresh &&
+            !fromTabSwitch &&
+            !_feedTabSwitchLocked) {
           feedPlaybackEpoch.value++;
         }
       }
@@ -721,6 +733,10 @@ class HomeController extends GetxController with WidgetsBindingObserver {
 
   /// Refresh tab cache from network without touching live feed / playback.
   Future<void> _refreshTabCacheSilently(String tab) async {
+    // Cache reorder race: never mutate tab cache mid-switch.
+    if (_feedTabSwitchLocked) {
+      return;
+    }
     if (selectedType.value != tab) {
       return;
     }
@@ -1226,11 +1242,17 @@ class HomeController extends GetxController with WidgetsBindingObserver {
     if (savedId != null && savedId.isNotEmpty) {
       final byId = videos.indexWhere((video) => video.id == savedId);
       if (byId != -1) {
-        return byId;
+        return byId.clamp(0, videos.length - 1);
       }
+      // Saved id missing from this snapshot (stale cache / reorder) — index 0
+      // avoids jumping to a wrong reel via a stale scroll index (index race).
+      return 0;
     }
     final savedIndex = scrollIndexForTab(tab);
-    return savedIndex.clamp(0, videos.length - 1);
+    if (savedIndex < 0 || savedIndex >= videos.length) {
+      return 0;
+    }
+    return savedIndex;
   }
 
   /// TikTok-style refresh: reload the current feed from the network and jump

@@ -592,8 +592,8 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
     }
   }
 
-  /// One permanent full-size surface for the feed — MTK cannot repaint after
-  /// reparenting or dual decoders (renderFps=0).
+  /// One permanent full-size surface for the feed — stable [ValueKey] keeps the
+  /// native [ImageReader] across tab switches (MTK renderFps=0 if remounted).
   Widget _buildFeedVideoSurfaces() {
     final controller = _pool.feedSlotVideoController(0);
     if (controller == null) {
@@ -828,9 +828,19 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
       if (newKey.isNotEmpty) {
         _pool.clearUserPaused(newKey);
       }
-      _frameReady = false;
-      _showThumbnail = false;
-      _surfacePaintFrames = 0;
+      // Premature thumbnail hide race: keep poster until _onFrameReady for this
+      // key — never clear on optimistic tab/switch state (MTK shows black).
+      if (newKey.isNotEmpty &&
+          _pool.isFrameReady(newKey) &&
+          _pool.isFeedVisibleKey(newKey)) {
+        _frameReady = true;
+        _showThumbnail = false;
+        _surfacePaintFrames = _minSurfacePaintFrames;
+      } else {
+        _frameReady = false;
+        _showThumbnail = true;
+        _surfacePaintFrames = 0;
+      }
       return;
     }
     final poolPrimed = _isPoolPrimedForKey(newKey);
@@ -852,9 +862,9 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
       _surfacePaintFrames = _minSurfacePaintFrames;
       return;
     }
-    // Demux-ahead from scroll preload: keep the surface, skip poster flash.
+    // Demux-ahead: surface stays mounted but poster stays until first paint.
     _frameReady = false;
-    _showThumbnail = false;
+    _showThumbnail = true;
     _surfacePaintFrames = 0;
   }
 

@@ -67,8 +67,6 @@ class _FeedTabLayer {
 
   final PageController pageController;
   final ValueNotifier<int> visibleIndexNotifier;
-  final GlobalKey<ReelVideoPlayerState> reelPlayerKey =
-      GlobalKey<ReelVideoPlayerState>();
   WallVideos? activePlayerVideo;
   int? scrollTowardActualIndex;
 
@@ -123,6 +121,14 @@ class _VideoReelScreenState extends State<VideoReelScreen>
   Timer? _playbackAttachDebounce;
   int _lastHandledPlaybackEpoch = -1;
   final Map<String, int> _commentCounts = {};
+
+  /// One shared player key across tabs — per-tab keys remounted [ReelVideoPlayer]
+  /// on every tab switch and tore down the MTK [ImageReader] surface.
+  final GlobalKey<ReelVideoPlayerState> _feedReelPlayerKey =
+      GlobalKey<ReelVideoPlayerState>();
+
+  Completer<void>? _tabSwitchFrameCompleter;
+  String? _tabSwitchTargetVideoId;
 
   String get _activeTabType => controller.selectedType.value;
 
@@ -223,7 +229,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
     );
     _playbackCoordinator.onPageSettled(index, context: context);
     _schedulePlayerForPage(tab, index, forceReattach: true);
-    unawaited(layer.reelPlayerKey.currentState?.resumeAfterRouteOverlay());
+    unawaited(_feedReelPlayerKey.currentState?.resumeAfterRouteOverlay());
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || !controller.canPlayHomeReels) {
         return;
@@ -280,10 +286,54 @@ class _VideoReelScreenState extends State<VideoReelScreen>
         if (!mounted || !controller.canPlayHomeReels) {
           return;
         }
-        unawaited(layer.reelPlayerKey.currentState?.resumeAfterRouteOverlay());
+        unawaited(_feedReelPlayerKey.currentState?.resumeAfterRouteOverlay());
         _resumeFeedAudibleOnce();
       });
     }
+  }
+
+  void _persistLeavingTabPlayback(String tab) {
+    final layer = _layerFor(tab);
+    final videos = tab == controller.selectedType.value
+        ? controller.videoFeed.value.videos
+        : controller.cachedVideosForTab(tab);
+    if (videos == null || videos.isEmpty) {
+      return;
+    }
+    final idx = layer.visibleIndexNotifier.value % videos.length;
+    controller.saveTabScrollIndex(tab, idx);
+    controller.saveTabVideoId(tab, videos[idx].id);
+  }
+
+  Future<void> _waitForTabSwitchFrame() async {
+    final completer = Completer<void>();
+    _tabSwitchFrameCompleter = completer;
+    try {
+      await completer.future.timeout(
+        const Duration(seconds: 4),
+        onTimeout: () {},
+      );
+    } finally {
+      if (identical(_tabSwitchFrameCompleter, completer)) {
+        _tabSwitchFrameCompleter = null;
+      }
+    }
+  }
+
+  void _completeTabSwitchFrameIfReady() {
+    final completer = _tabSwitchFrameCompleter;
+    if (completer == null || completer.isCompleted) {
+      return;
+    }
+    final expectedId = _tabSwitchTargetVideoId;
+    final actualId = _activeLayer.activePlayerVideo?.id;
+    if (expectedId != null &&
+        expectedId.isNotEmpty &&
+        actualId != null &&
+        actualId != expectedId) {
+      return;
+    }
+    completer.complete();
   }
 
   /// Switches عام / بالقرب / المتابعة — same playback lifecycle on every tab.
@@ -304,8 +354,11 @@ class _VideoReelScreenState extends State<VideoReelScreen>
     }
     _feedTabSwitchInFlight = true;
     _suppressFocusPlayback = true;
+    controller.beginFeedTabSwitch();
     try {
       final previousTab = controller.selectedType.value;
+      // Index race: persist leaving tab before any index reads change.
+      _persistLeavingTabPlayback(previousTab);
       await controller.prepareForFeedTabSwitch();
       _preloadManager.resetForTabSwitch();
       final layer = _layerFor(newTabType);
@@ -318,6 +371,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
         if (layer.pageController.hasClients) {
           layer.pageController.jumpToPage(targetIndex);
         }
+        _tabSwitchTargetVideoId = cached[targetIndex].id;
       }
       // Apply scroll + visiblePageIndex before showing the tab — otherwise
       // FocusDetector jumps using the previous tab's index (wrong reel poster).
@@ -326,12 +380,24 @@ class _VideoReelScreenState extends State<VideoReelScreen>
       await controller.fetchVideos(fromTabSwitch: true);
       if (mounted &&
           (controller.videoFeed.value.videos?.isNotEmpty ?? false)) {
+        final videos = controller.videoFeed.value.videos!;
+        final resolved =
+            controller.resolveScrollIndexForTab(newTabType, videos);
+        _tabSwitchTargetVideoId = videos[resolved].id;
+        // Serialized: open → wait for first frame → unlock (not concurrent).
         _finishFeedTabPlayback(newTabType);
+        await _waitForTabSwitchFrame();
       }
     } finally {
+      controller.endFeedTabSwitch();
+      _tabSwitchTargetVideoId = null;
       _feedTabSwitchInFlight = false;
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        _suppressFocusPlayback = false;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            _suppressFocusPlayback = false;
+          }
+        });
       });
     }
   }
@@ -413,6 +479,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
         targetId.isNotEmpty;
     if (alreadyOnTarget) {
       _resumeFeedAudibleOnce();
+      _completeTabSwitchFrameIfReady();
       return;
     }
     _preloadManager.prepareForVisibleAttach();
@@ -441,6 +508,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
     if (!mounted || !controller.isReelsTabVisible.value) {
       return;
     }
+    _completeTabSwitchFrameIfReady();
     _preloadManager.decoderWarmEnabled = true;
     _maybeBootstrapPreload();
     final index = _activeLayer.visibleIndexNotifier.value;
@@ -473,7 +541,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
   Widget _buildInlineReelPlayer(WallVideos video, {required String tab}) {
     return ReelFeedPlayerKit.buildInlinePlayer(
       video: video,
-      playerKey: _layerFor(tab).reelPlayerKey,
+      playerKey: _feedReelPlayerKey,
       onPlaybackReady: () {
         _onVisibleReelReady();
       },
@@ -869,7 +937,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
   }
 
   void _applyPendingRestoreIfPossible() {
-    if (_sessionRestored) {
+    if (_sessionRestored || _feedTabSwitchInFlight) {
       return;
     }
     if (_pendingRestoreVideoId == null) {

@@ -40,5 +40,27 @@ void main() {
         1,
       );
     });
+
+    test('resolveScrollIndexForTab falls back to 0 when saved id is stale', () {
+      final videos = [video('a'), video('b'), video('c')];
+      controller.saveTabScrollIndex('Near Me', 2);
+      controller.saveTabVideoId('Near Me', 'missing');
+
+      expect(
+        controller.resolveScrollIndexForTab('Near Me', videos),
+        0,
+      );
+    });
+
+    test('resolveScrollIndexForTab falls back to 0 when saved index out of bounds',
+        () {
+      final videos = [video('a'), video('b')];
+      controller.saveTabScrollIndex('Following', 9);
+
+      expect(
+        controller.resolveScrollIndexForTab('Following', videos),
+        0,
+      );
+    });
   });
 }
