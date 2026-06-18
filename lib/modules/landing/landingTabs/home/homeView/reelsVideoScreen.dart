@@ -1071,7 +1071,9 @@ class _VideoReelScreenState extends State<VideoReelScreen>
               child: ValueListenableBuilder<int>(
                 valueListenable: layer.visibleIndexNotifier,
                 builder: (context, visibleIndex, _) {
+                  return Obx(() {
                   final isActiveReel = isActiveTab &&
+                      controller.canPlayHomeReels &&
                       actualIndex == visibleIndex &&
                       videoDetail.isImage != 1;
                   return Stack(
@@ -1175,6 +1177,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                         ),
                     ],
                   );
+                  });
                 },
               ),
             );

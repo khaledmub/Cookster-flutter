@@ -57,6 +57,8 @@ class ReelVideoPlayer extends StatefulWidget {
 }
 
 class ReelVideoPlayerState extends State<ReelVideoPlayer> {
+  static int _liveInstances = 0;
+
   static const _frameTimeoutDuration = Duration(seconds: 2);
   static const _thumbnailFadeDuration = Duration(milliseconds: 150);
 
@@ -108,6 +110,11 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
   @override
   void initState() {
     super.initState();
+    _liveInstances++;
+    debugPrint(
+      '[ReelVideoPlayer] init hash=$hashCode live=$_liveInstances '
+      'key=$_poolKey feedChannel=$_usesFeedVisibleChannel',
+    );
     if (_usesFeedVisibleChannel) {
       _pool.feedActiveSlotIndexNotifier.addListener(_onFeedActiveSlotChanged);
       _activeFeedSlotIndex = _pool.activeFeedSlotIndex;
@@ -158,6 +165,11 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
 
   @override
   void dispose() {
+    _liveInstances--;
+    debugPrint(
+      '[ReelVideoPlayer] dispose hash=$hashCode live=$_liveInstances '
+      'key=${_pooledKey ?? _poolKey}',
+    );
     _isDisposed = true;
     if (_usesFeedVisibleChannel) {
       _pool.feedActiveSlotIndexNotifier.removeListener(_onFeedActiveSlotChanged);

@@ -25,6 +25,7 @@ import 'package:cookster/modules/landing/landingTabs/home/homeWidgets/reel_feed_
 import 'package:cookster/modules/landing/landingTabs/home/homeWidgets/reel_overlay_column.dart';
 import 'package:cookster/modules/landing/landingTabs/home/homeWidgets/reel_video_player.dart';
 import 'package:flutter/gestures.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -113,14 +114,6 @@ class _ProfileReelScreenState extends State<ProfileReelScreen> {
       targetForIndex: _preloadTargetForIndex,
       thumbnailUrlForIndex: _thumbnailUrlForIndex,
     );
-    if (seeds != null && seeds.isNotEmpty) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) {
-          return;
-        }
-        _startPlaybackAt(startIndex);
-      });
-    }
     unawaited(_bootstrap());
   }
 
@@ -161,6 +154,13 @@ class _ProfileReelScreenState extends State<ProfileReelScreen> {
     if (!mounted) {
       return;
     }
+    await SchedulerBinding.instance.endOfFrame;
+    if (!mounted) {
+      return;
+    }
+    if (_videos.isNotEmpty) {
+      _startPlaybackAt(_visibleIndexNotifier.value);
+    }
     await _applyFeedResult(await feedFuture);
   }
 
@@ -173,7 +173,7 @@ class _ProfileReelScreenState extends State<ProfileReelScreen> {
     _pageController.dispose();
     _playbackCoordinator.dispose();
     MediaKitPlayerPool.instance.pauseAllImmediate();
-    unawaited(MediaKitPlayerPool.instance.disposeAll());
+    _homeController.resumeReelsAfterRouteOverlay();
     super.dispose();
   }
 

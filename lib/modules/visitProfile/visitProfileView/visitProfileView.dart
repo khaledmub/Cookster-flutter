@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cookster/core/navigation/route_back.dart';
 import 'package:cookster/appUtils/appUtils.dart';
@@ -30,6 +32,7 @@ import '../../followersFollowing/followersFollowingView/followersFollowingView.d
 import '../../landing/landingTabs/professionalProfile/profileControlller/professionalProfileController.dart';
 import '../../landing/landingTabs/professionalProfile/profileWidgets/professsionalProfileWidgets.dart';
 import '../../landing/landingTabs/profile/profileControlller/profileController.dart';
+import 'package:cookster/core/video/fullscreen_video_playback.dart';
 import 'package:cookster/core/video/profile_reel_prefetch.dart';
 import 'package:cookster/core/user/public_user_identity.dart';
 import 'package:cookster/core/profile/profile_video_type_utils.dart';
@@ -168,6 +171,14 @@ class _VisitProfileViewState extends State<VisitProfileView>
   }
 
   bool _followerChanged = false; // Track if follow status changed
+
+  Future<void> _openProfileReelFromGrid(Videos tapped, VideoTypes activeTab) async {
+    await prepareForProfileReelRoute();
+    if (!mounted) {
+      return;
+    }
+    _openProfileReel(tapped, activeTab);
+  }
 
   void _openProfileReel(Videos tapped, VideoTypes activeTab) {
     final profile = visitProfileController.visitProfile.value;
@@ -974,10 +985,12 @@ class _VisitProfileViewState extends State<VisitProfileView>
             (context, videoIndex) {
               final video = videos[videoIndex];
               return GestureDetector(
-                onTap: () => _openProfileReel(
-                  video,
-                  displayVideoTypes[_tabController!.index],
-                ),
+                onTap: () {
+                  unawaited(_openProfileReelFromGrid(
+                    video,
+                    displayVideoTypes[_tabController!.index],
+                  ));
+                },
                 child: Stack(
                   children: [
                     ProfileGridThumbnail(

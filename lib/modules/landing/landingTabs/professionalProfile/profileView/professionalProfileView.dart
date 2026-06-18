@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:cookster/appBindings/app_bindings.dart';
@@ -7,6 +8,7 @@ import 'package:cookster/core/parsing/feed_parsers.dart';
 import 'package:cookster/core/widgets/profile_grid_thumbnail.dart';
 import 'package:cookster/core/widgets/profile_user_title.dart';
 import 'package:cookster/modules/landing/landingTabs/home/homeModel/videoFeedModel.dart';
+import 'package:cookster/core/video/fullscreen_video_playback.dart';
 import 'package:cookster/core/video/media_kit_player_pool.dart';
 import 'package:cookster/core/profile/profile_video_type_utils.dart';
 import 'package:cookster/core/profile/profile_share.dart';
@@ -996,15 +998,10 @@ class _ProfessionalProfileViewState extends State<ProfessionalProfileView>
               final video = videos[videoIndex];
               return GestureDetector(
                 onTap: () {
-                  if (Get.isRegistered<HomeController>()) {
-                    Get.find<HomeController>().pauseReelsForRouteOverlay();
-                  } else {
-                    MediaKitPlayerPool.instance.silenceAllSync();
-                  }
-                  _openProfileReel(
+                  unawaited(_openProfileReelFromGrid(
                     video,
                     displayVideoTypes[_tabController!.index],
-                  );
+                  ));
                 },
                 child: Stack(
                   children: [
@@ -1295,6 +1292,17 @@ class _ProfessionalProfileViewState extends State<ProfessionalProfileView>
         const SnackBar(content: Text('Could not open location')),
       );
     }
+  }
+
+  Future<void> _openProfileReelFromGrid(
+    ProfessionalVideos tapped,
+    VideoTypes activeTab,
+  ) async {
+    await prepareForProfileReelRoute();
+    if (!mounted) {
+      return;
+    }
+    _openProfileReel(tapped, activeTab);
   }
 
   void _openProfileReel(

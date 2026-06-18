@@ -1,9 +1,12 @@
+import 'dart:async';
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cookster/appBindings/app_bindings.dart';
 import 'package:cookster/appRoutes/appRoutes.dart';
 import 'package:cookster/core/firestore/reel_video_stats.dart';
 import 'package:cookster/core/parsing/feed_parsers.dart';
 import 'package:cookster/appUtils/feature_flags.dart';
+import 'package:cookster/core/video/fullscreen_video_playback.dart';
 import 'package:cookster/core/video/media_kit_player_pool.dart';
 import 'package:cookster/core/profile/profile_share.dart';
 import 'package:cookster/core/user/public_user_identity.dart';
@@ -624,15 +627,10 @@ class _ProfileViewState extends State<ProfileView>
                           final video = selectedVideos[videoIndex];
                           return GestureDetector(
                             onTap: () {
-                              if (Get.isRegistered<HomeController>()) {
-                                Get.find<HomeController>().pauseReelsForRouteOverlay();
-                              } else {
-                                MediaKitPlayerPool.instance.silenceAllSync();
-                              }
-                              _openProfileReel(
+                              unawaited(_openProfileReelFromGrid(
                                 video,
                                 displayVideoTypes[_tabController!.index],
-                              );
+                              ));
                             },
                             child: Stack(
                               children: [
@@ -808,6 +806,17 @@ class _ProfileViewState extends State<ProfileView>
         ),
       );
     });
+  }
+
+  Future<void> _openProfileReelFromGrid(
+    UserVideos tapped,
+    VideoTypes activeTab,
+  ) async {
+    await prepareForProfileReelRoute();
+    if (!mounted) {
+      return;
+    }
+    _openProfileReel(tapped, activeTab);
   }
 
   void _openProfileReel(UserVideos tapped, VideoTypes activeTab) {
