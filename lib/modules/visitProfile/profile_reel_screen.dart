@@ -18,6 +18,7 @@ import 'package:cookster/core/video/video_preload_target.dart';
 import 'package:cookster/core/video/video_source_resolver.dart';
 import 'package:cookster/core/widgets/grid_thumbnail_cache.dart';
 import 'package:cookster/core/widgets/reel_page_keep_alive.dart';
+import 'package:cookster/core/widgets/reel_content_chrome.dart';
 import 'package:cookster/modules/landing/landingTabs/home/homeController/homeController.dart';
 import 'package:cookster/modules/landing/landingTabs/home/homeModel/videoFeedModel.dart';
 import 'package:cookster/modules/landing/landingTabs/home/homeView/reelsVideoScreen.dart'
@@ -782,24 +783,39 @@ class _ProfileReelScreenState extends State<ProfileReelScreen> {
                     child: ValueListenableBuilder<int>(
                     valueListenable: _visibleIndexNotifier,
                     builder: (context, visibleIndex, _) {
-                      final isActiveReel =
-                          index == visibleIndex && video.isImage != 1;
+                      final isActivePage = index == visibleIndex;
+                      final isActiveVideo =
+                          isActivePage && !video.isPhotoPost;
                       final maskPoster =
-                          isActiveReel && _maskActiveVideoWithPoster;
+                          isActiveVideo && _maskActiveVideoWithPoster;
                       return Stack(
                         clipBehavior: Clip.none,
                         alignment: Alignment.bottomLeft,
                         fit: StackFit.expand,
                         children: [
-                          if (isActiveReel) _buildInlineReelPlayer(video, index),
-                          IgnorePointer(
-                            ignoring: isActiveReel && !maskPoster,
-                            child: Opacity(
-                              opacity: maskPoster || !isActiveReel ? 1.0 : 0.0,
-                              child: ReelFeedPlayerKit.buildPagePoster(video),
+                          ReelFeedPageMediaChrome(
+                            video: video,
+                            isActivePage: isActivePage,
+                            child: Stack(
+                              fit: StackFit.expand,
+                              children: [
+                                if (isActiveVideo)
+                                  _buildInlineReelPlayer(video, index),
+                                IgnorePointer(
+                                  ignoring: isActiveVideo && !maskPoster,
+                                  child: Opacity(
+                                    opacity: maskPoster || !isActiveVideo
+                                        ? 1.0
+                                        : 0.0,
+                                    child: ReelFeedPlayerKit.buildPagePoster(
+                                      video,
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
-                          if (isActiveReel) ...[
+                          if (isActivePage) ...[
                             VideoDescriptionWidget(
                               title: video.title,
                               description: video.description,

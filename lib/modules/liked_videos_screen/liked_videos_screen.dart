@@ -5,6 +5,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:get/get.dart';
 import 'package:cookster/core/navigation/route_back.dart';
 import 'package:cookster/core/widgets/grid_thumbnail_cache.dart';
+import 'package:cookster/core/widgets/reel_content_chrome.dart';
 import 'package:cookster/core/video/profile_reel_prefetch.dart';
 import 'package:cookster/modules/collection_reel/collection_reel_screen.dart';
 
@@ -42,6 +43,17 @@ class _LikedVideosScreenState extends State<LikedVideosScreen>
   void dispose() {
     disposePaginatedScroll();
     super.dispose();
+  }
+
+  bool _likedTileIsPhoto(LikedVideos video) {
+    final playback = video.resolvedPlaybackUrl?.trim() ?? '';
+    final thumb = video.resolvedThumbnailUrl?.trim() ?? '';
+    if (playback.isEmpty) {
+      return false;
+    }
+    return !playback.contains('.mp4') &&
+        !playback.contains('.m3u8') &&
+        thumb.isNotEmpty;
   }
 
   Widget _buildVideoTile(LikedVideos video, int thumbCache) {
@@ -88,10 +100,8 @@ class _LikedVideosScreenState extends State<LikedVideosScreen>
                   ),
           ),
           Center(
-            child: Icon(
-              Icons.play_circle_outline,
-              color: Colors.white.withValues(alpha: 0.7),
-              size: 30.sp,
+            child: ReelGridMediaTypeIcon(
+              isPhoto: _likedTileIsPhoto(video),
             ),
           ),
         ],

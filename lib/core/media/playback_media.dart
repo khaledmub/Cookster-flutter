@@ -11,6 +11,43 @@ class PlaybackMedia {
 
   static bool isReady(String? transcodeStatus) => transcodeStatus == 'ready';
 
+  /// Parses API booleans sent as `true`, `1`, `"1"`, etc.
+  static bool? parseOptionalFlag(dynamic value) {
+    if (value == null) {
+      return null;
+    }
+    if (value is bool) {
+      return value;
+    }
+    if (value is int) {
+      return value == 1;
+    }
+    final normalized = value.toString().trim().toLowerCase();
+    if (normalized == '1' || normalized == 'true') {
+      return true;
+    }
+    if (normalized == '0' || normalized == 'false') {
+      return false;
+    }
+    return null;
+  }
+
+  /// Backend contract: photo posts are always playable; videos use
+  /// `playback_ready` when present, else `transcode_status == ready`.
+  static bool isPlaybackReady({
+    required bool isPhotoPost,
+    bool? playbackReady,
+    String? transcodeStatus,
+  }) {
+    if (isPhotoPost) {
+      return true;
+    }
+    if (playbackReady != null) {
+      return playbackReady;
+    }
+    return isReady(transcodeStatus);
+  }
+
   /// Master `.m3u8` (absolute CDN URL) only when transcode is ready.
   static String? resolvedHls({
     required String? transcodeStatus,

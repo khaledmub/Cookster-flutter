@@ -121,6 +121,7 @@ class _ReelGaplessPosterState extends State<ReelGaplessPoster> {
         blur.isEmpty ? null : _cachedProviderFor(blur, lqip: true);
     if (cachedBlur == null &&
         !_isLqipLayer &&
+        !_isImagePost &&
         primary.isNotEmpty &&
         (blur.isEmpty || blur == primary)) {
       cachedBlur = _cachedLqipFor(primary);
@@ -207,7 +208,8 @@ class _ReelGaplessPosterState extends State<ReelGaplessPoster> {
     }
     final blur = widget.blurUrl?.trim() ?? '';
     final primary = widget.imageUrl.trim();
-    if (!_isLqipLayer &&
+    if (!_isImagePost &&
+        !_isLqipLayer &&
         _resolvedPrimary == null &&
         primary.isNotEmpty &&
         (blur.isEmpty || blur == primary)) {

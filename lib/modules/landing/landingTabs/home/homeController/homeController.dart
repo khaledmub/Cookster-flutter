@@ -38,7 +38,6 @@ class HomeController extends GetxController with WidgetsBindingObserver {
   var isAppInBackground = false.obs;
   int _routeOverlayPauseDepth = 0;
   int _mediaCaptureDepth = 0;
-  bool _feedPlaybackNeedsColdRestore = false;
   bool _feedResumePendingWhenHomeTab = false;
 
   /// True while camera / picker / editor / upload flow holds feed decoders released.
@@ -1085,15 +1084,12 @@ class HomeController extends GetxController with WidgetsBindingObserver {
     if (isAppInBackground.value) {
       return;
     }
-    final needsCold =
-        _feedPlaybackNeedsColdRestore || _feedResumePendingWhenHomeTab;
-    _feedPlaybackNeedsColdRestore = false;
     _feedResumePendingWhenHomeTab = false;
     isNavigating.value = false;
     setReelsTabVisible(true);
-    if (needsCold) {
-      feedPlaybackEpoch.value++;
-    }
+    // Always bump epoch after a route overlay so the feed re-attaches even when
+    // only pause/surrender ran (visit profile without full pool dispose).
+    feedPlaybackEpoch.value++;
     isVideoPlaying.value = true;
     unawaited(resumeVisibleVideo(visiblePageIndex.value));
   }
@@ -1129,9 +1125,6 @@ class HomeController extends GetxController with WidgetsBindingObserver {
     await MediaKitPlayerPool.instance.disposeAll();
     await VideoPlayerPool.instance.clear();
     isVideoPlaying.value = false;
-    if (!mediaCapture) {
-      _feedPlaybackNeedsColdRestore = true;
-    }
   }
 
   /// Entry to add-button picker / camera / editor — blocks feed resume until

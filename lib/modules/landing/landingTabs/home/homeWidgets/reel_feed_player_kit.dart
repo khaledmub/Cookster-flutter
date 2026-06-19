@@ -26,19 +26,27 @@ class ReelFeedPlayerKit {
         '';
   }
 
-  /// Fast LQIP for image posts — thumbnail or reel poster, not full asset.
+  /// Fast LQIP for image posts — CDN thumbnail tier when full file lives elsewhere.
   static String? imageLqipUrl(WallVideos video) {
-    final lqip = video.resolvedThumbnailUrl ??
+    final lqip = video.resolvedPhotoLqipUrl?.trim();
+    if (lqip != null && lqip.isNotEmpty) {
+      return lqip;
+    }
+    final thumb = video.resolvedThumbnailUrl ??
         video.resolvedReelPosterUrl ??
         video.resolvedReelPosterFallbackUrl;
-    final trimmed = lqip?.trim() ?? '';
-    return trimmed.isEmpty ? null : trimmed;
+    final trimmed = thumb?.trim() ?? '';
+    final full = video.resolvedPhotoDisplayUrl?.trim() ?? '';
+    if (trimmed.isEmpty || trimmed == full) {
+      return null;
+    }
+    return trimmed;
   }
 
   /// Blur/LQIP underlay for image posts — separate CDN path or same URL for
   /// downscaled decode tier.
   static String? imagePostBlurUrl(WallVideos video) {
-    final full = video.resolvedPlaybackUrl?.trim() ?? '';
+    final full = imagePostDisplayUrl(video) ?? '';
     if (full.isEmpty) {
       return null;
     }
@@ -46,16 +54,22 @@ class ReelFeedPlayerKit {
     if (lqip != null && lqip.isNotEmpty && lqip != full) {
       return lqip;
     }
-    return full;
+    // Same URL for thumb + full — skip blur tier (upscaling LQIP looks pixelated).
+    return null;
   }
 
   static String imagePostCacheKey(WallVideos video) =>
-      'image_post_${video.id ?? video.resolvedPlaybackUrl ?? ''}';
+      'image_post_${video.id ?? video.resolvedPhotoDisplayUrl ?? ''}';
+
+  static String? imagePostDisplayUrl(WallVideos video) {
+    final url = video.resolvedPhotoDisplayUrl?.trim() ?? '';
+    return url.isEmpty ? null : url;
+  }
 
   /// Ordered decode tiers to warm ahead of scroll.
   static List<ReelPosterPrecacheTier> precachePosterTiers(WallVideos video) {
-    if (video.isImage == 1) {
-      final full = video.resolvedPlaybackUrl?.trim() ?? '';
+    if (video.isPhotoPost) {
+      final full = imagePostDisplayUrl(video) ?? '';
       if (full.isEmpty) {
         return const [];
       }
@@ -67,7 +81,6 @@ class ReelFeedPlayerKit {
         ];
       }
       return [
-        ReelPosterPrecacheTier(url: full, lqip: true),
         ReelPosterPrecacheTier(url: full, lqip: false),
       ];
     }
@@ -134,11 +147,16 @@ class ReelFeedPlayerKit {
   /// Full-screen poster for off-screen / image pages. Active video pages should
   /// omit this when the inline player is mounted (player owns the poster).
   static Widget buildPagePoster(WallVideos video) {
-    if (video.isImage == 1) {
-      final url = video.resolvedPlaybackUrl ?? '';
+    if (video.isPhotoPost) {
+      final url = imagePostDisplayUrl(video) ?? '';
+      if (url.isEmpty) {
+        return const ColoredBox(color: Colors.black);
+      }
       return ReelGaplessPoster(
         imageUrl: url,
         blurUrl: imagePostBlurUrl(video),
+        fallbackUrl: video.resolvedThumbnailUrl ??
+            video.resolvedReelPosterFallbackUrl,
         cacheKey: imagePostCacheKey(video),
         fit: BoxFit.cover,
       );
@@ -158,7 +176,7 @@ class ReelFeedPlayerKit {
   /// Lightweight thumb-only layer for off-screen image posts.
   static Widget buildImageThumbPoster(WallVideos video) {
     final url = imagePostBlurUrl(video) ??
-        video.resolvedPlaybackUrl?.trim() ??
+        imagePostDisplayUrl(video) ??
         '';
     if (url.isEmpty) {
       return const ColoredBox(color: Colors.black);
@@ -179,7 +197,7 @@ class ReelFeedPlayerKit {
     required GlobalKey<ReelImageDisplayState> displayKey,
     bool wrapPositioned = true,
   }) {
-    final url = video.resolvedPlaybackUrl ?? '';
+    final url = imagePostDisplayUrl(video) ?? '';
     final display = ReelImageDisplay(
       key: displayKey,
       imageUrl: url,

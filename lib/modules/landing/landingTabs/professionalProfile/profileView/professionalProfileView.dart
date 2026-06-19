@@ -6,6 +6,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cookster/core/firestore/reel_video_stats.dart';
 import 'package:cookster/core/parsing/feed_parsers.dart';
 import 'package:cookster/core/widgets/profile_grid_thumbnail.dart';
+import 'package:cookster/core/widgets/reel_content_chrome.dart';
 import 'package:cookster/core/widgets/profile_user_title.dart';
 import 'package:cookster/modules/landing/landingTabs/home/homeModel/videoFeedModel.dart';
 import 'package:cookster/core/video/fullscreen_video_playback.dart';
@@ -1017,10 +1018,8 @@ class _ProfessionalProfileViewState extends State<ProfessionalProfileView>
                       logicalSize: 100,
                     ),
                     Center(
-                      child: Icon(
-                        Icons.play_circle_outline,
-                        color: Colors.white.withOpacity(0.7),
-                        size: 30.sp,
+                      child: ReelGridMediaTypeIcon(
+                        isPhoto: isReelPhotoPostFlag(video.isImage),
                       ),
                     ),
                     Positioned(

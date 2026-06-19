@@ -2,7 +2,9 @@ import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cookster/core/video/media_kit_player_pool.dart';
+import 'package:cookster/core/media/wall_video_media.dart';
 import 'package:cookster/core/widgets/reel_page_keep_alive.dart';
+import 'package:cookster/core/widgets/reel_content_chrome.dart';
 import 'package:cookster/loaders/pulseLoader.dart';
 import 'package:cookster/modules/landing/landingTabs/home/homeController/hashTagController.dart';
 import 'package:cookster/modules/landing/landingTabs/home/homeController/homeController.dart';
@@ -155,34 +157,38 @@ class _HashtagReelScreenState extends State<HashtagReelScreen> {
               onPageChanged: _onPageChanged,
               itemBuilder: (context, index) {
                 final video = videos[index];
-                final showPlayer =
-                    index == _visibleIndex && video.isImage != 1;
+                final isActivePage = index == _visibleIndex;
+                final showPlayer = isActivePage && !video.isPhotoPost;
                 final maskPoster = showPlayer && _maskActiveVideoWithPoster;
                 return ReelPageKeepAlive(
                   key: ValueKey<String>('hashtag_${video.id ?? 'video'}'),
-                  child: Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      if (showPlayer)
-                        ReelFeedPlayerKit.buildInlinePlayer(
-                          video: video,
-                          playerKey: _reelPlayerKey,
-                          wrapPositioned: false,
-                          onFeedVideoPainted: () {
-                            if (!mounted || !_maskActiveVideoWithPoster) {
-                              return;
-                            }
-                            setState(() => _maskActiveVideoWithPoster = false);
-                          },
+                  child: ReelFeedPageMediaChrome(
+                    video: video,
+                    isActivePage: isActivePage,
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        if (showPlayer)
+                          ReelFeedPlayerKit.buildInlinePlayer(
+                            video: video,
+                            playerKey: _reelPlayerKey,
+                            wrapPositioned: false,
+                            onFeedVideoPainted: () {
+                              if (!mounted || !_maskActiveVideoWithPoster) {
+                                return;
+                              }
+                              setState(() => _maskActiveVideoWithPoster = false);
+                            },
+                          ),
+                        IgnorePointer(
+                          ignoring: showPlayer && !maskPoster,
+                          child: Opacity(
+                            opacity: maskPoster || !showPlayer ? 1.0 : 0.0,
+                            child: ReelFeedPlayerKit.buildPagePoster(video),
+                          ),
                         ),
-                      IgnorePointer(
-                        ignoring: showPlayer && !maskPoster,
-                        child: Opacity(
-                          opacity: maskPoster || !showPlayer ? 1.0 : 0.0,
-                          child: ReelFeedPlayerKit.buildPagePoster(video),
-                        ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 );
               },

@@ -180,6 +180,36 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
     await _loadVideo();
   }
 
+  /// Recover GL surface after app resume without remounting the player widget.
+  Future<void> resumeAfterAppBackground() async {
+    if (_isDisposed || !_usesFeedVisibleChannel || !mounted) {
+      return;
+    }
+    final key = _pooledKey;
+    _videoSurfaceVisible = false;
+    _frameReady = false;
+    _fastFeedReveal = false;
+    _surfacePaintFrames = 0;
+    _visibleSurfacePaintFrames = 0;
+    _resetDimensionStability();
+    if (key != null && key.isNotEmpty) {
+      _pool.invalidatePrimedFrame(key);
+      unawaited(_pool.recoverFeedVisibleSurface(key));
+    }
+    final player = _activePlayer;
+    if (player == null) {
+      await _loadVideo();
+      return;
+    }
+    _afterSurfaceMounted(
+      player,
+      paintTicks: _needsConstrainedStartGate ? 10 : 4,
+    );
+    if (_canShowVideo(player)) {
+      await _onFrameReady(player, generation: _attachGeneration);
+    }
+  }
+
   void _onFeedActiveSlotChanged() {
     if (!mounted || _isDisposed || !_usesFeedVisibleChannel) {
       return;
@@ -274,9 +304,11 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
     _pooledKey = null;
     _videoController = null;
     if (key != null) {
-      if (widget.releaseOnDispose) {
+      if (_usesFeedVisibleChannel) {
+        unawaited(_pool.pause(key));
+      } else if (widget.releaseOnDispose) {
         unawaited(_pool.release(key));
-      } else if (!_usesFeedVisibleChannel) {
+      } else {
         unawaited(_pool.surrenderLease(key));
       }
     }
@@ -1540,8 +1572,11 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
             if (!mounted || _isDisposed || generation != _playbackGeneration) {
               return;
             }
-            await _pool.resumeFeedVisible(poolKey);
-            return;
+            if (_pool.isFrameReady(poolKey) && _canShowVideo(player)) {
+              await _pool.resumeFeedVisible(poolKey);
+              await _onFrameReady(player, generation: generation);
+              return;
+            }
           }
         }
       }

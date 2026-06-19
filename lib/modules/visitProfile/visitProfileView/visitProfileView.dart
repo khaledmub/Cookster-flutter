@@ -22,6 +22,7 @@ import 'package:cookster/core/widgets/grid_thumbnail_cache.dart';
 import 'package:cookster/core/widgets/profile_user_title.dart';
 import 'package:cookster/modules/landing/landingTabs/home/homeModel/videoFeedModel.dart';
 import 'package:cookster/core/widgets/profile_grid_thumbnail.dart';
+import 'package:cookster/core/widgets/reel_content_chrome.dart';
 import '../../../appUtils/colorUtils.dart';
 import '../../../appUtils/openToWork.dart';
 import '../../../loaders/pulseLoader.dart';
@@ -1005,10 +1006,8 @@ class _VisitProfileViewState extends State<VisitProfileView>
                       logicalSize: 100,
                     ),
                     Center(
-                      child: Icon(
-                        Icons.play_circle_outline,
-                        color: Colors.white.withOpacity(0.7),
-                        size: 30.sp,
+                      child: ReelGridMediaTypeIcon(
+                        isPhoto: isReelPhotoPostFlag(video.isImage),
                       ),
                     ),
                     Positioned(

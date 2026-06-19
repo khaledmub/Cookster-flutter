@@ -104,6 +104,103 @@ class MediaUrlResolver {
     return _firstResolved([thumbnailBlur]);
   }
 
+  /// CDN feed sometimes puts a low-res file under `/videos/thumbnail/…`.
+  static bool isCdnThumbnailPath(String? url) {
+    if (url == null || url.trim().isEmpty) {
+      return false;
+    }
+    return url.toLowerCase().contains('/videos/thumbnail/');
+  }
+
+  /// `…/videos/thumbnail/123.jpg` → `…/videos/123.jpg`
+  static String upgradePhotoUrlToFullResolution(String url) {
+    final lower = url.toLowerCase();
+    const marker = '/videos/thumbnail/';
+    final idx = lower.indexOf(marker);
+    if (idx < 0) {
+      return url;
+    }
+    return '${url.substring(0, idx)}/videos/${url.substring(idx + marker.length)}';
+  }
+
+  /// Best full-screen URL for photo posts (`is_image: 1`).
+  ///
+  /// Backend contract: [videoUrl] / [video] = full JPG; [thumbnailUrl] = LQIP
+  /// only. Legacy rows may still put `/videos/thumbnail/…` in [videoUrl] — we
+  /// upgrade that path as a fallback.
+  static String? photoDisplayUrl({
+    String? videoUrl,
+    String? video,
+    String? imageUrl,
+    String? image,
+    String? thumbnailUrl,
+  }) {
+    for (final raw in [videoUrl, video, imageUrl, image]) {
+      final resolved = _resolveMediaPath(raw);
+      if (resolved == null || resolved.isEmpty) {
+        continue;
+      }
+      if (!_isStaticImagePath(resolved)) {
+        continue;
+      }
+      if (isCdnThumbnailPath(resolved)) {
+        return upgradePhotoUrlToFullResolution(resolved);
+      }
+      return resolved;
+    }
+
+    // Legacy rows with only thumbnail fields populated.
+    final legacyThumb = _resolveMediaPath(thumbnailUrl);
+    if (legacyThumb != null &&
+        legacyThumb.isNotEmpty &&
+        _isStaticImagePath(legacyThumb)) {
+      return upgradePhotoUrlToFullResolution(legacyThumb);
+    }
+    return null;
+  }
+
+  /// Low-res placeholder while [photoDisplayUrl] loads — uses [thumbnailUrl].
+  static String? photoLqipUrl({
+    String? videoUrl,
+    String? video,
+    String? imageUrl,
+    String? image,
+    String? thumbnailUrl,
+  }) {
+    final full = photoDisplayUrl(
+      videoUrl: videoUrl,
+      video: video,
+      imageUrl: imageUrl,
+      image: image,
+      thumbnailUrl: thumbnailUrl,
+    );
+    if (full == null || full.isEmpty) {
+      return null;
+    }
+    final thumb = _resolveMediaPath(thumbnailUrl);
+    if (thumb != null && thumb.isNotEmpty && thumb != full) {
+      return thumb;
+    }
+    for (final raw in [videoUrl, video]) {
+      final resolved = _resolveMediaPath(raw);
+      if (resolved == null || resolved.isEmpty || resolved == full) {
+        continue;
+      }
+      if (isCdnThumbnailPath(resolved) &&
+          upgradePhotoUrlToFullResolution(resolved) == full) {
+        return resolved;
+      }
+    }
+    return null;
+  }
+
+  static bool _isStaticImagePath(String url) {
+    return RegExp(
+      r'\.(jpe?g|png|webp|gif|heif|heic|bmp)(\?|#|$)',
+      caseSensitive: false,
+    ).hasMatch(url.toLowerCase());
+  }
+
   /// User avatar / cover: absolute CDN URL, or legacy `front_users/{file}` path.
   static String? profileImageUrl(String? value) {
     return _resolveProfileAsset(value);

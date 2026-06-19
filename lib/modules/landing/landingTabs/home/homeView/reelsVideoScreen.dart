@@ -13,6 +13,7 @@ import 'package:cookster/core/media/wall_video_media.dart';
 import 'package:cookster/core/user/public_user_identity.dart';
 import 'package:cookster/core/widgets/grid_thumbnail_cache.dart';
 import 'package:cookster/core/widgets/reel_page_keep_alive.dart';
+import 'package:cookster/core/widgets/reel_content_chrome.dart';
 import 'package:cookster/core/video/media_kit_player_pool.dart';
 import 'package:cookster/core/video/device_constraints.dart';
 import 'package:cookster/core/video/reels_playback_coordinator.dart';
@@ -223,6 +224,8 @@ class _VideoReelScreenState extends State<VideoReelScreen>
     if (!mounted || !controller.canPlayHomeReels) {
       return;
     }
+    _lastHandledPlaybackEpoch = -1;
+    _resetPosterMaskForPageChange();
     final tab = _activeTabType;
     final videos = _videosForTab(tab, isActiveTab: true);
     if (videos == null || videos.isEmpty) {
@@ -243,6 +246,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
       }
       unawaited(_feedReelPlayerKey.currentState?.resumeAfterRouteOverlay());
       _resumeFeedAudibleOnce();
+      _scheduleFinishPlaybackIfReady();
     });
   }
 
@@ -273,10 +277,22 @@ class _VideoReelScreenState extends State<VideoReelScreen>
     final layer = _layerFor(tab);
     final actualIndex = pageIndex % videos.length;
     final video = videos[actualIndex];
+    final leavingPhoto = layer.activePlayerVideo?.isPhotoPost == true;
+
+    if (video.isPhotoPost) {
+      MediaKitPlayerPool.instance.pauseAllImmediate();
+      layer.activePlayerVideo = video;
+      if (mounted) {
+        setState(() {});
+      }
+      return;
+    }
+
     if (video.id == null || video.id!.isEmpty) {
       return;
     }
-    if (!forceReattach && layer.activePlayerVideo?.id == video.id) {
+    final needsReattach = forceReattach || leavingPhoto;
+    if (!needsReattach && layer.activePlayerVideo?.id == video.id) {
       final id = video.id;
       if (id != null &&
           id.isNotEmpty &&
@@ -289,15 +305,19 @@ class _VideoReelScreenState extends State<VideoReelScreen>
     if (mounted) {
       setState(() {});
     }
-    if (forceReattach) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted || !controller.canPlayHomeReels) {
-          return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !controller.canPlayHomeReels) {
+        return;
+      }
+      if (needsReattach) {
+        final key = video.id;
+        if (key != null && key.isNotEmpty) {
+          MediaKitPlayerPool.instance.invalidatePrimedFrame(key);
         }
         unawaited(_feedReelPlayerKey.currentState?.resumeAfterRouteOverlay());
-        _resumeFeedAudibleOnce();
-      });
-    }
+      }
+      _resumeFeedAudibleOnce();
+    });
   }
 
   void _persistLeavingTabPlayback(String tab) {
@@ -488,8 +508,23 @@ class _VideoReelScreenState extends State<VideoReelScreen>
         targetId.isNotEmpty &&
         MediaKitPlayerPool.instance.isFeedVisibleKey(targetId);
     if (alreadyOnTarget) {
-      _resumeFeedAudibleOnce();
-      _completeTabSwitchFrameIfReady();
+      if (targetVideo.isPhotoPost) {
+        _completeTabSwitchFrameIfReady();
+        return;
+      }
+      final audible = MediaKitPlayerPool.instance.isActiveAudible(targetId!);
+      if (audible) {
+        _completeTabSwitchFrameIfReady();
+        return;
+      }
+      _schedulePlayerForPage(tab, targetIndex, forceReattach: true);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || tab != _activeTabType) {
+          return;
+        }
+        _resumeFeedAudibleOnce();
+        _completeTabSwitchFrameIfReady();
+      });
       return;
     }
     _preloadManager.prepareForSessionStart();
@@ -536,6 +571,48 @@ class _VideoReelScreenState extends State<VideoReelScreen>
   void _resetPosterMaskForPageChange() {
     if (!_maskActiveVideoWithPoster) {
       setState(() => _maskActiveVideoWithPoster = true);
+    }
+  }
+
+  void _resumeAfterAppForeground() {
+    if (!mounted) {
+      return;
+    }
+    _resetPosterMaskForPageChange();
+    _lastHandledPlaybackEpoch = -1;
+    final videos = controller.videoFeed.value.videos;
+    final layer = _activeLayer;
+    if (videos == null || videos.isEmpty) {
+      return;
+    }
+    final index = layer.visibleIndexNotifier.value.clamp(0, videos.length - 1);
+    final video = videos[index];
+    if (video.isPhotoPost) {
+      return;
+    }
+    final key = video.id;
+    if (key != null && key.isNotEmpty) {
+      unawaited(MediaKitPlayerPool.instance.recoverFeedVisibleSurface(key));
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !controller.canPlayHomeReels) {
+        return;
+      }
+      _schedulePlayerForPage(_activeTabType, index, forceReattach: true);
+      unawaited(_feedReelPlayerKey.currentState?.resumeAfterAppBackground());
+      _resumeFeedAudibleOnce();
+    });
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    if (state == AppLifecycleState.resumed) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _resumeAfterAppForeground();
+        }
+      });
     }
   }
 
@@ -871,7 +948,10 @@ class _VideoReelScreenState extends State<VideoReelScreen>
     if (key.isEmpty) {
       return null;
     }
-    if (!video.isTranscodeReady) {
+    if (video.isPhotoPost) {
+      return null;
+    }
+    if (!video.isPlaybackReady) {
       return VideoPreloadTarget(key: key, candidates: const []);
     }
     return VideoPreloadTarget(
@@ -1074,9 +1154,14 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                   controller.visiblePageIndex.value,
                 );
               }
+              final focusKey = layer.activePlayerVideo?.id;
+              final poolLive = focusKey != null &&
+                  focusKey.isNotEmpty &&
+                  MediaKitPlayerPool.instance.isFeedVisibleKey(focusKey);
               _schedulePlayerForPage(
                 tab,
                 controller.visiblePageIndex.value,
+                forceReattach: !poolLive,
               );
               _resumeFeedAudibleOnce();
             }
@@ -1133,9 +1218,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
               child: ValueListenableBuilder<int>(
                 valueListenable: layer.visibleIndexNotifier,
                 builder: (context, visibleIndex, _) {
-                  final isVisibleSlot = isActiveTab &&
-                      actualIndex == visibleIndex &&
-                      videoDetail.isImage != 1;
+                  final isActivePage = isActiveTab && actualIndex == visibleIndex;
 
                   Widget buildPageStack({required bool showPlayer}) {
                     final maskPoster = showPlayer && _maskActiveVideoWithPoster;
@@ -1143,29 +1226,36 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                       clipBehavior: Clip.none,
                       alignment: Alignment.bottomLeft,
                       children: [
-                        RepaintBoundary(
-                          child: Stack(
-                            fit: StackFit.expand,
-                            children: [
-                              if (showPlayer)
-                                _buildInlineReelPlayer(
-                                  videoDetail,
-                                  tab: tab,
-                                ),
-                              IgnorePointer(
-                                ignoring: showPlayer && !maskPoster,
-                                child: Opacity(
-                                  opacity: maskPoster || !showPlayer ? 1.0 : 0.0,
-                                  child: _buildPagePoster(
+                        ReelFeedPageMediaChrome(
+                          video: videoDetail,
+                          isActivePage: isActivePage,
+                          belowFeedTabs: isActiveTab,
+                          showPhotoBadge: !isActiveTab,
+                          child: RepaintBoundary(
+                            child: Stack(
+                              fit: StackFit.expand,
+                              children: [
+                                if (showPlayer)
+                                  _buildInlineReelPlayer(
                                     videoDetail,
-                                    isActiveReel: showPlayer,
+                                    tab: tab,
+                                  ),
+                                IgnorePointer(
+                                  ignoring: showPlayer && !maskPoster,
+                                  child: Opacity(
+                                    opacity:
+                                        maskPoster || !showPlayer ? 1.0 : 0.0,
+                                    child: _buildPagePoster(
+                                      videoDetail,
+                                      isActiveReel: showPlayer,
+                                    ),
                                   ),
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
                         ),
-                        if (showPlayer)
+                        if (showPlayer || videoDetail.isPhotoPost)
                           Positioned.fill(
                             child: GestureDetector(
                               behavior: HitTestBehavior.translucent,
@@ -1259,17 +1349,19 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                               ),
                             ),
                           ),
+                        if (isActivePage &&
+                            videoDetail.isPhotoPost &&
+                            isActiveTab)
+                          const ReelPhotoBadge(belowFeedTabs: true),
                       ],
                     );
                   }
 
-                  if (!isVisibleSlot) {
+                  if (!isActivePage) {
                     return buildPageStack(showPlayer: false);
                   }
-                  return Obx(
-                    () => buildPageStack(
-                      showPlayer: controller.canPlayHomeReels,
-                    ),
+                  return buildPageStack(
+                    showPlayer: !videoDetail.isPhotoPost,
                   );
                 },
               ),

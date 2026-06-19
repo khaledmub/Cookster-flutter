@@ -1,3 +1,4 @@
+import 'package:cookster/core/media/playback_media.dart';
 import 'package:cookster/core/parsing/feed_parsers.dart';
 import 'package:cookster/modules/landing/landingTabs/home/homeModel/userSaveUnsave.dart';
 import 'package:cookster/modules/landing/landingTabs/profile/profileModel/profileModel.dart'
@@ -110,6 +111,7 @@ class WallVideos {
   String? frontUserId;
   dynamic sponsorType;
   dynamic isImage;
+  bool? playbackReady;
   String? title;
   int? videoType;
   String? description;
@@ -184,6 +186,7 @@ class WallVideos {
     this.videoType,
     this.description,
     this.isImage,
+    this.playbackReady,
     this.tags,
     this.menu,
     this.publishType,
@@ -237,6 +240,7 @@ class WallVideos {
     takeOrder = json['take_order'] as int?;
     allowComments = parseAllowComments(json['allow_comments']);
     isImage = json['is_image'];
+    playbackReady = PlaybackMedia.parseOptionalFlag(json['playback_ready']);
     location = json['location'] as String?;
     image = json['image'] as String?;
     video = json['video'] as String?;
@@ -321,6 +325,7 @@ class WallVideos {
     w.userImage = v.userImage?.toString() ?? ownerImage;
     w.followersCount = parseApiCount(v.followersCount ?? ownerFollowers);
     w.isImage = v.isImage;
+    w.playbackReady = PlaybackMedia.parseOptionalFlag(v.playbackReady);
     w.allowComments = parseAllowComments(v.allowComments);
     w.createdAt = v.createdAt?.toString();
     return w;
@@ -464,6 +469,7 @@ class WallVideos {
     dynamic followersCount,
     dynamic allowComments,
     dynamic isImage,
+    bool? playbackReady,
     dynamic createdAt,
     dynamic likesCount,
     dynamic userEmail,
@@ -490,6 +496,7 @@ class WallVideos {
     w.followersCount = parseApiCount(followersCount);
     w.likesCount = parseApiCount(likesCount);
     w.isImage = isImage;
+    w.playbackReady = playbackReady;
     w.allowComments = parseAllowComments(allowComments);
     w.createdAt = createdAt?.toString();
     return w;
@@ -534,6 +541,7 @@ class WallVideos {
     data['following_count'] = followingCount;
     data['contact_phone'] = contactPhone;
     data['is_image'] = isImage;
+    data['playback_ready'] = playbackReady;
     data['contact_email'] = contactEmail;
     data['website'] = website;
     data['latitude'] = latitude;

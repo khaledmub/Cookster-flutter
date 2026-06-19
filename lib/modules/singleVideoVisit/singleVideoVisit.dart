@@ -8,6 +8,7 @@ import 'package:cookster/core/widgets/grid_thumbnail_cache.dart';
 import 'package:cookster/core/firestore/video_view_tracker.dart';
 import 'package:cookster/core/video/fullscreen_video_playback.dart';
 import 'package:cookster/core/video/media_kit_player_pool.dart';
+import 'package:cookster/core/widgets/reel_content_chrome.dart';
 import 'package:cookster/modules/landing/landingTabs/home/homeWidgets/reel_video_player.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cookster/appUtils/apiEndPoints.dart';
@@ -366,7 +367,10 @@ class _SingleVideoVisitState extends State<SingleVisitVideo>
                             : const SizedBox.shrink(),
                   ),
                 ),
-                if (_showPlayPauseIcon && !_isInitializing)
+                if (video.isImage.toString() == '1') const ReelPhotoBadge(),
+                if (_showPlayPauseIcon &&
+                    !_isInitializing &&
+                    video.isImage.toString() != '1')
                   Center(
                     child: Container(
                       decoration: BoxDecoration(

@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:cookster/core/media/wall_video_media.dart';
 import 'package:cookster/core/widgets/grid_thumbnail_cache.dart';
 import 'package:cookster/modules/landing/landingTabs/home/homeModel/videoFeedModel.dart';
 import 'package:cookster/modules/landing/landingTabs/home/homeWidgets/reel_feed_player_kit.dart';
@@ -130,7 +131,7 @@ class ReelsPlaybackCoordinator {
         : reelPosterPrecacheProvider(tier.url, context);
     unawaited(
       precacheImage(provider, context).then((_) {
-        if (video != null && video.isImage == 1) {
+        if (video != null && video.isPhotoPost) {
           if (tier.lqip) {
             ReelImagePostCache.putLqip(tier.url, provider);
           } else {

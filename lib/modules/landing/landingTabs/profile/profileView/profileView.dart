@@ -12,6 +12,7 @@ import 'package:cookster/core/profile/profile_share.dart';
 import 'package:cookster/core/user/public_user_identity.dart';
 import 'package:cookster/core/widgets/grid_thumbnail_cache.dart';
 import 'package:cookster/core/widgets/profile_grid_thumbnail.dart';
+import 'package:cookster/core/widgets/reel_content_chrome.dart';
 import 'package:cookster/modules/landing/landingTabs/home/homeController/homeController.dart';
 import 'package:cookster/modules/landing/landingTabs/home/homeModel/videoFeedModel.dart';
 import 'package:cookster/core/video/profile_reel_prefetch.dart';
@@ -649,10 +650,8 @@ class _ProfileViewState extends State<ProfileView>
                                   logicalSize: 100,
                                 ),
                                 Center(
-                                  child: Icon(
-                                    Icons.play_circle_outline,
-                                    color: Colors.white.withOpacity(0.7),
-                                    size: 30.sp,
+                                  child: ReelGridMediaTypeIcon(
+                                    isPhoto: isReelPhotoPostFlag(video.isImage),
                                   ),
                                 ),
                                 Positioned(

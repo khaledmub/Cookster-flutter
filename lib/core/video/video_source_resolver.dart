@@ -22,7 +22,10 @@ class VideoSourceResolver {
   /// When [transcode_status] is `ready`: HLS → 360 → 720 → 1080 → full MP4.
   /// When pending: [video_url] / legacy only (no HLS ladder guess).
   List<VideoSourceCandidate> resolveForWallVideo(WallVideos video) {
-    final ready = video.isTranscodeReady;
+    if (video.isPhotoPost) {
+      return const [];
+    }
+    final ready = video.isPlaybackReady;
     return resolveCandidates(
       hlsUrl: ready ? video.resolvedHlsUrl : null,
       mp4Url: video.resolvedPlaybackUrl,

@@ -1,3 +1,4 @@
+import 'package:cookster/core/media/playback_media.dart';
 import 'package:cookster/modules/landing/landingTabs/home/homeModel/video_sources.dart';
 
 class VisitProfile {
@@ -314,6 +315,7 @@ class Videos {
   dynamic city;
   dynamic averageRating;
   dynamic isImage;
+  bool? playbackReady;
   dynamic isSponsored;
   dynamic status;
   dynamic createdAt;
@@ -382,6 +384,7 @@ class Videos {
     city = json['city'] as dynamic;
     averageRating = json['average_rating'] as dynamic;
     isImage = json['is_image'] as dynamic;
+    playbackReady = PlaybackMedia.parseOptionalFlag(json['playback_ready']);
     isSponsored = json['is_sponsored'] as dynamic;
     status = json['status'] as dynamic;
     createdAt = json['created_at'] as dynamic;
@@ -427,6 +430,7 @@ class Videos {
     data['city'] = city;
     data['average_rating'] = averageRating;
     data['is_image'] = isImage;
+    data['playback_ready'] = playbackReady;
     data['is_sponsored'] = isSponsored;
     data['status'] = status;
     data['created_at'] = createdAt;
