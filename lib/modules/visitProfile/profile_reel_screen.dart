@@ -98,7 +98,9 @@ class _ProfileReelScreenState extends State<ProfileReelScreen> {
       _videos.addAll(seeds);
       startIndex = widget.initialIndex.clamp(0, _videos.length - 1);
       _visibleIndexNotifier.value = startIndex;
-      _isLoading = false;
+      // Stay on poster until pool teardown finishes — mounting the player
+      // before [prepareForFullscreenVideoPlayback] causes Honor Retry (logs:
+      // dispose mid MediaCodec::flush).
     }
 
     _pageController = PageController(initialPage: startIndex);
@@ -133,7 +135,6 @@ class _ProfileReelScreenState extends State<ProfileReelScreen> {
       return;
     }
     _visibleIndexNotifier.value = index;
-    _preloadManager.prepareForVisibleAttach();
     unawaited(_preloadManager.bootstrapFromVisible(index));
     _attachPlaybackForIndex(index);
   }
@@ -154,13 +155,13 @@ class _ProfileReelScreenState extends State<ProfileReelScreen> {
     if (!mounted) {
       return;
     }
+    // Honor: home feed [Video] must fully unmount before profile surface opens.
+    await SchedulerBinding.instance.endOfFrame;
     await SchedulerBinding.instance.endOfFrame;
     if (!mounted) {
       return;
     }
-    if (_videos.isNotEmpty) {
-      _startPlaybackAt(_visibleIndexNotifier.value);
-    }
+    _preloadManager.prepareForSessionStart();
     await _applyFeedResult(await feedFuture);
   }
 
@@ -172,9 +173,13 @@ class _ProfileReelScreenState extends State<ProfileReelScreen> {
     _pageController.removeListener(_onPageScrollOffset);
     _pageController.dispose();
     _playbackCoordinator.dispose();
-    MediaKitPlayerPool.instance.pauseAllImmediate();
-    _homeController.resumeReelsAfterRouteOverlay();
+    unawaited(_teardownPoolAndResumeHome());
     super.dispose();
+  }
+
+  Future<void> _teardownPoolAndResumeHome() async {
+    await MediaKitPlayerPool.instance.disposeAll();
+    _homeController.resumeReelsAfterRouteOverlay();
   }
 
   Future<void> _loadAuth() async {
@@ -326,18 +331,6 @@ class _ProfileReelScreenState extends State<ProfileReelScreen> {
     return api;
   }
 
-  void _resumeProfileAudibleOnce() {
-    final index = _visibleIndexNotifier.value;
-    if (index < 0 || index >= _videos.length) {
-      return;
-    }
-    final key = _videos[index].id;
-    if (key == null || key.isEmpty) {
-      return;
-    }
-    unawaited(MediaKitPlayerPool.instance.resumeFeedVisible(key));
-  }
-
   void _onVisibleReelReady(int index) {
     if (!mounted || index < 0 || index >= _videos.length) {
       return;
@@ -367,12 +360,14 @@ class _ProfileReelScreenState extends State<ProfileReelScreen> {
     if (index < 0 || index >= _videos.length) {
       return;
     }
+    if (_videos[index].isImage == 1) {
+      MediaKitPlayerPool.instance.pauseAllImmediate();
+      return;
+    }
     MediaKitPlayerPool.instance.setScreenWidth(
       MediaQuery.sizeOf(context).width,
     );
-    _preloadManager.prepareForVisibleAttach();
     _playbackCoordinator.onPageSettled(index, context: context);
-    _resumeProfileAudibleOnce();
   }
 
   VideoPreloadTarget? _preloadTargetForIndex(int index) {
@@ -380,6 +375,9 @@ class _ProfileReelScreenState extends State<ProfileReelScreen> {
       return null;
     }
     final video = _videos[index];
+    if (video.isImage == 1) {
+      return null;
+    }
     final key = video.id ?? video.resolvedPlaybackUrl ?? '';
     if (key.isEmpty) {
       return VideoPreloadTarget(key: key, candidates: const []);
@@ -399,8 +397,7 @@ class _ProfileReelScreenState extends State<ProfileReelScreen> {
       return null;
     }
     final video = _videos[index];
-    return video.resolvedReelPosterFallbackUrl ??
-        video.resolvedReelPosterUrl;
+    return ReelFeedPlayerKit.precachePosterUrl(video);
   }
 
   void _onPageScrollOffset() {
@@ -418,7 +415,8 @@ class _ProfileReelScreenState extends State<ProfileReelScreen> {
     }
     final towardRaw = page > rounded ? page.ceil() : page.floor();
     final toward = towardRaw.clamp(0, _videos.length - 1).toInt();
-    if (_scrollTowardIndex == toward) {
+    final progress = (page - rounded).abs();
+    if (_scrollTowardIndex == toward && progress < 0.45) {
       return;
     }
     _scrollTowardIndex = toward;
@@ -426,6 +424,7 @@ class _ProfileReelScreenState extends State<ProfileReelScreen> {
       fromActualIndex: _visibleIndexNotifier.value,
       towardActualIndex: toward,
       context: context,
+      scrollProgress: progress,
     );
   }
 
@@ -511,19 +510,19 @@ class _ProfileReelScreenState extends State<ProfileReelScreen> {
   void _onPageChanged(int index) {
     _visibleIndexNotifier.value = index;
     _scrollTowardIndex = null;
-    _scheduleViewTrack(_videos[index]);
+    final video = _videos[index];
+    if (video.isImage == 1) {
+      MediaKitPlayerPool.instance.pauseAllImmediate();
+      _scheduleViewTrack(video);
+      return;
+    }
+    _scheduleViewTrack(video);
 
-    _preloadManager.prepareForVisibleAttach();
     MediaKitPlayerPool.instance.setScreenWidth(
       MediaQuery.sizeOf(context).width,
     );
+    _preloadManager.onVisiblePageSettled();
     _playbackCoordinator.onPageSettled(index, context: context);
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) {
-        return;
-      }
-      _resumeProfileAudibleOnce();
-    });
 
     if (_meta?.hasMore != false && index >= _videos.length - 3) {
       unawaited(_fetchMoreVideos());
@@ -749,7 +748,7 @@ class _ProfileReelScreenState extends State<ProfileReelScreen> {
                 scrollDirection: Axis.vertical,
                 clipBehavior: Clip.hardEdge,
                 dragStartBehavior: DragStartBehavior.down,
-                allowImplicitScrolling: false,
+                allowImplicitScrolling: true,
                 physics: const ClampingScrollPhysics(),
                 itemCount: _videos.length,
                 onPageChanged: _onPageChanged,

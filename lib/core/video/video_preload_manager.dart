@@ -1,14 +1,17 @@
 import 'dart:async';
 
+import 'package:cookster/core/video/reels_video_cache_manager.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 
 import 'cached_playback_url.dart';
 import 'device_constraints.dart';
 import 'network_policy.dart';
 import 'media_kit_player_pool.dart';
+import 'reels_perf.dart';
 import 'video_player_pool.dart';
 import 'video_preload_target.dart';
 import 'video_source_resolver.dart';
+import 'prefetch_indices.dart';
 import '../../services/feature_flags/remote_config_service.dart';
 import '../../services/settings/settings_service.dart';
 
@@ -28,8 +31,9 @@ class VideoPreloadManager {
        _pool = pool ?? VideoPlayerPool.instance,
        _mediaKitPool = mediaKitPool ?? MediaKitPlayerPool.instance,
        _networkPolicy = networkPolicy ?? NetworkPolicy(),
-       _deviceConstraints = deviceConstraints ?? DeviceConstraints(),
-       _cacheManager = cacheManager ?? DefaultCacheManager();
+       _deviceConstraints = deviceConstraints ?? DeviceConstraints.instance,
+       _cacheManager =
+           cacheManager ?? ReelsVideoCacheManager.instance.manager;
 
   /// When false, only disk-prefetch runs — no off-screen MediaKit decoders.
   /// Home enables this after the visible reel paints its first frame; profile
@@ -56,20 +60,25 @@ class VideoPreloadManager {
     decoderWarmEnabled = false;
   }
 
-  /// Called before attaching a new visible reel so MTK keeps a single decoder
-  /// until the first frame paints (off-screen warm stays disk-only until then).
-  void prepareForVisibleAttach() {
+  /// Tab switch / cold session — resets decoder warm pipeline.
+  void prepareForSessionStart() {
     decoderWarmEnabled = false;
     _decoderBootstrapDone = false;
   }
+
+  /// Normal page settle — keeps decoder warm once the visible reel has painted.
+  void onVisiblePageSettled() {
+    // Intentionally no-op: decoder warm persists across swipes for consistency.
+  }
+
+  /// @deprecated Use [prepareForSessionStart] for tab/overlay; [onVisiblePageSettled] for swipes.
+  void prepareForVisibleAttach() => prepareForSessionStart();
 
   /// Disk-prefetch ahead immediately; decoder warm waits until [decoderWarmEnabled].
   Future<void> bootstrapFromVisible(int visibleIndex) async {
     if (!await _canPreload()) {
       return;
     }
-    // Do not warm the visible index — [ReelVideoPlayer] acquires it on the
-    // priority lane; warming it here races for decoders and can block first play.
     final diskDepth = await _resolvePreloadDepth();
     final bootstrapIndices = <int>[
       for (var step = 1; step <= diskDepth; step++) visibleIndex + step,
@@ -82,6 +91,7 @@ class VideoPreloadManager {
           bootstrapIndices,
           reason: 'bootstrap_disk',
           decoderWarmLimit: 0,
+          visibleIndex: visibleIndex,
         ),
       );
     }
@@ -94,6 +104,7 @@ class VideoPreloadManager {
         [visibleIndex + 1],
         reason: 'bootstrap_decoder',
         decoderWarmLimit: _mediaKitPool.maxWarmSlots,
+        visibleIndex: visibleIndex,
       ),
     );
   }
@@ -108,9 +119,10 @@ class VideoPreloadManager {
       return;
     }
     final networkClass = await _networkPolicy.currentNetworkClass();
-    final ordered = const VideoSourceResolver().prioritizeForNetwork(
+    final ordered = const VideoSourceResolver().prioritizeForPreload(
       target.candidates,
-      networkClass,
+      offsetFromVisible: 1,
+      dualTier: RemoteConfigService.instance.reelsDualTierPreload,
     );
     final chosen = ordered.first;
     final url = await _playbackUrl(chosen.url, networkClass);
@@ -136,29 +148,42 @@ class VideoPreloadManager {
   Future<void> onScrollToward({
     required int fromIndex,
     required int towardIndex,
+    int extraDepth = 0,
   }) async {
     if (!await _canPreload()) {
       return;
     }
+    await _deviceConstraints.ensureInitialized();
     final depth = await _resolvePreloadDepth();
-    final indices = <int>{
-      towardIndex,
-      towardIndex + 1,
-      towardIndex + 2,
-      towardIndex - 1,
-      fromIndex + 1,
-      fromIndex + 2,
-      fromIndex - 1,
-    };
-    for (var step = 1; step <= depth; step++) {
-      indices.add(towardIndex + step);
-      indices.add(fromIndex + step);
-    }
-    // Bytes only while dragging — never spawn a second MTK decoder mid-swipe.
+    final indices = buildDirectionalPrefetchIndices(
+      fromIndex: fromIndex,
+      towardIndex: towardIndex,
+      depth: depth,
+      extraDepth: extraDepth,
+    );
     await _warmIndices(
-      indices.toList(),
+      indices,
       reason: 'scroll_start',
       decoderWarmLimit: 0,
+      visibleIndex: fromIndex,
+    );
+  }
+
+  /// Scroll past ~45% — demux-ahead on hidden slot or buffer-only warm.
+  Future<void> onScrollDemuxAhead({
+    required int towardIndex,
+    required int fromIndex,
+  }) async {
+    if (!await _canPreload()) {
+      return;
+    }
+    await _deviceConstraints.ensureInitialized();
+    if (!_deviceConstraints.scrollDemuxPrefetchEnabled) {
+      return;
+    }
+    await _prefetchFeedSlotForIndex(
+      towardIndex,
+      offsetFromVisible: (towardIndex - fromIndex).abs().clamp(1, 3),
     );
   }
 
@@ -167,38 +192,32 @@ class VideoPreloadManager {
       return;
     }
 
-    // Disk prefetch goes deep (just MP4 bytes, no decoder); decoder warm-up
-    // stays shallow (hardware codec is scarce). Decoupling these is what makes
-    // each swipe instant without starving the visible reel's decoder.
+    ReelsVideoCacheManager.instance.cancelBelowPriority(40);
+
     final diskDepth = await _resolvePreloadDepth();
     if (diskDepth <= 0) {
       return;
     }
-    // Feed ping-pong owns both decoders on phone — never spawn a third via warmUp.
     final decoderDepth = useMediaKit && _mediaKitPool.maxWarmSlots == 0
         ? 0
         : diskDepth.clamp(0, _mediaKitPool.maxWarmSlots);
 
-    if (currentIndex == _lastPreloadIndex &&
-        _deviceConstraints.shouldThrottleFastSwipe()) {
-      return;
-    }
+    final throttleDecoder = _deviceConstraints.shouldThrottleDecoderWarm();
     _lastPreloadIndex = currentIndex;
 
-    final indices = <int>[];
-    for (var step = 1; step <= diskDepth; step++) {
-      indices.add(currentIndex + step);
-    }
-    indices.add(currentIndex - 1);
-    indices.add(currentIndex - 2);
+    final indices = buildSettledPrefetchIndices(
+      visibleIndex: currentIndex,
+      depth: diskDepth,
+    );
 
     await _warmIndices(
       indices,
       reason: 'page_settled',
-      decoderWarmLimit: decoderDepth,
+      decoderWarmLimit: throttleDecoder ? 0 : decoderDepth,
+      visibleIndex: currentIndex,
     );
 
-    if (useMediaKit) {
+    if (!throttleDecoder && useMediaKit) {
       unawaited(_prefetchFeedSlotAhead(currentIndex));
     }
 
@@ -226,9 +245,15 @@ class VideoPreloadManager {
     );
   }
 
-  /// Opens the next reel on the feed ping-pong hidden slot (muted demux ahead).
   Future<void> _prefetchFeedSlotAhead(int currentIndex) async {
-    final nextTarget = _sourceBuilder(currentIndex + 1);
+    await _prefetchFeedSlotForIndex(currentIndex + 1, offsetFromVisible: 1);
+  }
+
+  Future<void> _prefetchFeedSlotForIndex(
+    int index, {
+    int offsetFromVisible = 1,
+  }) async {
+    final nextTarget = _sourceBuilder(index);
     if (nextTarget == null ||
         nextTarget.candidates.isEmpty ||
         nextTarget.key.isEmpty) {
@@ -236,15 +261,31 @@ class VideoPreloadManager {
     }
     const resolver = VideoSourceResolver();
     final networkClass = await _networkPolicy.currentNetworkClass();
-    final ordered = resolver.prioritizeForNetwork(
+    final dualTier = RemoteConfigService.instance.reelsDualTierPreload;
+    final ordered = resolver.prioritizeForPreload(
       nextTarget.candidates,
-      networkClass,
+      offsetFromVisible: offsetFromVisible,
+      dualTier: dualTier,
     );
     if (ordered.isEmpty) {
       return;
     }
-    final playbackUrl = await _playbackUrl(ordered.first.url, networkClass);
-    await _mediaKitPool.prefetchFeedReel(
+    final chosen = ordered.first;
+    final playbackUrl = await _playbackUrl(chosen.url, networkClass);
+    final tier = resolver.mp4Tier(chosen.url) ?? 'other';
+    final cached = await isPlaybackUrlCached(
+      chosen.url,
+      cacheManager: _cacheManager,
+    );
+    ReelsPerf.emit(
+      ReelsPerfEvent(
+        name: 'prefetch_slot',
+        tier: tier,
+        cacheHit: cached,
+        extra: {'index': index},
+      ),
+    );
+    await _mediaKitPool.scheduleDemuxAhead(
       key: nextTarget.key,
       sourceUrl: playbackUrl,
     );
@@ -261,17 +302,38 @@ class VideoPreloadManager {
     return depth > 0;
   }
 
+  int _priorityForIndex(int index, int visibleIndex) {
+    final delta = index - visibleIndex;
+    if (delta == 1) {
+      return 100;
+    }
+    if (delta == 2) {
+      return 90;
+    }
+    if (delta == 3) {
+      return 80;
+    }
+    if (delta == -1) {
+      return 70;
+    }
+    return 50;
+  }
+
   Future<void> _warmIndices(
     List<int> indices, {
     required String reason,
     int? decoderWarmLimit,
+    required int visibleIndex,
   }) async {
     const resolver = VideoSourceResolver();
     final networkClass = await _networkPolicy.currentNetworkClass();
+    final dualTier = RemoteConfigService.instance.reelsDualTierPreload;
+    final isTablet = _mediaKitPool.maxWarmSlots > 1;
     final seenKeys = <String>{};
     var decodersWarmed = 0;
 
-    for (final index in indices) {
+    for (var pos = 0; pos < indices.length; pos++) {
+      final index = indices[pos];
       final target = _sourceBuilder(index);
       if (target == null || target.candidates.isEmpty || target.key.isEmpty) {
         continue;
@@ -279,19 +341,25 @@ class VideoPreloadManager {
       if (!seenKeys.add(target.key)) {
         continue;
       }
-      final ordered = resolver.prioritizeForNetwork(
+      final offset = (index - visibleIndex).abs();
+      final preloadOrdered = resolver.prioritizeForPreload(
         target.candidates,
-        networkClass,
+        offsetFromVisible: offset.clamp(1, 99),
+        dualTier: dualTier,
       );
-      final chosen = ordered.first;
-      final isHls = chosen.url.toLowerCase().contains('.m3u8');
-      // Disk prefetch the playback tier (720p) for every index — bytes only,
-      // no decoder, so it's safe to go deep. This is what makes a reel paint
-      // instantly when it becomes visible: the bytes are already cached.
-      if (!isHls) {
-        prefetchPlaybackUrl(chosen.url, cacheManager: _cacheManager);
+      final priority = _priorityForIndex(index, visibleIndex);
+      for (final chosen in preloadOrdered) {
+        final isHls = chosen.url.toLowerCase().contains('.m3u8');
+        if (!isHls) {
+          prefetchPlaybackUrl(
+            chosen.url,
+            cacheManager: _cacheManager,
+            priority: priority,
+            isTablet: isTablet,
+          );
+        }
       }
-      // Open a decoder only for the shallow window (scarce hardware resource).
+      final chosen = preloadOrdered.first;
       final canWarmDecoder =
           decoderWarmLimit == null || decodersWarmed < decoderWarmLimit;
       if (useMediaKit && decoderWarmEnabled && canWarmDecoder) {
@@ -302,6 +370,7 @@ class VideoPreloadManager {
         decodersWarmed++;
       }
     }
+    ReelsPerf.log('warm reason=$reason count=${seenKeys.length}');
   }
 
   String? _resolveKey(int index) {
@@ -317,7 +386,7 @@ class VideoPreloadManager {
         remoteUrl.toLowerCase().contains('.m3u8')) {
       return remoteUrl;
     }
-    return resolveCachedPlaybackUrl(remoteUrl, cacheManager: _cacheManager);
+    return resolveBestPlaybackUrl(remoteUrl, cacheManager: _cacheManager);
   }
 
   Future<int> _resolvePreloadDepth() async {
@@ -325,12 +394,16 @@ class VideoPreloadManager {
     if (isDataSaver) {
       return 0;
     }
+    await _deviceConstraints.ensureInitialized();
+    if (_deviceConstraints.deviceTierSync == ReelsDeviceTier.c) {
+      return 2;
+    }
     final networkClass = await _networkPolicy.currentNetworkClass();
     switch (networkClass) {
       case NetworkClass.wifi:
-        return RemoteConfigService.instance.preloadLimitWifi.clamp(3, 4);
+        return RemoteConfigService.instance.preloadLimitWifi.clamp(3, 5);
       case NetworkClass.mobile:
-        return RemoteConfigService.instance.preloadLimitMobile.clamp(2, 3);
+        return RemoteConfigService.instance.preloadLimitMobile.clamp(3, 5);
       case NetworkClass.offline:
         return 0;
     }

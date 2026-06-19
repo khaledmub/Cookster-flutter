@@ -6,7 +6,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cookster/core/text/hashtag_text.dart';
 import 'package:cookster/core/video/fullscreen_video_playback.dart';
 import 'package:cookster/core/video/media_kit_player_pool.dart';
-import 'package:cookster/modules/landing/landingTabs/home/homeWidgets/videoPlayerWidget.dart';
+import 'package:cookster/modules/landing/landingTabs/home/homeWidgets/reel_video_player.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cookster/appUtils/apiEndPoints.dart';
 import 'package:cookster/core/firestore/video_view_tracker.dart';
@@ -470,7 +470,7 @@ class _SingleVideoScreenState extends State<SingleVideoScreen>
                           );
                         })()
                       : _resolvedVideoUrl != null
-                          ? VideoPlayerWidget(
+                          ? ReelVideoPlayer(
                             key: ValueKey('single_${_playerKey}_ready'),
                             videoUrl: _resolvedVideoUrl!,
                             hlsUrl: widget.hlsUrl,
@@ -480,12 +480,10 @@ class _SingleVideoScreenState extends State<SingleVideoScreen>
                                   image: widget.image,
                                 ) ??
                                 '',
-                            isImage: widget.isImage,
+                            posterFallbackUrl: widget.image,
                             videoId: _playerKey,
                             playerPoolKey: _playerKey,
-                            autoPlay: true,
-                            useMediaKit: true,
-                            fillScreen: true,
+                            releaseOnDispose: true,
                           )
                           : const SizedBox.shrink(),
                 ),

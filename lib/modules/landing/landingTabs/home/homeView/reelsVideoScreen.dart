@@ -13,6 +13,7 @@ import 'package:cookster/core/media/wall_video_media.dart';
 import 'package:cookster/core/user/public_user_identity.dart';
 import 'package:cookster/core/widgets/grid_thumbnail_cache.dart';
 import 'package:cookster/core/video/media_kit_player_pool.dart';
+import 'package:cookster/core/video/device_constraints.dart';
 import 'package:cookster/core/video/reels_playback_coordinator.dart';
 import 'package:cookster/core/video/video_preload_manager.dart';
 import 'package:cookster/core/video/video_preload_target.dart';
@@ -69,6 +70,8 @@ class _FeedTabLayer {
   final ValueNotifier<int> visibleIndexNotifier;
   WallVideos? activePlayerVideo;
   int? scrollTowardActualIndex;
+  double? lastScrollPage;
+  DateTime? lastScrollSampleAt;
 
   void dispose() {
     pageController.dispose();
@@ -223,17 +226,18 @@ class _VideoReelScreenState extends State<VideoReelScreen>
     }
     final layer = _activeLayer;
     final index = layer.visibleIndexNotifier.value.clamp(0, videos.length - 1);
-    _preloadManager.prepareForVisibleAttach();
+    _preloadManager.prepareForSessionStart();
     MediaKitPlayerPool.instance.setScreenWidth(
       MediaQuery.sizeOf(context).width,
     );
+    unawaited(MediaKitPlayerPool.instance.ensureFeedPingPongInitialized());
     _playbackCoordinator.onPageSettled(index, context: context);
     _schedulePlayerForPage(tab, index, forceReattach: true);
-    unawaited(_feedReelPlayerKey.currentState?.resumeAfterRouteOverlay());
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || !controller.canPlayHomeReels) {
         return;
       }
+      unawaited(_feedReelPlayerKey.currentState?.resumeAfterRouteOverlay());
       _resumeFeedAudibleOnce();
     });
   }
@@ -476,13 +480,14 @@ class _VideoReelScreenState extends State<VideoReelScreen>
         currentPage == targetIndex &&
         layer.activePlayerVideo?.id == targetId &&
         targetId != null &&
-        targetId.isNotEmpty;
+        targetId.isNotEmpty &&
+        MediaKitPlayerPool.instance.isFeedVisibleKey(targetId);
     if (alreadyOnTarget) {
       _resumeFeedAudibleOnce();
       _completeTabSwitchFrameIfReady();
       return;
     }
-    _preloadManager.prepareForVisibleAttach();
+    _preloadManager.prepareForSessionStart();
     layer.visibleIndexNotifier.value = targetIndex;
     controller.visiblePageIndex.value = targetIndex;
     controller.saveTabScrollIndex(tab, targetIndex);
@@ -601,6 +606,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
   @override
   void initState() {
     super.initState();
+    unawaited(DeviceConstraints.instance.ensureInitialized());
     WidgetsBinding.instance.addObserver(this);
     final initialTab = _activeTabType;
     final initialLayer = _layerFor(initialTab);
@@ -653,9 +659,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
         if (videos == null || index < 0 || index >= videos.length) {
           return null;
         }
-        // Grid cover always exists; CDN thumb.webp often 404s mid-backfill.
-        return videos[index].resolvedReelPosterFallbackUrl ??
-            videos[index].resolvedReelPosterUrl;
+        return ReelFeedPlayerKit.precachePosterUrl(videos[index]);
       },
     );
     _reelsVisibilityWorker = ever(controller.isReelsTabVisible, (visible) {
@@ -695,7 +699,13 @@ class _VideoReelScreenState extends State<VideoReelScreen>
       return;
     }
     final epoch = controller.feedPlaybackEpoch.value;
-    if (_lastHandledPlaybackEpoch == epoch && _activeLayer.activePlayerVideo != null) {
+    final poolKey = _activeLayer.activePlayerVideo?.id;
+    final poolLive = poolKey != null &&
+        poolKey.isNotEmpty &&
+        MediaKitPlayerPool.instance.isFeedVisibleKey(poolKey);
+    if (_lastHandledPlaybackEpoch == epoch &&
+        _activeLayer.activePlayerVideo != null &&
+        poolLive) {
       return;
     }
     // First attach for a new epoch runs immediately; duplicate signals for the
@@ -760,7 +770,26 @@ class _VideoReelScreenState extends State<VideoReelScreen>
     }
     final towardRaw = page > rounded ? page.ceil() : page.floor();
     final toward = towardRaw % length;
-    if (layer.scrollTowardActualIndex == toward) {
+    final progress = (page - rounded).abs();
+
+    if (progress > 0.04) {
+      _feedReelPlayerKey.currentState?.deferSurfaceForSwipe();
+    }
+
+    final now = DateTime.now();
+    var scrollVelocity = 0.0;
+    if (layer.lastScrollPage != null && layer.lastScrollSampleAt != null) {
+      final elapsedMs =
+          now.difference(layer.lastScrollSampleAt!).inMilliseconds;
+      if (elapsedMs > 0) {
+        scrollVelocity =
+            ((page - layer.lastScrollPage!).abs() / elapsedMs) * 1000;
+      }
+    }
+    layer.lastScrollPage = page;
+    layer.lastScrollSampleAt = now;
+
+    if (layer.scrollTowardActualIndex == toward && progress < 0.45) {
       return;
     }
     layer.scrollTowardActualIndex = toward;
@@ -768,6 +797,8 @@ class _VideoReelScreenState extends State<VideoReelScreen>
       fromActualIndex: layer.visibleIndexNotifier.value,
       towardActualIndex: toward,
       context: context,
+      scrollProgress: progress,
+      scrollVelocity: scrollVelocity,
     );
   }
 
@@ -863,7 +894,13 @@ class _VideoReelScreenState extends State<VideoReelScreen>
       );
     });
 
-    _prefetchCommentCount(videoId);
+    // Defer non-critical Firestore reads until after the frame paints.
+    Timer(const Duration(milliseconds: 120), () {
+      if (!mounted) {
+        return;
+      }
+      _prefetchCommentCount(videoId);
+    });
   }
 
   @override
@@ -1025,7 +1062,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
         controller: layer.pageController,
         clipBehavior: Clip.hardEdge,
         dragStartBehavior: DragStartBehavior.down,
-        allowImplicitScrolling: false,
+        allowImplicitScrolling: true,
         pageSnapping: true,
         physics: isActiveTab
             ? const ClampingScrollPhysics()
@@ -1043,7 +1080,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                 controller.saveTabVideoId(tab, videos[actualIndex].id);
                 layer.visibleIndexNotifier.value = actualIndex;
                 _schedulePlayerForPage(tab, actualIndex);
-                _preloadManager.prepareForVisibleAttach();
+                _preloadManager.onVisiblePageSettled();
                 MediaKitPlayerPool.instance.setScreenWidth(
                   MediaQuery.sizeOf(context).width,
                 );
@@ -1064,120 +1101,144 @@ class _VideoReelScreenState extends State<VideoReelScreen>
             final actualIndex = index % videos.length;
             final videoDetail = videos[actualIndex];
 
-            return KeyedSubtree(
+            return _ReelPageKeepAlive(
               key: ValueKey<String>(
                 '${tab}_${videoDetail.id ?? 'video'}_$index',
               ),
               child: ValueListenableBuilder<int>(
                 valueListenable: layer.visibleIndexNotifier,
                 builder: (context, visibleIndex, _) {
-                  return Obx(() {
-                  final isActiveReel = isActiveTab &&
-                      controller.canPlayHomeReels &&
+                  final isVisibleSlot = isActiveTab &&
                       actualIndex == visibleIndex &&
                       videoDetail.isImage != 1;
-                  return Stack(
-                    clipBehavior: Clip.none,
-                    alignment: Alignment.bottomLeft,
-                    children: [
-                      _buildPagePoster(
-                        videoDetail,
-                        isActiveReel: isActiveReel,
-                      ),
-                      if (isActiveReel)
-                        _buildInlineReelPlayer(
-                          videoDetail,
-                          tab: tab,
-                        ),
-                      if (isActiveReel)
-                        Positioned.fill(
-                          child: GestureDetector(
-                            behavior: HitTestBehavior.translucent,
-                            onDoubleTapDown: (_) {
-                              unawaited(
-                                _onReelDoubleTapLike(videoDetail),
-                              );
-                            },
-                            child: const SizedBox.expand(),
+
+                  Widget buildPageStack({required bool showPlayer}) {
+                    return Stack(
+                      clipBehavior: Clip.none,
+                      alignment: Alignment.bottomLeft,
+                      children: [
+                        RepaintBoundary(
+                          child: Stack(
+                            fit: StackFit.expand,
+                            children: [
+                              _buildPagePoster(
+                                videoDetail,
+                                isActiveReel: showPlayer,
+                              ),
+                              if (showPlayer)
+                                _buildInlineReelPlayer(
+                                  videoDetail,
+                                  tab: tab,
+                                ),
+                            ],
                           ),
                         ),
-                      VideoDescriptionWidget(
-                        title: videoDetail.title,
-                        description: videoDetail.description,
-                        tags: videoDetail.tags,
-                        controller: controller,
-                      ),
-                      videoUserDetails(
-                        profileController: profileController,
-                        professionalProfileController:
-                            professionalProfileController,
-                        videoDetail: videoDetail,
-                        controller: controller,
-                        userId: userId,
-                        isAuthenticated: isAuthenticated,
-                      ),
-                      videoActions(
-                        videoDetail,
-                        currentUserDetails,
-                        currentUser,
-                        isAuthenticated,
-                        context,
-                        listenLive: _shouldListenFirestoreStats(
-                          tab,
-                          actualIndex,
-                        ),
-                      ),
-                      if (isActiveTab)
-                        Positioned(
-                          top: MediaQuery.paddingOf(context).top + 64,
-                          left: isRtl ? 0 : null,
-                          right: isRtl ? null : 0,
-                          child: GestureDetector(
-                            onTap: () {
-                              Get.to(
-                                () => SearchView(
-                                  isGeneral: tab == 'General' ? 1 : 0,
-                                ),
-                              )!.then((_) async {
-                                await controller.prepareForFeedTabSwitch();
-                                await controller.fetchVideos(
-                                  city: controller.currentCity.value,
-                                  country: controller.currentCountry.value,
-                                  forceNetwork: true,
+                        if (showPlayer)
+                          Positioned.fill(
+                            child: GestureDetector(
+                              behavior: HitTestBehavior.translucent,
+                              onDoubleTapDown: (_) {
+                                unawaited(
+                                  _onReelDoubleTapLike(videoDetail),
                                 );
-                              });
-                            },
-                            child: Container(
-                              margin: EdgeInsets.symmetric(
-                                horizontal: 16,
+                              },
+                              child: const SizedBox.expand(),
+                            ),
+                          ),
+                        RepaintBoundary(
+                          child: Stack(
+                            clipBehavior: Clip.none,
+                            alignment: Alignment.bottomLeft,
+                            children: [
+                              VideoDescriptionWidget(
+                                title: videoDetail.title,
+                                description: videoDetail.description,
+                                tags: videoDetail.tags,
+                                controller: controller,
                               ),
-                              decoration: BoxDecoration(
-                                color: Colors.transparent,
-                                shape: BoxShape.circle,
+                              videoUserDetails(
+                                profileController: profileController,
+                                professionalProfileController:
+                                    professionalProfileController,
+                                videoDetail: videoDetail,
+                                controller: controller,
+                                userId: userId,
+                                isAuthenticated: isAuthenticated,
                               ),
-                              child: ClipRRect(
-                                borderRadius: BorderRadius.circular(100),
-                                child: Container(
-                                  padding: const EdgeInsets.all(6),
-                                  decoration: BoxDecoration(
-                                    color: Colors.black.withValues(
-                                      alpha: 0.45,
-                                    ),
-                                    shape: BoxShape.circle,
+                              videoActions(
+                                videoDetail,
+                                currentUserDetails,
+                                currentUser,
+                                isAuthenticated,
+                                context,
+                                listenLive: _shouldListenFirestoreStats(
+                                  tab,
+                                  actualIndex,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        if (isActiveTab)
+                          Positioned(
+                            top: MediaQuery.paddingOf(context).top + 64,
+                            left: isRtl ? 0 : null,
+                            right: isRtl ? null : 0,
+                            child: GestureDetector(
+                              onTap: () {
+                                Get.to(
+                                  () => SearchView(
+                                    isGeneral: tab == 'General' ? 1 : 0,
                                   ),
-                                  child: const Icon(
-                                    Icons.search,
-                                    color: Colors.white,
-                                    size: 40,
+                                )!.then((_) async {
+                                  await controller.prepareForFeedTabSwitch();
+                                  await controller.fetchVideos(
+                                    city: controller.currentCity.value,
+                                    country: controller.currentCountry.value,
+                                    forceNetwork: true,
+                                  );
+                                });
+                              },
+                              child: Container(
+                                margin: EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.transparent,
+                                  shape: BoxShape.circle,
+                                ),
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(100),
+                                  child: Container(
+                                    padding: const EdgeInsets.all(6),
+                                    decoration: BoxDecoration(
+                                      color: Colors.black.withValues(
+                                        alpha: 0.45,
+                                      ),
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: const Icon(
+                                      Icons.search,
+                                      color: Colors.white,
+                                      size: 40,
+                                    ),
                                   ),
                                 ),
                               ),
                             ),
                           ),
-                        ),
-                    ],
+                      ],
+                    );
+                  }
+
+                  if (!isVisibleSlot) {
+                    return buildPageStack(showPlayer: false);
+                  }
+                  return Obx(
+                    () => buildPageStack(
+                      showPlayer: controller.canPlayHomeReels,
+                    ),
                   );
-                  });
                 },
               ),
             );
@@ -3353,5 +3414,27 @@ class _VideoDescriptionWidgetState extends State<VideoDescriptionWidget>
         ),
       ),
     );
+  }
+}
+
+/// Keeps off-screen reel pages (especially image posts) alive to avoid decode flash.
+class _ReelPageKeepAlive extends StatefulWidget {
+  const _ReelPageKeepAlive({super.key, required this.child});
+
+  final Widget child;
+
+  @override
+  State<_ReelPageKeepAlive> createState() => _ReelPageKeepAliveState();
+}
+
+class _ReelPageKeepAliveState extends State<_ReelPageKeepAlive>
+    with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    return widget.child;
   }
 }

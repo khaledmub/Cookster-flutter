@@ -2,6 +2,9 @@ import 'dart:async';
 import 'dart:collection';
 
 import 'package:cookster/core/video/feed_ping_pong_controller.dart';
+import 'package:cookster/core/video/device_constraints.dart';
+import 'package:cookster/core/video/reels_perf.dart';
+import 'package:cookster/core/video/reels_video_cache_manager.dart';
 import 'package:flutter/foundation.dart';
 import 'package:cookster/services/settings/settings_service.dart';
 import 'package:media_kit/media_kit.dart';
@@ -32,11 +35,19 @@ class PooledMediaKitPlayer {
 /// - Hard cap of [_maxPoolSize] players; LRU eviction for idle (lease 0) entries.
 /// - Warm slot cap: 2 on phone, 3 on tablet ([tabletBreakpoint] logical px).
 class MediaKitPlayerPool {
-  MediaKitPlayerPool._() {
-    _feedPingPong = FeedPingPongController();
-  }
+  MediaKitPlayerPool._();
 
   static final MediaKitPlayerPool instance = MediaKitPlayerPool._();
+
+  FeedPingPongController? _feedPingPong;
+  bool _feedPingPongConfigured = false;
+
+  FeedPingPongController get _pingPong {
+    _feedPingPong ??= FeedPingPongController(singleSlotMode: true);
+    return _feedPingPong!;
+  }
+
+  bool get feedSingleSlotMode => _pingPong.singleSlotMode;
 
   // Pool size vs. warm slots are decoupled on purpose:
   //   * [_maxWarmSlots] (1 on phone) caps how many *background* decoders may
@@ -64,31 +75,38 @@ class MediaKitPlayerPool {
   String? get activePoolKey => _activeKey;
 
   /// Dual-slot feed ping-pong: prefetch on hidden, flip on swipe, recycle hidden only.
-  late final FeedPingPongController _feedPingPong;
   final ValueNotifier<int> feedSurfaceGeneration = ValueNotifier<int>(0);
   /// Bumped on every feed present flip so the single [Video] surface rebinds.
   final ValueNotifier<int> feedActiveSlotIndexNotifier = ValueNotifier<int>(0);
   String? _feedVisibleKey;
   int _feedOpenToken = 0;
 
-  Player? get _feedVisiblePlayer => _feedPingPong.activePlayer;
+  Player? get _feedVisiblePlayer => _pingPong.activePlayer;
 
-  int get activeFeedSlotIndex => _feedPingPong.activeSlotIndex;
+  int get activeFeedSlotIndex => _pingPong.activeSlotIndex;
 
-  int feedSlotGeneration(int index) => _feedPingPong.slotGeneration(index);
+  int feedSlotGeneration(int index) => _pingPong.slotGeneration(index);
 
   VideoController? feedSlotVideoController(int index) =>
-      _feedPingPong.videoControllerForSlot(index);
+      _pingPong.videoControllerForSlot(index);
 
-  Future<void> ensureFeedPingPongInitialized() =>
-      _feedPingPong.ensureInitialized();
+  Future<void> ensureFeedPingPongInitialized() async {
+    if (!_feedPingPongConfigured) {
+      await DeviceConstraints.instance.ensureInitialized();
+      _feedPingPong = FeedPingPongController(
+        singleSlotMode: DeviceConstraints.instance.needsSingleSlotFeedSync,
+      );
+      _feedPingPongConfigured = true;
+    }
+    await _pingPong.ensureInitialized();
+  }
 
   bool _isFeedPingPongPlayer(Player? player) {
     if (player == null) {
       return false;
     }
-    return identical(player, _feedPingPong.slot0.player) ||
-        identical(player, _feedPingPong.slot1.player);
+    return identical(player, _pingPong.slot0.player) ||
+        identical(player, _pingPong.slot1.player);
   }
   double _screenWidth = 400;
   int _priorityDepth = 0;
@@ -113,6 +131,7 @@ class MediaKitPlayerPool {
   void setScreenWidth(double logicalWidth) {
     if (logicalWidth > 0) {
       _screenWidth = logicalWidth;
+      ReelsVideoCacheManager.instance.managerForTablet(isTablet: _isTablet);
     }
   }
 
@@ -120,10 +139,14 @@ class MediaKitPlayerPool {
 
   int get _maxPoolSize => _isTablet ? maxPoolSizeTablet : maxPoolSizePhone;
 
-  /// Phone: 0 — one visible [Player] only; extra warm slots exhaust OpenSL on MTK.
-  int get _maxWarmSlots => _isTablet ? 2 : 0;
+  int get _maxWarmSlots {
+    if (_isTablet) {
+      return 2;
+    }
+    return DeviceConstraints.instance.phoneWarmSlots;
+  }
 
-  /// Off-screen warm cap (phone 2, tablet 3) — keep preload depth aligned.
+  /// Off-screen warm cap — keep preload depth aligned.
   int get maxWarmSlots => _maxWarmSlots;
 
   bool isWarmed(String key) => _players.containsKey(key);
@@ -406,21 +429,21 @@ class MediaKitPlayerPool {
       }
 
       if (_isStaleFeedOpen(openToken)) {
-        final player = _feedPingPong.activePlayer;
+        final player = _pingPong.activePlayer;
         if (player == null) {
           throw StateError('Feed ping-pong player missing for stale open');
         }
         return PooledMediaKitPlayer(
           key: _feedVisibleKey ?? key,
           player: player,
-          feedActiveSlotIndex: _feedPingPong.activeSlotIndex,
+          feedActiveSlotIndex: _pingPong.activeSlotIndex,
         );
       }
 
       final suspendEpoch = _suspendEpoch;
       FeedPresentResult? result;
       try {
-        result = await _feedPingPong.presentReel(
+        result = await _pingPong.presentReel(
           key: key,
           sourceUrl: sourceUrl,
           openToken: openToken,
@@ -433,14 +456,14 @@ class MediaKitPlayerPool {
       }
 
       if (result == null || _isStaleFeedOpen(openToken)) {
-        final player = _feedPingPong.activePlayer;
+        final player = _pingPong.activePlayer;
         if (player == null) {
           throw StateError('Feed ping-pong player missing after stale present');
         }
         return PooledMediaKitPlayer(
           key: _feedVisibleKey ?? key,
           player: player,
-          feedActiveSlotIndex: _feedPingPong.activeSlotIndex,
+          feedActiveSlotIndex: _pingPong.activeSlotIndex,
         );
       }
 
@@ -456,9 +479,20 @@ class MediaKitPlayerPool {
       _bufferPrimedKeys.add(key);
       if (result.openedMedia) {
         _clearFrameReady(key);
-      } else {
-        _markFrameReady(key);
       }
+
+      ReelsPerf.emit(
+        ReelsPerfEvent(
+          name: 'present',
+          flip: result.flipped,
+          coldOpen: result.openedMedia,
+          feedMode: _pingPong.singleSlotMode ? 'single_slot' : 'dual_slot',
+          extra: {
+            'key': key,
+            'slot': result.activeSlotIndex,
+          },
+        ),
+      );
 
       return PooledMediaKitPlayer(
         key: key,
@@ -466,6 +500,61 @@ class MediaKitPlayerPool {
         feedActiveSlotIndex: result.activeSlotIndex,
         feedFlipped: result.flipped,
         feedOpenedMedia: result.openedMedia,
+      );
+    });
+  }
+
+  /// Scroll-proportional demux-ahead: dual-slot hidden prefetch or buffer warm.
+  Future<void> scheduleDemuxAhead({
+    required String key,
+    required String sourceUrl,
+    int? prefetchToken,
+  }) async {
+    if (key.isEmpty || sourceUrl.isEmpty) {
+      return;
+    }
+    await DeviceConstraints.instance.ensureInitialized();
+    if (DeviceConstraints.instance.suppressScrollDecoderWarm) {
+      return;
+    }
+    if (!_feedPingPongConfigured) {
+      await ensureFeedPingPongInitialized();
+    }
+    if (!_pingPong.singleSlotMode) {
+      await prefetchFeedReel(
+        key: key,
+        sourceUrl: sourceUrl,
+        prefetchToken: prefetchToken,
+      );
+      return;
+    }
+    await warmUp(key: key, sourceUrl: sourceUrl);
+  }
+
+  /// Seek-to-start + surface bump when decode runs but nothing paints (Honor).
+  Future<void> recoverFeedVisibleSurface(String key) {
+    return _runPriority(() async {
+      if (key.isEmpty || _feedVisibleKey != key) {
+        return;
+      }
+      final player = _pingPong.activePlayer;
+      if (player == null) {
+        return;
+      }
+      try {
+        await player.pause();
+        await player.seek(Duration.zero);
+        await Future<void>.delayed(const Duration(milliseconds: 48));
+        await player.play();
+        await player.setVolume(0);
+      } catch (_) {}
+      feedSurfaceGeneration.value++;
+      ReelsPerf.emit(
+        ReelsPerfEvent(
+          name: 'surface_recovery',
+          feedMode: _pingPong.singleSlotMode ? 'single_slot' : 'dual_slot',
+          extra: {'key': key},
+        ),
       );
     });
   }
@@ -485,7 +574,7 @@ class MediaKitPlayerPool {
       if (_priorityDepth > 0) {
         return;
       }
-      await _feedPingPong.prefetchReel(
+      await _pingPong.prefetchReel(
         key: key,
         sourceUrl: sourceUrl,
         prefetchToken: token,
@@ -509,7 +598,7 @@ class MediaKitPlayerPool {
           _userPausedKeys.contains(key)) {
         return;
       }
-      if (_feedPingPong.visibleKey != key) {
+      if (_pingPong.visibleKey != key) {
         return;
       }
       if (!isFrameReady(key)) {
@@ -520,7 +609,7 @@ class MediaKitPlayerPool {
       }
       _audibleTargetKey = key;
       _activeKey = key;
-      await _feedPingPong.resumeActiveAudible(
+      await _pingPong.resumeActiveAudible(
         alreadyAudible: false,
         expectedKey: key,
       );
@@ -609,11 +698,11 @@ class MediaKitPlayerPool {
       } catch (_) {}
     }
     if (exceptKey == null || exceptKey.isEmpty) {
-      unawaited(_feedPingPong.silenceAllSlots());
+      unawaited(_pingPong.silenceAllSlots());
     } else if (_feedVisibleKey == exceptKey) {
-      unawaited(_feedPingPong.muteHiddenSlot());
+      unawaited(_pingPong.muteHiddenSlot());
     } else {
-      unawaited(_feedPingPong.silenceAllSlots());
+      unawaited(_pingPong.silenceAllSlots());
     }
   }
 
@@ -655,7 +744,7 @@ class MediaKitPlayerPool {
         }
       } catch (_) {}
     }
-    await _feedPingPong.silenceAllSlots();
+    await _pingPong.silenceAllSlots();
   }
 
   /// Mutes/pauses every slot except [exceptKey] (used when unmuting the visible reel).
@@ -688,7 +777,7 @@ class MediaKitPlayerPool {
       _userPausedKeys.add(key);
       _activeKey = key;
       if (_feedVisibleKey == key) {
-        await _feedPingPong.muteActiveForUser();
+        await _pingPong.muteActiveForUser();
         return;
       }
       final player = _players[key];
@@ -711,7 +800,7 @@ class MediaKitPlayerPool {
       _userPausedKeys.remove(key);
       _audibleTargetKey = key;
       _activeKey = key;
-      await _feedPingPong.resumeActiveForUser(expectedKey: key);
+      await _pingPong.resumeActiveForUser(expectedKey: key);
     });
   }
 
@@ -822,12 +911,12 @@ class MediaKitPlayerPool {
         if (isActiveAudible(key)) {
           return;
         }
-        if (_feedPingPong.visibleKey != key) {
+        if (_pingPong.visibleKey != key) {
           return;
         }
         _audibleTargetKey = key;
         _activeKey = key;
-        await _feedPingPong.resumeActiveAudible(
+        await _pingPong.resumeActiveAudible(
           alreadyAudible: false,
           expectedKey: key,
         );
@@ -1085,7 +1174,7 @@ class MediaKitPlayerPool {
   Future<void> _disposeFeedVisiblePlayer() async {
     _feedVisibleKey = null;
     _feedOpenToken = 0;
-    await _feedPingPong.disposeAll();
+    await _pingPong.disposeAll();
   }
 
   Future<void> releaseAll() {
@@ -1102,6 +1191,7 @@ class MediaKitPlayerPool {
 
   Future<void> disposeAll() {
     return _runPriority(() async {
+      _suspendPlayback();
       _disposeGeneration++;
       _warmInFlight.clear();
       final keys = _players.keys.toList(growable: false);

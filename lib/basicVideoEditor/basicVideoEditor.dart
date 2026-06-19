@@ -26,6 +26,7 @@ import 'package:http/http.dart' as http;
 import '../appUtils/colorUtils.dart';
 import '../loaders/pulseLoader.dart';
 import '../modules/landing/landingTabs/add/videoAddView/videoAddView.dart';
+import '../modules/landing/landingTabs/home/homeController/homeController.dart';
 import 'audioSelector.dart';
 
 enum EditingTool { text, font, color, sticker, crop, fontSize }
@@ -204,6 +205,9 @@ class _VideoTextEditorState extends State<VideoTextEditor> {
   @override
   void initState() {
     super.initState();
+    if (Get.isRegistered<HomeController>()) {
+      Get.find<HomeController>().reinforceMediaCaptureSilence();
+    }
     _requestPermissions();
 
     _selectedVideo = widget.videoFile;

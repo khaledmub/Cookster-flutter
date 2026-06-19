@@ -37,6 +37,15 @@ class HomeController extends GetxController with WidgetsBindingObserver {
   var isNavigating = false.obs;
   var isAppInBackground = false.obs;
   int _routeOverlayPauseDepth = 0;
+  int _mediaCaptureDepth = 0;
+  bool _feedPlaybackNeedsColdRestore = false;
+  bool _feedResumePendingWhenHomeTab = false;
+
+  /// True while camera / picker / editor / upload flow holds feed decoders released.
+  bool get isInMediaCaptureFlow => _mediaCaptureDepth > 0;
+
+  /// Set when an overlay disposed the feed pool while the user is not on Home.
+  bool get feedResumePendingWhenHomeTab => _feedResumePendingWhenHomeTab;
 
   var lastVideoPosition = Duration.zero.obs;
   var wasPlaying = false.obs;
@@ -1009,7 +1018,8 @@ class HomeController extends GetxController with WidgetsBindingObserver {
   bool get canPlayHomeReels =>
       !isAppInBackground.value &&
       !isNavigating.value &&
-      isReelsTabVisible.value;
+      isReelsTabVisible.value &&
+      !isInMediaCaptureFlow;
 
   /// Immediate silence before a route push (no depth change). Pair with
   /// [pauseReelsForRouteOverlay] on the pushed screen's [initState].
@@ -1056,12 +1066,35 @@ class HomeController extends GetxController with WidgetsBindingObserver {
     if (isAppInBackground.value) {
       return;
     }
-    if (Get.isRegistered<NavBarController>() &&
-        Get.find<NavBarController>().selectedIndex.value != 0) {
+    if (!_isOnHomeTab()) {
+      _feedResumePendingWhenHomeTab = true;
       return;
     }
+    restoreHomeFeedPlayback();
+  }
+
+  bool _isOnHomeTab() {
+    if (!Get.isRegistered<NavBarController>()) {
+      return true;
+    }
+    return Get.find<NavBarController>().selectedIndex.value == 0;
+  }
+
+  /// Re-attaches the home feed after profile/collection overlays tore down the pool.
+  void restoreHomeFeedPlayback() {
+    if (isAppInBackground.value) {
+      return;
+    }
+    final needsCold =
+        _feedPlaybackNeedsColdRestore || _feedResumePendingWhenHomeTab;
+    _feedPlaybackNeedsColdRestore = false;
+    _feedResumePendingWhenHomeTab = false;
+    isNavigating.value = false;
     setReelsTabVisible(true);
-    feedPlaybackEpoch.value++;
+    if (needsCold) {
+      feedPlaybackEpoch.value++;
+    }
+    isVideoPlaying.value = true;
     unawaited(resumeVisibleVideo(visiblePageIndex.value));
   }
 
@@ -1084,20 +1117,64 @@ class HomeController extends GetxController with WidgetsBindingObserver {
 
   /// Frees reel decoders before camera / upload / editor flows so local
   /// [VideoPlayerController] can initialize without OOM on low-end devices.
-  Future<void> releaseAllVideoResources() async {
+  Future<void> releaseAllVideoResources({bool mediaCapture = false}) async {
+    if (mediaCapture) {
+      _mediaCaptureDepth++;
+      isNavigating.value = true;
+    }
     setReelsTabVisible(false);
-    pauseAllVideos();
+    MediaKitPlayerPool.instance.pauseAllImmediate();
+    await MediaKitPlayerPool.instance.pauseAllAwait();
+    await VideoPlayerPool.instance.pauseAll();
     await MediaKitPlayerPool.instance.disposeAll();
     await VideoPlayerPool.instance.clear();
     isVideoPlaying.value = false;
+    if (!mediaCapture) {
+      _feedPlaybackNeedsColdRestore = true;
+    }
   }
 
-  Future<void> restoreVideoResourcesAfterCapture() async {
+  /// Entry to add-button picker / camera / editor — blocks feed resume until
+  /// [endMediaCaptureFlow] runs after the overlay stack is fully closed.
+  Future<void> beginMediaCaptureFlow() {
+    return releaseAllVideoResources(mediaCapture: true);
+  }
+
+  /// Re-assert silence while editor / upload screens are still open.
+  void reinforceMediaCaptureSilence() {
+    isNavigating.value = true;
+    setReelsTabVisible(false);
+    pauseAllVideosSync();
+    MediaKitPlayerPool.instance.pauseAllImmediate();
+    unawaited(pauseAllVideosAwait());
+  }
+
+  Future<void> endMediaCaptureFlow() async {
+    if (_mediaCaptureDepth <= 0) {
+      return;
+    }
+    _mediaCaptureDepth--;
+    if (_mediaCaptureDepth > 0) {
+      return;
+    }
+    if (Get.key.currentState?.canPop() ?? false) {
+      return;
+    }
+    await _restoreFeedAfterMediaCapture();
+  }
+
+  Future<void> _restoreFeedAfterMediaCapture() async {
     if (isAppInBackground.value) {
       return;
     }
+    isNavigating.value = false;
     setReelsTabVisible(true);
+    feedPlaybackEpoch.value++;
     await resumeVisibleVideo(visiblePageIndex.value);
+  }
+
+  Future<void> restoreVideoResourcesAfterCapture() async {
+    await endMediaCaptureFlow();
   }
 
   Future<void> resumeVisibleVideo(int pageIndex) async {

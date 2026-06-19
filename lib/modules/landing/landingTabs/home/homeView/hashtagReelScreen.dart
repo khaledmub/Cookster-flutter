@@ -1,14 +1,13 @@
 import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:cookster/core/media/wall_video_media.dart';
 import 'package:cookster/core/video/media_kit_player_pool.dart';
-import 'package:cookster/core/video/video_source_resolver.dart';
 import 'package:cookster/loaders/pulseLoader.dart';
 import 'package:cookster/modules/landing/landingTabs/home/homeController/hashTagController.dart';
 import 'package:cookster/modules/landing/landingTabs/home/homeController/homeController.dart';
 import 'package:cookster/modules/landing/landingTabs/home/homeModel/videoFeedModel.dart';
-import 'package:cookster/modules/landing/landingTabs/home/homeWidgets/videoPlayerWidget.dart';
+import 'package:cookster/modules/landing/landingTabs/home/homeWidgets/reel_feed_player_kit.dart';
+import 'package:cookster/modules/landing/landingTabs/home/homeWidgets/reel_video_player.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -25,7 +24,8 @@ class HashtagReelScreen extends StatefulWidget {
 
 class _HashtagReelScreenState extends State<HashtagReelScreen> {
   final HashtagController controller = Get.put(HashtagController());
-  final VideoSourceResolver _sourceResolver = const VideoSourceResolver();
+  final GlobalKey<ReelVideoPlayerState> _reelPlayerKey =
+      GlobalKey<ReelVideoPlayerState>();
 
   late PageController _pageController;
   final Set<String> _trackedVideoIds = {};
@@ -55,16 +55,6 @@ class _HashtagReelScreenState extends State<HashtagReelScreen> {
       Get.find<HomeController>().resumeReelsAfterRouteOverlay();
     }
     super.dispose();
-  }
-
-  Future<void> _activateVisible(int index) async {
-    final videos = controller.videoFeed.value.videos;
-    if (videos == null || videos.isEmpty) return;
-    final i = index.clamp(0, videos.length - 1);
-    final video = videos[i];
-    final key = video.id ?? video.videoUrl ?? video.video ?? '';
-    if (key.isEmpty) return;
-    await MediaKitPlayerPool.instance.setActive(key);
   }
 
   void _scheduleViewTrack(WallVideos video) {
@@ -99,7 +89,6 @@ class _HashtagReelScreenState extends State<HashtagReelScreen> {
   void _onPageChanged(int index) {
     _visibleIndex = index;
     controller.currentIndex.value = index;
-    unawaited(_activateVisible(index));
 
     final videos = controller.videoFeed.value.videos;
     if (videos != null &&
@@ -161,19 +150,20 @@ class _HashtagReelScreenState extends State<HashtagReelScreen> {
               onPageChanged: _onPageChanged,
               itemBuilder: (context, index) {
                 final video = videos[index];
-                return VideoPlayerWidget(
-                  key: ValueKey('${video.id}_$index'),
-                  videoId: video.id,
-                  videoUrl: video.resolvedPlaybackUrl ?? '',
-                  thumbnailUrl: video.resolvedReelPosterUrl ??
-                      video.resolvedThumbnailUrl ??
-                      '',
-                  isImage: video.isImage,
-                  autoPlay: index == _visibleIndex,
-                  useMediaKit: true,
-                  hlsUrl: video.resolvedHlsUrl,
-                  qualityMp4Urls:
-                      video.isTranscodeReady ? video.qualityMp4Urls : const [],
+                final showPlayer =
+                    index == _visibleIndex && video.isImage != 1;
+                return Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    if (!showPlayer)
+                      ReelFeedPlayerKit.buildPagePoster(video),
+                    if (showPlayer)
+                      ReelFeedPlayerKit.buildInlinePlayer(
+                        video: video,
+                        playerKey: _reelPlayerKey,
+                        wrapPositioned: false,
+                      ),
+                  ],
                 );
               },
             ),

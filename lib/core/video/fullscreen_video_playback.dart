@@ -28,4 +28,5 @@ Future<void> prepareForProfileReelRoute() async {
     await VideoPlayerPool.instance.clear();
   }
   await SchedulerBinding.instance.endOfFrame;
+  await SchedulerBinding.instance.endOfFrame;
 }

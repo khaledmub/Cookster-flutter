@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:cookster/core/navigation/route_back.dart';
 import 'package:cookster/appUtils/appCenterIcon.dart';
 import 'package:cookster/modules/landing/landingTabs/add/videoAddController/videoAddController.dart';
+import 'package:cookster/modules/landing/landingTabs/home/homeController/homeController.dart';
 import 'package:cookster/services/video_settings_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -46,6 +47,9 @@ class _VideoPreviewScreenState extends State<VideoPreviewScreen> {
   @override
   void initState() {
     super.initState();
+    if (Get.isRegistered<HomeController>()) {
+      Get.find<HomeController>().reinforceMediaCaptureSilence();
+    }
     _currentStep = videoAddController.currentStep.value;
     _stepWorker = ever(videoAddController.currentStep, (step) {
       final next = step is int ? step : (step as num).toInt();

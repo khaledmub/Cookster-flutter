@@ -35,6 +35,20 @@ When **not** ready: use `thumbnail_url` / `image_url` as poster; only fall back 
 - Correct CDN path: `https://cdn.cookster.org/storage/front_users/{filename}.jpg`
 - Don't fix 404s client-side by swapping `/storage/front_users/` vs `/front_users/` — backend normalizes; if 404, show default avatar.
 
+## Encoding requirements (smooth playback)
+
+For Instagram/Snapchat-level reel smoothness, encode all ladder MP4s with:
+
+| Requirement | Target |
+|-------------|--------|
+| Fast-start layout | `moov` atom **before** `mdat` in 360.mp4 and 720.mp4 |
+| GOP / keyframe interval | 1–2 seconds |
+| CDN `Cache-Control` | `public, max-age=31536000, immutable` on versioned paths |
+| Range requests | Enabled on all MP4 and HLS segment responses |
+| `thumbnail_blur` | Required on every `transcode_status=ready` item |
+
+Mobile uses partial-cache playback when ≥256 KiB are on disk and `moov` is at the front.
+
 ## Preload behavior (mobile)
 
 - Preload next 2–4 reels when `transcode_status == "ready"` and URLs are non-null.

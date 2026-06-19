@@ -589,6 +589,8 @@ class _LandingState extends State<Landing> {
         home.isNavigating.value = false;
         home.setReelsTabVisible(true);
         unawaited(home.refreshHomeFeed());
+      } else if (home.feedResumePendingWhenHomeTab) {
+        home.restoreHomeFeedPlayback();
       } else {
         home.isNavigating.value = false;
         home.setReelsTabVisible(true);
@@ -605,7 +607,7 @@ class _LandingState extends State<Landing> {
 
   Future<void> _prepareForMediaCapture() async {
     if (Get.isRegistered<HomeController>()) {
-      await Get.find<HomeController>().releaseAllVideoResources();
+      await Get.find<HomeController>().beginMediaCaptureFlow();
     }
   }
 
@@ -616,7 +618,7 @@ class _LandingState extends State<Landing> {
     if (navBarController.selectedIndex.value != 0) {
       return;
     }
-    await Get.find<HomeController>().restoreVideoResourcesAfterCapture();
+    await Get.find<HomeController>().endMediaCaptureFlow();
   }
 
   Color _getIconColor(bool isSelected) {

@@ -17,9 +17,19 @@ class RemoteConfigService {
     );
     await _remoteConfig.setDefaults(const {
       'reels_preload_enabled': true,
-      'reels_preload_limit_wifi': 4,
-      'reels_preload_limit_mobile': 2,
+      'reels_preload_limit_wifi': 5,
+      'reels_preload_limit_mobile': 4,
       'reels_data_saver_default': false,
+      'reels_device_tier_override': '',
+      'reels_dual_slot_enabled': true,
+      'reels_phone_warm_slots': 0,
+      'reels_dual_tier_preload': true,
+      'reels_360_first_uncached': true,
+      'reels_scroll_demux_prefetch': true,
+      'reels_hls_wifi_enabled': false,
+      'reels_fast_frame_gate': true,
+      'reels_cache_max_mb_phone': 500,
+      'reels_cache_max_mb_tablet': 1024,
     });
     await _remoteConfig.activate();
     unawaited(_fetchInBackground());
@@ -37,4 +47,33 @@ class RemoteConfigService {
       _remoteConfig.getInt('reels_preload_limit_mobile');
   bool get dataSaverDefault =>
       _remoteConfig.getBool('reels_data_saver_default');
+
+  String get reelsDeviceTierOverride =>
+      _remoteConfig.getString('reels_device_tier_override').trim().toLowerCase();
+
+  bool get reelsDualSlotEnabled =>
+      _remoteConfig.getBool('reels_dual_slot_enabled');
+
+  int get reelsPhoneWarmSlots => _remoteConfig.getInt('reels_phone_warm_slots');
+
+  bool get reelsDualTierPreload =>
+      _remoteConfig.getBool('reels_dual_tier_preload');
+
+  bool get reels360FirstUncached =>
+      _remoteConfig.getBool('reels_360_first_uncached');
+
+  bool get reelsScrollDemuxPrefetch =>
+      _remoteConfig.getBool('reels_scroll_demux_prefetch');
+
+  bool get reelsHlsWifiEnabled =>
+      _remoteConfig.getBool('reels_hls_wifi_enabled');
+
+  bool get reelsFastFrameGate =>
+      _remoteConfig.getBool('reels_fast_frame_gate');
+
+  int get reelsCacheMaxMbPhone =>
+      _remoteConfig.getInt('reels_cache_max_mb_phone');
+
+  int get reelsCacheMaxMbTablet =>
+      _remoteConfig.getInt('reels_cache_max_mb_tablet');
 }

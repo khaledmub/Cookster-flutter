@@ -1,7 +1,10 @@
 import 'package:cookster/core/media/media_url_resolver.dart';
 import 'package:cookster/core/media/wall_video_media.dart';
+import 'package:cookster/core/video/cached_playback_url.dart';
 import 'package:cookster/core/video/network_policy.dart';
+import 'package:cookster/core/video/reels_video_cache_manager.dart';
 import 'package:cookster/modules/landing/landingTabs/home/homeModel/videoFeedModel.dart';
+import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 
 class VideoSourceCandidate {
   const VideoSourceCandidate({
@@ -67,17 +70,15 @@ class VideoSourceResolver {
     return candidates;
   }
 
-  /// Reels: 720p MP4 first (sharp on phone screens, single fast-start request,
-  /// disk-cacheable so a pre-cached reel paints instantly). 360p stays as the
-  /// next fallback for slow networks / decode failures, then 1080p, then HLS,
-  /// then full/legacy MP4 last.
-  ///
-  /// Every reel plays the same tier — speed comes from pre-caching the 720p
-  /// bytes ([VideoPreloadManager]), not from downgrading quality.
+  /// Phone playback: 360 → 720 → 1080 when [fastStartUncached]; cached tiers first via playback path.
+  /// Tablet WiFi: 1080 → 720 → 360; tablet mobile: 360 → 720 → 1080.
   List<VideoSourceCandidate> prioritizeForNetwork(
     List<VideoSourceCandidate> candidates,
-    NetworkClass network,
-  ) {
+    NetworkClass network, {
+    bool isTablet = false,
+    bool fastStartUncached = true,
+    bool hlsWifiFirst = false,
+  }) {
     if (candidates.length <= 1) {
       return candidates;
     }
@@ -87,8 +88,196 @@ class VideoSourceResolver {
     final rest = candidates
         .where((c) => c.type != 'mp4_quality' && c.type != 'hls')
         .toList(growable: false);
-    final orderedMp4 = _orderMp4ByTier(mp4Quality, const ['720', '360', '1080']);
+
+    if (hlsWifiFirst &&
+        network == NetworkClass.wifi &&
+        hls.isNotEmpty) {
+      final tiers = isTablet
+          ? const ['1080', '720', '360']
+          : (fastStartUncached
+              ? const ['360', '720', '1080']
+              : const ['720', '360', '1080']);
+      final orderedMp4 = _orderMp4ByTier(mp4Quality, tiers);
+      return [...hls, ...orderedMp4, ...rest];
+    }
+
+    final tiers = isTablet
+        ? switch (network) {
+            NetworkClass.wifi => const ['1080', '720', '360'],
+            NetworkClass.mobile => fastStartUncached
+                ? const ['360', '720', '1080']
+                : const ['720', '360', '1080'],
+            NetworkClass.offline => const ['720', '360', '1080'],
+          }
+        : fastStartUncached
+            ? const ['360', '720', '1080']
+            : const ['720', '360', '1080'];
+    final orderedMp4 = _orderMp4ByTier(mp4Quality, tiers);
     return [...orderedMp4, ...hls, ...rest];
+  }
+
+  /// Disk preload: N+1/N+2 → 360+720; deeper indices → 720 only.
+  List<VideoSourceCandidate> prioritizeForPreload(
+    List<VideoSourceCandidate> candidates, {
+    int offsetFromVisible = 1,
+    bool dualTier = true,
+  }) {
+    if (candidates.isEmpty) {
+      return candidates;
+    }
+    final mp4Quality =
+        candidates.where((c) => c.type == 'mp4_quality').toList(growable: false);
+    if (mp4Quality.isEmpty) {
+      return candidates
+          .where((c) => c.type != 'hls')
+          .take(1)
+          .toList(growable: false);
+    }
+
+    VideoSourceCandidate? pick360;
+    VideoSourceCandidate? pick720;
+    for (final candidate in mp4Quality) {
+      final tier = mp4Tier(candidate.url);
+      pick360 ??= tier == '360' ? candidate : null;
+      pick720 ??= tier == '720' ? candidate : null;
+    }
+
+    if (dualTier && offsetFromVisible <= 2) {
+      final result = <VideoSourceCandidate>[];
+      if (pick360 != null) {
+        result.add(pick360);
+      }
+      if (pick720 != null && pick720 != pick360) {
+        result.add(pick720);
+      }
+      if (result.isNotEmpty) {
+        return result;
+      }
+    }
+
+    if (pick720 != null) {
+      return [pick720];
+    }
+    return [mp4Quality.first];
+  }
+
+  /// Fast-start playback: cached highest MP4 → cached/partial 360 → stream 360 → stream 720 → HLS.
+  Future<List<VideoSourceCandidate>> prioritizeForPlaybackFastStart({
+    required List<VideoSourceCandidate> candidates,
+    required NetworkClass network,
+    BaseCacheManager? cacheManager,
+    bool isTablet = false,
+    bool fastStartUncached = true,
+    bool hlsWifiEnabled = false,
+  }) async {
+    final cache = cacheManager ?? ReelsVideoCacheManager.instance.manager;
+    final hasCachedMp4 = await _anyMp4Cached(candidates, cache);
+    if (hasCachedMp4) {
+      return prioritizeForPlayback(
+        candidates: candidates,
+        network: network,
+        cacheManager: cache,
+        isTablet: isTablet,
+        fastStartUncached: fastStartUncached,
+      );
+    }
+    return prioritizeForNetwork(
+      candidates,
+      network,
+      isTablet: isTablet,
+      fastStartUncached: fastStartUncached,
+      hlsWifiFirst: hlsWifiEnabled,
+    );
+  }
+
+  /// Prefer the highest cached MP4 tier when bytes are already on disk — instant
+  /// local open without waiting for network (e.g. cached 1080 on phone).
+  Future<List<VideoSourceCandidate>> prioritizeForPlayback({
+    required List<VideoSourceCandidate> candidates,
+    required NetworkClass network,
+    BaseCacheManager? cacheManager,
+    bool isTablet = false,
+    bool fastStartUncached = true,
+  }) async {
+    final ordered = prioritizeForNetwork(
+      candidates,
+      network,
+      isTablet: isTablet,
+      fastStartUncached: fastStartUncached,
+    );
+    if (ordered.length <= 1) {
+      return ordered;
+    }
+    final cache = cacheManager ?? ReelsVideoCacheManager.instance.manager;
+    VideoSourceCandidate? bestCached;
+    var bestTierRank = -1;
+    for (final candidate in ordered) {
+      if (candidate.type != 'mp4_quality' ||
+          candidate.url.toLowerCase().contains('.m3u8')) {
+        continue;
+      }
+      if (!await isPlaybackUrlCached(candidate.url, cacheManager: cache)) {
+        continue;
+      }
+      final rank = _tierRank(mp4Tier(candidate.url));
+      if (rank > bestTierRank) {
+        bestTierRank = rank;
+        bestCached = candidate;
+      }
+    }
+    if (bestCached == null) {
+      return ordered;
+    }
+    final result = List<VideoSourceCandidate>.from(ordered);
+    result.remove(bestCached);
+    result.insert(0, bestCached);
+    return result;
+  }
+
+  Future<bool> _anyMp4Cached(
+    List<VideoSourceCandidate> candidates,
+    BaseCacheManager cache,
+  ) async {
+    for (final candidate in candidates) {
+      if (candidate.type != 'mp4_quality') {
+        continue;
+      }
+      if (await isPlaybackUrlCached(candidate.url, cacheManager: cache) ||
+          await isPlaybackUrlPartiallyCached(
+            candidate.url,
+            cacheManager: cache,
+          )) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /// Cached 1080 MP4 candidate for adaptive upgrade after first frame, if any.
+  Future<VideoSourceCandidate?> cached1080Candidate(
+    List<VideoSourceCandidate> candidates, {
+    BaseCacheManager? cacheManager,
+  }) async {
+    final cache = cacheManager ?? ReelsVideoCacheManager.instance.manager;
+    for (final candidate in candidates) {
+      if (candidate.type != 'mp4_quality' ||
+          mp4Tier(candidate.url) != '1080') {
+        continue;
+      }
+      if (await isPlaybackUrlCached(candidate.url, cacheManager: cache)) {
+        return candidate;
+      }
+    }
+    return null;
+  }
+
+  int _tierRank(String? tier) {
+    return switch (tier) {
+      '1080' => 3,
+      '720' => 2,
+      '360' => 1,
+      _ => 0,
+    };
   }
 
   List<VideoSourceCandidate> _orderMp4ByTier(

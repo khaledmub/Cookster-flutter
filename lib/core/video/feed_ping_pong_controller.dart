@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'dart:ui' show VoidCallback;
 
+import 'package:cookster/core/video/device_constraints.dart';
 import 'package:cookster/core/video/feed_ping_pong_logic.dart';
+import 'package:cookster/core/video/reels_perf.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 
@@ -46,13 +48,16 @@ class FeedDecodeSlot {
 
 /// Dual-slot feed decoder: prefetch on hidden, flip on swipe, recycle hidden only.
 class FeedPingPongController {
-  FeedPingPongController({this.onSlotsChanged});
+  FeedPingPongController({
+    this.onSlotsChanged,
+    this.singleSlotMode = true,
+  });
 
   final VoidCallback? onSlotsChanged;
 
   /// MTK/Oppo cannot sustain two live [Video] surfaces — one decoder, one
   /// surface, swap media with [Player.open] on the same slot.
-  static const bool singleSlotMode = true;
+  final bool singleSlotMode;
 
   /// MTK/Oppo: disposing a hidden [Player] tears down ImageReader and spikes
   /// flush index — reuse the same two players for the whole feed session.
@@ -267,13 +272,15 @@ class FeedPingPongController {
 
   Future<void> silenceAllSlots() async {
     await ensureInitialized();
-    await _muteSlot(slot0);
-    await _muteSlot(slot1);
+    await _silenceSlot(slot0);
+    if (!singleSlotMode || slot1.player != null) {
+      await _silenceSlot(slot1);
+    }
   }
 
   Future<void> muteHiddenSlot() async {
     await ensureInitialized();
-    await _muteSlot(_hidden);
+    await _silenceSlot(_hidden);
   }
 
   /// Unmute after the [Video] surface has painted (or tab return when already audible).
@@ -397,13 +404,30 @@ class FeedPingPongController {
       if (!identical(slot, _active)) {
         await _disableSlotAudio(slot);
       }
+      if (identical(slot, _active)) {
+        await DeviceConstraints.instance.ensureInitialized();
+        if (DeviceConstraints.instance.needsConstrainedSurfaceRecovery) {
+          // Let the outgoing poster settle before Player.open tears down ImageReader.
+          await Future<void>.delayed(const Duration(milliseconds: 120));
+        }
+      }
       await player.open(Media(sourceUrl), play: true);
       await player.setVolume(0);
+      if (identical(slot, _active) &&
+          DeviceConstraints.instance.needsConstrainedSurfaceRecovery) {
+        await Future<void>.delayed(const Duration(milliseconds: 64));
+      }
       slot.boundKey = key;
       slot.boundUrl = sourceUrl;
       slot.openCount++;
       slot.isPrimed = true;
       openedMedia = true;
+      ReelsPerf.log(
+        'pingpong open slot=${slot.index} key=$key tier=${_tierFromUrl(sourceUrl)}',
+      );
+      if (identical(slot, _active)) {
+        await _seekToStartAfterColdOpen(slot);
+      }
     } else {
       _syncSlotUrl(slot, sourceUrl);
       if (identical(slot, _active)) {
@@ -440,8 +464,33 @@ class FeedPingPongController {
     } catch (_) {}
   }
 
-  Future<void> _muteSlot(FeedDecodeSlot slot) async {
+  /// After cold open, align to t=0 so the first painted frame is stable (reduces
+  /// visible “frame crawl” when the decoder starts mid-buffer).
+  Future<void> _seekToStartAfterColdOpen(FeedDecodeSlot slot) async {
+    final player = slot.player;
+    if (player == null) {
+      return;
+    }
+    try {
+      await player.seek(Duration.zero);
+    } catch (_) {}
+  }
+
+  Future<void> _silenceSlot(FeedDecodeSlot slot) async {
     await _disableSlotAudio(slot);
+    final player = slot.player;
+    if (player == null) {
+      return;
+    }
+    try {
+      if (player.state.playing) {
+        await player.pause();
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _muteSlot(FeedDecodeSlot slot) async {
+    await _silenceSlot(slot);
   }
 
   Future<void> _unmuteSlot(FeedDecodeSlot slot) async {
@@ -514,5 +563,19 @@ class FeedPingPongController {
         }),
       );
     }
+  }
+
+  String _tierFromUrl(String url) {
+    final lower = url.toLowerCase();
+    if (lower.contains('/1080') || lower.contains('_1080')) {
+      return '1080';
+    }
+    if (lower.contains('/720') || lower.contains('_720')) {
+      return '720';
+    }
+    if (lower.contains('/360') || lower.contains('_360')) {
+      return '360';
+    }
+    return 'other';
   }
 }

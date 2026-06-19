@@ -20,6 +20,7 @@ import 'package:cookster/modules/landing/landingTabs/home/homeWidgets/reel_overl
 import 'package:cookster/modules/landing/landingTabs/home/homeWidgets/reel_video_player.dart';
 import 'package:cookster/modules/liked_videos_screen/liked_videos_controller/liked_videos_controller.dart';
 import 'package:flutter/gestures.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -178,12 +179,17 @@ class _CollectionReelScreenState extends State<CollectionReelScreen> {
     if (!mounted) {
       return;
     }
+    await SchedulerBinding.instance.endOfFrame;
+    await SchedulerBinding.instance.endOfFrame;
+    if (!mounted) {
+      return;
+    }
+    _preloadManager.prepareForSessionStart();
     _syncVideosFromController(preserveVisible: false);
     setState(() => _isLoading = false);
 
     if (_videos.isNotEmpty) {
       final start = _visibleIndexNotifier.value;
-      _preloadManager.prepareForVisibleAttach();
       unawaited(_preloadManager.bootstrapFromVisible(start));
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) {
@@ -235,10 +241,13 @@ class _CollectionReelScreenState extends State<CollectionReelScreen> {
     _pageController.removeListener(_onPageScrollOffset);
     _pageController.dispose();
     _playbackCoordinator.dispose();
-    MediaKitPlayerPool.instance.pauseAllImmediate();
-    unawaited(MediaKitPlayerPool.instance.disposeAll());
-    _homeController.resumeReelsAfterRouteOverlay();
+    unawaited(_teardownPoolAndResumeHome());
     super.dispose();
+  }
+
+  Future<void> _teardownPoolAndResumeHome() async {
+    await MediaKitPlayerPool.instance.disposeAll();
+    _homeController.resumeReelsAfterRouteOverlay();
   }
 
   Future<void> _loadAuth() async {
@@ -249,18 +258,6 @@ class _CollectionReelScreenState extends State<CollectionReelScreen> {
         _isAuthenticated = token != null && token.isNotEmpty;
       });
     }
-  }
-
-  void _resumeAudibleOnce() {
-    final index = _visibleIndexNotifier.value;
-    if (index < 0 || index >= _videos.length) {
-      return;
-    }
-    final key = _videos[index].id;
-    if (key == null || key.isEmpty) {
-      return;
-    }
-    unawaited(MediaKitPlayerPool.instance.resumeFeedVisible(key));
   }
 
   void _onVisibleReelReady(int index) {
@@ -287,12 +284,14 @@ class _CollectionReelScreenState extends State<CollectionReelScreen> {
     if (index < 0 || index >= _videos.length) {
       return;
     }
+    if (_videos[index].isImage == 1) {
+      MediaKitPlayerPool.instance.pauseAllImmediate();
+      return;
+    }
     MediaKitPlayerPool.instance.setScreenWidth(
       MediaQuery.sizeOf(context).width,
     );
-    _preloadManager.prepareForVisibleAttach();
     _playbackCoordinator.onPageSettled(index, context: context);
-    _resumeAudibleOnce();
   }
 
   VideoPreloadTarget? _preloadTargetForIndex(int index) {
@@ -300,6 +299,9 @@ class _CollectionReelScreenState extends State<CollectionReelScreen> {
       return null;
     }
     final video = _videos[index];
+    if (video.isImage == 1) {
+      return null;
+    }
     final key = video.id ?? video.resolvedPlaybackUrl ?? '';
     if (key.isEmpty || !video.isTranscodeReady) {
       return VideoPreloadTarget(key: key, candidates: const []);
@@ -315,7 +317,7 @@ class _CollectionReelScreenState extends State<CollectionReelScreen> {
       return null;
     }
     final video = _videos[index];
-    return video.resolvedReelPosterFallbackUrl ?? video.resolvedReelPosterUrl;
+    return ReelFeedPlayerKit.precachePosterUrl(video);
   }
 
   void _onPageScrollOffset() {
@@ -333,7 +335,8 @@ class _CollectionReelScreenState extends State<CollectionReelScreen> {
     }
     final towardRaw = page > rounded ? page.ceil() : page.floor();
     final toward = towardRaw.clamp(0, _videos.length - 1).toInt();
-    if (_scrollTowardIndex == toward) {
+    final progress = (page - rounded).abs();
+    if (_scrollTowardIndex == toward && progress < 0.45) {
       return;
     }
     _scrollTowardIndex = toward;
@@ -341,6 +344,7 @@ class _CollectionReelScreenState extends State<CollectionReelScreen> {
       fromActualIndex: _visibleIndexNotifier.value,
       towardActualIndex: toward,
       context: context,
+      scrollProgress: progress,
     );
   }
 
@@ -401,19 +405,19 @@ class _CollectionReelScreenState extends State<CollectionReelScreen> {
   void _onPageChanged(int index) {
     _visibleIndexNotifier.value = index;
     _scrollTowardIndex = null;
-    _scheduleViewTrack(_videos[index]);
+    final video = _videos[index];
+    if (video.isImage == 1) {
+      MediaKitPlayerPool.instance.pauseAllImmediate();
+      _scheduleViewTrack(video);
+      return;
+    }
+    _scheduleViewTrack(video);
 
-    _preloadManager.prepareForVisibleAttach();
     MediaKitPlayerPool.instance.setScreenWidth(
       MediaQuery.sizeOf(context).width,
     );
+    _preloadManager.onVisiblePageSettled();
     _playbackCoordinator.onPageSettled(index, context: context);
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) {
-        return;
-      }
-      _resumeAudibleOnce();
-    });
 
     if (_hasMore && index >= _videos.length - 3) {
       unawaited(_fetchMoreVideos());
@@ -552,7 +556,7 @@ class _CollectionReelScreenState extends State<CollectionReelScreen> {
                 scrollDirection: Axis.vertical,
                 clipBehavior: Clip.hardEdge,
                 dragStartBehavior: DragStartBehavior.down,
-                allowImplicitScrolling: false,
+                allowImplicitScrolling: true,
                 pageSnapping: true,
                 physics: const ClampingScrollPhysics(),
                 itemCount: _videos.length,

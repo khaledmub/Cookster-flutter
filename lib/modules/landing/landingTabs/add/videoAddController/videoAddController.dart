@@ -7,6 +7,7 @@ import 'package:cookster/appUtils/apiEndPoints.dart';
 import 'package:cookster/appUtils/colorUtils.dart';
 import 'package:cookster/modules/auth/signUp/signUpController/cityController.dart';
 import 'package:cookster/core/video/media_kit_player_pool.dart';
+import 'package:cookster/modules/landing/landingTabs/home/homeController/homeController.dart';
 import 'package:cookster/modules/landing/landingView/landingView.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -697,6 +698,9 @@ class VideoAddController extends GetxController {
 
   Future<void> uploadVideo(File videoFile, BuildContext context) async {
     if (isVideoUploading.value || isCompressing.value) return;
+    if (Get.isRegistered<HomeController>()) {
+      Get.find<HomeController>().reinforceMediaCaptureSilence();
+    }
     syncFormTextFromControllers();
     _resetUploadProgressTracking();
     if (!_isSupportedVideoFormat(videoFile)) {
