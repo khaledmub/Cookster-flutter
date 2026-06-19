@@ -10,6 +10,7 @@ import 'package:cookster/core/video/reels_playback_coordinator.dart';
 import 'package:cookster/core/video/video_preload_manager.dart';
 import 'package:cookster/core/video/video_preload_target.dart';
 import 'package:cookster/core/video/video_source_resolver.dart';
+import 'package:cookster/core/widgets/reel_page_keep_alive.dart';
 import 'package:cookster/modules/landing/landingTabs/home/homeController/homeController.dart';
 import 'package:cookster/modules/landing/landingTabs/home/homeController/saveController.dart';
 import 'package:cookster/modules/landing/landingTabs/home/homeModel/videoFeedModel.dart';
@@ -53,6 +54,7 @@ class _CollectionReelScreenState extends State<CollectionReelScreen> {
   late final PageController _pageController;
   final GlobalKey<ReelVideoPlayerState> _reelPlayerKey =
       GlobalKey<ReelVideoPlayerState>();
+  bool _maskActiveVideoWithPoster = true;
   final ValueNotifier<int> _visibleIndexNotifier = ValueNotifier<int>(0);
 
   final List<WallVideos> _videos = [];
@@ -114,6 +116,12 @@ class _CollectionReelScreenState extends State<CollectionReelScreen> {
       preloadManager: _preloadManager,
       targetForIndex: _preloadTargetForIndex,
       thumbnailUrlForIndex: _thumbnailUrlForIndex,
+      videoForIndex: (index) {
+        if (index < 0 || index >= _videos.length) {
+          return null;
+        }
+        return _videos[index];
+      },
     );
     unawaited(_bootstrap());
   }
@@ -269,6 +277,19 @@ class _CollectionReelScreenState extends State<CollectionReelScreen> {
     unawaited(_preloadManager.onVisibleIndexChanged(index));
   }
 
+  void _onFeedVideoPainted() {
+    if (!mounted || !_maskActiveVideoWithPoster) {
+      return;
+    }
+    setState(() => _maskActiveVideoWithPoster = false);
+  }
+
+  void _resetPosterMaskForPageChange() {
+    if (!_maskActiveVideoWithPoster) {
+      setState(() => _maskActiveVideoWithPoster = true);
+    }
+  }
+
   Widget _buildInlineReelPlayer(WallVideos video, int index) {
     return ReelFeedPlayerKit.buildInlinePlayer(
       video: video,
@@ -276,6 +297,7 @@ class _CollectionReelScreenState extends State<CollectionReelScreen> {
       onPlaybackReady: () {
         _onVisibleReelReady(index);
       },
+      onFeedVideoPainted: _onFeedVideoPainted,
       onVideoCompleted: () {},
     );
   }
@@ -404,6 +426,7 @@ class _CollectionReelScreenState extends State<CollectionReelScreen> {
 
   void _onPageChanged(int index) {
     _visibleIndexNotifier.value = index;
+    _resetPosterMaskForPageChange();
     _scrollTowardIndex = null;
     final video = _videos[index];
     if (video.isImage == 1) {
@@ -563,18 +586,28 @@ class _CollectionReelScreenState extends State<CollectionReelScreen> {
                 onPageChanged: _onPageChanged,
                 itemBuilder: (context, index) {
                   final video = _videos[index];
-                  return ValueListenableBuilder<int>(
+                  return ReelPageKeepAlive(
+                    key: ValueKey<String>('collection_${video.id ?? 'video'}'),
+                    child: ValueListenableBuilder<int>(
                     valueListenable: _visibleIndexNotifier,
                     builder: (context, visibleIndex, _) {
                       final isActiveReel =
                           index == visibleIndex && video.isImage != 1;
+                      final maskPoster =
+                          isActiveReel && _maskActiveVideoWithPoster;
                       return Stack(
                         clipBehavior: Clip.none,
                         alignment: Alignment.bottomLeft,
                         fit: StackFit.expand,
                         children: [
-                          ReelFeedPlayerKit.buildPagePoster(video),
                           if (isActiveReel) _buildInlineReelPlayer(video, index),
+                          IgnorePointer(
+                            ignoring: isActiveReel && !maskPoster,
+                            child: Opacity(
+                              opacity: maskPoster || !isActiveReel ? 1.0 : 0.0,
+                              child: ReelFeedPlayerKit.buildPagePoster(video),
+                            ),
+                          ),
                           if (isActiveReel) ...[
                             VideoDescriptionWidget(
                               title: video.title,
@@ -590,6 +623,7 @@ class _CollectionReelScreenState extends State<CollectionReelScreen> {
                         ],
                       );
                     },
+                  ),
                   );
                 },
               ),

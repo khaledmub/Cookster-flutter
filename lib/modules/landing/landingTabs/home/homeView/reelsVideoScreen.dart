@@ -12,6 +12,7 @@ import 'package:cookster/core/firestore/video_view_tracker.dart';
 import 'package:cookster/core/media/wall_video_media.dart';
 import 'package:cookster/core/user/public_user_identity.dart';
 import 'package:cookster/core/widgets/grid_thumbnail_cache.dart';
+import 'package:cookster/core/widgets/reel_page_keep_alive.dart';
 import 'package:cookster/core/video/media_kit_player_pool.dart';
 import 'package:cookster/core/video/device_constraints.dart';
 import 'package:cookster/core/video/reels_playback_coordinator.dart';
@@ -129,6 +130,9 @@ class _VideoReelScreenState extends State<VideoReelScreen>
   /// on every tab switch and tore down the MTK [ImageReader] surface.
   final GlobalKey<ReelVideoPlayerState> _feedReelPlayerKey =
       GlobalKey<ReelVideoPlayerState>();
+
+  /// Page poster stays above the video surface until the first composited frame.
+  bool _maskActiveVideoWithPoster = true;
 
   Completer<void>? _tabSwitchFrameCompleter;
   String? _tabSwitchTargetVideoId;
@@ -371,6 +375,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
       if (cached != null && cached.isNotEmpty) {
         targetIndex = controller.resolveScrollIndexForTab(newTabType, cached);
         layer.visibleIndexNotifier.value = targetIndex;
+        _resetPosterMaskForPageChange();
         controller.visiblePageIndex.value = targetIndex;
         if (layer.pageController.hasClients) {
           layer.pageController.jumpToPage(targetIndex);
@@ -489,6 +494,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
     }
     _preloadManager.prepareForSessionStart();
     layer.visibleIndexNotifier.value = targetIndex;
+    _resetPosterMaskForPageChange();
     controller.visiblePageIndex.value = targetIndex;
     controller.saveTabScrollIndex(tab, targetIndex);
     controller.saveTabVideoId(tab, targetId);
@@ -518,6 +524,19 @@ class _VideoReelScreenState extends State<VideoReelScreen>
     _maybeBootstrapPreload();
     final index = _activeLayer.visibleIndexNotifier.value;
     unawaited(_preloadManager.onVisibleIndexChanged(index));
+  }
+
+  void _onFeedVideoPainted() {
+    if (!mounted || !_maskActiveVideoWithPoster) {
+      return;
+    }
+    setState(() => _maskActiveVideoWithPoster = false);
+  }
+
+  void _resetPosterMaskForPageChange() {
+    if (!_maskActiveVideoWithPoster) {
+      setState(() => _maskActiveVideoWithPoster = true);
+    }
   }
 
 
@@ -550,6 +569,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
       onPlaybackReady: () {
         _onVisibleReelReady();
       },
+      onFeedVideoPainted: _onFeedVideoPainted,
       onVideoCompleted: _onReelVideoCompleted,
     );
   }
@@ -660,6 +680,13 @@ class _VideoReelScreenState extends State<VideoReelScreen>
           return null;
         }
         return ReelFeedPlayerKit.precachePosterUrl(videos[index]);
+      },
+      videoForIndex: (index) {
+        final videos = controller.videoFeed.value.videos;
+        if (videos == null || index < 0 || index >= videos.length) {
+          return null;
+        }
+        return videos[index];
       },
     );
     _reelsVisibilityWorker = ever(controller.isReelsTabVisible, (visible) {
@@ -1007,6 +1034,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
         layer.pageController.jumpToPage(targetIndex);
       }
       layer.visibleIndexNotifier.value = targetIndex;
+      _resetPosterMaskForPageChange();
       controller.visiblePageIndex.value = targetIndex;
       controller.saveTabScrollIndex(tab, targetIndex);
       final videos = controller.videoFeed.value.videos;
@@ -1075,6 +1103,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                 controller.saveTabScrollIndex(tab, actualIndex);
                 controller.saveTabVideoId(tab, videos[actualIndex].id);
                 layer.visibleIndexNotifier.value = actualIndex;
+                _resetPosterMaskForPageChange();
                 _schedulePlayerForPage(tab, actualIndex);
                 _preloadManager.onVisiblePageSettled();
                 MediaKitPlayerPool.instance.setScreenWidth(
@@ -1097,9 +1126,9 @@ class _VideoReelScreenState extends State<VideoReelScreen>
             final actualIndex = index % videos.length;
             final videoDetail = videos[actualIndex];
 
-            return _ReelPageKeepAlive(
+            return ReelPageKeepAlive(
               key: ValueKey<String>(
-                '${tab}_${videoDetail.id ?? 'video'}_$index',
+                '${tab}_${videoDetail.id ?? 'video'}',
               ),
               child: ValueListenableBuilder<int>(
                 valueListenable: layer.visibleIndexNotifier,
@@ -1109,6 +1138,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                       videoDetail.isImage != 1;
 
                   Widget buildPageStack({required bool showPlayer}) {
+                    final maskPoster = showPlayer && _maskActiveVideoWithPoster;
                     return Stack(
                       clipBehavior: Clip.none,
                       alignment: Alignment.bottomLeft,
@@ -1117,15 +1147,21 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                           child: Stack(
                             fit: StackFit.expand,
                             children: [
-                              _buildPagePoster(
-                                videoDetail,
-                                isActiveReel: showPlayer,
-                              ),
                               if (showPlayer)
                                 _buildInlineReelPlayer(
                                   videoDetail,
                                   tab: tab,
                                 ),
+                              IgnorePointer(
+                                ignoring: showPlayer && !maskPoster,
+                                child: Opacity(
+                                  opacity: maskPoster || !showPlayer ? 1.0 : 0.0,
+                                  child: _buildPagePoster(
+                                    videoDetail,
+                                    isActiveReel: showPlayer,
+                                  ),
+                                ),
+                              ),
                             ],
                           ),
                         ),
@@ -3410,27 +3446,5 @@ class _VideoDescriptionWidgetState extends State<VideoDescriptionWidget>
         ),
       ),
     );
-  }
-}
-
-/// Keeps off-screen reel pages (especially image posts) alive to avoid decode flash.
-class _ReelPageKeepAlive extends StatefulWidget {
-  const _ReelPageKeepAlive({super.key, required this.child});
-
-  final Widget child;
-
-  @override
-  State<_ReelPageKeepAlive> createState() => _ReelPageKeepAliveState();
-}
-
-class _ReelPageKeepAliveState extends State<_ReelPageKeepAlive>
-    with AutomaticKeepAliveClientMixin {
-  @override
-  bool get wantKeepAlive => true;
-
-  @override
-  Widget build(BuildContext context) {
-    super.build(context);
-    return widget.child;
   }
 }

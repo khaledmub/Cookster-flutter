@@ -1,9 +1,18 @@
 import 'package:cookster/core/media/wall_video_media.dart';
 import 'package:cookster/core/video/video_source_resolver.dart';
 import 'package:cookster/core/widgets/reel_gapless_poster.dart';
+import 'package:cookster/core/widgets/reel_image_display.dart';
 import 'package:cookster/modules/landing/landingTabs/home/homeModel/videoFeedModel.dart';
 import 'package:cookster/modules/landing/landingTabs/home/homeWidgets/reel_video_player.dart';
 import 'package:flutter/material.dart';
+
+/// A poster URL plus whether to decode at LQIP size for precache/warm.
+class ReelPosterPrecacheTier {
+  const ReelPosterPrecacheTier({required this.url, required this.lqip});
+
+  final String url;
+  final bool lqip;
+}
 
 /// Shared poster + [ReelVideoPlayer] used by the General home feed and profile
 /// reel viewers — one configuration so playback behaves identically everywhere.
@@ -17,13 +26,109 @@ class ReelFeedPlayerKit {
         '';
   }
 
-  /// URL to warm in RAM/disk ahead of scroll — images use full asset, videos poster.
-  static String? precachePosterUrl(WallVideos video) {
-    if (video.isImage == 1) {
-      return video.resolvedPlaybackUrl;
+  /// Fast LQIP for image posts — thumbnail or reel poster, not full asset.
+  static String? imageLqipUrl(WallVideos video) {
+    final lqip = video.resolvedThumbnailUrl ??
+        video.resolvedReelPosterUrl ??
+        video.resolvedReelPosterFallbackUrl;
+    final trimmed = lqip?.trim() ?? '';
+    return trimmed.isEmpty ? null : trimmed;
+  }
+
+  /// Blur/LQIP underlay for image posts — separate CDN path or same URL for
+  /// downscaled decode tier.
+  static String? imagePostBlurUrl(WallVideos video) {
+    final full = video.resolvedPlaybackUrl?.trim() ?? '';
+    if (full.isEmpty) {
+      return null;
     }
-    final url = posterUrl(video);
-    return url.isEmpty ? null : url;
+    final lqip = imageLqipUrl(video);
+    if (lqip != null && lqip.isNotEmpty && lqip != full) {
+      return lqip;
+    }
+    return full;
+  }
+
+  static String imagePostCacheKey(WallVideos video) =>
+      'image_post_${video.id ?? video.resolvedPlaybackUrl ?? ''}';
+
+  /// Ordered decode tiers to warm ahead of scroll.
+  static List<ReelPosterPrecacheTier> precachePosterTiers(WallVideos video) {
+    if (video.isImage == 1) {
+      final full = video.resolvedPlaybackUrl?.trim() ?? '';
+      if (full.isEmpty) {
+        return const [];
+      }
+      final lqip = imageLqipUrl(video);
+      if (lqip != null && lqip.isNotEmpty && lqip != full) {
+        return [
+          ReelPosterPrecacheTier(url: lqip, lqip: true),
+          ReelPosterPrecacheTier(url: full, lqip: false),
+        ];
+      }
+      return [
+        ReelPosterPrecacheTier(url: full, lqip: true),
+        ReelPosterPrecacheTier(url: full, lqip: false),
+      ];
+    }
+    final primary = posterUrl(video);
+    if (primary.isEmpty) {
+      return const [];
+    }
+    final tiers = <ReelPosterPrecacheTier>[
+      ReelPosterPrecacheTier(url: primary, lqip: false),
+    ];
+    final blur = videoPosterBlurUrl(video);
+    if (blur != null && blur.isNotEmpty) {
+      if (blur != primary) {
+        tiers.insert(0, ReelPosterPrecacheTier(url: blur, lqip: true));
+      } else {
+        tiers.insert(0, ReelPosterPrecacheTier(url: primary, lqip: true));
+      }
+    }
+    return tiers;
+  }
+
+  /// Ordered URL strings for legacy callers.
+  static List<String> precachePosterUrls(WallVideos video) {
+    return precachePosterTiers(video).map((t) => t.url).toList();
+  }
+
+  /// Primary URL to warm in RAM/disk ahead of scroll (LQIP for image posts).
+  static String? precachePosterUrl(WallVideos video) {
+    final tiers = precachePosterTiers(video);
+    return tiers.isEmpty ? null : tiers.first.url;
+  }
+
+  /// True when [url] at [index] in [precachePosterTiers] is the LQIP tier.
+  static bool isPrecacheLqipTier(WallVideos video, String url) {
+    for (final tier in precachePosterTiers(video)) {
+      if (tier.url == url.trim()) {
+        return tier.lqip;
+      }
+    }
+    return false;
+  }
+
+  /// Blur underlay for video page posters.
+  static String? videoPosterBlurUrl(WallVideos video) {
+    if (video.isTranscodeReady) {
+      final blur = video.resolvedBlurThumbnailUrl?.trim() ?? '';
+      if (blur.isNotEmpty) {
+        return blur;
+      }
+    }
+    final fallback = video.resolvedReelPosterFallbackUrl?.trim() ?? '';
+    final primary = video.resolvedReelPosterFallbackUrl ??
+        video.resolvedReelPosterUrl ??
+        '';
+    if (fallback.isNotEmpty && fallback != primary) {
+      return fallback;
+    }
+    if (!video.isTranscodeReady && primary.isNotEmpty) {
+      return primary;
+    }
+    return null;
   }
 
   /// Full-screen poster for off-screen / image pages. Active video pages should
@@ -33,7 +138,8 @@ class ReelFeedPlayerKit {
       final url = video.resolvedPlaybackUrl ?? '';
       return ReelGaplessPoster(
         imageUrl: url,
-        cacheKey: 'image_post_${video.id ?? url}',
+        blurUrl: imagePostBlurUrl(video),
+        cacheKey: imagePostCacheKey(video),
         fit: BoxFit.cover,
       );
     }
@@ -42,17 +148,57 @@ class ReelFeedPlayerKit {
         '';
     return ReelGaplessPoster(
       imageUrl: primary,
-      blurUrl: video.isTranscodeReady ? video.resolvedBlurThumbnailUrl : null,
+      blurUrl: videoPosterBlurUrl(video),
       fallbackUrl: video.resolvedReelPosterFallbackUrl,
       cacheKey: 'page_poster_${video.id ?? primary}',
       fit: BoxFit.cover,
     );
   }
 
+  /// Lightweight thumb-only layer for off-screen image posts.
+  static Widget buildImageThumbPoster(WallVideos video) {
+    final url = imagePostBlurUrl(video) ??
+        video.resolvedPlaybackUrl?.trim() ??
+        '';
+    if (url.isEmpty) {
+      return const ColoredBox(color: Colors.black);
+    }
+    return ReelGaplessPoster(
+      imageUrl: url,
+      cacheKey: 'image_thumb_${video.id ?? url}',
+      fit: BoxFit.cover,
+      memScale: 0.35,
+      filterQuality: FilterQuality.low,
+      useLqipTier: true,
+    );
+  }
+
+  /// Visible-slot image holder — mount only on the active image page.
+  static Widget buildVisibleImageDisplay({
+    required WallVideos video,
+    required GlobalKey<ReelImageDisplayState> displayKey,
+    bool wrapPositioned = true,
+  }) {
+    final url = video.resolvedPlaybackUrl ?? '';
+    final display = ReelImageDisplay(
+      key: displayKey,
+      imageUrl: url,
+      blurUrl: imagePostBlurUrl(video),
+      cacheKey: imagePostCacheKey(video),
+      fit: BoxFit.cover,
+      overlayMode: true,
+    );
+    if (wrapPositioned) {
+      return Positioned.fill(child: display);
+    }
+    return display;
+  }
+
   static Widget buildInlinePlayer({
     required WallVideos video,
     required GlobalKey<ReelVideoPlayerState> playerKey,
     VoidCallback? onPlaybackReady,
+    VoidCallback? onFeedVideoPainted,
     VoidCallback? onVideoCompleted,
     bool releaseOnDispose = false,
     bool wrapPositioned = true,
@@ -64,14 +210,16 @@ class ReelFeedPlayerKit {
       videoId: video.id,
       thumbnailUrl: posterUrl(video),
       posterFallbackUrl: video.resolvedReelPosterFallbackUrl,
-      blurThumbnailUrl:
-          video.isTranscodeReady ? video.resolvedBlurThumbnailUrl : null,
+      blurThumbnailUrl: video.isTranscodeReady
+          ? video.resolvedBlurThumbnailUrl
+          : video.resolvedReelPosterFallbackUrl,
       transcodeReady: video.isTranscodeReady,
       videoUrl: video.resolvedPlaybackUrl ?? '',
       hlsUrl: video.resolvedHlsUrl,
       qualityMp4Urls:
           video.isTranscodeReady ? video.qualityMp4Urls : const [],
       onPlaybackReady: onPlaybackReady,
+      onFeedVideoPainted: onFeedVideoPainted,
       onVideoCompleted: onVideoCompleted,
     );
     if (wrapPositioned) {

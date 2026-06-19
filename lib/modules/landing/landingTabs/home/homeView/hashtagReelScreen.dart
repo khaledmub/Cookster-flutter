@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cookster/core/video/media_kit_player_pool.dart';
+import 'package:cookster/core/widgets/reel_page_keep_alive.dart';
 import 'package:cookster/loaders/pulseLoader.dart';
 import 'package:cookster/modules/landing/landingTabs/home/homeController/hashTagController.dart';
 import 'package:cookster/modules/landing/landingTabs/home/homeController/homeController.dart';
@@ -31,6 +32,7 @@ class _HashtagReelScreenState extends State<HashtagReelScreen> {
   final Set<String> _trackedVideoIds = {};
   Timer? _viewTrackDebounce;
   int _visibleIndex = 0;
+  bool _maskActiveVideoWithPoster = true;
 
   @override
   void initState() {
@@ -87,7 +89,10 @@ class _HashtagReelScreenState extends State<HashtagReelScreen> {
   }
 
   void _onPageChanged(int index) {
-    _visibleIndex = index;
+    setState(() {
+      _visibleIndex = index;
+      _maskActiveVideoWithPoster = true;
+    });
     controller.currentIndex.value = index;
 
     final videos = controller.videoFeed.value.videos;
@@ -152,18 +157,33 @@ class _HashtagReelScreenState extends State<HashtagReelScreen> {
                 final video = videos[index];
                 final showPlayer =
                     index == _visibleIndex && video.isImage != 1;
-                return Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    if (!showPlayer)
-                      ReelFeedPlayerKit.buildPagePoster(video),
-                    if (showPlayer)
-                      ReelFeedPlayerKit.buildInlinePlayer(
-                        video: video,
-                        playerKey: _reelPlayerKey,
-                        wrapPositioned: false,
+                final maskPoster = showPlayer && _maskActiveVideoWithPoster;
+                return ReelPageKeepAlive(
+                  key: ValueKey<String>('hashtag_${video.id ?? 'video'}'),
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      if (showPlayer)
+                        ReelFeedPlayerKit.buildInlinePlayer(
+                          video: video,
+                          playerKey: _reelPlayerKey,
+                          wrapPositioned: false,
+                          onFeedVideoPainted: () {
+                            if (!mounted || !_maskActiveVideoWithPoster) {
+                              return;
+                            }
+                            setState(() => _maskActiveVideoWithPoster = false);
+                          },
+                        ),
+                      IgnorePointer(
+                        ignoring: showPlayer && !maskPoster,
+                        child: Opacity(
+                          opacity: maskPoster || !showPlayer ? 1.0 : 0.0,
+                          child: ReelFeedPlayerKit.buildPagePoster(video),
+                        ),
                       ),
-                  ],
+                    ],
+                  ),
                 );
               },
             ),

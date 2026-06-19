@@ -1,7 +1,8 @@
 import 'dart:async';
 
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cookster/core/widgets/grid_thumbnail_cache.dart';
+import 'package:cookster/modules/landing/landingTabs/home/homeModel/videoFeedModel.dart';
+import 'package:cookster/modules/landing/landingTabs/home/homeWidgets/reel_feed_player_kit.dart';
 import 'package:flutter/material.dart';
 
 import 'prefetch_indices.dart';
@@ -15,13 +16,16 @@ class ReelsPlaybackCoordinator {
     required VideoPreloadManager preloadManager,
     required VideoPreloadTarget? Function(int index) targetForIndex,
     required String? Function(int index) thumbnailUrlForIndex,
+    WallVideos? Function(int index)? videoForIndex,
   }) : _preloadManager = preloadManager,
        _targetForIndex = targetForIndex,
-       _thumbnailUrlForIndex = thumbnailUrlForIndex;
+       _thumbnailUrlForIndex = thumbnailUrlForIndex,
+       _videoForIndex = videoForIndex;
 
   final VideoPreloadManager _preloadManager;
   final VideoPreloadTarget? Function(int index) _targetForIndex;
   final String? Function(int index) _thumbnailUrlForIndex;
+  final WallVideos? Function(int index)? _videoForIndex;
 
   final ValueNotifier<String?> activeVideoId = ValueNotifier<String?>(null);
 
@@ -77,13 +81,20 @@ class ReelsPlaybackCoordinator {
         direction: 1,
         count: 5,
       );
-      final behindUrl = _thumbnailUrlForIndex(actualIndex - 1);
-      if (behindUrl != null && behindUrl.isNotEmpty) {
-        unawaited(
-          precacheImage(reelPosterPrecacheProvider(behindUrl, context), context),
-        );
-      }
+      _precacheTiersForIndex(context, actualIndex - 1);
     }
+  }
+
+  List<ReelPosterPrecacheTier> _tiersForIndex(int index) {
+    final video = _videoForIndex?.call(index);
+    if (video != null) {
+      return ReelFeedPlayerKit.precachePosterTiers(video);
+    }
+    final url = _thumbnailUrlForIndex(index);
+    if (url == null || url.isEmpty) {
+      return const [];
+    }
+    return [ReelPosterPrecacheTier(url: url, lqip: false)];
   }
 
   /// RAM-decode posters ahead in scroll direction; disk cache via provider.
@@ -94,16 +105,44 @@ class ReelsPlaybackCoordinator {
     int count = 5,
   }) {
     for (var step = 1; step <= count; step++) {
-      final url = _thumbnailUrlForIndex(anchorIndex + direction * step);
-      if (url == null || url.isEmpty) {
+      final index = anchorIndex + direction * step;
+      _precacheTiersForIndex(context, index);
+    }
+  }
+
+  void _precacheTiersForIndex(BuildContext context, int index) {
+    for (final tier in _tiersForIndex(index)) {
+      if (tier.url.isEmpty) {
         continue;
       }
-      unawaited(
-        precacheImage(reelPosterPrecacheProvider(url, context), context).then((_) {
-          ReelPosterImageCache.put(url, reelPosterPrecacheProvider(url, context));
-        }),
-      );
+      _precacheTier(context, index, tier);
     }
+  }
+
+  void _precacheTier(
+    BuildContext context,
+    int index,
+    ReelPosterPrecacheTier tier,
+  ) {
+    final video = _videoForIndex?.call(index);
+    final provider = tier.lqip
+        ? reelPosterLqipPrecacheProvider(tier.url, context)
+        : reelPosterPrecacheProvider(tier.url, context);
+    unawaited(
+      precacheImage(provider, context).then((_) {
+        if (video != null && video.isImage == 1) {
+          if (tier.lqip) {
+            ReelImagePostCache.putLqip(tier.url, provider);
+          } else {
+            ReelImagePostCache.putFull(tier.url, provider);
+          }
+        } else if (tier.lqip) {
+          ReelPosterImageCache.put(ReelPosterTierKeys.lqip(tier.url), provider);
+        } else {
+          ReelPosterImageCache.put(tier.url, provider);
+        }
+      }),
+    );
   }
 
   void dispose() {

@@ -13,6 +13,10 @@ class ReelGaplessPoster extends StatefulWidget {
     this.fallbackUrl,
     this.cacheKey,
     this.fit = BoxFit.cover,
+    this.memScale = 1.0,
+    this.filterQuality = FilterQuality.medium,
+    this.useLqipTier = false,
+    this.opaqueBase = true,
   });
 
   final String imageUrl;
@@ -20,6 +24,12 @@ class ReelGaplessPoster extends StatefulWidget {
   final String? fallbackUrl;
   final String? cacheKey;
   final BoxFit fit;
+  final double memScale;
+  final FilterQuality filterQuality;
+  /// When true, [imageUrl] is stored in the LQIP tier cache even at full memScale.
+  final bool useLqipTier;
+  /// When false, no black underlay (for overlays on top of another poster).
+  final bool opaqueBase;
 
   @override
   State<ReelGaplessPoster> createState() => _ReelGaplessPosterState();
@@ -28,12 +38,23 @@ class ReelGaplessPoster extends StatefulWidget {
 class _ReelGaplessPosterState extends State<ReelGaplessPoster> {
   ImageProvider? _resolvedPrimary;
   ImageProvider? _resolvedBlur;
-  bool _warming = false;
+  int _warmGeneration = 0;
+
+  bool get _isImagePost =>
+      widget.cacheKey != null && widget.cacheKey!.startsWith('image_post_');
+
+  bool get _isLqipLayer => widget.useLqipTier || widget.memScale < 1.0;
+
+  @override
+  void initState() {
+    super.initState();
+    _hydrateFromRamCacheSync();
+  }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    _hydrateFromRamCache();
+    _hydrateFromRamCacheSync();
     _warmProviders();
   }
 
@@ -42,66 +63,130 @@ class _ReelGaplessPosterState extends State<ReelGaplessPoster> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.imageUrl != widget.imageUrl ||
         oldWidget.blurUrl != widget.blurUrl) {
-      _resolvedPrimary = null;
-      _resolvedBlur = null;
-      _hydrateFromRamCache();
+      _hydrateFromRamCacheSync();
       _warmProviders();
     }
   }
 
-  void _hydrateFromRamCache() {
-    final primary = widget.imageUrl.trim();
-    final blur = widget.blurUrl?.trim() ?? '';
-    final cachedPrimary =
-        primary.isEmpty ? null : ReelPosterImageCache.get(primary);
-    final cachedBlur = blur.isEmpty ? null : ReelPosterImageCache.get(blur);
-    if (cachedPrimary != null || cachedBlur != null) {
-      setState(() {
-        if (cachedPrimary != null) {
-          _resolvedPrimary = cachedPrimary;
-        }
-        if (cachedBlur != null) {
-          _resolvedBlur = cachedBlur;
-        }
-      });
+  ImageProvider? _cachedLqipFor(String url) {
+    if (url.isEmpty) {
+      return null;
+    }
+    if (_isImagePost) {
+      return ReelImagePostCache.getLqip(url);
+    }
+    return ReelPosterImageCache.get(ReelPosterTierKeys.lqip(url)) ??
+        ReelPosterImageCache.get(url);
+  }
+
+  ImageProvider? _cachedFullFor(String url) {
+    if (url.isEmpty) {
+      return null;
+    }
+    if (_isImagePost) {
+      return ReelImagePostCache.getFull(url);
+    }
+    return ReelPosterImageCache.get(url);
+  }
+
+  ImageProvider? _cachedProviderFor(String url, {required bool lqip}) {
+    return lqip ? _cachedLqipFor(url) : _cachedFullFor(url);
+  }
+
+  void _putCachedProvider(String url, ImageProvider provider, {required bool lqip}) {
+    if (url.isEmpty) {
+      return;
+    }
+    if (_isImagePost) {
+      if (lqip) {
+        ReelImagePostCache.putLqip(url, provider);
+      } else {
+        ReelImagePostCache.putFull(url, provider);
+      }
+    } else if (lqip) {
+      ReelPosterImageCache.put(ReelPosterTierKeys.lqip(url), provider);
+    } else {
+      ReelPosterImageCache.put(url, provider);
     }
   }
 
+  void _hydrateFromRamCacheSync({bool notify = true}) {
+    final primary = widget.imageUrl.trim();
+    final blur = widget.blurUrl?.trim() ?? '';
+    final cachedPrimary = _cachedProviderFor(
+      primary,
+      lqip: _isLqipLayer,
+    );
+    var cachedBlur =
+        blur.isEmpty ? null : _cachedProviderFor(blur, lqip: true);
+    if (cachedBlur == null &&
+        !_isLqipLayer &&
+        primary.isNotEmpty &&
+        (blur.isEmpty || blur == primary)) {
+      cachedBlur = _cachedLqipFor(primary);
+    }
+    var changed = false;
+    if (cachedPrimary != null && cachedPrimary != _resolvedPrimary) {
+      _resolvedPrimary = cachedPrimary;
+      changed = true;
+    }
+    if (cachedBlur != null && cachedBlur != _resolvedBlur) {
+      _resolvedBlur = cachedBlur;
+      changed = true;
+    }
+    if (changed && mounted && notify) {
+      setState(() {});
+    }
+  }
+
+  ImageProvider _providerForUrl(String url, {required bool lqip}) {
+    if (lqip) {
+      return reelPosterLqipPrecacheProvider(url, context);
+    }
+    return reelPosterPrecacheProvider(url, context);
+  }
+
   Future<void> _warmProviders() async {
-    if (!mounted || _warming) {
+    if (!mounted) {
       return;
     }
-    _warming = true;
+    final generation = ++_warmGeneration;
     final blur = widget.blurUrl?.trim() ?? '';
     final primary = widget.imageUrl.trim();
-    ImageProvider? blurProvider;
-    ImageProvider? primaryProvider;
+    ImageProvider? blurProvider = _resolvedBlur;
+    ImageProvider? primaryProvider = _resolvedPrimary;
+
     if (blur.isNotEmpty) {
-      blurProvider = reelPosterPrecacheProvider(blur, context);
-      final cached = ReelPosterImageCache.get(blur);
-      if (cached == null) {
+      blurProvider = _cachedProviderFor(blur, lqip: true);
+      if (blurProvider == null) {
+        blurProvider = _providerForUrl(blur, lqip: true);
         try {
           await precacheImage(blurProvider, context);
-          ReelPosterImageCache.put(blur, blurProvider);
+          if (!mounted || generation != _warmGeneration) {
+            return;
+          }
+          _putCachedProvider(blur, blurProvider, lqip: true);
+          setState(() => _resolvedBlur = blurProvider);
         } catch (_) {}
-      } else {
-        blurProvider = cached;
       }
     }
+
     if (primary.isNotEmpty) {
-      primaryProvider = reelPosterPrecacheProvider(primary, context);
-      final cached = ReelPosterImageCache.get(primary);
-      if (cached == null) {
+      final primaryLqip = _isLqipLayer;
+      primaryProvider = _cachedProviderFor(primary, lqip: primaryLqip);
+      if (primaryProvider == null) {
+        primaryProvider = _providerForUrl(primary, lqip: primaryLqip);
         try {
           await precacheImage(primaryProvider, context);
-          ReelPosterImageCache.put(primary, primaryProvider);
+          if (!mounted || generation != _warmGeneration) {
+            return;
+          }
+          _putCachedProvider(primary, primaryProvider, lqip: primaryLqip);
         } catch (_) {}
-      } else {
-        primaryProvider = cached;
       }
     }
-    _warming = false;
-    if (!mounted) {
+
+    if (!mounted || generation != _warmGeneration) {
       return;
     }
     setState(() {
@@ -111,27 +196,61 @@ class _ReelGaplessPosterState extends State<ReelGaplessPoster> {
     if (!kReleaseMode && primary.isNotEmpty) {
       debugPrint(
         '[ReelsPoster] image_warmed url=${primary.length > 48 ? '${primary.substring(0, 48)}...' : primary} '
-        'blur=${blur.isNotEmpty} resolved=${primaryProvider != null}',
+        'lqip=${blur.isNotEmpty || _isLqipLayer} full=${!_isLqipLayer} resolved=${primaryProvider != null}',
       );
     }
   }
 
+  ImageProvider? get _effectiveBlurProvider {
+    if (_resolvedBlur != null) {
+      return _resolvedBlur;
+    }
+    final blur = widget.blurUrl?.trim() ?? '';
+    final primary = widget.imageUrl.trim();
+    if (!_isLqipLayer &&
+        _resolvedPrimary == null &&
+        primary.isNotEmpty &&
+        (blur.isEmpty || blur == primary)) {
+      return _cachedLqipFor(primary);
+    }
+    return null;
+  }
+
+  bool get _showLqipUnderlay {
+    if (_isLqipLayer || _resolvedPrimary != null) {
+      return false;
+    }
+    final blur = widget.blurUrl?.trim() ?? '';
+    return blur.isNotEmpty || _effectiveBlurProvider != null;
+  }
+
   @override
   Widget build(BuildContext context) {
+    if (_resolvedPrimary == null && _resolvedBlur == null) {
+      _hydrateFromRamCacheSync(notify: false);
+    }
+
+    final effectiveBlur = _effectiveBlurProvider;
+    final showOpaqueBase = widget.opaqueBase &&
+        _resolvedPrimary == null &&
+        effectiveBlur == null;
+
     return Stack(
       fit: StackFit.expand,
       children: [
-        const ColoredBox(color: Colors.black),
-        if (widget.blurUrl != null &&
-            widget.blurUrl!.trim().isNotEmpty &&
-            _resolvedPrimary == null)
+        if (showOpaqueBase) const ColoredBox(color: Colors.black),
+        if (_showLqipUnderlay)
           _PosterImageLayer(
-            url: widget.blurUrl!.trim(),
+            url: (widget.blurUrl?.trim().isNotEmpty == true)
+                ? widget.blurUrl!.trim()
+                : widget.imageUrl.trim(),
             context: context,
             fit: BoxFit.cover,
             memScale: 0.35,
             filterQuality: FilterQuality.low,
-            resolvedProvider: _resolvedBlur,
+            resolvedProvider: effectiveBlur,
+            cacheAsLqip: true,
+            isImagePost: _isImagePost,
           ),
         if (widget.imageUrl.trim().isNotEmpty)
           _PosterImageLayer(
@@ -140,7 +259,11 @@ class _ReelGaplessPosterState extends State<ReelGaplessPoster> {
             fit: widget.fit,
             cacheKey: widget.cacheKey,
             fallbackUrl: widget.fallbackUrl,
+            memScale: widget.memScale,
+            filterQuality: widget.filterQuality,
             resolvedProvider: _resolvedPrimary,
+            cacheAsLqip: _isLqipLayer,
+            isImagePost: _isImagePost,
           ),
       ],
     );
@@ -157,6 +280,8 @@ class _PosterImageLayer extends StatelessWidget {
     this.memScale = 1.0,
     this.filterQuality = FilterQuality.medium,
     this.resolvedProvider,
+    this.cacheAsLqip = false,
+    this.isImagePost = false,
   });
 
   final String url;
@@ -167,6 +292,8 @@ class _PosterImageLayer extends StatelessWidget {
   final double memScale;
   final FilterQuality filterQuality;
   final ImageProvider? resolvedProvider;
+  final bool cacheAsLqip;
+  final bool isImagePost;
 
   @override
   Widget build(BuildContext buildContext) {
@@ -233,7 +360,17 @@ class _PosterImageLayer extends StatelessWidget {
           );
         },
         imageBuilder: (ctx, imageProvider) {
-          ReelPosterImageCache.put(url, imageProvider);
+          if (isImagePost) {
+            if (cacheAsLqip) {
+              ReelImagePostCache.putLqip(url, imageProvider);
+            } else {
+              ReelImagePostCache.putFull(url, imageProvider);
+            }
+          } else if (cacheAsLqip) {
+            ReelPosterImageCache.put(ReelPosterTierKeys.lqip(url), imageProvider);
+          } else {
+            ReelPosterImageCache.put(url, imageProvider);
+          }
           return Image(
             image: imageProvider,
             fit: fit,

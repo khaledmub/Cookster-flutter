@@ -37,6 +37,7 @@ class ReelVideoPlayer extends StatefulWidget {
     this.releaseOnDispose = true,
     this.transcodeReady = true,
     this.onPlaybackReady,
+    this.onFeedVideoPainted,
     this.onVideoCompleted,
   });
 
@@ -53,6 +54,9 @@ class ReelVideoPlayer extends StatefulWidget {
   /// When false, pool lease is kept across widget lifecycle (reels singleton).
   final bool releaseOnDispose;
   final VoidCallback? onPlaybackReady;
+  /// Fired after the feed surface is opaque and has composited real frames —
+  /// parent can drop the poster mask on top without a black flash.
+  final VoidCallback? onFeedVideoPainted;
   final VoidCallback? onVideoCompleted;
 
   @override
@@ -661,7 +665,35 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
       detail: '${player.state.width}x${player.state.height} '
           'pos=${player.state.position.inMilliseconds}ms',
     );
-    setState(() {});
+    if (mounted && !_isDisposed) {
+      setState(() {});
+    }
+    if (_usesFeedVisibleChannel) {
+      await _awaitFeedOpaquePaint(generation: generation, player: player);
+    }
+  }
+
+  /// After [feedVideoVisible] goes true, wait for Impeller/MediaCodec to paint
+  /// while the parent keeps the page poster on top (Rendered 0/s while opacity 0).
+  Future<void> _awaitFeedOpaquePaint({
+    required int generation,
+    required Player player,
+  }) async {
+    const requiredFrames = 3;
+    for (var i = 0; i < requiredFrames; i++) {
+      await WidgetsBinding.instance.endOfFrame;
+      if (!_isCurrentAttach(generation) ||
+          !mounted ||
+          _isDisposed ||
+          !_videoSurfaceVisible ||
+          !_canShowVideo(player)) {
+        return;
+      }
+    }
+    if (!_isCurrentAttach(generation) || !mounted || _isDisposed) {
+      return;
+    }
+    widget.onFeedVideoPainted?.call();
   }
 
   Future<void> _onFrameReady(Player player, {required int generation}) async {
@@ -1684,10 +1716,30 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
   }
 
   bool get _effectiveBlurVisible {
-    final blur = widget.blurThumbnailUrl;
-    return widget.transcodeReady &&
-        blur != null &&
-        blur.isNotEmpty;
+    if (widget.transcodeReady) {
+      final blur = widget.blurThumbnailUrl?.trim() ?? '';
+      if (blur.isNotEmpty) {
+        return true;
+      }
+    }
+    final fallback = widget.posterFallbackUrl?.trim() ?? '';
+    final primary = _effectivePosterUrl;
+    return fallback.isNotEmpty && fallback != primary;
+  }
+
+  String? get _effectiveBlurUrl {
+    if (widget.transcodeReady) {
+      final blur = widget.blurThumbnailUrl?.trim() ?? '';
+      if (blur.isNotEmpty) {
+        return blur;
+      }
+    }
+    final fallback = widget.posterFallbackUrl?.trim() ?? '';
+    final primary = _effectivePosterUrl;
+    if (fallback.isNotEmpty && fallback != primary) {
+      return fallback;
+    }
+    return null;
   }
 
   Future<void> _onRetryPressed() async {
@@ -1707,7 +1759,7 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
   Widget _buildThumbnail() {
     return ReelGaplessPoster(
       imageUrl: _effectivePosterUrl,
-      blurUrl: _effectiveBlurVisible ? widget.blurThumbnailUrl : null,
+      blurUrl: _effectiveBlurVisible ? _effectiveBlurUrl : null,
       fallbackUrl: widget.posterFallbackUrl,
       cacheKey: 'reel_poster_${widget.videoId ?? _effectivePosterUrl}',
       fit: BoxFit.cover,
@@ -1749,15 +1801,25 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
   Widget build(BuildContext context) {
     final player = _activePlayer;
     final showVideo = _shouldShowVideoLayer(player);
+    // Keep feed video transparent until reveal completes AND a real frame is
+    // composited — never at frame_ready alone (logs: frame_ready 100ms,
+    // surface_revealed 400ms; showing early paints a black surface over poster).
+    final feedVideoVisible = _usesFeedVisibleChannel &&
+        _videoSurfaceMounted &&
+        _videoSurfaceVisible &&
+        showVideo &&
+        player != null &&
+        _canShowVideo(player);
     // Honor/MTK: 1×1 strict gate never paints — keep full size, hide via opacity.
     final collapseSurface =
         _strictSurfaceGate && !showVideo && !_needsConstrainedStartGate;
     return Stack(
       fit: StackFit.expand,
       children: [
-        if (_videoSurfaceVisible) const ColoredBox(color: Colors.black),
+        if (!_usesFeedVisibleChannel && _videoSurfaceVisible)
+          const ColoredBox(color: Colors.black),
         if (_usesFeedVisibleChannel && _videoSurfaceMounted)
-          _buildFeedVideoSurfaces(visible: _videoSurfaceVisible),
+          _buildFeedVideoSurfaces(visible: feedVideoVisible),
         if (_usesFeedVisibleChannel)
           Positioned.fill(
             child: GestureDetector(
