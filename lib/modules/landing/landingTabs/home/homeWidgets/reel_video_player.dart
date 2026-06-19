@@ -206,7 +206,7 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
     setState(() {});
   }
 
-  /// Hide video surface as soon as the user swipes — page poster stays visible.
+  /// Hide video surface when a reel switch is committed — not during partial scroll.
   void deferSurfaceForSwipe() {
     if (_isDisposed || !_usesFeedVisibleChannel) {
       return;

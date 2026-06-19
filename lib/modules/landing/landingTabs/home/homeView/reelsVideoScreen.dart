@@ -772,10 +772,6 @@ class _VideoReelScreenState extends State<VideoReelScreen>
     final toward = towardRaw % length;
     final progress = (page - rounded).abs();
 
-    if (progress > 0.04) {
-      _feedReelPlayerKey.currentState?.deferSurfaceForSwipe();
-    }
-
     final now = DateTime.now();
     var scrollVelocity = 0.0;
     if (layer.lastScrollPage != null && layer.lastScrollSampleAt != null) {
