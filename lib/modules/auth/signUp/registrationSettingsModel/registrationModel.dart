@@ -29,11 +29,11 @@ class RegistrationSettings {
     }
     businessTypes =
         json['business_types'] != null
-            ? new BusinessTypes.fromJson(json['business_types'])
+            ? BusinessTypes.fromJson(json['business_types'])
             : null;
     typeOfAccounts =
         json['type_of_account'] != null
-            ? new BusinessTypes.fromJson(json['type_of_account'])
+            ? BusinessTypes.fromJson(json['type_of_account'])
             : null;
   }
 
@@ -149,13 +149,22 @@ class BusinessTypes {
 
   BusinessTypes({this.key, this.values});
 
-  BusinessTypes.fromJson(Map<String, dynamic> json) {
-    key = json['key'] != null ? new Key.fromJson(json['key']) : null;
-    if (json['values'] != null) {
+  BusinessTypes.fromJson(dynamic json) {
+    if (json is Map<String, dynamic>) {
+      key = json['key'] != null ? Key.fromJson(json['key']) : null;
+      if (json['values'] != null) {
+        values = <Values>[];
+        json['values'].forEach((v) {
+          values!.add(Values.fromJson(v));
+        });
+      }
+    } else if (json is List) {
       values = <Values>[];
-      json['values'].forEach((v) {
-        values!.add(new Values.fromJson(v));
-      });
+      for (final item in json) {
+        if (item is Map<String, dynamic>) {
+          values!.add(Values.fromJson(item));
+        }
+      }
     }
   }
 

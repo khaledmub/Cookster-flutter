@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:cookster/captuteImage.dart';
 import 'package:cookster/modules/auth/signIn/signInController/signInController.dart';
 import 'package:cookster/modules/auth/signUp/signUpController/cityController.dart';
 import 'package:cookster/modules/auth/signUp/signUpController/signUpController.dart';
 import 'package:cookster/modules/auth/signUp/signUpOtpView/signUpOtpController.dart';
+import 'package:cookster/modules/landing/landingController/landingController.dart';
 import 'package:cookster/modules/landing/landingTabs/add/videoAddController/videoAddController.dart';
 import 'package:cookster/modules/landing/landingTabs/home/homeController/addCommentControllr.dart';
 import 'package:cookster/modules/landing/landingTabs/home/homeController/homeController.dart';
@@ -25,6 +28,9 @@ class SignInBinding extends Bindings {
     Get.lazyPut<LogInController>(() => LogInController());
     if (!Get.isRegistered<PromoteVideoController>()) {
       Get.lazyPut<PromoteVideoController>(() => PromoteVideoController());
+    }
+    if (!Get.isRegistered<LanguageController>()) {
+      Get.lazyPut<LanguageController>(() => LanguageController());
     }
   }
 }
@@ -126,8 +132,20 @@ class LandingBinding extends Bindings {
 class SearchBinding extends Bindings {
   @override
   void dependencies() {
+    if (!Get.isRegistered<HomeController>()) {
+      Get.put<HomeController>(HomeController());
+    }
     if (!Get.isRegistered<UserSearchController>()) {
       Get.lazyPut<UserSearchController>(() => UserSearchController());
+    }
+    if (!Get.isRegistered<CityController>()) {
+      Get.lazyPut<CityController>(() => CityController());
+    }
+    if (!Get.isRegistered<VideoAddController>()) {
+      Get.lazyPut<VideoAddController>(() => VideoAddController());
+    }
+    if (Get.isRegistered<NavBarController>()) {
+      unawaited(Get.find<NavBarController>().getVideoUploadSettings());
     }
   }
 }

@@ -52,6 +52,8 @@ class AppUtils {
         }
       },
       maxLines: maxLines,
+      style: const TextStyle(color: Colors.black, fontSize: 16),
+      scrollPadding: const EdgeInsets.only(bottom: 120),
       decoration: InputDecoration(
         errorStyle: const TextStyle(fontSize: 13),
         labelStyle: const TextStyle(fontSize: 14),

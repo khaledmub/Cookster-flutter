@@ -25,6 +25,7 @@ import 'package:http/http.dart' as http;
 
 import '../appUtils/colorUtils.dart';
 import '../loaders/pulseLoader.dart';
+import '../modules/landing/landingTabs/add/videoAddController/videoAddController.dart';
 import '../modules/landing/landingTabs/add/videoAddView/videoAddView.dart';
 import '../modules/landing/landingTabs/home/homeController/homeController.dart';
 import 'audioSelector.dart';
@@ -2151,7 +2152,14 @@ class _VideoTextEditorState extends State<VideoTextEditor> {
                 onPressed: () {
                   _videoController?.pause();
                   _processedVideoController?.pause();
-                  Get.to(VideoPreviewScreen(videoFile: _processedVideo!));
+                  Get.to(
+                    () => VideoPreviewScreen(videoFile: _processedVideo!),
+                    binding: BindingsBuilder(() {
+                      if (!Get.isRegistered<VideoAddController>()) {
+                        Get.put(VideoAddController());
+                      }
+                    }),
+                  );
                 },
               ),
             ],

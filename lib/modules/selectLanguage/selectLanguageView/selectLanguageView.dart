@@ -1,5 +1,4 @@
 import 'package:cookster/core/navigation/route_back.dart';
-import 'package:cookster/appBindings/app_bindings.dart';
 import 'package:cookster/appRoutes/appRoutes.dart';
 import 'package:cookster/appUtils/appCenterIcon.dart';
 import 'package:cookster/appUtils/appUtils.dart';
@@ -27,8 +26,8 @@ class _SelectLanguageViewState extends State<SelectLanguageView> {
   Future<void> _loadLanguage() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
-      _language =
-          prefs.getString('language') ?? 'en'; // Default to 'en' if not set
+      final savedLang = prefs.getString('selectedLanguage');
+      _language = savedLang == 'Arabic' ? 'ar' : 'en';
     });
   }
 
@@ -130,6 +129,8 @@ class _SelectLanguageViewState extends State<SelectLanguageView> {
                             final userId = prefs.getString('user_id');
                             if (userId != null && userId.isNotEmpty) {
                               Get.offAllNamed(AppRoutes.landing);
+                            } else if (Get.key.currentState?.canPop() ?? false) {
+                              Get.back(result: true);
                             } else {
                               Get.offAllNamed(AppRoutes.signIn);
                             }

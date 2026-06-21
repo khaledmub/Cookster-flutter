@@ -169,10 +169,8 @@ class _VideoPreviewScreenState extends State<VideoPreviewScreen> {
                   ),
                   SizedBox(height: 12.h),
                   Expanded(
-                    child: SingleChildScrollView(
-                      keyboardDismissBehavior:
-                          ScrollViewKeyboardDismissBehavior.onDrag,
-                      padding: const EdgeInsets.only(bottom: _navBarHeight + 16),
+                    child: _KeyboardAwareScrollView(
+                      navBarHeight: _navBarHeight,
                       child: _buildActiveStep(),
                     ),
                   ),
@@ -188,6 +186,27 @@ class _VideoPreviewScreenState extends State<VideoPreviewScreen> {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Scroll area that grows bottom padding when the keyboard opens so inputs stay visible.
+class _KeyboardAwareScrollView extends StatelessWidget {
+  const _KeyboardAwareScrollView({
+    required this.navBarHeight,
+    required this.child,
+  });
+
+  final double navBarHeight;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final keyboardBottom = MediaQuery.viewInsetsOf(context).bottom;
+    return SingleChildScrollView(
+      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+      padding: EdgeInsets.only(bottom: keyboardBottom + navBarHeight + 16),
+      child: child,
     );
   }
 }

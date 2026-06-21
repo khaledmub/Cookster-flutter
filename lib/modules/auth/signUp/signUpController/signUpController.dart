@@ -183,13 +183,45 @@ class SignUpController extends GetxController {
     return null;
   }
 
+  Entities? get selectedEntity {
+    final entities = registrationSettings.value.entities;
+    if (entities == null) return null;
+    for (final entity in entities) {
+      if (entity.id == selectedProfileId.value) return entity;
+    }
+    return null;
+  }
+
+  static bool _isTruthySponsored(dynamic value) {
+    return value == 1 || value == true || value == '1';
+  }
+
+  bool get isPersonalAccount => selectedProfileId.value == 1;
+
+  bool get isSponsoredAccount {
+    final entity = selectedEntity;
+    if (entity != null && _isTruthySponsored(entity.isSponsored)) {
+      return true;
+    }
+    // Legacy fallback when API omits is_sponsored.
+    return selectedProfileId.value == 3;
+  }
+
+  bool get isBusinessAccount {
+    if (isPersonalAccount || isSponsoredAccount) return false;
+    return selectedProfileId.value == 2 ||
+        (selectedEntity?.name ?? '').trim().toLowerCase() == 'business';
+  }
+
+  bool get isProfessionalAccount => !isPersonalAccount;
+
   void setProfile(String type, int id) {
     selectedProfile.value = type;
     selectedProfileId.value = id;
     accountTypeError.value = '';
-    if (id == 2) {
+    if (isBusinessAccount) {
       accountType.value = id.toString();
-    } else if (id == 3) {
+    } else if (isSponsoredAccount) {
       accountType.value = '';
     } else {
       accountType.value = '';
@@ -208,11 +240,11 @@ class SignUpController extends GetxController {
         passwordController.text.trim().isEmpty) {
       return false;
     }
-    if (selectedProfileId.value == 1) {
+    if (isPersonalAccount) {
       if (dobController.text.trim().isEmpty) {
         return false;
       }
-    } else if (selectedProfileId.value == 2) {
+    } else if (isBusinessAccount) {
       if (phoneController.text.trim().isEmpty ||
           businessType.value.trim().isEmpty ||
           contactPhoneController.text.trim().isEmpty ||
@@ -220,7 +252,7 @@ class SignUpController extends GetxController {
           locationController.text.trim().isEmpty) {
         return false;
       }
-    } else if (selectedProfileId.value == 3) {
+    } else if (isSponsoredAccount) {
       if (phoneController.text.trim().isEmpty ||
           accountType.value.trim().isEmpty ||
           contactPhoneController.text.trim().isEmpty ||
@@ -362,8 +394,7 @@ class SignUpController extends GetxController {
       print('Step 5: Form validation failed, isValid set to $isValid');
     }
 
-    if ((selectedProfileId.value == 2 || selectedProfileId.value == 3) &&
-        !validateBusinessTypeFields()) {
+    if (isProfessionalAccount && !validateBusinessTypeFields()) {
       isValid = false;
       print(
         'Step 6: Profile-specific validation failed for profile ID ${selectedProfileId.value}, isValid set to $isValid',
@@ -409,7 +440,7 @@ class SignUpController extends GetxController {
       print('Step 11: Password validation failed, isValid set to $isValid');
     }
 
-    if (selectedProfileId.value == 1 &&
+    if (isPersonalAccount &&
         validateDOB(dobController.text) != null) {
       dobError.value = validateDOB(dobController.text)!;
       isValid = false;
@@ -418,7 +449,7 @@ class SignUpController extends GetxController {
       );
     }
 
-    if ((selectedProfileId.value == 2 || selectedProfileId.value == 3) &&
+    if (isProfessionalAccount &&
         validatePhoneNumber(phoneController.text) != null) {
       // phoneError.value = validatePhoneNumber(phoneController.text)!;
       isValid = false;
@@ -427,7 +458,7 @@ class SignUpController extends GetxController {
       );
     }
 
-    if ((selectedProfileId.value == 2 || selectedProfileId.value == 3) &&
+    if (isProfessionalAccount &&
         validateContactPhoneNumber(contactPhoneController.text) != null) {
       // contactPhoneError.value = validatePhoneNumber(contactPhoneController.text)!;
       isValid = false;
@@ -436,7 +467,7 @@ class SignUpController extends GetxController {
       );
     }
 
-    if ((selectedProfileId.value == 2 || selectedProfileId.value == 3) &&
+    if (isProfessionalAccount &&
         validateContactEmail(contactEmailController.text) != null) {
       // contactEmailError.value = validateEmail(contactEmailController.text)!;
       isValid = false;
@@ -445,7 +476,7 @@ class SignUpController extends GetxController {
       );
     }
 
-    if (selectedProfileId.value == 2 &&
+    if (isBusinessAccount &&
         validateWebsite(websiteController.text) != null) {
       // websiteError.value = validateWebsite(websiteController.text)!;
       isValid = false;
@@ -454,7 +485,7 @@ class SignUpController extends GetxController {
       );
     }
 
-    if (selectedProfileId.value == 2 &&
+    if (isBusinessAccount &&
         locationValidator(locationController.text) != null) {
       // locationError.value = locationValidator(locationController.text)!;
       isValid = false;
@@ -486,17 +517,15 @@ class SignUpController extends GetxController {
       "dob": dobController.text,
       "country": selectCountryId.value,
       "city": selectedCityId.value,
-      if (selectedProfileId.value == 2) "business_type": businessType.value,
-      if (selectedProfileId.value == 2 || selectedProfileId.value == 3)
-        "contact_phone": contactPhoneController.text,
-      if (selectedProfileId.value == 2 || selectedProfileId.value == 3)
-        "contact_email": contactEmailController.text,
-      if (selectedProfileId.value == 2) "website": websiteController.text,
-      if (selectedProfileId.value == 2) "location": locationController.text,
-      if (selectedProfileId.value == 2) "latitude": latitude.value,
-      if (selectedProfileId.value == 2) "longitude": longitude.value,
+      if (isBusinessAccount) "business_type": businessType.value,
+      if (isProfessionalAccount) "contact_phone": contactPhoneController.text,
+      if (isProfessionalAccount) "contact_email": contactEmailController.text,
+      if (isBusinessAccount) "website": websiteController.text,
+      if (isBusinessAccount) "location": locationController.text,
+      if (isBusinessAccount) "latitude": latitude.value,
+      if (isBusinessAccount) "longitude": longitude.value,
       'uuid': await FirebaseMessaging.instance.getToken(),
-      if (selectedProfileId.value != 1)
+      if (isProfessionalAccount)
         'type_of_account':
             accountType.value.isNotEmpty
                 ? accountType.value
@@ -642,21 +671,19 @@ class SignUpController extends GetxController {
       "dob": dobController.text,
       "country": selectCountryId.value,
       "city": selectedCityId.value,
-      if (selectedProfileId.value == 2) "business_type": businessType.value,
-      if (selectedProfileId.value == 2 || selectedProfileId.value == 3)
-        "contact_phone": contactPhoneController.text,
-      if (selectedProfileId.value == 2 || selectedProfileId.value == 3)
-        "contact_email": contactEmailController.text,
-      if (selectedProfileId.value == 2) "website": websiteController.text,
-      if (selectedProfileId.value == 2) "location": locationController.text,
-      if (selectedProfileId.value == 2) "latitude": latitude.value,
-      if (selectedProfileId.value == 2) "longitude": longitude.value,
+      if (isBusinessAccount) "business_type": businessType.value,
+      if (isProfessionalAccount) "contact_phone": contactPhoneController.text,
+      if (isProfessionalAccount) "contact_email": contactEmailController.text,
+      if (isBusinessAccount) "website": websiteController.text,
+      if (isBusinessAccount) "location": locationController.text,
+      if (isBusinessAccount) "latitude": latitude.value,
+      if (isBusinessAccount) "longitude": longitude.value,
       "uuid": deviceToken,
-      if (selectedProfileId.value == 2)
+      if (isBusinessAccount)
         if (packageId != null) "package_id": packageId,
 
-      // Add payment parameters for profile ID 2
-      if (selectedProfileId.value == 2 && paymentParams != null) ...{
+      // Add payment parameters for business accounts
+      if (isBusinessAccount && paymentParams != null) ...{
         "PaymentId": paymentParams["PaymentId"]?.toString() ?? "",
         "TranId": paymentParams["TranId"]?.toString() ?? "",
         "ECI": paymentParams["ECI"]?.toString() ?? "",
@@ -668,7 +695,7 @@ class SignUpController extends GetxController {
         "PaymentType": paymentParams["PaymentType"]?.toString() ?? "",
       },
 
-      if (selectedProfileId.value != 1)
+      if (isProfessionalAccount)
         "type_of_account":
             accountType.value.isNotEmpty
                 ? accountType.value

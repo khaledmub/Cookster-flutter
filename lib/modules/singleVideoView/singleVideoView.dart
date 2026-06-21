@@ -929,7 +929,8 @@ class _SingleVideoScreenState extends State<SingleVideoScreen>
                               if (widget.frondUserId != userId)
                                 Column(
                                   children: [
-                                    InkWell(
+                                    GestureDetector(
+                                      behavior: HitTestBehavior.opaque,
                                       onTap: () async {
                                         bool isAuthenticated =
                                             await _isUserAuthenticated();
@@ -947,22 +948,30 @@ class _SingleVideoScreenState extends State<SingleVideoScreen>
                                         }
                                       },
                                       child: SizedBox(
-                                        height: 20.h,
-                                        width: 20.h,
-                                        child: SvgPicture.asset(
-                                          "assets/icons/more.svg",
-                                          fit: BoxFit.fill,
-                                          color: Colors.white,
+                                        width: 48,
+                                        height: 48,
+                                        child: Column(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.center,
+                                          children: [
+                                            SizedBox(
+                                              height: 20.h,
+                                              width: 20.h,
+                                              child: SvgPicture.asset(
+                                                "assets/icons/more.svg",
+                                                fit: BoxFit.fill,
+                                                color: Colors.white,
+                                              ),
+                                            ),
+                                            Text(
+                                              "more".tr,
+                                              style: TextStyle(
+                                                color: Colors.white,
+                                                fontSize: 10.sp,
+                                              ),
+                                            ),
+                                          ],
                                         ),
-                                      ),
-                                    ),
-
-                                    // SizedBox(height: 2),
-                                    Text(
-                                      "more".tr,
-                                      style: TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 10.sp,
                                       ),
                                     ),
                                   ],

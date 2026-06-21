@@ -1,7 +1,7 @@
 import 'dart:io';
 
 import 'package:awesome_dialog/awesome_dialog.dart';
-import 'package:cookster/core/navigation/route_back.dart';
+import 'package:cookster/appBindings/app_bindings.dart';
 import 'package:cookster/appRoutes/appRoutes.dart';
 import 'package:cookster/appUtils/appCenterIcon.dart';
 import 'package:cookster/appUtils/appUtils.dart';
@@ -38,8 +38,8 @@ class _SignInViewState extends State<SignInView> {
   Future<void> _loadLanguage() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
-      _language =
-          prefs.getString('language') ?? 'en'; // Default to 'en' if not set
+      final savedLang = prefs.getString('selectedLanguage');
+      _language = savedLang == 'Arabic' ? 'ar' : 'en';
     });
   }
 
@@ -76,96 +76,43 @@ class _SignInViewState extends State<SignInView> {
           return SingleChildScrollView(
             child: ConstrainedBox(
               constraints: BoxConstraints(minHeight: constraints.maxHeight),
-              child: IntrinsicHeight(
-                child: Form(
-                  key: logInController.formKey,
-                  child: Column(
+              child: Form(
+                key: logInController.formKey,
+                child: SizedBox(
+                  height: constraints.maxHeight,
+                  child: Stack(
                     children: [
-                      Expanded(
-                        child: Stack(
-                          children: [
-                            // Background
-                            Container(
-                              decoration: const BoxDecoration(
-                                gradient: ColorUtils.goldGradient,
-                              ),
+                      Container(
+                        decoration: const BoxDecoration(
+                          gradient: ColorUtils.goldGradient,
+                        ),
+                      ),
+                      buildFormContent(logInController),
+                      AppCenterIcon(),
+                      Positioned(
+                        right: isRtl ? null : 16,
+                        left: isRtl ? 16 : null,
+                        child: InkWell(
+                          onTap: () async {
+                            await Get.to(
+                              () => const SelectLanguageView(),
+                              binding: SelectLanguageBinding(),
+                            );
+                            await _loadLanguage();
+                          },
+                          child: Container(
+                            margin: EdgeInsets.symmetric(vertical: 6.h),
+                            height: 50.h,
+                            width: 50.h,
+                            decoration: const BoxDecoration(
+                              shape: BoxShape.circle,
                             ),
-                            // Main content
-                            Column(
-                              children: [
-                                SizedBox(height: 2.h),
-                                // your header and content
-                                buildFormContent(logInController),
-                              ],
+                            child: Icon(
+                              Icons.language,
+                              color: ColorUtils.darkBrown,
+                              size: 30,
                             ),
-
-                            // Positioned(
-                            //   left: isRtl ? null : 16,
-                            //   right: isRtl ? 16 : null,
-                            //   top: 10.h,
-                            //   child: GestureDetector(
-                            //     behavior: HitTestBehavior.opaque,
-                            //     onTap: () {
-                            //       try {
-                            //         print("Tapped");
-                            //
-                            //         // Check if there's a stack to go back to
-                            //         if (Get.key.currentState!.canPop()) {
-                            //           Get.back();
-                            //         } else {
-                            //           // Navigate to landing page if no stack behind
-                            //           Get.offAllNamed(
-                            //             AppRoutes.landing,
-                            //           ); // or Get.offAll(LandingPage())
-                            //         }
-                            //       } catch (e) {
-                            //         print(e);
-                            //       }
-                            //     },
-                            //     child: Container(
-                            //       height: 40,
-                            //       width: 40,
-                            //       decoration: const BoxDecoration(
-                            //         color: Color(0xFFE6BE00),
-                            //         shape: BoxShape.circle,
-                            //       ),
-                            //       child: Center(
-                            //         child: Icon(
-                            //           isRtl
-                            //               ? Icons.arrow_back
-                            //               : Icons.arrow_back,
-                            //           color: ColorUtils.darkBrown,
-                            //           size: 24,
-                            //         ),
-                            //       ),
-                            //     ),
-                            //   ),
-                            // ),
-                            AppCenterIcon(),
-                            Positioned(
-                              right: isRtl ? null : 16,
-                              left: isRtl ? 16 : null,
-                              child: InkWell(
-                                onTap: () {
-                                  Get.to(SelectLanguageView());
-                                },
-                                child: Container(
-                                  margin: EdgeInsets.symmetric(vertical: 6.h),
-                                  height: 50.h,
-                                  width: 50.h,
-                                  decoration: BoxDecoration(
-                                    // color: Colors.white,
-                                    shape: BoxShape.circle,
-                                  ),
-                                  child: Icon(
-                                    Icons.language,
-                                    color: ColorUtils.darkBrown,
-                                    size: 30,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
+                          ),
                         ),
                       ),
                     ],

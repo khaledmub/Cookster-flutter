@@ -699,9 +699,10 @@ class _ProfileViewState extends State<ProfileView>
                                   ),
                                 ),
                                 Positioned(
-                                  top: 8.h,
-                                  right: 8.w,
-                                  child: InkWell(
+                                  top: 4.h,
+                                  right: 4.w,
+                                  child: GestureDetector(
+                                    behavior: HitTestBehavior.opaque,
                                     onTap: () {
                                       showMoreOptions(
                                         context,
@@ -711,23 +712,18 @@ class _ProfileViewState extends State<ProfileView>
                                         video,
                                       );
                                     },
-                                    splashColor: Colors.grey.withOpacity(0.3),
-                                    borderRadius: BorderRadius.circular(10.r),
                                     child: Container(
+                                      width: 40,
+                                      height: 40,
+                                      alignment: Alignment.center,
                                       decoration: BoxDecoration(
                                         color: Colors.black.withOpacity(0.6),
                                         shape: BoxShape.circle,
-                                        boxShadow: [
-                                          BoxShadow(
-                                            color: Colors.black.withOpacity(0.2),
-                                            blurRadius: 4,
-                                            offset: Offset(0, 2),
-                                          ),
-                                        ],
                                       ),
-                                      child: Icon(
+                                      child: const Icon(
                                         Icons.more_vert,
                                         color: Colors.white,
+                                        size: 22,
                                       ),
                                     ),
                                   ),

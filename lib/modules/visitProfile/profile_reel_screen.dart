@@ -101,9 +101,7 @@ class _ProfileReelScreenState extends State<ProfileReelScreen> {
       _videos.addAll(seeds);
       startIndex = widget.initialIndex.clamp(0, _videos.length - 1);
       _visibleIndexNotifier.value = startIndex;
-      // Stay on poster until pool teardown finishes — mounting the player
-      // before [prepareForFullscreenVideoPlayback] causes Honor Retry (logs:
-      // dispose mid MediaCodec::flush).
+      _isLoading = false;
     }
 
     _pageController = PageController(initialPage: startIndex);
@@ -600,19 +598,22 @@ class _ProfileReelScreenState extends State<ProfileReelScreen> {
   }
 
   Widget _buildTopBar() {
-    final topInset = MediaQuery.paddingOf(context).top;
     return Positioned(
       top: 0,
       left: 0,
       right: 0,
-      child: ValueListenableBuilder<int>(
+      child: Material(
+        type: MaterialType.transparency,
+        child: ValueListenableBuilder<int>(
         valueListenable: _visibleIndexNotifier,
         builder: (context, visibleIndex, _) {
           final WallVideos? video = _videos.isNotEmpty
               ? _videos[visibleIndex.clamp(0, _videos.length - 1)]
               : null;
+          final topInset = MediaQuery.paddingOf(context).top;
           return _buildTopBarContent(video, topInset);
         },
+      ),
       ),
     );
   }
@@ -700,7 +701,7 @@ class _ProfileReelScreenState extends State<ProfileReelScreen> {
       statusBarBrightness: Brightness.dark,
     );
 
-    if (_isLoading) {
+    if (_isLoading && _videos.isEmpty) {
       final poster = widget.initialPosterUrl?.trim() ?? '';
       return AnnotatedRegion<SystemUiOverlayStyle>(
         value: overlayStyle,
@@ -821,6 +822,7 @@ class _ProfileReelScreenState extends State<ProfileReelScreen> {
                               description: video.description,
                               tags: video.tags,
                               controller: _homeController,
+                              bottomBarClearance: 8,
                             ),
                             ReelOverlayColumn(
                               video: video,

@@ -54,8 +54,8 @@ class _SignVpViewState extends State<SignVpView> {
   Future<void> _loadLanguage() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
-      _language =
-          prefs.getString('language') ?? 'en'; // Default to 'en' if not set
+      final savedLang = prefs.getString('selectedLanguage');
+      _language = savedLang == 'Arabic' ? 'ar' : 'en';
     });
   }
 
@@ -694,16 +694,11 @@ class _SignVpViewState extends State<SignVpView> {
                                         ),
                                       SizedBox(height: 10),
 
-                                      if (signUpController
-                                              .selectedProfileId
-                                              .value ==
-                                          3)
+                                      if (signUpController.isSponsoredAccount)
                                         Obx(
                                           () =>
                                               signUpController
-                                                          .selectedProfileId
-                                                          .value ==
-                                                      3
+                                                      .isSponsoredAccount
                                                   ? Column(
                                                     crossAxisAlignment:
                                                         CrossAxisAlignment
@@ -963,10 +958,7 @@ class _SignVpViewState extends State<SignVpView> {
                                         ),
                                       Obx(
                                         () =>
-                                            signUpController
-                                                        .selectedProfileId
-                                                        .value ==
-                                                    2
+                                            signUpController.isBusinessAccount
                                                 ? Column(
                                                   crossAxisAlignment:
                                                       CrossAxisAlignment
@@ -1433,11 +1425,9 @@ class _SignVpViewState extends State<SignVpView> {
                                         SizedBox(height: 10),
 
                                       Obx(() {
-                                        final profileId =
-                                            signUpController
-                                                .selectedProfileId
-                                                .value;
-                                        return profileId == 2 || profileId == 3
+                                        return signUpController.isBusinessAccount ||
+                                                signUpController
+                                                    .isSponsoredAccount
                                             ? Column(
                                               children: [
                                                 AppUtils.customPasswordTextField(
@@ -1569,10 +1559,7 @@ class _SignVpViewState extends State<SignVpView> {
                                       }),
 
                                       Obx(() {
-                                        return signUpController
-                                                    .selectedProfileId
-                                                    .value ==
-                                                2
+                                        return signUpController.isBusinessAccount
                                             ? Column(
                                               spacing: 12.h,
                                               children: [

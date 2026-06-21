@@ -19,29 +19,25 @@ class ReelPhotoBadge extends StatelessWidget {
   /// Home feed has category tabs + search — badge sits below that header row.
   final bool belowFeedTabs;
 
-  static const double _feedTabsBottom = 56;
-  static const double _searchTop = 64;
-  static const double _searchControlHeight = 52;
+  static const double _searchTop = 50;
+  static const double _searchControlHeight = 38;
 
   double _topInset(BuildContext context) {
     final safeTop = MediaQuery.paddingOf(context).top;
     if (!belowFeedTabs) {
       return safeTop + 8;
     }
-    final isRtl = Directionality.of(context) == TextDirection.rtl;
-    if (isRtl) {
-      // Arabic: search sits top-left — badge goes under it, not on top of it.
-      return safeTop + _searchTop + _searchControlHeight + 10;
-    }
-    // LTR: search is top-right; badge stays top-left under category tabs.
-    return safeTop + _feedTabsBottom;
+    // Sit below the search control on whichever side the locale uses.
+    return safeTop + _searchTop + _searchControlHeight + 10;
   }
 
   @override
   Widget build(BuildContext context) {
+    final isRtl = Directionality.of(context) == TextDirection.rtl;
     return Positioned(
       top: _topInset(context),
-      left: 16,
+      left: isRtl ? 16 : null,
+      right: isRtl ? null : 16,
       child: IgnorePointer(
         child: DecoratedBox(
           decoration: BoxDecoration(

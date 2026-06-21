@@ -415,11 +415,11 @@ class _ProfessionalProfileViewState extends State<ProfessionalProfileView>
                   slivers: [
                     SliverToBoxAdapter(
                       child: Column(
-                    spacing: 16,
+                    spacing: 8,
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
                       SizedBox(
-                        height: 200,
+                        height: 148.h,
                         child: Stack(
                           children: [
                             Container(
@@ -427,7 +427,7 @@ class _ProfessionalProfileViewState extends State<ProfessionalProfileView>
                                 horizontal: 16,
                               ),
                               width: Get.width,
-                              height: 160,
+                              height: 110.h,
                               decoration: BoxDecoration(
                                 borderRadius: BorderRadius.circular(14),
                                 image: DecorationImage(
@@ -505,6 +505,7 @@ class _ProfessionalProfileViewState extends State<ProfessionalProfileView>
                                 right: 0,
                                 child: Center(
                                   child: OpenToWorkBadge(
+                                    size: 52.h,
                                     showOpenToWork:
                                         profileController.isB2B.value,
 
@@ -737,7 +738,7 @@ class _ProfessionalProfileViewState extends State<ProfessionalProfileView>
                         );
                       }),
                       Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 45.0),
+                        padding: const EdgeInsets.symmetric(horizontal: 24.0),
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
@@ -910,8 +911,8 @@ class _ProfessionalProfileViewState extends State<ProfessionalProfileView>
                                       },
                                       child: Container(
                                         padding: EdgeInsets.symmetric(
-                                          horizontal: 8,
-                                          vertical: 8,
+                                          horizontal: 6,
+                                          vertical: 6,
                                         ),
                                         decoration: BoxDecoration(
                                           color:
@@ -929,7 +930,7 @@ class _ProfessionalProfileViewState extends State<ProfessionalProfileView>
                                                   ?.toString(),
                                             ),
                                             style: TextStyle(
-                                              fontSize: 13.sp,
+                                              fontSize: 12.sp,
                                               fontWeight: FontWeight.w500,
                                               color: Colors.black,
                                             ),
@@ -943,7 +944,7 @@ class _ProfessionalProfileViewState extends State<ProfessionalProfileView>
                                 }),
                               ),
                             ),
-                            SizedBox(height: 16.h),
+                            SizedBox(height: 8.h),
                           ],
                         ),
                     ],

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:ui';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cookster/appBindings/app_bindings.dart';
 import 'package:cookster/appRoutes/appRoutes.dart';
 import 'package:cookster/appUtils/apiEndPoints.dart';
 import 'package:cookster/appUtils/appUtils.dart';
@@ -1361,7 +1362,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                         ),
                         if (isActiveTab)
                           Positioned(
-                            top: MediaQuery.paddingOf(context).top + 64,
+                            top: MediaQuery.paddingOf(context).top + 50,
                             left: isRtl ? 0 : null,
                             right: isRtl ? null : 0,
                             child: GestureDetector(
@@ -1370,6 +1371,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                                   () => SearchView(
                                     isGeneral: tab == 'General' ? 1 : 0,
                                   ),
+                                  binding: SearchBinding(),
                                 )!.then((_) async {
                                   await controller.prepareForFeedTabSwitch();
                                   await controller.fetchVideos(
@@ -1390,17 +1392,17 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                                 child: ClipRRect(
                                   borderRadius: BorderRadius.circular(100),
                                   child: Container(
-                                    padding: const EdgeInsets.all(6),
+                                    padding: const EdgeInsets.all(4),
                                     decoration: BoxDecoration(
                                       color: Colors.black.withValues(
                                         alpha: 0.45,
                                       ),
                                       shape: BoxShape.circle,
                                     ),
-                                    child: const Icon(
+                                    child: Icon(
                                       Icons.search,
                                       color: Colors.white,
-                                      size: 40,
+                                      size: 28.sp,
                                     ),
                                   ),
                                 ),
@@ -1510,6 +1512,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                                               ? 1
                                               : 0,
                                     ),
+                                    binding: SearchBinding(),
                                   )?.then((_) {
                                     controller.fetchVideos(
                                       city: controller.currentCity.value,
@@ -2206,7 +2209,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
       final label = rating > 0 ? rating.toStringAsFixed(1) : '0.0';
       return Text(
         label,
-        style: TextStyle(color: Colors.white, fontSize: 14.sp),
+        style: TextStyle(color: Colors.white, fontSize: 11.sp),
       );
     }
 
@@ -2219,7 +2222,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
         child: ClipRRect(
           borderRadius: BorderRadius.circular(50),
           child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 16),
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 10),
             decoration: BoxDecoration(
               color: Colors.black.withValues(alpha: 0.45),
               borderRadius: BorderRadius.circular(50),
@@ -2242,10 +2245,10 @@ class _VideoReelScreenState extends State<VideoReelScreen>
               },
               child: Column(
                 children: [
-                  const Icon(
+                  Icon(
                     Icons.star_rounded,
                     color: Colors.amberAccent,
-                    size: 40,
+                    size: 28.sp,
                   ),
                   ratingWidget,
                 ],
@@ -2352,9 +2355,9 @@ class _VideoReelScreenState extends State<VideoReelScreen>
         if (videoDetail.frontUserId != loggedInUserId)
           Column(
             children: [
-              InkWell(
+              GestureDetector(
+                behavior: HitTestBehavior.opaque,
                 onTap: () {
-                  // controller.pauseCurrentVideo();
                   if (isAuthenticated) {
                     _showMoreOptions(
                       context,
@@ -2362,28 +2365,32 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                       videoDetail.frontUserId!,
                       loggedInUserId,
                     );
-
-                    if (mounted) {
-                      // controller.restoreVideoState();
-                    }
                   } else {
                     Get.toNamed(AppRoutes.signIn);
                   }
                 },
                 child: SizedBox(
-                  height: 20.h,
-                  width: 20.h,
-                  child: SvgPicture.asset(
-                    "assets/icons/more.svg",
-                    fit: BoxFit.fill,
-                    color: Colors.white,
+                  width: 48,
+                  height: 48,
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      SizedBox(
+                        height: 20.h,
+                        width: 20.h,
+                        child: SvgPicture.asset(
+                          "assets/icons/more.svg",
+                          fit: BoxFit.fill,
+                          color: Colors.white,
+                        ),
+                      ),
+                      Text(
+                        "more".tr,
+                        style: TextStyle(color: Colors.white, fontSize: 10.sp),
+                      ),
+                    ],
                   ),
                 ),
-              ),
-              // SizedBox(height: 2),
-              Text(
-                "more".tr,
-                style: TextStyle(color: Colors.white, fontSize: 10.sp),
               ),
             ],
           ),
@@ -2592,7 +2599,7 @@ class videoUserDetails extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final overlayTop = MediaQuery.paddingOf(context).top + 64;
+    final overlayTop = MediaQuery.paddingOf(context).top + 50;
     return Positioned(
       top: overlayTop,
       left: 10,
@@ -3367,12 +3374,15 @@ class VideoDescriptionWidget extends StatefulWidget {
   final String? description;
   final String? tags;
   final HomeController? controller;
+  /// Extra space above the bottom edge (e.g. home tab bar). Profile reels use ~8.
+  final double bottomBarClearance;
 
   const VideoDescriptionWidget({
     this.title,
     this.description,
     this.tags,
     this.controller,
+    this.bottomBarClearance = 68,
     super.key,
   });
 
@@ -3418,18 +3428,19 @@ class _VideoDescriptionWidgetState extends State<VideoDescriptionWidget>
   }
 
   void _checkOverflowOnce() {
+    if (!mounted) return;
+    final textDirection = Directionality.of(context);
     final descriptionStyle = TextStyle(color: Colors.white, fontSize: 14.sp);
     final tagStyle = TextStyle(color: ColorUtils.primaryColor, fontSize: 12.sp);
 
-    const double maxDescriptionWidth = 250.0;
-    const double maxTagWidth = 250.0;
+    final maxContentWidth = _contentMaxWidth(context);
 
     // Check description overflow
     final TextPainter descPainter = TextPainter(
       text: TextSpan(text: widget.description, style: descriptionStyle),
       maxLines: 1,
-      textDirection: TextDirection.ltr,
-    )..layout(maxWidth: maxDescriptionWidth);
+      textDirection: textDirection,
+    )..layout(maxWidth: maxContentWidth);
 
     // Check tag overflow
     final String tagLine = HashtagText.splitTags(widget.tags)
@@ -3438,50 +3449,65 @@ class _VideoDescriptionWidgetState extends State<VideoDescriptionWidget>
     final TextPainter tagPainter = TextPainter(
       text: TextSpan(text: tagLine, style: tagStyle),
       maxLines: 1,
-      textDirection: TextDirection.ltr,
-    )..layout(maxWidth: maxTagWidth);
+      textDirection: textDirection,
+    )..layout(maxWidth: maxContentWidth);
 
-    if (mounted) {
-      setState(() {
-        _hasOverflow = descPainter.didExceedMaxLines;
-        _hasTagOverflow = tagPainter.didExceedMaxLines;
-      });
-    }
+    setState(() {
+      _hasOverflow = descPainter.didExceedMaxLines;
+      _hasTagOverflow = tagPainter.didExceedMaxLines;
+    });
+  }
+
+  double _contentMaxWidth(BuildContext context) {
+    // Leave room for the right-side action column (~90px + margins).
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    return (screenWidth * 0.72).clamp(0.0, screenWidth - 100);
+  }
+
+  double _bottomOffset(BuildContext context) {
+    return MediaQuery.paddingOf(context).bottom + widget.bottomBarClearance;
   }
 
   @override
   Widget build(BuildContext context) {
+    final textDirection = Directionality.of(context);
+    final isRtl = textDirection == TextDirection.rtl;
     final descriptionStyle = TextStyle(color: Colors.white, fontSize: 14.sp);
     final tagStyle = TextStyle(color: ColorUtils.primaryColor, fontSize: 12.sp);
+    final contentMaxWidth = _contentMaxWidth(context);
+    final textAlign = isRtl ? TextAlign.right : TextAlign.left;
+    final crossAxisAlignment =
+        isRtl ? CrossAxisAlignment.end : CrossAxisAlignment.start;
 
     return Positioned(
-      bottom: Platform.isAndroid ? Get.height * 0.03 : Get.height * 0.03,
+      bottom: _bottomOffset(context),
+      // Keep on the physical left so description/hashtags never overlap the
+      // action column (always on the right). RTL only affects text inside.
       left: 10,
       child: Container(
-        padding: EdgeInsets.all(8),
-        constraints: BoxConstraints(maxWidth: 270),
+        padding: const EdgeInsets.all(8),
+        constraints: BoxConstraints(maxWidth: contentMaxWidth),
         decoration: BoxDecoration(
-          color: Colors.black.withOpacity(0.3),
+          color: Colors.black.withValues(alpha: 0.3),
           borderRadius: BorderRadius.circular(8),
         ),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: crossAxisAlignment,
           mainAxisSize: MainAxisSize.min,
           children: [
             // Title
             if (widget.title != null && widget.title!.isNotEmpty)
-              ConstrainedBox(
-                constraints: BoxConstraints(maxWidth: 150),
-                child: Text(
-                  widget.title!,
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16.sp,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+              Text(
+                widget.title!,
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16.sp,
                 ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                textAlign: textAlign,
+                textDirection: textDirection,
               ),
 
             if (widget.title != null && widget.title!.isNotEmpty)
@@ -3490,23 +3516,22 @@ class _VideoDescriptionWidgetState extends State<VideoDescriptionWidget>
             // Description with expand/collapse
             if (widget.description != null && widget.description!.isNotEmpty)
               Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+                crossAxisAlignment: crossAxisAlignment,
                 children: [
                   AnimatedSize(
-                    duration: Duration(milliseconds: 300),
+                    duration: const Duration(milliseconds: 300),
                     curve: Curves.easeInOut,
-                    alignment: Alignment.topLeft,
-                    child: ConstrainedBox(
-                      constraints: BoxConstraints(maxWidth: 250),
-                      child: Text(
-                        widget.description!,
-                        style: descriptionStyle,
-                        maxLines: _isExpanded ? null : 1,
-                        overflow:
-                            _isExpanded
-                                ? TextOverflow.visible
-                                : TextOverflow.ellipsis,
-                      ),
+                    alignment: isRtl ? Alignment.topRight : Alignment.topLeft,
+                    child: Text(
+                      widget.description!,
+                      style: descriptionStyle,
+                      maxLines: _isExpanded ? null : 2,
+                      overflow:
+                          _isExpanded
+                              ? TextOverflow.visible
+                              : TextOverflow.ellipsis,
+                      textAlign: textAlign,
+                      textDirection: textDirection,
                     ),
                   ),
                   if (_hasOverflow)
@@ -3525,6 +3550,8 @@ class _VideoDescriptionWidgetState extends State<VideoDescriptionWidget>
                             fontSize: 12.sp,
                             fontWeight: FontWeight.w500,
                           ),
+                          textAlign: textAlign,
+                          textDirection: textDirection,
                         ),
                       ),
                     ),
@@ -3537,37 +3564,36 @@ class _VideoDescriptionWidgetState extends State<VideoDescriptionWidget>
             // Tags with expand/collapse and tap functionality
             if (widget.tags != null && widget.tags!.isNotEmpty)
               Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+                crossAxisAlignment: crossAxisAlignment,
                 children: [
                   AnimatedSize(
-                    duration: Duration(milliseconds: 300),
+                    duration: const Duration(milliseconds: 300),
                     curve: Curves.easeInOut,
-                    alignment: Alignment.topLeft,
-                    child: ConstrainedBox(
-                      constraints: BoxConstraints(maxWidth: 250),
-                      child: RichText(
-                        maxLines: _isTagExpanded ? null : 1,
-                        overflow:
-                            _isTagExpanded
-                                ? TextOverflow.visible
-                                : TextOverflow.ellipsis,
-                        text: TextSpan(
-                          children: HashtagText.splitTags(widget.tags).map((tag) {
-                            final searchKey = HashtagText.searchKey(tag);
-                            return TextSpan(
-                              text: '${HashtagText.displayLabel(tag)} ',
-                              style: tagStyle,
-                              recognizer: TapGestureRecognizer()
-                                ..onTap = () {
-                                  Get.to(
-                                    () => HashtagReelScreen(
-                                      tag: searchKey,
-                                    ),
-                                  );
-                                },
-                            );
-                          }).toList(),
-                        ),
+                    alignment: isRtl ? Alignment.topRight : Alignment.topLeft,
+                    child: RichText(
+                      maxLines: _isTagExpanded ? null : 2,
+                      overflow:
+                          _isTagExpanded
+                              ? TextOverflow.visible
+                              : TextOverflow.ellipsis,
+                      textAlign: textAlign,
+                      textDirection: textDirection,
+                      text: TextSpan(
+                        children: HashtagText.splitTags(widget.tags).map((tag) {
+                          final searchKey = HashtagText.searchKey(tag);
+                          return TextSpan(
+                            text: '${HashtagText.displayLabel(tag)} ',
+                            style: tagStyle,
+                            recognizer: TapGestureRecognizer()
+                              ..onTap = () {
+                                Get.to(
+                                  () => HashtagReelScreen(
+                                    tag: searchKey,
+                                  ),
+                                );
+                              },
+                          );
+                        }).toList(),
                       ),
                     ),
                   ),
@@ -3587,6 +3613,8 @@ class _VideoDescriptionWidgetState extends State<VideoDescriptionWidget>
                             fontSize: 12.sp,
                             fontWeight: FontWeight.w500,
                           ),
+                          textAlign: textAlign,
+                          textDirection: textDirection,
                         ),
                       ),
                     ),

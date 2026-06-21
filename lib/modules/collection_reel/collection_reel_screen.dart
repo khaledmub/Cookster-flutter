@@ -630,6 +630,7 @@ class _CollectionReelScreenState extends State<CollectionReelScreen> {
                               description: video.description,
                               tags: video.tags,
                               controller: _homeController,
+                              bottomBarClearance: 8,
                             ),
                             ReelOverlayColumn(
                               video: video,

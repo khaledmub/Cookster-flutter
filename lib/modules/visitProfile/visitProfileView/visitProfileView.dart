@@ -324,6 +324,7 @@ class _VisitProfileViewState extends State<VisitProfileView>
                     ),
                     SizedBox(
                       width: 56,
+                      height: 56,
                       child: PopupMenuButton<String>(
                         padding: EdgeInsets.zero,
                         icon: const Icon(
@@ -449,17 +450,17 @@ class _VisitProfileViewState extends State<VisitProfileView>
                   child: Column(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  SizedBox(height: 16),
+                  SizedBox(height: 8.h),
 
                   if (user!.user!.entity == 2)
                     SizedBox(
-                      height: 200,
+                      height: 148.h,
                       child: Stack(
                         children: [
                           Container(
                             margin: const EdgeInsets.symmetric(horizontal: 16),
                             width: Get.width,
-                            height: 160,
+                            height: 110.h,
                             decoration: BoxDecoration(
                               color: Colors.red,
                               borderRadius: BorderRadius.circular(14),
@@ -485,7 +486,7 @@ class _VisitProfileViewState extends State<VisitProfileView>
                             child: Center(
                               child: Center(
                                 child: OpenToWorkBadge(
-                                  size: 65.h,
+                                  size: 52.h,
                                   showOpenToWork:
                                       professionalAdditionalData!.isB2B == 0
                                           ? false
@@ -518,7 +519,7 @@ class _VisitProfileViewState extends State<VisitProfileView>
                       ],
                     ),
 
-                  SizedBox(height: 8.h),
+                  SizedBox(height: 4.h),
                   user.user!.entity == 2
                       ? Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 16.0),
@@ -636,12 +637,12 @@ class _VisitProfileViewState extends State<VisitProfileView>
                       "${professionalAdditionalData.businessTypeName}",
                       style: TextStyle(
                         color: ColorUtils.darkBrown,
-                        fontSize: 14.sp,
+                        fontSize: 12.sp,
                         fontWeight: FontWeight.w500,
                       ),
                     ),
 
-                  SizedBox(height: 16.h),
+                  SizedBox(height: 8.h),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                     children: [
@@ -703,11 +704,11 @@ class _VisitProfileViewState extends State<VisitProfileView>
                     ],
                   ),
 
-                  SizedBox(height: 16.h),
+                  SizedBox(height: 8.h),
 
                   if (user.user!.entity == 2)
                     Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 45.0),
+                      padding: const EdgeInsets.symmetric(horizontal: 24.0),
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
@@ -763,7 +764,7 @@ class _VisitProfileViewState extends State<VisitProfileView>
                       ),
                     ),
 
-                  if (widget.userId != userId) SizedBox(height: 16.h),
+                  if (widget.userId != userId) SizedBox(height: 8.h),
                   if (widget.userId != userId)
                     Obx(() {
                       var currentUser =
@@ -782,6 +783,7 @@ class _VisitProfileViewState extends State<VisitProfileView>
                           children: [
                             Expanded(
                               child: AppButton(
+                                padding: const EdgeInsets.symmetric(vertical: 10),
                                 isLoading:
                                     profileController
                                         .isFollowingProcess
@@ -852,17 +854,18 @@ class _VisitProfileViewState extends State<VisitProfileView>
                                   ;
                                 },
                                 child: Container(
-                                  padding: const EdgeInsets.all(8),
+                                  height: 36,
+                                  width: 36,
                                   decoration: BoxDecoration(
                                     shape: BoxShape.circle,
                                     border: Border.all(
                                       color: ColorUtils.primaryColor,
                                     ),
                                   ),
-                                  child: Center(
+                                  child: const Center(
                                     child: Icon(
                                       Icons.star_rounded,
-                                      size: 30,
+                                      size: 20,
                                       color: ColorUtils.primaryColor,
                                     ),
                                   ),
@@ -873,7 +876,7 @@ class _VisitProfileViewState extends State<VisitProfileView>
                         ),
                       );
                     }),
-                  SizedBox(height: 16.h),
+                  SizedBox(height: 8.h),
 
                   if (displayVideoTypes.isNotEmpty)
                     Column(
@@ -898,8 +901,8 @@ class _VisitProfileViewState extends State<VisitProfileView>
                                   },
                                   child: Container(
                                     padding: const EdgeInsets.symmetric(
-                                      horizontal: 8,
-                                      vertical: 8,
+                                      horizontal: 6,
+                                      vertical: 6,
                                     ),
                                     decoration: BoxDecoration(
                                       color:
@@ -915,7 +918,7 @@ class _VisitProfileViewState extends State<VisitProfileView>
                                               ?.toString(),
                                         ),
                                         style: TextStyle(
-                                          fontSize: 13.sp,
+                                          fontSize: 12.sp,
                                           fontWeight: FontWeight.w500,
                                           color: Colors.black,
                                         ),
@@ -929,11 +932,11 @@ class _VisitProfileViewState extends State<VisitProfileView>
                             }),
                           ),
                         ),
-                        SizedBox(height: 16.h),
+                        SizedBox(height: 8.h),
                       ],
                     ),
 
-                  SizedBox(height: 16.h),
+                  SizedBox(height: 8.h),
                 ],
               ),
                 ),

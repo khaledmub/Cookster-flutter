@@ -49,23 +49,8 @@ class LogInController extends GetxController {
     return 0;
   }
 
-  bool _emailVerified(Map<String, dynamic> user) {
-    if (user['email_verified'] == true) {
-      return true;
-    }
-    final verifiedAt = user['email_verified_at'];
-    return verifiedAt != null && verifiedAt.toString().isNotEmpty;
-  }
-
   bool _loginRequiresOtp(Map<String, dynamic> data) {
-    if (data['otp_required'] == true || data['requires_otp'] == true) {
-      return true;
-    }
-    final user = data['user'];
-    if (user is Map<String, dynamic> && !_emailVerified(user)) {
-      return true;
-    }
-    return false;
+    return data['otp_required'] == true || data['requires_otp'] == true;
   }
 
   Future<void> _navigateToRegistrationOtp(

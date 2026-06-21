@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:cookster/appBindings/app_bindings.dart';
 import 'package:cookster/core/navigation/route_back.dart';
 import 'package:cookster/appUtils/appCenterIcon.dart';
 import 'package:cookster/modules/search/searchController/searchController.dart';
@@ -20,6 +21,7 @@ import '../../auth/signUp/signUpController/cityController.dart';
 import '../../landing/landingController/landingController.dart';
 import '../../landing/landingTabs/add/videoAddController/videoAddController.dart';
 import '../../landing/landingTabs/home/homeController/homeController.dart';
+import '../../../../services/video_settings_service.dart';
 import '../b2bUsersList/b2bUsersList.dart';
 import '../custom_tab_button_search/custom_tab_button_search.dart';
 import '../searchModel/b2bCategoryList.dart';
@@ -48,7 +50,7 @@ class _SearchViewState extends State<SearchView>
     with SingleTickerProviderStateMixin, PaginatedScrollMixin {
   late TabController _tabController;
   final TextEditingController _searchController = TextEditingController();
-  final UserSearchController searchController = Get.find();
+  late final UserSearchController searchController;
 
   Future<bool> _isUserAuthenticated() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
@@ -64,14 +66,18 @@ class _SearchViewState extends State<SearchView>
   Future<void> _loadLanguage() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
-      _language =
-          prefs.getString('language') ?? 'en'; // Default to 'en' if not set
+      final savedLang = prefs.getString('selectedLanguage');
+      _language = savedLang == 'Arabic' ? 'ar' : 'en';
     });
   }
 
   @override
   void initState() {
     super.initState();
+    if (!Get.isRegistered<UserSearchController>()) {
+      SearchBinding().dependencies();
+    }
+    searchController = Get.find<UserSearchController>();
     initPaginatedScroll(() {
       if (searchController.canLoadMoreVideos &&
           !searchController.isLoadingMore.value) {
@@ -146,6 +152,7 @@ class _SearchViewState extends State<SearchView>
                 children: [
                   Stack(
                     children: [
+                      IgnorePointer(child: AppCenterIcon()),
                       // Back Button on the Left
                       Positioned(
                         left: isRtl ? null : 16,
@@ -175,10 +182,9 @@ class _SearchViewState extends State<SearchView>
                         right: isRtl ? null : 16,
                         left: isRtl ? 16 : null,
                         top: 10.h,
-                        child: InkWell(
-                          onTap: () {
-                            _showBottomSheet(context);
-                          },
+                        child: GestureDetector(
+                          behavior: HitTestBehavior.opaque,
+                          onTap: () => unawaited(_showBottomSheet(context)),
                           child: Container(
                             height: 40,
                             width: 40,
@@ -196,7 +202,6 @@ class _SearchViewState extends State<SearchView>
                           ),
                         ),
                       ),
-                      AppCenterIcon(),
                     ],
                   ),
                   Padding(
@@ -916,7 +921,16 @@ class _SearchViewState extends State<SearchView>
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Image.asset('assets/images/search_icon.png', height: 120, width: 120),
+          Image.asset(
+            'assets/images/search_icon.png',
+            height: 120,
+            width: 120,
+            errorBuilder: (_, __, ___) => Icon(
+              Icons.search,
+              size: 120,
+              color: ColorUtils.darkBrown,
+            ),
+          ),
           SizedBox(height: 24),
           Text(
             textAlign: TextAlign.center,
@@ -970,7 +984,19 @@ class _SearchViewState extends State<SearchView>
     );
   }
 
-  void _showBottomSheet(BuildContext context) {
+  Future<void> _showBottomSheet(BuildContext context) async {
+    if (Get.isRegistered<NavBarController>()) {
+      final nav = Get.find<NavBarController>();
+      if (nav.videoUploadSettings.value?.countries?.isEmpty ?? true) {
+        await nav.getVideoUploadSettings();
+      }
+    } else {
+      await VideoSettingsService.instance.load();
+    }
+    if (!context.mounted) {
+      return;
+    }
+
     final CityController cityController = Get.find();
     showModalBottomSheet(
       context: context,
@@ -997,7 +1023,7 @@ class _SearchViewState extends State<SearchView>
                     SizedBox(height: 20),
                     InkWell(
                       onTap: () {
-                        showLocationDialog(context);
+                        unawaited(showLocationDialog(context));
                       },
                       child: Row(
                         children: [
@@ -1086,8 +1112,19 @@ class _SearchViewState extends State<SearchView>
     );
   }
 
-  void showLocationDialog(BuildContext context, {int? initialCountryId}) {
+  Future<void> showLocationDialog(
+    BuildContext context, {
+    int? initialCountryId,
+  }) async {
     final NavBarController profileController = Get.find();
+
+    if (profileController.videoUploadSettings.value?.countries?.isEmpty ??
+        true) {
+      await profileController.getVideoUploadSettings();
+    }
+    if (!context.mounted) {
+      return;
+    }
 
     final HomeController homeController = Get.find();
     final VideoAddController controller = Get.find();
@@ -1095,11 +1132,19 @@ class _SearchViewState extends State<SearchView>
     final CityController cityController = Get.find<CityController>();
     final UserSearchController searchControllerNew = Get.find();
 
-    print("Initial Country ID: $initialCountryId");
-
     Map<String, int> countryMap = {};
-    List<String> countryName =
-        profileController.videoUploadSettings.value!.countries!.map((country) {
+    var countries =
+        profileController.videoUploadSettings.value?.countries ?? const [];
+    if (countries.isEmpty) {
+      final settings = await VideoSettingsService.instance.load();
+      countries = settings?.countries ?? const [];
+    }
+    if (countries.isEmpty) {
+      Get.snackbar('Error'.tr, 'fetch_site_settings_error'.tr);
+      return;
+    }
+    final List<String> countryName =
+        countries.map((country) {
           countryMap[country.name!] = country.id!;
           return country.name!;
         }).toList();

@@ -70,14 +70,14 @@ class ProfileStat extends StatelessWidget {
         Text(
           number,
           style: TextStyle(
-            fontSize: 18,
+            fontSize: 16.sp,
             fontWeight: FontWeight.bold,
             color: ColorUtils.darkBrown,
           ),
         ),
         Text(
           label.tr,
-          style: TextStyle(fontSize: 12.sp, color: ColorUtils.darkBrown),
+          style: TextStyle(fontSize: 11.sp, color: ColorUtils.darkBrown),
         ),
       ],
     );
@@ -92,18 +92,21 @@ class IconButtonWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
+    return InkWell(
       onTap: onTap,
+      borderRadius: BorderRadius.circular(18),
       child: Container(
-        height: 60,
-        padding: EdgeInsets.all(16),
+        height: 36,
+        width: 36,
+        padding: const EdgeInsets.all(8),
         decoration: BoxDecoration(
           shape: BoxShape.circle,
+          color: Colors.white,
           border: Border.all(color: ColorUtils.darkBrown),
         ),
         child: SvgPicture.asset(
           icon,
-          // height: 16.sp,
+          height: 18,
           color: ColorUtils.darkBrown,
         ),
       ),
