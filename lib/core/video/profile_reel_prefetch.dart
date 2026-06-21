@@ -23,6 +23,7 @@ void prefetchProfileReelEntry({
   final ordered = resolver.prioritizeForNetwork(
     candidates,
     NetworkClass.wifi,
+    fastStartUncached: false,
   );
   final url = ordered.first.url;
   if (!url.toLowerCase().contains('.m3u8')) {

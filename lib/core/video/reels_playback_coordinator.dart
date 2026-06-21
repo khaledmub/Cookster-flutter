@@ -34,6 +34,11 @@ class ReelsPlaybackCoordinator {
     unawaited(_preloadManager.bootstrapFromVisible(actualIndex));
   }
 
+  /// RAM-decode the visible reel poster before playback opens.
+  void precacheVisiblePoster(BuildContext context, int index) {
+    _precacheTiersForIndex(context, index);
+  }
+
   void onPageScrollToward({
     required int fromActualIndex,
     required int towardActualIndex,

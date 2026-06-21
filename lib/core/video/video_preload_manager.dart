@@ -74,6 +74,69 @@ class VideoPreloadManager {
   /// @deprecated Use [prepareForSessionStart] for tab/overlay; [onVisiblePageSettled] for swipes.
   void prepareForVisibleAttach() => prepareForSessionStart();
 
+  /// Disk-prefetch the visible reel immediately (720 then 1080) so the first
+  /// open can hit partial/full cache instead of a cold CDN stream.
+  ///
+  /// Waits up to [maxWaitMs] for a fast-start partial on disk before returning
+  /// so [openVisibleReel] can open from local bytes when prefetch wins the race.
+  Future<void> prefetchVisibleReel(
+    int visibleIndex, {
+    int maxWaitMs = 280,
+  }) async {
+    if (!await _canPreload()) {
+      return;
+    }
+    await _warmIndices(
+      [visibleIndex],
+      reason: 'visible_now',
+      decoderWarmLimit: 0,
+      visibleIndex: visibleIndex,
+    );
+    if (maxWaitMs <= 0) {
+      return;
+    }
+    await _awaitPartialCacheForIndex(visibleIndex, maxWaitMs: maxWaitMs);
+  }
+
+  /// Poll until any ladder MP4 for [index] is partially or fully on disk.
+  Future<bool> _awaitPartialCacheForIndex(
+    int index, {
+    required int maxWaitMs,
+  }) async {
+    final target = _sourceBuilder(index);
+    if (target == null || target.candidates.isEmpty) {
+      return false;
+    }
+    const resolver = VideoSourceResolver();
+    final ordered = resolver.prioritizeForPreload(
+      target.candidates,
+      offsetFromVisible: 0,
+      dualTier: RemoteConfigService.instance.reelsDualTierPreload,
+    );
+    if (ordered.isEmpty) {
+      return false;
+    }
+    var waited = 0;
+    while (waited < maxWaitMs) {
+      for (final chosen in ordered) {
+        if (await isPlaybackUrlCached(chosen.url, cacheManager: _cacheManager) ||
+            await isPlaybackUrlPartiallyCached(
+              chosen.url,
+              cacheManager: _cacheManager,
+            )) {
+          ReelsPerf.log(
+            'partial_ready index=$index tier=${resolver.mp4Tier(chosen.url)} '
+            'waitMs=$waited',
+          );
+          return true;
+        }
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 16));
+      waited += 16;
+    }
+    return false;
+  }
+
   /// Disk-prefetch ahead immediately; decoder warm waits until [decoderWarmEnabled].
   Future<void> bootstrapFromVisible(int visibleIndex) async {
     if (!await _canPreload()) {
@@ -81,6 +144,7 @@ class VideoPreloadManager {
     }
     final diskDepth = await _resolvePreloadDepth();
     final bootstrapIndices = <int>[
+      visibleIndex,
       for (var step = 1; step <= diskDepth; step++) visibleIndex + step,
       visibleIndex - 1,
     ];
@@ -221,7 +285,9 @@ class VideoPreloadManager {
       unawaited(_prefetchFeedSlotAhead(currentIndex));
     }
 
-    const releaseWindow = 3;
+    await _deviceConstraints.ensureInitialized();
+    final releaseWindow =
+        _deviceConstraints.needsConstrainedSurfaceRecovery ? 5 : 3;
     unawaited(
       Future<void>.delayed(const Duration(milliseconds: 600), () {
         if (useMediaKit) {
@@ -304,6 +370,9 @@ class VideoPreloadManager {
 
   int _priorityForIndex(int index, int visibleIndex) {
     final delta = index - visibleIndex;
+    if (delta == 0) {
+      return 110;
+    }
     if (delta == 1) {
       return 100;
     }
@@ -314,7 +383,10 @@ class VideoPreloadManager {
       return 80;
     }
     if (delta == -1) {
-      return 70;
+      return 95;
+    }
+    if (delta == -2) {
+      return 88;
     }
     return 50;
   }
@@ -344,7 +416,7 @@ class VideoPreloadManager {
       final offset = (index - visibleIndex).abs();
       final preloadOrdered = resolver.prioritizeForPreload(
         target.candidates,
-        offsetFromVisible: offset.clamp(1, 99),
+        offsetFromVisible: offset,
         dualTier: dualTier,
       );
       final priority = _priorityForIndex(index, visibleIndex);

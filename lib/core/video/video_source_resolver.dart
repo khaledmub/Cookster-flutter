@@ -73,8 +73,9 @@ class VideoSourceResolver {
     return candidates;
   }
 
-  /// Phone playback: 360 → 720 → 1080 when [fastStartUncached]; cached tiers first via playback path.
-  /// Tablet WiFi: 1080 → 720 → 360; tablet mobile: 360 → 720 → 1080.
+  /// Phone playback: 360 → 720 → 1080 when [fastStartUncached]; otherwise
+  /// 1080 → 720 → 360. Cached tiers first via [prioritizeForPlayback] when
+  /// the cached tier is the highest available.
   List<VideoSourceCandidate> prioritizeForNetwork(
     List<VideoSourceCandidate> candidates,
     NetworkClass network, {
@@ -99,7 +100,7 @@ class VideoSourceResolver {
           ? const ['1080', '720', '360']
           : (fastStartUncached
               ? const ['360', '720', '1080']
-              : const ['720', '360', '1080']);
+              : const ['1080', '720', '360']);
       final orderedMp4 = _orderMp4ByTier(mp4Quality, tiers);
       return [...hls, ...orderedMp4, ...rest];
     }
@@ -109,17 +110,20 @@ class VideoSourceResolver {
             NetworkClass.wifi => const ['1080', '720', '360'],
             NetworkClass.mobile => fastStartUncached
                 ? const ['360', '720', '1080']
-                : const ['720', '360', '1080'],
-            NetworkClass.offline => const ['720', '360', '1080'],
+                : const ['1080', '720', '360'],
+            NetworkClass.offline => fastStartUncached
+                ? const ['720', '360', '1080']
+                : const ['1080', '720', '360'],
           }
         : fastStartUncached
             ? const ['360', '720', '1080']
-            : const ['720', '360', '1080'];
+            : const ['1080', '720', '360'];
     final orderedMp4 = _orderMp4ByTier(mp4Quality, tiers);
     return [...orderedMp4, ...hls, ...rest];
   }
 
-  /// Disk preload: N+1/N+2 → 360+720; deeper indices → 720 only.
+  /// Disk preload: N+1/N+2 → 1080 (HD-first); deeper indices → 720; falls back to
+  /// lower tiers when 1080 is absent (480p-only sources).
   List<VideoSourceCandidate> prioritizeForPreload(
     List<VideoSourceCandidate> candidates, {
     int offsetFromVisible = 1,
@@ -139,19 +143,40 @@ class VideoSourceResolver {
 
     VideoSourceCandidate? pick360;
     VideoSourceCandidate? pick720;
+    VideoSourceCandidate? pick1080;
     for (final candidate in mp4Quality) {
       final tier = mp4Tier(candidate.url);
       pick360 ??= tier == '360' ? candidate : null;
       pick720 ??= tier == '720' ? candidate : null;
+      pick1080 ??= tier == '1080' ? candidate : null;
+    }
+
+    // Visible reel: warm 720 first (smaller → partial cache / first frame faster),
+    // then 1080 for HD upgrade while the poster is still showing.
+    if (offsetFromVisible == 0) {
+      final visible = <VideoSourceCandidate>[];
+      if (pick720 != null) {
+        visible.add(pick720);
+      }
+      if (pick1080 != null && pick1080 != pick720) {
+        visible.add(pick1080);
+      }
+      if (visible.isNotEmpty) {
+        return visible;
+      }
+    }
+
+    if (offsetFromVisible <= 2 && pick1080 != null) {
+      return [pick1080];
     }
 
     if (dualTier && offsetFromVisible <= 2) {
       final result = <VideoSourceCandidate>[];
-      if (pick360 != null) {
-        result.add(pick360);
-      }
-      if (pick720 != null && pick720 != pick360) {
+      if (pick720 != null) {
         result.add(pick720);
+      }
+      if (pick360 != null && pick360 != pick720) {
+        result.add(pick360);
       }
       if (result.isNotEmpty) {
         return result;
@@ -160,6 +185,9 @@ class VideoSourceResolver {
 
     if (pick720 != null) {
       return [pick720];
+    }
+    if (pick360 != null) {
+      return [pick360];
     }
     return [mp4Quality.first];
   }
@@ -229,6 +257,21 @@ class VideoSourceResolver {
       }
     }
     if (bestCached == null) {
+      return ordered;
+    }
+    var maxAvailableRank = -1;
+    for (final candidate in ordered) {
+      if (candidate.type != 'mp4_quality' ||
+          candidate.url.toLowerCase().contains('.m3u8')) {
+        continue;
+      }
+      final rank = _tierRank(mp4Tier(candidate.url));
+      if (rank > maxAvailableRank) {
+        maxAvailableRank = rank;
+      }
+    }
+    // Do not open a cached 360/720 when a higher tier is available on the ladder.
+    if (bestTierRank < maxAvailableRank) {
       return ordered;
     }
     final result = List<VideoSourceCandidate>.from(ordered);

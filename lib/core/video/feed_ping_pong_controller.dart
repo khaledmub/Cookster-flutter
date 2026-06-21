@@ -406,7 +406,8 @@ class FeedPingPongController {
       }
       if (identical(slot, _active)) {
         await DeviceConstraints.instance.ensureInitialized();
-        if (DeviceConstraints.instance.needsConstrainedSurfaceRecovery) {
+        if (DeviceConstraints.instance.needsConstrainedSurfaceRecovery &&
+            !_isLocalPlaybackUrl(sourceUrl)) {
           // Let the outgoing poster settle before Player.open tears down ImageReader.
           await Future<void>.delayed(const Duration(milliseconds: 120));
         }
@@ -415,7 +416,8 @@ class FeedPingPongController {
       await player.setVolume(0);
       if (identical(slot, _active) &&
           DeviceConstraints.instance.needsConstrainedSurfaceRecovery) {
-        await Future<void>.delayed(const Duration(milliseconds: 64));
+        final postOpenMs = _isLocalPlaybackUrl(sourceUrl) ? 24 : 64;
+        await Future<void>.delayed(Duration(milliseconds: postOpenMs));
       }
       slot.boundKey = key;
       slot.boundUrl = sourceUrl;
@@ -426,7 +428,10 @@ class FeedPingPongController {
         'pingpong open slot=${slot.index} key=$key tier=${_tierFromUrl(sourceUrl)}',
       );
       if (identical(slot, _active)) {
-        await _seekToStartAfterColdOpen(slot);
+        await DeviceConstraints.instance.ensureInitialized();
+        if (!DeviceConstraints.instance.needsConstrainedSurfaceRecovery) {
+          await _seekToStartAfterColdOpen(slot);
+        }
       }
     } else {
       _syncSlotUrl(slot, sourceUrl);
@@ -577,5 +582,14 @@ class FeedPingPongController {
       return '360';
     }
     return 'other';
+  }
+
+  static bool _isLocalPlaybackUrl(String url) {
+    if (url.isEmpty) {
+      return false;
+    }
+    final lower = url.toLowerCase();
+    return lower.startsWith('file://') ||
+        (!lower.startsWith('http') && !lower.contains('.m3u8'));
   }
 }

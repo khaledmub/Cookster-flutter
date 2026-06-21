@@ -26,6 +26,16 @@ class PooledMediaKitPlayer {
   final bool feedOpenedMedia;
 }
 
+class _RecentPaintEntry {
+  const _RecentPaintEntry({
+    required this.sourceUrl,
+    required this.paintedAtMs,
+  });
+
+  final String sourceUrl;
+  final int paintedAtMs;
+}
+
 /// MediaKit player pool for reels with priority for the visible slot.
 ///
 /// - [acquire], [setActive], [unmuteAndPlay], [pause], [pauseAll], [release]
@@ -69,6 +79,9 @@ class MediaKitPlayerPool {
   final Set<String> _warmInFlight = <String>{};
   final Set<String> _frameReadyKeys = <String>{};
   final Set<String> _bufferPrimedKeys = <String>{};
+  /// Survives feed slot unmap so swiping back can skip cold-open gates when bytes are on disk.
+  final Map<String, _RecentPaintEntry> _recentPaintByKey = <String, _RecentPaintEntry>{};
+  static const int _recentPaintTtlMs = 10 * 60 * 1000;
 
   String? _activeKey;
 
@@ -205,6 +218,47 @@ class MediaKitPlayerPool {
 
   void markFrameReadyFromSurface(String key) {
     _markFrameReady(key);
+    final source = _sourceByKey[key];
+    if (source != null && source.isNotEmpty) {
+      markRecentPaint(key, source);
+    }
+  }
+
+  /// True when this reel painted recently — used for fast scroll-back even after slot unmap.
+  bool hadRecentPaint(String key, {String? sourceUrl}) {
+    if (key.isEmpty) {
+      return false;
+    }
+    final entry = _recentPaintByKey[key];
+    if (entry == null) {
+      return false;
+    }
+    final ageMs = DateTime.now().millisecondsSinceEpoch - entry.paintedAtMs;
+    if (ageMs > _recentPaintTtlMs) {
+      _recentPaintByKey.remove(key);
+      return false;
+    }
+    if (sourceUrl != null &&
+        sourceUrl.isNotEmpty &&
+        entry.sourceUrl.isNotEmpty &&
+        entry.sourceUrl != sourceUrl) {
+      return false;
+    }
+    return true;
+  }
+
+  void markRecentPaint(String key, String sourceUrl) {
+    if (key.isEmpty || sourceUrl.isEmpty) {
+      return;
+    }
+    _recentPaintByKey[key] = _RecentPaintEntry(
+      sourceUrl: sourceUrl,
+      paintedAtMs: DateTime.now().millisecondsSinceEpoch,
+    );
+  }
+
+  void clearRecentPaint(String key) {
+    _recentPaintByKey.remove(key);
   }
 
   /// Clears off-screen priming so UI does not skip the poster before attach.
@@ -219,6 +273,15 @@ class MediaKitPlayerPool {
   void _clearFrameReady(String key) {
     _frameReadyKeys.remove(key);
     _bufferPrimedKeys.remove(key);
+  }
+
+  static bool isLocalPlaybackUrl(String url) {
+    if (url.isEmpty) {
+      return false;
+    }
+    final lower = url.toLowerCase();
+    return lower.startsWith('file://') ||
+        (!lower.startsWith('http') && !lower.contains('.m3u8'));
   }
 
   /// Only rewind background warm slots — never the visible audible reel.
@@ -531,10 +594,22 @@ class MediaKitPlayerPool {
     await warmUp(key: key, sourceUrl: sourceUrl);
   }
 
-  /// Seek-to-start + surface bump when decode runs but nothing paints (Honor).
-  Future<void> recoverFeedVisibleSurface(String key) {
+  int _lastSurfaceRecoveryMs = 0;
+  String? _lastSurfaceRecoveryKey;
+
+  /// Seek-to-start + optional surface bump when decode runs but nothing paints.
+  Future<void> recoverFeedVisibleSurface(
+    String key, {
+    bool bumpSurface = true,
+  }) {
     return _runPriority(() async {
       if (key.isEmpty || _feedVisibleKey != key) {
+        return;
+      }
+      final now = DateTime.now().millisecondsSinceEpoch;
+      if (bumpSurface &&
+          _lastSurfaceRecoveryKey == key &&
+          now - _lastSurfaceRecoveryMs < 900) {
         return;
       }
       final player = _pingPong.activePlayer;
@@ -548,6 +623,18 @@ class MediaKitPlayerPool {
         await player.play();
         await player.setVolume(0);
       } catch (_) {}
+      _lastSurfaceRecoveryKey = key;
+      _lastSurfaceRecoveryMs = now;
+      if (!bumpSurface) {
+        ReelsPerf.emit(
+          ReelsPerfEvent(
+            name: 'surface_recovery',
+            feedMode: _pingPong.singleSlotMode ? 'single_slot' : 'dual_slot',
+            extra: {'key': key, 'bump': false},
+          ),
+        );
+        return;
+      }
       feedSurfaceGeneration.value++;
       ReelsPerf.emit(
         ReelsPerfEvent(

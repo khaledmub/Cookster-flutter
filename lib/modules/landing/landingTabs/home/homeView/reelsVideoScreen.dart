@@ -225,7 +225,6 @@ class _VideoReelScreenState extends State<VideoReelScreen>
       return;
     }
     _lastHandledPlaybackEpoch = -1;
-    _resetPosterMaskForPageChange();
     final tab = _activeTabType;
     final videos = _videosForTab(tab, isActiveTab: true);
     if (videos == null || videos.isEmpty) {
@@ -233,6 +232,9 @@ class _VideoReelScreenState extends State<VideoReelScreen>
     }
     final layer = _activeLayer;
     final index = layer.visibleIndexNotifier.value.clamp(0, videos.length - 1);
+    _resetPosterMaskForPageChange(
+      videoId: videos[index].id,
+    );
     _preloadManager.prepareForSessionStart();
     MediaKitPlayerPool.instance.setScreenWidth(
       MediaQuery.sizeOf(context).width,
@@ -259,6 +261,14 @@ class _VideoReelScreenState extends State<VideoReelScreen>
       return;
     }
     unawaited(MediaKitPlayerPool.instance.resumeFeedVisible(key));
+  }
+
+  Future<void> _warmVisibleBeforePlayback(int index) async {
+    if (!mounted) {
+      return;
+    }
+    _playbackCoordinator.precacheVisiblePoster(context, index);
+    await _preloadManager.prefetchVisibleReel(index, maxWaitMs: 360);
   }
 
   void _schedulePlayerForPage(
@@ -311,7 +321,9 @@ class _VideoReelScreenState extends State<VideoReelScreen>
       }
       if (needsReattach) {
         final key = video.id;
-        if (key != null && key.isNotEmpty) {
+        if (key != null &&
+            key.isNotEmpty &&
+            !MediaKitPlayerPool.instance.isFrameReady(key)) {
           MediaKitPlayerPool.instance.invalidatePrimedFrame(key);
         }
         unawaited(_feedReelPlayerKey.currentState?.resumeAfterRouteOverlay());
@@ -395,7 +407,9 @@ class _VideoReelScreenState extends State<VideoReelScreen>
       if (cached != null && cached.isNotEmpty) {
         targetIndex = controller.resolveScrollIndexForTab(newTabType, cached);
         layer.visibleIndexNotifier.value = targetIndex;
-        _resetPosterMaskForPageChange();
+        _resetPosterMaskForPageChange(
+          videoId: cached[targetIndex].id,
+        );
         controller.visiblePageIndex.value = targetIndex;
         if (layer.pageController.hasClients) {
           layer.pageController.jumpToPage(targetIndex);
@@ -529,10 +543,9 @@ class _VideoReelScreenState extends State<VideoReelScreen>
     }
     _preloadManager.prepareForSessionStart();
     layer.visibleIndexNotifier.value = targetIndex;
-    _resetPosterMaskForPageChange();
-    controller.visiblePageIndex.value = targetIndex;
-    controller.saveTabScrollIndex(tab, targetIndex);
-    controller.saveTabVideoId(tab, targetId);
+    _resetPosterMaskForPageChange(
+      videoId: targetId,
+    );
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || tab != _activeTabType) {
         return;
@@ -541,12 +554,19 @@ class _VideoReelScreenState extends State<VideoReelScreen>
           (layer.pageController.page?.round() ?? 0) != targetIndex) {
         layer.pageController.jumpToPage(targetIndex);
       }
-      _schedulePlayerForPage(tab, targetIndex);
-      MediaKitPlayerPool.instance.setScreenWidth(
-        MediaQuery.sizeOf(context).width,
+      unawaited(
+        _warmVisibleBeforePlayback(targetIndex).then((_) {
+          if (!mounted || tab != _activeTabType) {
+            return;
+          }
+          _schedulePlayerForPage(tab, targetIndex);
+          MediaKitPlayerPool.instance.setScreenWidth(
+            MediaQuery.sizeOf(context).width,
+          );
+          _playbackCoordinator.onPageSettled(targetIndex, context: context);
+          _resumeFeedAudibleOnce();
+        }),
       );
-      _playbackCoordinator.onPageSettled(targetIndex, context: context);
-      _resumeFeedAudibleOnce();
     });
   }
 
@@ -568,7 +588,12 @@ class _VideoReelScreenState extends State<VideoReelScreen>
     setState(() => _maskActiveVideoWithPoster = false);
   }
 
-  void _resetPosterMaskForPageChange() {
+  void _resetPosterMaskForPageChange({String? videoId}) {
+    if (videoId != null &&
+        videoId.isNotEmpty &&
+        MediaKitPlayerPool.instance.isFrameReady(videoId)) {
+      return;
+    }
     if (!_maskActiveVideoWithPoster) {
       setState(() => _maskActiveVideoWithPoster = true);
     }
@@ -578,7 +603,6 @@ class _VideoReelScreenState extends State<VideoReelScreen>
     if (!mounted) {
       return;
     }
-    _resetPosterMaskForPageChange();
     _lastHandledPlaybackEpoch = -1;
     final videos = controller.videoFeed.value.videos;
     final layer = _activeLayer;
@@ -586,6 +610,9 @@ class _VideoReelScreenState extends State<VideoReelScreen>
       return;
     }
     final index = layer.visibleIndexNotifier.value.clamp(0, videos.length - 1);
+    _resetPosterMaskForPageChange(
+      videoId: videos[index].id,
+    );
     final video = videos[index];
     if (video.isPhotoPost) {
       return;
@@ -713,17 +740,36 @@ class _VideoReelScreenState extends State<VideoReelScreen>
       _applyPendingRestoreIfPossible();
       _maybeBootstrapPreload();
       final videos = controller.videoFeed.value.videos;
+      if (videos != null && videos.isNotEmpty) {
+        final idx = _activeLayer.visibleIndexNotifier.value.clamp(
+          0,
+          videos.length - 1,
+        );
+        unawaited(_preloadManager.prefetchVisibleReel(idx));
+      }
       if (videos != null &&
           videos.isNotEmpty &&
           controller.canPlayHomeReels &&
           _activeLayer.activePlayerVideo == null) {
+        final idx = _activeLayer.visibleIndexNotifier.value.clamp(
+          0,
+          videos.length - 1,
+        );
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) {
-            _schedulePlayerForPage(
-              _activeTabType,
-              _activeLayer.visibleIndexNotifier.value,
-            );
+          if (!mounted) {
+            return;
           }
+          unawaited(
+            _warmVisibleBeforePlayback(idx).then((_) {
+              if (!mounted) {
+                return;
+              }
+              _schedulePlayerForPage(
+                _activeTabType,
+                _activeLayer.visibleIndexNotifier.value,
+              );
+            }),
+          );
         });
       }
     });
@@ -1106,6 +1152,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
     }
     final tab = _activeTabType;
     final layer = _layerFor(tab);
+    final videos = controller.videoFeed.value.videos;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || !layer.pageController.hasClients) {
         return;
@@ -1114,10 +1161,13 @@ class _VideoReelScreenState extends State<VideoReelScreen>
         layer.pageController.jumpToPage(targetIndex);
       }
       layer.visibleIndexNotifier.value = targetIndex;
-      _resetPosterMaskForPageChange();
+      _resetPosterMaskForPageChange(
+        videoId: videos != null && targetIndex < videos.length
+            ? videos[targetIndex].id
+            : null,
+      );
       controller.visiblePageIndex.value = targetIndex;
       controller.saveTabScrollIndex(tab, targetIndex);
-      final videos = controller.videoFeed.value.videos;
       if (videos != null && targetIndex < videos.length) {
         controller.saveTabVideoId(tab, videos[targetIndex].id);
       }
@@ -1188,7 +1238,15 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                 controller.saveTabScrollIndex(tab, actualIndex);
                 controller.saveTabVideoId(tab, videos[actualIndex].id);
                 layer.visibleIndexNotifier.value = actualIndex;
-                _resetPosterMaskForPageChange();
+                _resetPosterMaskForPageChange(
+                  videoId: videos[actualIndex].id,
+                );
+                unawaited(
+                  _preloadManager.prefetchVisibleReel(
+                    actualIndex,
+                    maxWaitMs: 200,
+                  ),
+                );
                 _schedulePlayerForPage(tab, actualIndex);
                 _preloadManager.onVisiblePageSettled();
                 MediaKitPlayerPool.instance.setScreenWidth(

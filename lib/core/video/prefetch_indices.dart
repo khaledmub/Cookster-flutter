@@ -1,4 +1,4 @@
-/// Scroll-direction-aware prefetch index list for reels.
+  /// Scroll-direction-aware prefetch index list for reels.
 ///
 /// When scrolling down ([towardIndex] > [fromIndex]), warms +1..+depth ahead
 /// and one item behind. When scrolling up, mirrors in the opposite direction.
@@ -17,6 +17,7 @@ List<int> buildDirectionalPrefetchIndices({
       towardIndex,
       for (var step = 1; step <= effectiveDepth; step++) fromIndex + step,
       fromIndex - 1,
+      if (effectiveDepth >= 2) fromIndex - 2,
     }.toList();
   }
 
@@ -26,6 +27,7 @@ List<int> buildDirectionalPrefetchIndices({
     towardIndex + direction,
     if (effectiveDepth >= 2) towardIndex + direction * 2,
     fromIndex - direction,
+    if (effectiveDepth >= 2) fromIndex - direction * 2,
   };
   for (var step = 1; step <= effectiveDepth; step++) {
     indices.add(towardIndex + direction * step);
@@ -42,6 +44,7 @@ List<int> buildSettledPrefetchIndices({
     return [visibleIndex];
   }
   return <int>{
+    visibleIndex,
     for (var step = 1; step <= depth; step++) visibleIndex + step,
     visibleIndex - 1,
     if (depth >= 2) visibleIndex - 2,

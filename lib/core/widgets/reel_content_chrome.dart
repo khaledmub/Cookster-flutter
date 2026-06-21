@@ -1,5 +1,8 @@
 import 'package:cookster/core/media/wall_video_media.dart';
+import 'package:cookster/core/video/media_kit_player_pool.dart';
+import 'package:cookster/core/video/video_source_resolver.dart';
 import 'package:cookster/modules/landing/landingTabs/home/homeModel/videoFeedModel.dart';
+import 'package:cookster/modules/landing/landingTabs/home/homeWidgets/reel_feed_player_kit.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -141,11 +144,21 @@ class ReelFeedPageMediaChrome extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (!kReleaseMode && isActivePage) {
+      final poolKey = video.id;
+      final opened = poolKey != null && poolKey.isNotEmpty
+          ? MediaKitPlayerPool.instance.sourceUrlForKey(poolKey)
+          : null;
+      final playback = video.isPhotoPost
+          ? video.resolvedPhotoDisplayUrl?.split('?').first
+          : (opened?.split('?').first ??
+              (video.qualityMp4Urls.isNotEmpty
+                  ? video.qualityMp4Urls.last.split('?').first
+                  : video.resolvedPlaybackUrl?.split('?').first));
       debugPrint(
         '[ReelChrome] reel=${video.id} photo=${video.isPhotoPost} '
         'is_image=${video.isImage} playback_ready=${video.playbackReady} '
-        'display=${video.resolvedPhotoDisplayUrl?.split('?').first} '
-        'lqip=${video.resolvedPhotoLqipUrl?.split('?').first}',
+        'playback=$playback '
+        'poster=${ReelFeedPlayerKit.posterUrl(video).split('?').first}',
       );
     }
     return Stack(

@@ -29,6 +29,19 @@ void main() {
       );
     });
 
+    test('phone wifi prefers 1080 then 720 then 360 without fast start', () {
+      final ordered = resolver.prioritizeForNetwork(
+        [mp4('360'), mp4('1080'), mp4('720')],
+        NetworkClass.wifi,
+        isTablet: false,
+        fastStartUncached: false,
+      );
+      expect(
+        ordered.map((c) => resolver.mp4Tier(c.url)).toList(),
+        ['1080', '720', '360'],
+      );
+    });
+
     test('tablet wifi prefers 1080 then 720 then 360', () {
       final ordered = resolver.prioritizeForNetwork(
         [mp4('360'), mp4('1080'), mp4('720')],
@@ -72,18 +85,38 @@ void main() {
   });
 
   group('prioritizeForPreload', () {
-    test('dual tier returns 360 and 720 for adjacent indices', () {
+    test('visible reel prefetches 720 then 1080 for fast partial cache', () {
+      final ordered = resolver.prioritizeForPreload(
+        [mp4('1080'), mp4('360'), mp4('720')],
+        offsetFromVisible: 0,
+        dualTier: true,
+      );
+      expect(ordered.length, 2);
+      expect(resolver.mp4Tier(ordered[0].url), '720');
+      expect(resolver.mp4Tier(ordered[1].url), '1080');
+    });
+
+    test('adjacent indices prefetch 1080 when available', () {
       final ordered = resolver.prioritizeForPreload(
         [mp4('1080'), mp4('360'), mp4('720')],
         offsetFromVisible: 1,
         dualTier: true,
       );
-      expect(ordered.length, 2);
-      expect(resolver.mp4Tier(ordered[0].url), '360');
-      expect(resolver.mp4Tier(ordered[1].url), '720');
+      expect(ordered.length, 1);
+      expect(resolver.mp4Tier(ordered.first.url), '1080');
     });
 
-    test('deep offset returns 720 only', () {
+    test('offset 2 still prefetches 1080 when available', () {
+      final ordered = resolver.prioritizeForPreload(
+        [mp4('1080'), mp4('360'), mp4('720')],
+        offsetFromVisible: 2,
+        dualTier: true,
+      );
+      expect(ordered.length, 1);
+      expect(resolver.mp4Tier(ordered.first.url), '1080');
+    });
+
+    test('deep offset returns 720 when 1080 exists', () {
       final ordered = resolver.prioritizeForPreload(
         [mp4('1080'), mp4('360'), mp4('720')],
         offsetFromVisible: 4,
@@ -93,9 +126,20 @@ void main() {
       expect(resolver.mp4Tier(ordered.first.url), '720');
     });
 
-    test('falls back to 360 when no 720 in dual tier window', () {
+    test('falls back to 720 and 360 when no 1080 in dual tier window', () {
       final ordered = resolver.prioritizeForPreload(
-        [mp4('1080'), mp4('360')],
+        [mp4('360'), mp4('720')],
+        offsetFromVisible: 1,
+        dualTier: true,
+      );
+      expect(ordered.length, 2);
+      expect(resolver.mp4Tier(ordered[0].url), '720');
+      expect(resolver.mp4Tier(ordered[1].url), '360');
+    });
+
+    test('falls back to 360 only when no 720 or 1080', () {
+      final ordered = resolver.prioritizeForPreload(
+        [mp4('360')],
         offsetFromVisible: 1,
         dualTier: true,
       );

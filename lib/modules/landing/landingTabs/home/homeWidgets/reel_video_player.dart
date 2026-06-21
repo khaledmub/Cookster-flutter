@@ -12,6 +12,7 @@ import 'package:cookster/services/feature_flags/remote_config_service.dart';
 import 'package:cookster/core/widgets/reel_gapless_poster.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 
@@ -186,19 +187,37 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
       return;
     }
     final key = _pooledKey;
-    _videoSurfaceVisible = false;
-    _frameReady = false;
-    _fastFeedReveal = false;
-    _surfacePaintFrames = 0;
-    _visibleSurfacePaintFrames = 0;
-    _resetDimensionStability();
+    final stillPrimed =
+        key != null && key.isNotEmpty && _pool.isFrameReady(key);
+    if (!stillPrimed) {
+      _videoSurfaceVisible = false;
+      _frameReady = false;
+      _fastFeedReveal = false;
+      _surfacePaintFrames = 0;
+      _visibleSurfacePaintFrames = 0;
+      _resetDimensionStability();
+    } else {
+      _fastFeedReveal = true;
+    }
     if (key != null && key.isNotEmpty) {
-      _pool.invalidatePrimedFrame(key);
-      unawaited(_pool.recoverFeedVisibleSurface(key));
+      if (!stillPrimed) {
+        _pool.invalidatePrimedFrame(key);
+      }
+      unawaited(
+        _pool.recoverFeedVisibleSurface(key, bumpSurface: !stillPrimed),
+      );
     }
     final player = _activePlayer;
     if (player == null) {
       await _loadVideo();
+      return;
+    }
+    if (stillPrimed && _canShowVideo(player)) {
+      _frameReady = true;
+      _videoSurfaceVisible = true;
+      _showThumbnail = false;
+      widget.onFeedVideoPainted?.call();
+      await _pool.resumeFeedVisible(key!);
       return;
     }
     _afterSurfaceMounted(
@@ -372,6 +391,58 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
     _lastDimensionChangeMs = DateTime.now().millisecondsSinceEpoch;
   }
 
+  /// Codec output often pads to YUV stride (406→416 width, 1080→1088 height).
+  /// Treating that as a format change reset the surface on Honor (Rendered 0/s).
+  bool _isBenignCodecDimensionChange(
+    int? prevW,
+    int? prevH,
+    int? nextW,
+    int? nextH,
+  ) {
+    if (prevW == null ||
+        prevH == null ||
+        nextW == null ||
+        nextH == null) {
+      return false;
+    }
+    if (prevW == nextW && prevH == nextH) {
+      return true;
+    }
+    final dw = (nextW - prevW).abs();
+    final dh = (nextH - prevH).abs();
+    if (dw == 0 && dh > 0 && dh <= 32) {
+      return true;
+    }
+    if (dh == 0 && dw > 0 && dw <= 32) {
+      return true;
+    }
+    return dw <= 32 && dh <= 32;
+  }
+
+  int _minPositionAdvanceForPosterUnmask() {
+    if (_needsConstrainedStartGate) {
+      if (_lastOpenCacheHit ||
+          _lastOpenPartialCache ||
+          _pool.hadRecentPaint(_pooledKey ?? '')) {
+        return 64;
+      }
+      return 180;
+    }
+    return 32;
+  }
+
+  /// Decoder is advancing but Honor may report Rendered 0/s — avoid Retry overlay.
+  bool _isDecodeLikelyActive(Player player) {
+    if (!player.state.playing) {
+      return false;
+    }
+    if (player.state.width == null || player.state.height == null) {
+      return false;
+    }
+    return player.state.position.inMilliseconds >=
+        _minPositionMsForFrame();
+  }
+
   bool _dimensionsSettledFor(int ms) {
     final elapsed =
         DateTime.now().millisecondsSinceEpoch - _lastDimensionChangeMs;
@@ -388,9 +459,20 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
       _dimensionStableTicks++;
     } else {
       _lastDimensionChangeMs = DateTime.now().millisecondsSinceEpoch;
-      final hadStableDims = _stableFrameWidth != null && _stableFrameHeight != null;
+      final hadStableDims =
+          _stableFrameWidth != null && _stableFrameHeight != null;
+      final benign = hadStableDims &&
+          _isBenignCodecDimensionChange(
+            _stableFrameWidth,
+            _stableFrameHeight,
+            width,
+            height,
+          );
       _stableFrameWidth = width;
       _stableFrameHeight = height;
+      if (benign) {
+        return;
+      }
       _dimensionStableTicks = 0;
       if (hadStableDims &&
           _needsConstrainedStartGate &&
@@ -415,7 +497,9 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
     if (!_needsConstrainedStartGate) {
       return 0;
     }
-    if (_lastOpenCacheHit || _lastOpenPartialCache) {
+    if (_lastOpenCacheHit ||
+        _lastOpenPartialCache ||
+        _scrollBackCacheEligible(_pooledKey)) {
       return _minDimensionStableTicksCached;
     }
     return _minDimensionStableTicksConstrained;
@@ -428,12 +512,16 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
         return _minSurfacePaintFramesBuffered;
       }
       if (_lastOpenWasCold) {
-        if (_lastOpenCacheHit || _lastOpenPartialCache) {
+        if (_lastOpenCacheHit ||
+            _lastOpenPartialCache ||
+            _scrollBackCacheEligible(key)) {
           return _minSurfacePaintFrames + 1;
         }
         return _minSurfacePaintFramesConstrained;
       }
-      if (_lastOpenCacheHit || _lastOpenPartialCache) {
+      if (_lastOpenCacheHit ||
+          _lastOpenPartialCache ||
+          _scrollBackCacheEligible(key)) {
         return _minSurfacePaintFrames + 2;
       }
       return _minSurfacePaintFramesConstrained;
@@ -517,6 +605,9 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
         unawaited(_onFrameReady(player, generation: _attachGeneration));
         return;
       }
+      if (player != null && _isDecodeLikelyActive(player)) {
+        return;
+      }
       setState(() => _showRetry = true);
     });
   }
@@ -587,12 +678,21 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
   }
 
   bool _poolProvenSurfacePaint(String? key) =>
-      key != null && key.isNotEmpty && _pool.isFrameReady(key);
+      key != null &&
+      key.isNotEmpty &&
+      (_pool.isFrameReady(key) || _pool.hadRecentPaint(key));
 
-  /// Fast skip of the 280ms Honor gate — only when the pool already painted this key.
+  bool _scrollBackCacheEligible(String? key) =>
+      key != null && key.isNotEmpty && _pool.hadRecentPaint(key);
+
+  /// Fast skip of the 280ms Honor gate — pool painted this key or scroll-back cache.
   bool _eligibleForFastReveal(Player player) {
     final key = _pooledKey;
     if (_fastFeedReveal && _poolProvenSurfacePaint(key)) {
+      return true;
+    }
+    if ((_lastOpenCacheHit || _lastOpenPartialCache) &&
+        _scrollBackCacheEligible(key)) {
       return true;
     }
     return !_lastOpenWasCold &&
@@ -690,7 +790,11 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
     }
 
     if (_needsConstrainedStartGate) {
-      final gateMs = (_lastOpenCacheHit || _lastOpenPartialCache) ? 96 : 280;
+      final gateMs = (_lastOpenCacheHit ||
+              _lastOpenPartialCache ||
+              _scrollBackCacheEligible(_pooledKey))
+          ? 48
+          : 220;
       await Future<void>.delayed(Duration(milliseconds: gateMs));
       if (!_isCurrentAttach(generation) ||
           revealGen != _revealGeneration ||
@@ -721,22 +825,26 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
         final w = player.state.width;
         final h = player.state.height;
         if (w != startW || h != startH) {
-          _logPoster(
-            'surface_reveal_aborted',
-            detail: 'dims ${startW}x$startH -> ${w}x$h',
-          );
-          _videoSurfaceVisible = false;
-          _frameReady = false;
-          _surfacePaintFrames = 0;
-          _resetDimensionStability();
-          final key = _pooledKey;
-          if (key != null && key.isNotEmpty) {
-            _pool.invalidatePrimedFrame(key);
+          if (_isBenignCodecDimensionChange(startW, startH, w, h)) {
+            // Keep polling — stride padding is not a failed reveal.
+          } else {
+            _logPoster(
+              'surface_reveal_aborted',
+              detail: 'dims ${startW}x$startH -> ${w}x$h',
+            );
+            _videoSurfaceVisible = false;
+            _frameReady = false;
+            _surfacePaintFrames = 0;
+            _resetDimensionStability();
+            final key = _pooledKey;
+            if (key != null && key.isNotEmpty) {
+              _pool.invalidatePrimedFrame(key);
+            }
+            if (mounted && !_isDisposed) {
+              setState(() {});
+            }
+            return;
           }
-          if (mounted && !_isDisposed) {
-            setState(() {});
-          }
-          return;
         }
         final posMs = player.state.position.inMilliseconds;
         final minAdvanceMs =
@@ -820,7 +928,8 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
           return;
         }
         final posMs = player.state.position.inMilliseconds;
-        if (posMs >= startPosMs + 32 && _canShowVideo(player)) {
+        final minAdvance = _minPositionAdvanceForPosterUnmask();
+        if (posMs >= startPosMs + minAdvance && _canShowVideo(player)) {
           break;
         }
         await Future<void>.delayed(const Duration(milliseconds: 16));
@@ -841,8 +950,28 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
     }
 
     if (!_canShowVideo(player)) {
-      _logPoster('poster_hold', detail: 'opaque_wait');
-      return;
+      if (_isDecodeLikelyActive(player)) {
+        _logPoster('poster_hold', detail: 'decode_active_wait_paint');
+        var polled = 0;
+        while (polled < 1200) {
+          if (!_isCurrentAttach(generation) ||
+              !mounted ||
+              _isDisposed ||
+              !_videoSurfaceVisible) {
+            return;
+          }
+          if (_canShowVideo(player)) {
+            break;
+          }
+          await Future<void>.delayed(const Duration(milliseconds: 16));
+          polled += 16;
+          _onPlayerStateTick(player);
+        }
+      }
+      if (!_canShowVideo(player)) {
+        _logPoster('poster_hold', detail: 'opaque_wait');
+        return;
+      }
     }
     if (!_isCurrentAttach(generation) || !mounted || _isDisposed) {
       return;
@@ -903,11 +1032,8 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
         _isDisposed) {
       return;
     }
-    if (_pool.feedSingleSlotMode) {
-      return;
-    }
     final context = this.context;
-    if (_isTabletLayout(context)) {
+    if (_isTabletLayout(context) || _needsConstrainedStartGate) {
       return;
     }
     final network = await _networkPolicy.currentNetworkClass();
@@ -1346,6 +1472,12 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
         timeoutMs: 2800,
       );
     }
+    if (!frameReady &&
+        _isCurrentAttach(generation) &&
+        _isDecodeLikelyActive(player)) {
+      await _onFrameReady(player, generation: generation);
+      return true;
+    }
     return frameReady;
   }
 
@@ -1359,7 +1491,7 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
     }
     _surfacePaintFrames = 0;
     _resetDimensionStability();
-    await _pool.recoverFeedVisibleSurface(poolKey);
+    await _pool.recoverFeedVisibleSurface(poolKey, bumpSurface: false);
     if (!_isCurrentAttach(generation) || !mounted || _isDisposed) {
       return;
     }
@@ -1465,42 +1597,79 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
   ) async {
     final rc = RemoteConfigService.instance;
     final cache = ReelsVideoCacheManager.instance.manager;
+    final raw = _resolvedCandidates();
+    await DeviceConstraints.instance.ensureInitialized();
+    if (_needsConstrainedStartGate) {
+      return _constrainedPhonePlaybackOrder(raw, cache);
+    }
+    var fastStartUncached = rc.reels360FirstUncached;
     var candidates = await _resolver.prioritizeForPlaybackFastStart(
-      candidates: _resolvedCandidates(),
+      candidates: raw,
       network: network,
       cacheManager: cache,
       isTablet: isTablet,
-      fastStartUncached: rc.reels360FirstUncached,
+      fastStartUncached: fastStartUncached,
       hlsWifiEnabled: rc.reelsHlsWifiEnabled,
     );
-    await DeviceConstraints.instance.ensureInitialized();
-    if (!DeviceConstraints.instance.prefer360ColdOpen) {
-      return candidates;
+    return candidates;
+  }
+
+  Future<List<VideoSourceCandidate>> _constrainedPhonePlaybackOrder(
+    List<VideoSourceCandidate> raw,
+    BaseCacheManager cache,
+  ) async {
+    final mp4 =
+        raw.where((c) => c.type == 'mp4_quality').toList(growable: false);
+    VideoSourceCandidate? pick360;
+    VideoSourceCandidate? pick720;
+    VideoSourceCandidate? pick1080;
+    for (final candidate in mp4) {
+      final tier = _resolver.mp4Tier(candidate.url);
+      pick360 ??= tier == '360' ? candidate : null;
+      pick720 ??= tier == '720' ? candidate : null;
+      pick1080 ??= tier == '1080' ? candidate : null;
     }
-    var hasCachedMp4 = false;
-    for (final candidate in candidates) {
-      if (candidate.type != 'mp4_quality') {
-        continue;
+
+    Future<void> appendCached(
+      List<VideoSourceCandidate> out,
+      VideoSourceCandidate? candidate, {
+      required bool allowPartial,
+    }) async {
+      if (candidate == null) {
+        return;
+      }
+      if (out.any((c) => c.url == candidate.url)) {
+        return;
       }
       if (await isPlaybackUrlCached(candidate.url, cacheManager: cache) ||
-          await isPlaybackUrlPartiallyCached(candidate.url, cacheManager: cache)) {
-        hasCachedMp4 = true;
-        break;
+          (allowPartial &&
+              await isPlaybackUrlPartiallyCached(
+                candidate.url,
+                cacheManager: cache,
+              ))) {
+        out.add(candidate);
       }
     }
-    if (hasCachedMp4) {
-      return candidates;
+
+    final ordered = <VideoSourceCandidate>[];
+    await appendCached(ordered, pick720, allowPartial: true);
+    await appendCached(ordered, pick360, allowPartial: true);
+    await appendCached(ordered, pick1080, allowPartial: false);
+    if (pick720 != null && !ordered.any((c) => c.url == pick720!.url)) {
+      ordered.add(pick720);
     }
-    final tier360 = candidates
-        .where((c) => _resolver.mp4Tier(c.url) == '360')
-        .toList(growable: false);
-    if (tier360.isEmpty) {
-      return candidates;
+    if (pick360 != null && !ordered.any((c) => c.url == pick360!.url)) {
+      ordered.add(pick360);
     }
-    final rest = candidates
-        .where((c) => _resolver.mp4Tier(c.url) != '360')
-        .toList(growable: false);
-    return [...tier360, ...rest];
+    if (pick1080 != null && !ordered.any((c) => c.url == pick1080!.url)) {
+      ordered.add(pick1080);
+    }
+    for (final candidate in raw) {
+      if (!ordered.any((c) => c.url == candidate.url)) {
+        ordered.add(candidate);
+      }
+    }
+    return ordered.isEmpty ? raw : ordered;
   }
 
   Future<void> _awaitFeedFrameOrAudio(
@@ -1573,6 +1742,7 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
               return;
             }
             if (_pool.isFrameReady(poolKey) && _canShowVideo(player)) {
+              widget.onFeedVideoPainted?.call();
               await _pool.resumeFeedVisible(poolKey);
               await _onFrameReady(player, generation: generation);
               return;
@@ -1637,6 +1807,18 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
           await isPlaybackUrlPartiallyCached(source.url, cacheManager: cache);
       _lastOpenCacheHit = cacheHit;
       _lastOpenPartialCache = partialCache;
+      if (!cacheHit &&
+          !partialCache &&
+          _pool.hadRecentPaint(poolKey) &&
+          isMp4) {
+        final remoteCached = await isPlaybackUrlCached(
+          source.url,
+          cacheManager: cache,
+        );
+        if (remoteCached) {
+          _lastOpenCacheHit = true;
+        }
+      }
       _resetDimensionStability();
       _surfaceRecoveryAttempts = 0;
       final playbackUrl = await _resolvePlaybackUrlForSource(source, network);
@@ -1706,6 +1888,25 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
         );
         return;
       }
+      if (_isDecodeLikelyActive(pooled.player)) {
+        await _onFrameReady(pooled.player, generation: generation);
+        ReelsPerf.emit(
+          ReelsPerfEvent(
+            name: 'open_complete',
+            openMs: openMs,
+            tier: tier,
+            cacheHit: cacheHit || partialCache,
+            partialCache: partialCache,
+            flip: _usesFeedVisibleChannel && !pooled.feedOpenedMedia,
+            coldOpen: pooled.feedOpenedMedia,
+            extra: {
+              'reel': widget.videoId,
+              'decode_active': true,
+            },
+          ),
+        );
+        return;
+      }
       _failedSourceUrls.add(source.url);
       ReelsPerf.emit(
         ReelsPerfEvent(
@@ -1753,16 +1954,29 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
             _pool.isFrameReady(newKey);
         if (canFastResume) {
           _fastFeedReveal = true;
+        } else if (_pool.hadRecentPaint(newKey)) {
+          _fastFeedReveal = true;
         }
       }
       final switching = (_pooledKey ?? '').isNotEmpty &&
           newKey.isNotEmpty &&
           _pooledKey != newKey;
       if (newKey.isNotEmpty && _fastFeedReveal && _pool.isFrameReady(newKey)) {
-        _frameReady = false;
+        _frameReady = true;
+        _videoSurfaceVisible = true;
         _showThumbnail = false;
         _surfacePaintFrames = _minSurfacePaintFramesBuffered;
         _logPoster('switch_primede', detail: 'key=$newKey');
+        widget.onFeedVideoPainted?.call();
+      } else if (newKey.isNotEmpty &&
+          _fastFeedReveal &&
+          _pool.hadRecentPaint(newKey) &&
+          !_pool.isFrameReady(newKey)) {
+        _frameReady = false;
+        _videoSurfaceVisible = false;
+        _showThumbnail = false;
+        _surfacePaintFrames = 0;
+        _logPoster('switch_cached', detail: 'key=$newKey');
       } else if (newKey.isNotEmpty &&
           _fastFeedReveal &&
           _pool.isBufferPrimed(newKey)) {
