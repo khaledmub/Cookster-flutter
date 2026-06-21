@@ -114,6 +114,12 @@ class MediaKitPlayerPool {
     await _pingPong.ensureInitialized();
   }
 
+  /// Wait for in-flight priority / warm work (e.g. profile dispose before re-open).
+  Future<void> awaitOperationsIdle() async {
+    await _priorityChain;
+    await _warmChain;
+  }
+
   bool _isFeedPingPongPlayer(Player? player) {
     if (player == null) {
       return false;
@@ -1287,6 +1293,8 @@ class MediaKitPlayerPool {
       }
       await _disposeFeedVisiblePlayer();
       _activeKey = null;
+      _audibleTargetKey = null;
+      feedSurfaceGeneration.value++;
     });
   }
 

@@ -7,6 +7,7 @@ import 'package:cookster/core/navigation/route_back.dart';
 import 'package:cookster/core/video/fullscreen_video_playback.dart';
 import 'package:cookster/core/video/media_kit_player_pool.dart';
 import 'package:cookster/core/video/reels_playback_coordinator.dart';
+import 'package:cookster/core/video/reel_screen_playback_helpers.dart';
 import 'package:cookster/core/video/video_preload_manager.dart';
 import 'package:cookster/core/video/video_preload_target.dart';
 import 'package:cookster/core/video/video_source_resolver.dart';
@@ -51,7 +52,8 @@ class CollectionReelScreen extends StatefulWidget {
   State<CollectionReelScreen> createState() => _CollectionReelScreenState();
 }
 
-class _CollectionReelScreenState extends State<CollectionReelScreen> {
+class _CollectionReelScreenState extends State<CollectionReelScreen>
+    with WidgetsBindingObserver {
   late final PageController _pageController;
   final GlobalKey<ReelVideoPlayerState> _reelPlayerKey =
       GlobalKey<ReelVideoPlayerState>();
@@ -94,6 +96,7 @@ class _CollectionReelScreenState extends State<CollectionReelScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _homeController = Get.find<HomeController>();
     _homeController.pauseReelsForRouteOverlay();
 
@@ -204,7 +207,7 @@ class _CollectionReelScreenState extends State<CollectionReelScreen> {
         if (!mounted) {
           return;
         }
-        _attachPlaybackForIndex(start);
+        unawaited(_attachPlaybackForIndex(start));
       });
       unawaited(_preloadAllPages());
     }
@@ -244,6 +247,7 @@ class _CollectionReelScreenState extends State<CollectionReelScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _viewTrackDebounce?.cancel();
     _fetchMoreDebounce?.cancel();
     _visibleIndexNotifier.dispose();
@@ -285,10 +289,66 @@ class _CollectionReelScreenState extends State<CollectionReelScreen> {
     setState(() => _maskActiveVideoWithPoster = false);
   }
 
-  void _resetPosterMaskForPageChange() {
+  void _resetPosterMaskForPageChange({String? videoId}) {
+    if (ReelScreenPlaybackHelpers.shouldKeepPosterHidden(videoId)) {
+      if (_maskActiveVideoWithPoster) {
+        setState(() => _maskActiveVideoWithPoster = false);
+      }
+      return;
+    }
     if (!_maskActiveVideoWithPoster) {
       setState(() => _maskActiveVideoWithPoster = true);
     }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _resumeAfterAppForeground();
+        }
+      });
+    }
+  }
+
+  Future<void> _resumeAfterAppForeground() async {
+    if (!mounted || _videos.isEmpty) {
+      return;
+    }
+    final index =
+        _visibleIndexNotifier.value.clamp(0, _videos.length - 1);
+    final video = _videos[index];
+    if (video.isPhotoPost) {
+      return;
+    }
+    _resetPosterMaskForPageChange(videoId: video.id);
+    await ReelScreenPlaybackHelpers.resumeAfterAppForeground(
+      playerKey: _reelPlayerKey,
+      videoId: video.id,
+      attachVisible: () => _attachPlaybackForIndex(index),
+    );
+  }
+
+  Future<void> _attachPlaybackForIndex(
+    int index, {
+    bool forceReattach = false,
+  }) async {
+    if (index < 0 || index >= _videos.length) {
+      return;
+    }
+    if (_videos[index].isPhotoPost) {
+      MediaKitPlayerPool.instance.pauseAllImmediate();
+      return;
+    }
+    await ReelScreenPlaybackHelpers.attachVisibleIndex(
+      preloadManager: _preloadManager,
+      coordinator: _playbackCoordinator,
+      context: context,
+      index: index,
+      playerKey: _reelPlayerKey,
+      forcePlayerReattach: forceReattach,
+    );
   }
 
   Widget _buildInlineReelPlayer(WallVideos video, int index) {
@@ -301,20 +361,6 @@ class _CollectionReelScreenState extends State<CollectionReelScreen> {
       onFeedVideoPainted: _onFeedVideoPainted,
       onVideoCompleted: () {},
     );
-  }
-
-  void _attachPlaybackForIndex(int index) {
-    if (index < 0 || index >= _videos.length) {
-      return;
-    }
-    if (_videos[index].isImage == 1) {
-      MediaKitPlayerPool.instance.pauseAllImmediate();
-      return;
-    }
-    MediaKitPlayerPool.instance.setScreenWidth(
-      MediaQuery.sizeOf(context).width,
-    );
-    _playbackCoordinator.onPageSettled(index, context: context);
   }
 
   VideoPreloadTarget? _preloadTargetForIndex(int index) {
@@ -427,21 +473,18 @@ class _CollectionReelScreenState extends State<CollectionReelScreen> {
 
   void _onPageChanged(int index) {
     _visibleIndexNotifier.value = index;
-    _resetPosterMaskForPageChange();
+    _resetPosterMaskForPageChange(
+      videoId: index < _videos.length ? _videos[index].id : null,
+    );
     _scrollTowardIndex = null;
     final video = _videos[index];
-    if (video.isImage == 1) {
+    if (video.isPhotoPost) {
       MediaKitPlayerPool.instance.pauseAllImmediate();
       _scheduleViewTrack(video);
       return;
     }
     _scheduleViewTrack(video);
-
-    MediaKitPlayerPool.instance.setScreenWidth(
-      MediaQuery.sizeOf(context).width,
-    );
-    _preloadManager.onVisiblePageSettled();
-    _playbackCoordinator.onPageSettled(index, context: context);
+    unawaited(_attachPlaybackForIndex(index));
 
     if (_hasMore && index >= _videos.length - 3) {
       unawaited(_fetchMoreVideos());

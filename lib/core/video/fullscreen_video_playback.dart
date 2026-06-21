@@ -19,9 +19,13 @@ Future<void> prepareForFullscreenVideoPlayback() async {
 /// feed [ReelVideoPlayer] unmounts before a profile reel route mounts its own
 /// surface (Honor/MTK cannot sustain overlapping ImageReaders).
 Future<void> prepareForProfileReelRoute() async {
+  await MediaKitPlayerPool.instance.awaitOperationsIdle();
   if (Get.isRegistered<HomeController>()) {
     final home = Get.find<HomeController>();
     home.pauseReelsForRouteOverlay();
+    // Let home [ReelVideoPlayer] unmount (canPlayHomeReels=false) before pool dispose.
+    await SchedulerBinding.instance.endOfFrame;
+    await SchedulerBinding.instance.endOfFrame;
     await home.releaseAllVideoResources();
   } else {
     await MediaKitPlayerPool.instance.disposeAll();

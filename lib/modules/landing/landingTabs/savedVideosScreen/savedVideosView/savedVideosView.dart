@@ -7,6 +7,7 @@ import 'package:get/get.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 
 import 'package:cookster/core/widgets/grid_thumbnail_cache.dart';
+import 'package:cookster/core/video/fullscreen_video_playback.dart';
 import 'package:cookster/core/video/profile_reel_prefetch.dart';
 import 'package:cookster/modules/collection_reel/collection_reel_screen.dart';
 import 'package:cookster/modules/landing/landingTabs/home/homeModel/userSaveUnsave.dart';
@@ -51,7 +52,7 @@ class _SavedVideosViewState extends State<SavedVideosView>
 
   Widget _buildVideoTile(SavedVideos video, int thumbCache) {
     return GestureDetector(
-      onTap: () {
+      onTap: () async {
         warmProfileReelTap(
           videoUrl: video.videoUrl,
           video: video.video,
@@ -60,6 +61,10 @@ class _SavedVideosViewState extends State<SavedVideosView>
           transcodeStatus: video.transcodeStatus,
           videoSources: video.videoSources,
         );
+        await prepareForProfileReelRoute();
+        if (!context.mounted) {
+          return;
+        }
         Get.to(
           () => CollectionReelScreen(
             kind: CollectionReelKind.saved,

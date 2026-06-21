@@ -18,6 +18,7 @@ import 'package:cookster/core/widgets/reel_content_chrome.dart';
 import 'package:cookster/core/video/media_kit_player_pool.dart';
 import 'package:cookster/core/video/device_constraints.dart';
 import 'package:cookster/core/video/reels_playback_coordinator.dart';
+import 'package:cookster/core/video/reel_screen_playback_helpers.dart';
 import 'package:cookster/core/video/video_preload_manager.dart';
 import 'package:cookster/core/video/video_preload_target.dart';
 import 'package:cookster/core/video/video_source_resolver.dart';
@@ -233,15 +234,22 @@ class _VideoReelScreenState extends State<VideoReelScreen>
     }
     final layer = _activeLayer;
     final index = layer.visibleIndexNotifier.value.clamp(0, videos.length - 1);
+    final video = videos[index];
+    layer.activePlayerVideo = video;
     _resetPosterMaskForPageChange(
-      videoId: videos[index].id,
+      videoId: video.id,
     );
     _preloadManager.prepareForSessionStart();
-    MediaKitPlayerPool.instance.setScreenWidth(
-      MediaQuery.sizeOf(context).width,
+    unawaited(
+      ReelScreenPlaybackHelpers.attachVisibleIndex(
+        preloadManager: _preloadManager,
+        coordinator: _playbackCoordinator,
+        context: context,
+        index: index,
+        playerKey: _feedReelPlayerKey,
+        forcePlayerReattach: true,
+      ),
     );
-    unawaited(MediaKitPlayerPool.instance.ensureFeedPingPongInitialized());
-    _playbackCoordinator.onPageSettled(index, context: context);
     _schedulePlayerForPage(tab, index, forceReattach: true);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || !controller.canPlayHomeReels) {
@@ -278,14 +286,17 @@ class _VideoReelScreenState extends State<VideoReelScreen>
     bool forceReattach = false,
   }) {
     final isActiveTab = tab == _activeTabType;
+    final layer = _layerFor(tab);
+    if (!controller.canPlayHomeReels) {
+      layer.activePlayerVideo = null;
+      return;
+    }
     final videos = _videosForTab(tab, isActiveTab: isActiveTab);
     if (videos == null ||
         videos.isEmpty ||
-        !controller.canPlayHomeReels ||
         !isActiveTab) {
       return;
     }
-    final layer = _layerFor(tab);
     final actualIndex = pageIndex % videos.length;
     final video = videos[actualIndex];
     final leavingPhoto = layer.activePlayerVideo?.isPhotoPost == true;
@@ -542,6 +553,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
       });
       return;
     }
+    layer.activePlayerVideo = targetVideo;
     _preloadManager.prepareForSessionStart();
     layer.visibleIndexNotifier.value = targetIndex;
     _resetPosterMaskForPageChange(
@@ -590,9 +602,10 @@ class _VideoReelScreenState extends State<VideoReelScreen>
   }
 
   void _resetPosterMaskForPageChange({String? videoId}) {
-    if (videoId != null &&
-        videoId.isNotEmpty &&
-        MediaKitPlayerPool.instance.isFrameReady(videoId)) {
+    if (ReelScreenPlaybackHelpers.shouldKeepPosterHidden(videoId)) {
+      if (_maskActiveVideoWithPoster) {
+        setState(() => _maskActiveVideoWithPoster = false);
+      }
       return;
     }
     if (!_maskActiveVideoWithPoster) {
@@ -605,6 +618,9 @@ class _VideoReelScreenState extends State<VideoReelScreen>
       return;
     }
     _lastHandledPlaybackEpoch = -1;
+    controller.isAppInBackground.value = false;
+    controller.isNavigating.value = false;
+    controller.setReelsTabVisible(true);
     final videos = controller.videoFeed.value.videos;
     final layer = _activeLayer;
     if (videos == null || videos.isEmpty) {
@@ -618,12 +634,16 @@ class _VideoReelScreenState extends State<VideoReelScreen>
     if (video.isPhotoPost) {
       return;
     }
+    layer.activePlayerVideo = video;
     final key = video.id;
-    if (key != null && key.isNotEmpty) {
-      unawaited(MediaKitPlayerPool.instance.recoverFeedVisibleSurface(key));
-    }
+    unawaited(_warmVisibleBeforePlayback(index));
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || !controller.canPlayHomeReels) {
+      if (!mounted) {
+        return;
+      }
+      controller.isAppInBackground.value = false;
+      controller.setReelsTabVisible(true);
+      if (!controller.canPlayHomeReels) {
         return;
       }
       _schedulePlayerForPage(_activeTabType, index, forceReattach: true);
@@ -1277,6 +1297,8 @@ class _VideoReelScreenState extends State<VideoReelScreen>
               child: ValueListenableBuilder<int>(
                 valueListenable: layer.visibleIndexNotifier,
                 builder: (context, visibleIndex, _) {
+                  return Obx(() {
+                  final allowFeedPlayer = controller.canPlayHomeReels;
                   final isActivePage = isActiveTab && actualIndex == visibleIndex;
 
                   Widget buildPageStack({required bool showPlayer}) {
@@ -1421,8 +1443,10 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                     return buildPageStack(showPlayer: false);
                   }
                   return buildPageStack(
-                    showPlayer: !videoDetail.isPhotoPost,
+                    showPlayer:
+                        !videoDetail.isPhotoPost && allowFeedPlayer,
                   );
+                  });
                 },
               ),
             );

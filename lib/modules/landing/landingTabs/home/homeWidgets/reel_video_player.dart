@@ -177,6 +177,16 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
     if (_isDisposed || !_usesFeedVisibleChannel || !mounted) {
       return;
     }
+    if (_isInitializing) {
+      return;
+    }
+    final key = _poolKey;
+    if (key.isNotEmpty &&
+        _pooledKey == key &&
+        _pool.isFeedVisibleKey(key)) {
+      await _pool.resumeFeedVisible(key);
+      return;
+    }
     _failedSourceUrls.clear();
     await _loadVideo();
   }
@@ -186,26 +196,38 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
     if (_isDisposed || !_usesFeedVisibleChannel || !mounted) {
       return;
     }
-    final key = _pooledKey;
-    final stillPrimed =
-        key != null && key.isNotEmpty && _pool.isFrameReady(key);
-    if (!stillPrimed) {
+    final widgetKey = _poolKey;
+    final poolKey = _pooledKey ?? widgetKey;
+    final hadPaint =
+        widgetKey.isNotEmpty && _pool.hadRecentPaint(widgetKey);
+    final stillPrimed = widgetKey.isNotEmpty &&
+        (_pool.isFrameReady(widgetKey) || hadPaint);
+    if (stillPrimed) {
+      _fastFeedReveal = true;
+    } else {
       _videoSurfaceVisible = false;
       _frameReady = false;
       _fastFeedReveal = false;
       _surfacePaintFrames = 0;
       _visibleSurfacePaintFrames = 0;
       _resetDimensionStability();
-    } else {
-      _fastFeedReveal = true;
     }
-    if (key != null && key.isNotEmpty) {
+    if (widgetKey.isNotEmpty) {
       if (!stillPrimed) {
-        _pool.invalidatePrimedFrame(key);
+        _pool.invalidatePrimedFrame(widgetKey);
       }
       unawaited(
-        _pool.recoverFeedVisibleSurface(key, bumpSurface: !stillPrimed),
+        _pool.recoverFeedVisibleSurface(
+          widgetKey,
+          bumpSurface: !stillPrimed && !hadPaint,
+        ),
       );
+    }
+    if (widgetKey.isNotEmpty &&
+        widgetKey != poolKey &&
+        !_pool.isFeedVisibleKey(widgetKey)) {
+      await _loadVideo();
+      return;
     }
     final player = _activePlayer;
     if (player == null) {
@@ -217,7 +239,9 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
       _videoSurfaceVisible = true;
       _showThumbnail = false;
       widget.onFeedVideoPainted?.call();
-      await _pool.resumeFeedVisible(key!);
+      if (widgetKey.isNotEmpty) {
+        await _pool.resumeFeedVisible(widgetKey);
+      }
       return;
     }
     _afterSurfaceMounted(
@@ -226,6 +250,8 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
     );
     if (_canShowVideo(player)) {
       await _onFrameReady(player, generation: _attachGeneration);
+    } else if (widgetKey.isNotEmpty && !_pool.isFeedVisibleKey(widgetKey)) {
+      await _loadVideo();
     }
   }
 
@@ -286,6 +312,16 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
   @override
   void didUpdateWidget(covariant ReelVideoPlayer oldWidget) {
     super.didUpdateWidget(oldWidget);
+    final id = widget.videoId?.trim() ?? '';
+    if (id.isNotEmpty &&
+        id == oldWidget.videoId &&
+        _usesFeedVisibleChannel &&
+        _pool.isFeedVisibleKey(id) &&
+        (_pool.canInstantResume(id) ||
+            _pool.isFrameReady(id) ||
+            _pool.isBufferPrimed(id))) {
+      return;
+    }
     final videoChanged = widget.videoId != oldWidget.videoId ||
         widget.videoUrl != oldWidget.videoUrl ||
         widget.hlsUrl != oldWidget.hlsUrl ||
@@ -727,6 +763,13 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
       setState(() {});
     }
     if (_usesFeedVisibleChannel) {
+      final key = _pooledKey;
+      if (key != null && key.isNotEmpty) {
+        _pool.markFrameReadyFromSurface(key);
+        // Unmute as soon as the video layer goes visible — waiting for
+        // poster_unmask added 96–400ms of silent video on Honor/MTK.
+        unawaited(_resumeAudibleAfterReveal(key: key, generation: generation));
+      }
       await _awaitFeedOpaquePaint(generation: generation, player: player);
     }
   }
@@ -1014,9 +1057,7 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
       return;
     }
 
-    if (key != null) {
-      _pool.markFrameReadyFromSurface(key);
-    }
+    // Backup — primary unmute runs in [_setVideoSurfaceVisible].
     await _resumeAudibleAfterReveal(key: key, generation: generation);
     if (!_isCurrentAttach(generation) || !mounted || _isDisposed) {
       return;

@@ -6,6 +6,7 @@ import 'package:get/get.dart';
 import 'package:cookster/core/navigation/route_back.dart';
 import 'package:cookster/core/widgets/grid_thumbnail_cache.dart';
 import 'package:cookster/core/widgets/reel_content_chrome.dart';
+import 'package:cookster/core/video/fullscreen_video_playback.dart';
 import 'package:cookster/core/video/profile_reel_prefetch.dart';
 import 'package:cookster/modules/collection_reel/collection_reel_screen.dart';
 
@@ -58,7 +59,7 @@ class _LikedVideosScreenState extends State<LikedVideosScreen>
 
   Widget _buildVideoTile(LikedVideos video, int thumbCache) {
     return GestureDetector(
-      onTap: () {
+      onTap: () async {
         warmProfileReelTap(
           videoUrl: video.videoUrl,
           video: video.video,
@@ -67,6 +68,10 @@ class _LikedVideosScreenState extends State<LikedVideosScreen>
           transcodeStatus: video.transcodeStatus,
           videoSources: video.videoSources,
         );
+        await prepareForProfileReelRoute();
+        if (!context.mounted) {
+          return;
+        }
         Get.to(
           () => CollectionReelScreen(
             kind: CollectionReelKind.liked,

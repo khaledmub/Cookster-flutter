@@ -9,10 +9,10 @@ import 'package:cookster/core/firestore/video_view_tracker.dart';
 import 'package:cookster/core/media/media_url_resolver.dart';
 import 'package:cookster/core/widgets/profile_user_title.dart';
 import 'package:cookster/core/media/wall_video_media.dart';
-import 'package:cookster/core/video/fullscreen_video_playback.dart';
 import 'package:cookster/core/video/media_kit_player_pool.dart';
 import 'package:cookster/core/video/reels_feed_client.dart';
 import 'package:cookster/core/video/reels_playback_coordinator.dart';
+import 'package:cookster/core/video/reel_screen_playback_helpers.dart';
 import 'package:cookster/core/video/video_preload_manager.dart';
 import 'package:cookster/core/video/video_preload_target.dart';
 import 'package:cookster/core/video/video_source_resolver.dart';
@@ -66,12 +66,14 @@ class ProfileReelScreen extends StatefulWidget {
   State<ProfileReelScreen> createState() => _ProfileReelScreenState();
 }
 
-class _ProfileReelScreenState extends State<ProfileReelScreen> {
+class _ProfileReelScreenState extends State<ProfileReelScreen>
+    with WidgetsBindingObserver {
   late final PageController _pageController;
   final GlobalKey<ReelVideoPlayerState> _reelPlayerKey =
       GlobalKey<ReelVideoPlayerState>();
   final ValueNotifier<int> _visibleIndexNotifier = ValueNotifier<int>(0);
   bool _maskActiveVideoWithPoster = true;
+  bool _poolSessionReady = false;
 
   final List<WallVideos> _videos = [];
   FeedMeta? _meta;
@@ -91,6 +93,7 @@ class _ProfileReelScreenState extends State<ProfileReelScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     ensureVisitProfileDependencies();
     _homeController = Get.find<HomeController>();
     _homeController.reinforceReelsPausedForOverlay();
@@ -126,6 +129,17 @@ class _ProfileReelScreenState extends State<ProfileReelScreen> {
     unawaited(_bootstrap());
   }
 
+  bool _playbackLiveForId(String? videoId) {
+    if (videoId == null || videoId.isEmpty) {
+      return false;
+    }
+    final pool = MediaKitPlayerPool.instance;
+    return pool.isFeedVisibleKey(videoId) &&
+        (pool.isFrameReady(videoId) ||
+            pool.isBufferPrimed(videoId) ||
+            pool.hadRecentPaint(videoId));
+  }
+
   int _resolveAnchorIndex(List<WallVideos> videos) {
     final anchor = widget.anchorId?.trim();
     if (anchor != null && anchor.isNotEmpty) {
@@ -137,13 +151,13 @@ class _ProfileReelScreenState extends State<ProfileReelScreen> {
     return widget.initialIndex.clamp(0, videos.length - 1);
   }
 
-  void _startPlaybackAt(int index) {
+  void _startPlaybackAt(int index, {int warmMaxWaitMs = 200}) {
     if (index < 0 || index >= _videos.length) {
       return;
     }
     _visibleIndexNotifier.value = index;
     unawaited(_preloadManager.bootstrapFromVisible(index));
-    _attachPlaybackForIndex(index);
+    unawaited(_attachPlaybackForIndex(index, warmMaxWaitMs: warmMaxWaitMs));
   }
 
   /// API fetch overlaps pool teardown — serial await was adding hundreds of ms.
@@ -155,25 +169,38 @@ class _ProfileReelScreenState extends State<ProfileReelScreen> {
       videoTypeId: widget.videoTypeId,
       anchorId: widget.anchorId,
     );
-    await Future.wait([
-      prepareForFullscreenVideoPlayback(),
-      _loadAuth(),
-    ]);
+    final hadSeeds = _videos.isNotEmpty;
+    await _loadAuth();
     if (!mounted) {
       return;
     }
-    // Honor: home feed [Video] must fully unmount before profile surface opens.
+    // [prepareForProfileReelRoute] already tore down the pool from the grid tap.
     await SchedulerBinding.instance.endOfFrame;
     await SchedulerBinding.instance.endOfFrame;
+    if (!mounted) {
+      return;
+    }
+    await MediaKitPlayerPool.instance.ensureFeedPingPongInitialized();
     if (!mounted) {
       return;
     }
     _preloadManager.prepareForSessionStart();
+    setState(() => _poolSessionReady = true);
+
+    if (hadSeeds) {
+      final idx = _visibleIndexNotifier.value.clamp(0, _videos.length - 1);
+      unawaited(
+        _preloadManager.prefetchVisibleReel(idx, maxWaitMs: 360),
+      );
+      unawaited(_preloadManager.bootstrapFromVisible(idx));
+    }
+
     await _applyFeedResult(await feedFuture);
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _viewTrackDebounce?.cancel();
     _fetchMoreDebounce?.cancel();
     _visibleIndexNotifier.dispose();
@@ -185,6 +212,7 @@ class _ProfileReelScreenState extends State<ProfileReelScreen> {
   }
 
   Future<void> _teardownPoolAndResumeHome() async {
+    await MediaKitPlayerPool.instance.awaitOperationsIdle();
     await MediaKitPlayerPool.instance.disposeAll();
     _homeController.resumeReelsAfterRouteOverlay();
   }
@@ -211,7 +239,10 @@ class _ProfileReelScreenState extends State<ProfileReelScreen> {
         });
       } else {
         setState(() => _isLoading = false);
-        _startPlaybackAt(_visibleIndexNotifier.value);
+        final idx = _visibleIndexNotifier.value.clamp(0, _videos.length - 1);
+        if (!_playbackLiveForId(_videos[idx].id)) {
+          _startPlaybackAt(idx);
+        }
       }
       return;
     }
@@ -222,7 +253,10 @@ class _ProfileReelScreenState extends State<ProfileReelScreen> {
     if (incoming.isEmpty) {
       setState(() => _isLoading = false);
       if (_videos.isNotEmpty) {
-        _startPlaybackAt(_visibleIndexNotifier.value);
+        final idx = _visibleIndexNotifier.value.clamp(0, _videos.length - 1);
+        if (!_playbackLiveForId(_videos[idx].id)) {
+          _startPlaybackAt(idx);
+        }
       }
       return;
     }
@@ -261,7 +295,10 @@ class _ProfileReelScreenState extends State<ProfileReelScreen> {
           (_pageController.page?.round() ?? startIndex) != startIndex) {
         _pageController.jumpToPage(startIndex);
       }
-      _startPlaybackAt(startIndex);
+      final keepId = merged[startIndex].id;
+      if (!_playbackLiveForId(keepId)) {
+        _startPlaybackAt(startIndex, warmMaxWaitMs: 360);
+      }
     });
   }
 
@@ -354,10 +391,68 @@ class _ProfileReelScreenState extends State<ProfileReelScreen> {
     setState(() => _maskActiveVideoWithPoster = false);
   }
 
-  void _resetPosterMaskForPageChange() {
+  void _resetPosterMaskForPageChange({String? videoId}) {
+    if (ReelScreenPlaybackHelpers.shouldKeepPosterHidden(videoId)) {
+      if (_maskActiveVideoWithPoster) {
+        setState(() => _maskActiveVideoWithPoster = false);
+      }
+      return;
+    }
     if (!_maskActiveVideoWithPoster) {
       setState(() => _maskActiveVideoWithPoster = true);
     }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _resumeAfterAppForeground();
+        }
+      });
+    }
+  }
+
+  Future<void> _resumeAfterAppForeground() async {
+    if (!mounted || _videos.isEmpty) {
+      return;
+    }
+    final index =
+        _visibleIndexNotifier.value.clamp(0, _videos.length - 1);
+    final video = _videos[index];
+    if (video.isPhotoPost) {
+      return;
+    }
+    _resetPosterMaskForPageChange(videoId: video.id);
+    await ReelScreenPlaybackHelpers.resumeAfterAppForeground(
+      playerKey: _reelPlayerKey,
+      videoId: video.id,
+      attachVisible: () => _attachPlaybackForIndex(index),
+    );
+  }
+
+  Future<void> _attachPlaybackForIndex(
+    int index, {
+    bool forceReattach = false,
+    int warmMaxWaitMs = 200,
+  }) async {
+    if (index < 0 || index >= _videos.length) {
+      return;
+    }
+    if (_videos[index].isPhotoPost) {
+      MediaKitPlayerPool.instance.pauseAllImmediate();
+      return;
+    }
+    await ReelScreenPlaybackHelpers.attachVisibleIndex(
+      preloadManager: _preloadManager,
+      coordinator: _playbackCoordinator,
+      context: context,
+      index: index,
+      playerKey: _reelPlayerKey,
+      forcePlayerReattach: forceReattach,
+      warmMaxWaitMs: warmMaxWaitMs,
+    );
   }
 
   Widget _buildInlineReelPlayer(WallVideos video, int index) {
@@ -377,26 +472,12 @@ class _ProfileReelScreenState extends State<ProfileReelScreen> {
     // move to the next post — no auto-advance.
   }
 
-  void _attachPlaybackForIndex(int index) {
-    if (index < 0 || index >= _videos.length) {
-      return;
-    }
-    if (_videos[index].isImage == 1) {
-      MediaKitPlayerPool.instance.pauseAllImmediate();
-      return;
-    }
-    MediaKitPlayerPool.instance.setScreenWidth(
-      MediaQuery.sizeOf(context).width,
-    );
-    _playbackCoordinator.onPageSettled(index, context: context);
-  }
-
   VideoPreloadTarget? _preloadTargetForIndex(int index) {
     if (index < 0 || index >= _videos.length) {
       return null;
     }
     final video = _videos[index];
-    if (video.isImage == 1) {
+    if (video.isPhotoPost) {
       return null;
     }
     final key = video.id ?? video.resolvedPlaybackUrl ?? '';
@@ -530,21 +611,18 @@ class _ProfileReelScreenState extends State<ProfileReelScreen> {
 
   void _onPageChanged(int index) {
     _visibleIndexNotifier.value = index;
-    _resetPosterMaskForPageChange();
+    _resetPosterMaskForPageChange(
+      videoId: index < _videos.length ? _videos[index].id : null,
+    );
     _scrollTowardIndex = null;
     final video = _videos[index];
-    if (video.isImage == 1) {
+    if (video.isPhotoPost) {
       MediaKitPlayerPool.instance.pauseAllImmediate();
       _scheduleViewTrack(video);
       return;
     }
     _scheduleViewTrack(video);
-
-    MediaKitPlayerPool.instance.setScreenWidth(
-      MediaQuery.sizeOf(context).width,
-    );
-    _preloadManager.onVisiblePageSettled();
-    _playbackCoordinator.onPageSettled(index, context: context);
+    unawaited(_attachPlaybackForIndex(index));
 
     if (_meta?.hasMore != false && index >= _videos.length - 3) {
       unawaited(_fetchMoreVideos());
@@ -774,6 +852,7 @@ class _ProfileReelScreenState extends State<ProfileReelScreen> {
                 clipBehavior: Clip.hardEdge,
                 dragStartBehavior: DragStartBehavior.down,
                 allowImplicitScrolling: true,
+                pageSnapping: true,
                 physics: const ClampingScrollPhysics(),
                 itemCount: _videos.length,
                 onPageChanged: _onPageChanged,
@@ -797,23 +876,25 @@ class _ProfileReelScreenState extends State<ProfileReelScreen> {
                           ReelFeedPageMediaChrome(
                             video: video,
                             isActivePage: isActivePage,
-                            child: Stack(
-                              fit: StackFit.expand,
-                              children: [
-                                if (isActiveVideo)
-                                  _buildInlineReelPlayer(video, index),
-                                IgnorePointer(
-                                  ignoring: isActiveVideo && !maskPoster,
-                                  child: Opacity(
-                                    opacity: maskPoster || !isActiveVideo
-                                        ? 1.0
-                                        : 0.0,
-                                    child: ReelFeedPlayerKit.buildPagePoster(
-                                      video,
+                            child: RepaintBoundary(
+                              child: Stack(
+                                fit: StackFit.expand,
+                                children: [
+                                  if (isActiveVideo && _poolSessionReady)
+                                    _buildInlineReelPlayer(video, index),
+                                  IgnorePointer(
+                                    ignoring: isActiveVideo && !maskPoster,
+                                    child: Opacity(
+                                      opacity: maskPoster || !isActiveVideo
+                                          ? 1.0
+                                          : 0.0,
+                                      child: ReelFeedPlayerKit.buildPagePoster(
+                                        video,
+                                      ),
                                     ),
                                   ),
-                                ),
-                              ],
+                                ],
+                              ),
                             ),
                           ),
                           if (isActivePage) ...[

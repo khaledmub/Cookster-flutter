@@ -228,7 +228,7 @@ class FeedPingPongController {
     _activeIndex = FeedPingPongLogic.flippedActiveIndex(_activeIndex);
   }
 
-  /// Mute both slots on present — active unmutes only after the surface paints.
+  /// Mute both slots on present — active unmutes when the video surface is revealed.
   Future<void> _applyPresentAudioPolicy() async {
     await _disableSlotAudio(_hidden);
     await _disableSlotAudio(_active);
@@ -283,7 +283,7 @@ class FeedPingPongController {
     await _silenceSlot(_hidden);
   }
 
-  /// Unmute after the [Video] surface has painted (or tab return when already audible).
+  /// Unmute when the [Video] surface is revealed (or tab return when already audible).
   Future<void> resumeActiveAudible({
     required bool alreadyAudible,
     String? expectedKey,

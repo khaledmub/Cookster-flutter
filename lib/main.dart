@@ -246,6 +246,8 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         if (Get.isRegistered<HomeController>()) {
           final home = Get.find<HomeController>();
           home.isAppInBackground.value = false;
+          home.isNavigating.value = false;
+          home.setReelsTabVisible(true);
           home.isVideoPlaying.value = true;
           home.feedPlaybackEpoch.value++;
           unawaited(
