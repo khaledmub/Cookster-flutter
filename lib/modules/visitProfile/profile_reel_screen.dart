@@ -248,7 +248,9 @@ class _ProfileReelScreenState extends State<ProfileReelScreen>
       return;
     }
 
-    final incoming = List<WallVideos>.from(result.feed!.videos ?? []);
+    final incoming = _filterVideosForActiveType(
+      List<WallVideos>.from(result.feed!.videos ?? []),
+    );
     _meta = result.feed!.meta;
 
     if (incoming.isEmpty) {
@@ -301,6 +303,21 @@ class _ProfileReelScreenState extends State<ProfileReelScreen>
         _startPlaybackAt(startIndex, warmMaxWaitMs: 360);
       }
     });
+  }
+
+  List<WallVideos> _filterVideosForActiveType(List<WallVideos> videos) {
+    final typeId = widget.videoTypeId?.trim();
+    if (typeId == null || typeId.isEmpty) {
+      return videos;
+    }
+    return videos
+        .where((v) {
+          final declared = v.videoType?.toString();
+          return declared == null ||
+              declared.isEmpty ||
+              declared == typeId;
+        })
+        .toList();
   }
 
   /// API rows enrich grid seeds; seed-only rows stay when the reel API omits them.
@@ -557,11 +574,15 @@ class _ProfileReelScreenState extends State<ProfileReelScreen>
       final result = await ReelsFeedClient.fetchPage(
         reset: false,
         nextCursor: cursor,
+        feed: 'user',
+        userId: widget.userId,
+        videoTypeId: widget.videoTypeId,
       );
       if (!mounted || result.feed == null) {
         return;
       }
-      final incoming = List<WallVideos>.from(result.feed!.videos ?? []);
+      var incoming = List<WallVideos>.from(result.feed!.videos ?? []);
+      incoming = _filterVideosForActiveType(incoming);
       if (incoming.isEmpty) {
         if (_meta != null) {
           _meta!.hasMore = false;

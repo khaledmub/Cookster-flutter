@@ -416,6 +416,22 @@ class _CommentSectionState extends State<CommentSection> {
                                                 ),
                                               ),
                                             ),
+                                            if (userId == widget.currentUserId)
+                                              InkWell(
+                                                onTap: () async {
+                                                  await commentsController
+                                                      .deleteComment(
+                                                    widget.videoId,
+                                                    commentId,
+                                                  );
+                                                },
+                                                child: Text(
+                                                  "Delete".tr,
+                                                  style: TextStyle(
+                                                    color: Colors.redAccent,
+                                                  ),
+                                                ),
+                                              ),
                                           ],
                                         ),
 

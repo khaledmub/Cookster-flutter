@@ -157,6 +157,7 @@ class ReelOverlayColumn extends StatelessWidget {
                   video.id!,
                   uid,
                   avatar,
+                  videoOwnerId: video.frontUserId,
                 );
               },
               child: SizedBox(

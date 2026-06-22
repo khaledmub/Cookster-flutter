@@ -1406,9 +1406,15 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                               VideoDescriptionWidget(
                                 title: videoDetail.title,
                                 description: videoDetail.description,
-                                tags: videoDetail.tags,
+                                tags: null,
                                 controller: controller,
                               ),
+                              if (videoDetail.tags != null &&
+                                  videoDetail.tags!.isNotEmpty)
+                                ReelHashtagStrip(
+                                  tags: videoDetail.tags!,
+                                  controller: controller,
+                                ),
                               videoUserDetails(
                                 profileController: profileController,
                                 professionalProfileController:
@@ -2119,6 +2125,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                                       videoDetail.id!,
                                       uid,
                                       userImage,
+                                      videoOwnerId: videoDetail.frontUserId,
                                     );
 
                                     if (mounted) {
@@ -3458,8 +3465,6 @@ class _VideoDescriptionWidgetState extends State<VideoDescriptionWidget>
     with TickerProviderStateMixin {
   bool _isExpanded = false;
   bool _hasOverflow = false;
-  bool _isTagExpanded = false;
-  bool _hasTagOverflow = false;
   final TextEditingController _textController = TextEditingController();
 
   @override
@@ -3495,30 +3500,16 @@ class _VideoDescriptionWidgetState extends State<VideoDescriptionWidget>
     if (!mounted) return;
     final textDirection = Directionality.of(context);
     final descriptionStyle = TextStyle(color: Colors.white, fontSize: 14.sp);
-    final tagStyle = TextStyle(color: ColorUtils.primaryColor, fontSize: 12.sp);
-
     final maxContentWidth = _contentMaxWidth(context);
 
-    // Check description overflow
     final TextPainter descPainter = TextPainter(
       text: TextSpan(text: widget.description, style: descriptionStyle),
       maxLines: 1,
       textDirection: textDirection,
     )..layout(maxWidth: maxContentWidth);
 
-    // Check tag overflow
-    final String tagLine = HashtagText.splitTags(widget.tags)
-        .map(HashtagText.displayLabel)
-        .join(' ');
-    final TextPainter tagPainter = TextPainter(
-      text: TextSpan(text: tagLine, style: tagStyle),
-      maxLines: 1,
-      textDirection: textDirection,
-    )..layout(maxWidth: maxContentWidth);
-
     setState(() {
       _hasOverflow = descPainter.didExceedMaxLines;
-      _hasTagOverflow = tagPainter.didExceedMaxLines;
     });
   }
 
@@ -3537,7 +3528,6 @@ class _VideoDescriptionWidgetState extends State<VideoDescriptionWidget>
     final textDirection = Directionality.of(context);
     final isRtl = textDirection == TextDirection.rtl;
     final descriptionStyle = TextStyle(color: Colors.white, fontSize: 14.sp);
-    final tagStyle = TextStyle(color: ColorUtils.primaryColor, fontSize: 12.sp);
     final contentMaxWidth = _contentMaxWidth(context);
     final textAlign = isRtl ? TextAlign.right : TextAlign.left;
     final crossAxisAlignment =
@@ -3624,69 +3614,125 @@ class _VideoDescriptionWidgetState extends State<VideoDescriptionWidget>
 
             if (widget.description != null && widget.description!.isNotEmpty)
               SizedBox(height: 4.h),
+          ],
+        ),
+      ),
+    );
+  }
+}
 
-            // Tags with expand/collapse and tap functionality
-            if (widget.tags != null && widget.tags!.isNotEmpty)
-              Column(
-                crossAxisAlignment: crossAxisAlignment,
-                children: [
-                  AnimatedSize(
-                    duration: const Duration(milliseconds: 300),
-                    curve: Curves.easeInOut,
-                    alignment: isRtl ? Alignment.topRight : Alignment.topLeft,
-                    child: RichText(
-                      maxLines: _isTagExpanded ? null : 2,
-                      overflow:
-                          _isTagExpanded
-                              ? TextOverflow.visible
-                              : TextOverflow.ellipsis,
-                      textAlign: textAlign,
-                      textDirection: textDirection,
-                      text: TextSpan(
-                        children: HashtagText.splitTags(widget.tags).map((tag) {
-                          final searchKey = HashtagText.searchKey(tag);
-                          return TextSpan(
-                            text: '${HashtagText.displayLabel(tag)} ',
-                            style: tagStyle,
-                            recognizer: TapGestureRecognizer()
-                              ..onTap = () {
-                                if (Get.isRegistered<HomeController>()) {
-                                  Get.find<HomeController>()
-                                      .silenceHomeReelsForTransition();
-                                }
-                                Get.to(
-                                  () => HashtagReelScreen(
-                                    tag: searchKey,
-                                  ),
-                                );
-                              },
-                          );
-                        }).toList(),
-                      ),
+/// Hashtags aligned with the star rating column on the right.
+class ReelHashtagStrip extends StatefulWidget {
+  const ReelHashtagStrip({
+    super.key,
+    required this.tags,
+    this.controller,
+  });
+
+  final String tags;
+  final HomeController? controller;
+
+  @override
+  State<ReelHashtagStrip> createState() => _ReelHashtagStripState();
+}
+
+class _ReelHashtagStripState extends State<ReelHashtagStrip> {
+  bool _isTagExpanded = false;
+  bool _hasTagOverflow = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _checkOverflowOnce());
+  }
+
+  void _checkOverflowOnce() {
+    if (!mounted) return;
+    final textDirection = Directionality.of(context);
+    final tagStyle = TextStyle(color: ColorUtils.primaryColor, fontSize: 12.sp);
+    final tagLine = HashtagText.splitTags(widget.tags)
+        .map(HashtagText.displayLabel)
+        .join(' ');
+    final maxWidth = MediaQuery.sizeOf(context).width * 0.72 - 16;
+    final tagPainter = TextPainter(
+      text: TextSpan(text: tagLine, style: tagStyle),
+      maxLines: 1,
+      textDirection: textDirection,
+    )..layout(maxWidth: maxWidth.clamp(0, double.infinity));
+    setState(() => _hasTagOverflow = tagPainter.didExceedMaxLines);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final textDirection = Directionality.of(context);
+    final isRtl = textDirection == TextDirection.rtl;
+    final tagStyle = TextStyle(color: ColorUtils.primaryColor, fontSize: 12.sp);
+    final textAlign = isRtl ? TextAlign.right : TextAlign.left;
+    final crossAxisAlignment =
+        isRtl ? CrossAxisAlignment.end : CrossAxisAlignment.start;
+
+    return Positioned(
+      left: 10,
+      bottom: Platform.isAndroid ? Get.height * 0.02 : Get.height * 0.02,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+        constraints: BoxConstraints(
+          maxWidth: MediaQuery.sizeOf(context).width * 0.72,
+        ),
+        decoration: BoxDecoration(
+          color: Colors.black.withValues(alpha: 0.3),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Column(
+          crossAxisAlignment: crossAxisAlignment,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            AnimatedSize(
+              duration: const Duration(milliseconds: 300),
+              curve: Curves.easeInOut,
+              alignment: isRtl ? Alignment.topRight : Alignment.topLeft,
+              child: RichText(
+                maxLines: _isTagExpanded ? null : 2,
+                overflow: _isTagExpanded
+                    ? TextOverflow.visible
+                    : TextOverflow.ellipsis,
+                textAlign: textAlign,
+                textDirection: textDirection,
+                text: TextSpan(
+                  children: HashtagText.splitTags(widget.tags).map((tag) {
+                    final searchKey = HashtagText.searchKey(tag);
+                    return TextSpan(
+                      text: '${HashtagText.displayLabel(tag)} ',
+                      style: tagStyle,
+                      recognizer: TapGestureRecognizer()
+                        ..onTap = () {
+                          if (Get.isRegistered<HomeController>()) {
+                            Get.find<HomeController>()
+                                .silenceHomeReelsForTransition();
+                          }
+                          Get.to(() => HashtagReelScreen(tag: searchKey));
+                        },
+                    );
+                  }).toList(),
+                ),
+              ),
+            ),
+            if (_hasTagOverflow)
+              GestureDetector(
+                onTap: () => setState(() => _isTagExpanded = !_isTagExpanded),
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Text(
+                    _isTagExpanded ? "show_less".tr : "show_more".tr,
+                    style: TextStyle(
+                      color: ColorUtils.primaryColor,
+                      fontSize: 12.sp,
+                      fontWeight: FontWeight.w500,
                     ),
+                    textAlign: textAlign,
+                    textDirection: textDirection,
                   ),
-                  if (_hasTagOverflow)
-                    GestureDetector(
-                      onTap: () {
-                        setState(() {
-                          _isTagExpanded = !_isTagExpanded;
-                        });
-                      },
-                      child: Padding(
-                        padding: const EdgeInsets.only(top: 4.0),
-                        child: Text(
-                          _isTagExpanded ? "show_less".tr : "show_more".tr,
-                          style: TextStyle(
-                            color: ColorUtils.primaryColor,
-                            fontSize: 12.sp,
-                            fontWeight: FontWeight.w500,
-                          ),
-                          textAlign: textAlign,
-                          textDirection: textDirection,
-                        ),
-                      ),
-                    ),
-                ],
+                ),
               ),
           ],
         ),

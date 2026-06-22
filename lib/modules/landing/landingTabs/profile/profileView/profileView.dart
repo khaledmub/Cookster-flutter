@@ -864,25 +864,11 @@ class _ProfileViewState extends State<ProfileView>
   }
 
   List<VideoTypes> _buildDisplayVideoTypes(List<VideoTypes>? sourceTypes) {
-    final existing = List<VideoTypes>.from(sourceTypes ?? <VideoTypes>[]);
-    final deduped = <VideoTypes>[];
-    VideoTypes? othersKeeper;
-    for (final type in existing) {
-      if (ProfileVideoTypeUtils.isOthersVideoTypeName(type.name?.toString())) {
-        if (othersKeeper == null) {
-          othersKeeper = type;
-          deduped.add(type);
-        } else {
-          othersKeeper.videos = <UserVideos>[
-            ...?othersKeeper.videos,
-            ...?type.videos,
-          ];
-        }
-        continue;
-      }
-      deduped.add(type);
-    }
-    if (othersKeeper == null) {
+    final deduped =
+        ProfileVideoTypeUtils.normalizeVideoTypeTabs<VideoTypes>(sourceTypes);
+    if (!deduped.any(
+      (t) => ProfileVideoTypeUtils.isOthersVideoTypeName(t.name?.toString()),
+    )) {
       deduped.add(VideoTypes(name: 'Others', videos: <UserVideos>[]));
     }
     return deduped;

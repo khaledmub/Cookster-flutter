@@ -19,12 +19,14 @@ class VideoCommentsScreen extends StatefulWidget {
   final String videoId;
   final String userId;
   final String userImage;
+  final String? videoOwnerId;
 
   const VideoCommentsScreen({
     Key? key,
     required this.videoId,
     required this.userId,
     required this.userImage,
+    this.videoOwnerId,
   }) : super(key: key);
 
   @override
@@ -46,6 +48,28 @@ class _VideoCommentsScreenState extends State<VideoCommentsScreen> {
     _replyControllers.forEach((key, controller) => controller.dispose());
     _textFieldFocusNode.dispose();
     super.dispose();
+  }
+
+  Future<void> _deleteCommentWithReplies(
+    DocumentReference commentRef,
+  ) async {
+    final replies = await commentRef.collection('replies').get();
+    final batch = _firestore.batch();
+    for (final reply in replies.docs) {
+      batch.delete(reply.reference);
+    }
+    batch.delete(commentRef);
+    await batch.commit();
+  }
+
+  bool _canDeleteComment(String commentAuthorId) {
+    if (commentAuthorId == widget.userId) {
+      return true;
+    }
+    final ownerId = widget.videoOwnerId;
+    return ownerId != null &&
+        ownerId.isNotEmpty &&
+        ownerId == widget.userId;
   }
 
   // Add Comment
@@ -529,6 +553,36 @@ class _VideoCommentsScreenState extends State<VideoCommentsScreen> {
                                                   ],
                                                 ),
                                               ),
+                                              if (_canDeleteComment(userId)) ...[
+                                                SizedBox(width: 16.w),
+                                                GestureDetector(
+                                                  onTap: () async {
+                                                    try {
+                                                      await _deleteCommentWithReplies(
+                                                        comment.reference,
+                                                      );
+                                                    } catch (_) {}
+                                                  },
+                                                  child: Row(
+                                                    children: [
+                                                      Icon(
+                                                        Icons.delete_outline,
+                                                        size: 16.sp,
+                                                        color: Colors.redAccent,
+                                                      ),
+                                                      SizedBox(width: 4.w),
+                                                      Text(
+                                                        'Delete'.tr,
+                                                        style: TextStyle(
+                                                          fontSize: 12.sp,
+                                                          color:
+                                                              Colors.redAccent,
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ),
+                                              ],
                                             ],
                                           ),
                                         ],
@@ -1062,8 +1116,9 @@ void showCommentsBottomSheetNew(
   BuildContext context,
   String videoId,
   String userId,
-  String userImage,
-) {
+  String userImage, {
+  String? videoOwnerId,
+}) {
   showModalBottomSheet(
     context: context,
     isScrollControlled: true,
@@ -1076,6 +1131,7 @@ void showCommentsBottomSheetNew(
           videoId: videoId,
           userId: userId,
           userImage: userImage,
+          videoOwnerId: videoOwnerId,
         ),
       ),
     ),

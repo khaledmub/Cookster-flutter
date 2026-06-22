@@ -222,6 +222,54 @@ class VideoCommentsController extends GetxController {
     }
   }
 
+  Future<void> deleteComment(String videoId, String commentId) async {
+    try {
+      final replies = await _firestore
+          .collection('videos')
+          .doc(videoId)
+          .collection('comments')
+          .doc(commentId)
+          .collection('replies')
+          .get();
+      final batch = _firestore.batch();
+      for (final reply in replies.docs) {
+        batch.delete(reply.reference);
+      }
+      batch.delete(
+        _firestore
+            .collection('videos')
+            .doc(videoId)
+            .collection('comments')
+            .doc(commentId),
+      );
+      await batch.commit();
+      await fetchComments(videoId);
+    } catch (e) {
+      print('Error deleting comment: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> deleteReply(
+    String videoId,
+    String commentId,
+    String replyId,
+  ) async {
+    try {
+      await _firestore
+          .collection('videos')
+          .doc(videoId)
+          .collection('comments')
+          .doc(commentId)
+          .collection('replies')
+          .doc(replyId)
+          .delete();
+    } catch (e) {
+      print('Error deleting reply: $e');
+      rethrow;
+    }
+  }
+
   // Toggle Like for a Comment
   Future<void> toggleCommentLike(
     String videoId,

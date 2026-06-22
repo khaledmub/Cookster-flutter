@@ -12,23 +12,22 @@ class AppUtils {
     TextInputType keyboardType = TextInputType.text,
     bool obscureText = false,
     bool readonly = false,
-    Function(String)? onChanged, // Optional onChanged function
-    FocusNode? focusNode, // Focus node parameter
-    TextInputAction? textInputAction, // Text input action parameter
-    Function(String)? onSubmitted, // onSubmitted callback
-    VoidCallback? toggleObscureText, // Toggle function for obscure text
-    bool isPasswordField = false, // Indicator for password field
+    Function(String)? onChanged,
+    FocusNode? focusNode,
+    TextInputAction? textInputAction,
+    Function(String)? onSubmitted,
+    VoidCallback? toggleObscureText,
+    bool isPasswordField = false,
     String? Function(String?)? validator,
-    String? svgIconPath, // SVG Icon path provided by the user
-    int maxLines = 1, // Optional maxLines parameter with default value 1
-    // Add a new parameter for form key to trigger validation
+    String? svgIconPath,
+    int maxLines = 1,
     GlobalKey<FormFieldState>? fieldKey,
-    /// When false (default), validation runs only on submit/blur — much faster for long forms.
     bool validateOnChange = false,
+    Color textColor = Colors.black87,
+    Color fillColor = Colors.white,
   }) {
     return TextFormField(
       key: fieldKey,
-      // Add the key to access the field state
       onTapOutside: (event) {
         FocusManager.instance.primaryFocus?.unfocus();
       },
@@ -47,17 +46,21 @@ class AppUtils {
       textInputAction: textInputAction ?? TextInputAction.done,
       validator: validator,
       onFieldSubmitted: (value) {
-        if (onSubmitted != null) {
-          onSubmitted(value);
-        }
+        onSubmitted?.call(value);
       },
       maxLines: maxLines,
-      style: const TextStyle(color: Colors.black, fontSize: 16),
+      style: TextStyle(color: textColor, fontSize: 16),
+      cursorColor: textColor,
       scrollPadding: const EdgeInsets.only(bottom: 120),
       decoration: InputDecoration(
         errorStyle: const TextStyle(fontSize: 13),
-        labelStyle: const TextStyle(fontSize: 14),
+        labelStyle: TextStyle(fontSize: 14, color: Colors.grey.shade700),
+        hintStyle: TextStyle(fontSize: 14, color: Colors.grey.shade500),
         labelText: labelText,
+        hintText: labelText,
+        filled: true,
+        fillColor: fillColor,
+        floatingLabelBehavior: FloatingLabelBehavior.auto,
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(8),
           borderSide: BorderSide(

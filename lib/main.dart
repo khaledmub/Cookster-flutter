@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'dart:async';
+import 'dart:convert';
 import 'dart:ui';
 
 import 'package:app_links/app_links.dart';
@@ -20,6 +21,7 @@ import 'appRoutes/appRoutes.dart';
 import 'locale/localizationServices.dart';
 import 'modules/landing/landingController/landingController.dart';
 import 'modules/singleVideoVisit/singleVideoVisit.dart';
+import 'package:cookster/modules/visitProfile/visitProfileView/visitProfileView.dart';
 import 'package:flutter/foundation.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:cookster/core/video/media_kit_player_pool.dart';
@@ -290,36 +292,92 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       final bool isCooksterCustomScheme =
           uri.scheme == 'cookster' && uri.host == 'open.cookster.app';
 
-      if (isCooksterDomain || isCooksterCustomScheme) {
-        String? videoId = uri.queryParameters['id'];
-        videoId ??= uri.queryParameters['videoId'];
-        videoId ??= uri.queryParameters['video_id'];
-        if ((videoId == null || videoId.isEmpty) && uri.pathSegments.isNotEmpty) {
-          final lastSegment = uri.pathSegments.last;
-          const reservedSegments = {'web', 'visitSingleVideo', 'video'};
-          if (!reservedSegments.contains(lastSegment)) {
-            videoId = lastSegment;
-          }
-        }
+      if (!isCooksterDomain && !isCooksterCustomScheme) {
+        return;
+      }
 
-        if (widget.hasInternet && videoId != null && videoId.isNotEmpty) {
-          final resolvedVideoId = videoId;
-          if (Get.currentRoute != '/SingleVisitVideo') {
-            Get.to(
-              () => SingleVisitVideo(videoId: resolvedVideoId),
-              arguments: resolvedVideoId,
-              preventDuplicates: true,
-            );
-          }
-        } else if (videoId != null && videoId.isNotEmpty) {
-          _pendingDeepLinkRoute = videoId;
-          Get.offAllNamed(AppRoutes.noInternet);
+      final path = uri.path.toLowerCase();
+      final profileUserId = uri.queryParameters['userId'] ??
+          uri.queryParameters['user_id'] ??
+          uri.queryParameters['id'];
+      final profileEmail = uri.queryParameters['email'];
+
+      if (path.contains('visitprofile') ||
+          path.contains('/profile') ||
+          profileEmail != null) {
+        if (profileUserId != null && profileUserId.isNotEmpty) {
+          _openVisitProfile(profileUserId);
+          return;
         }
+        if (profileEmail != null && profileEmail.trim().isNotEmpty) {
+          unawaited(_openVisitProfileByEmail(profileEmail.trim()));
+          return;
+        }
+      }
+
+      String? videoId = uri.queryParameters['id'];
+      videoId ??= uri.queryParameters['videoId'];
+      videoId ??= uri.queryParameters['video_id'];
+      if ((videoId == null || videoId.isEmpty) && uri.pathSegments.isNotEmpty) {
+        final lastSegment = uri.pathSegments.last;
+        const reservedSegments = {
+          'web',
+          'visitSingleVideo',
+          'video',
+          'visitProfile',
+          'profile',
+        };
+        if (!reservedSegments.contains(lastSegment)) {
+          videoId = lastSegment;
+        }
+      }
+
+      if (widget.hasInternet && videoId != null && videoId.isNotEmpty) {
+        final resolvedVideoId = videoId;
+        if (Get.currentRoute != '/SingleVisitVideo') {
+          Get.to(
+            () => SingleVisitVideo(videoId: resolvedVideoId),
+            arguments: resolvedVideoId,
+            preventDuplicates: true,
+          );
+        }
+      } else if (videoId != null && videoId.isNotEmpty) {
+        _pendingDeepLinkRoute = videoId;
+        Get.offAllNamed(AppRoutes.noInternet);
       }
     } catch (e) {
       print('Error handling deep link: $e');
     } finally {
       _handlingDeepLink = false;
+    }
+  }
+
+  void _openVisitProfile(String userId) {
+    if (Get.currentRoute.contains('VisitProfileView')) {
+      return;
+    }
+    Get.to(
+      () => VisitProfileView(userId: userId),
+      preventDuplicates: true,
+    );
+  }
+
+  Future<void> _openVisitProfileByEmail(String email) async {
+    try {
+      final response = await ApiClient.getRequest(
+        '${EndPoints.userProfile}?email=${Uri.encodeComponent(email)}',
+      );
+      if (response.statusCode != 200) {
+        return;
+      }
+      final decoded = jsonDecode(response.body);
+      final user = decoded is Map ? decoded['user'] : null;
+      final userId = user is Map ? user['id']?.toString() : null;
+      if (userId != null && userId.isNotEmpty) {
+        _openVisitProfile(userId);
+      }
+    } catch (e) {
+      print('Error resolving profile email deep link: $e');
     }
   }
 

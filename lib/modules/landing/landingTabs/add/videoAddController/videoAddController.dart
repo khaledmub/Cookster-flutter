@@ -8,6 +8,8 @@ import 'package:cookster/appUtils/colorUtils.dart';
 import 'package:cookster/modules/auth/signUp/signUpController/cityController.dart';
 import 'package:cookster/core/video/media_kit_player_pool.dart';
 import 'package:cookster/modules/landing/landingTabs/home/homeController/homeController.dart';
+import 'package:cookster/modules/landing/landingTabs/profile/profileControlller/profileController.dart';
+import 'package:cookster/modules/landing/landingTabs/professionalProfile/profileControlller/professionalProfileController.dart';
 import 'package:cookster/modules/landing/landingView/landingView.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -1257,6 +1259,12 @@ class VideoAddController extends GetxController {
       if (response.statusCode == 201) {
         print("✅ Video updated successfully!");
         print("Response: ${response.body}");
+        if (Get.isRegistered<ProfileController>()) {
+          unawaited(Get.find<ProfileController>().getUserDetails());
+        }
+        if (Get.isRegistered<ProfessionalProfileController>()) {
+          unawaited(Get.find<ProfessionalProfileController>().getUserDetails());
+        }
         AwesomeDialog(
           context: Get.context!,
           dialogType: DialogType.success,

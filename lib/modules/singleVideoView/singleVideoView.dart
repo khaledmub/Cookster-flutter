@@ -823,6 +823,7 @@ class _SingleVideoScreenState extends State<SingleVideoScreen>
                                       currentUserDetails?.image ??
                                       currentUser?.image ??
                                       '',
+                                  videoOwnerId: widget.frondUserId,
                                   isAuthenticated: isAuthenticated,
                                 ),
                               if (widget.allowComments == 1)
@@ -1442,6 +1443,7 @@ class VideoCommentsWidget extends StatelessWidget {
   final String videoId;
   final String userId;
   final String userImage;
+  final String? videoOwnerId;
 
   final dynamic isAuthenticated;
 
@@ -1449,6 +1451,7 @@ class VideoCommentsWidget extends StatelessWidget {
     required this.videoId,
     required this.userId,
     required this.userImage,
+    this.videoOwnerId,
     required this.isAuthenticated,
   });
 
@@ -1479,6 +1482,7 @@ class VideoCommentsWidget extends StatelessWidget {
                       videoId,
                       userId,
                       userImage,
+                      videoOwnerId: videoOwnerId,
                     );
                   }
                 } else {

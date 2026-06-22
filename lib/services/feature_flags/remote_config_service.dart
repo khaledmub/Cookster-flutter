@@ -24,7 +24,7 @@ class RemoteConfigService {
       'reels_dual_slot_enabled': true,
       'reels_phone_warm_slots': 0,
       'reels_dual_tier_preload': true,
-      'reels_360_first_uncached': false,
+      'reels_360_first_uncached': true,
       'reels_scroll_demux_prefetch': true,
       'reels_hls_wifi_enabled': false,
       'reels_fast_frame_gate': true,
