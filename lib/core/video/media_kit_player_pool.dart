@@ -82,6 +82,7 @@ class MediaKitPlayerPool {
   /// Survives feed slot unmap so swiping back can skip cold-open gates when bytes are on disk.
   final Map<String, _RecentPaintEntry> _recentPaintByKey = <String, _RecentPaintEntry>{};
   static const int _recentPaintTtlMs = 10 * 60 * 1000;
+  static const int _maxRecentPaintEntries = 20;
 
   String? _activeKey;
 
@@ -89,6 +90,40 @@ class MediaKitPlayerPool {
 
   /// Dual-slot feed ping-pong: prefetch on hidden, flip on swipe, recycle hidden only.
   final ValueNotifier<int> feedSurfaceGeneration = ValueNotifier<int>(0);
+  final List<VoidCallback> _feedSlotRecycleListeners = <VoidCallback>[];
+  final List<VoidCallback> _feedSlotAwaitingRecycleListeners = <VoidCallback>[];
+
+  /// Opens on the active single-slot decoder (Honor fatigue tracking).
+  int get feedOpenCount => _pingPong.activeOpenCount;
+
+  void addFeedSlotRecycleListener(VoidCallback listener) {
+    _feedSlotRecycleListeners.add(listener);
+  }
+
+  void removeFeedSlotRecycleListener(VoidCallback listener) {
+    _feedSlotRecycleListeners.remove(listener);
+  }
+
+  void addFeedSlotAwaitingRecycleListener(VoidCallback listener) {
+    _feedSlotAwaitingRecycleListeners.add(listener);
+  }
+
+  void removeFeedSlotAwaitingRecycleListener(VoidCallback listener) {
+    _feedSlotAwaitingRecycleListeners.remove(listener);
+  }
+
+  void _notifyFeedSlotAwaitingRecycle() {
+    for (final listener
+        in List<VoidCallback>.from(_feedSlotAwaitingRecycleListeners)) {
+      listener();
+    }
+  }
+
+  void _notifyFeedSlotRecycled() {
+    for (final listener in List<VoidCallback>.from(_feedSlotRecycleListeners)) {
+      listener();
+    }
+  }
   /// Bumped on every feed present flip so the single [Video] surface rebinds.
   final ValueNotifier<int> feedActiveSlotIndexNotifier = ValueNotifier<int>(0);
   String? _feedVisibleKey;
@@ -108,6 +143,17 @@ class MediaKitPlayerPool {
       await DeviceConstraints.instance.ensureInitialized();
       _feedPingPong = FeedPingPongController(
         singleSlotMode: DeviceConstraints.instance.needsSingleSlotFeedSync,
+        onSlotsChanged: () {
+          feedActiveSlotIndexNotifier.value = _pingPong.activeSlotIndex;
+        },
+        onBeforeSlotRecycle: (key) {
+          _clearFrameReady(key);
+          _notifyFeedSlotAwaitingRecycle();
+        },
+        onSlotRecycled: () {
+          feedActiveSlotIndexNotifier.value = _pingPong.activeSlotIndex;
+          _notifyFeedSlotRecycled();
+        },
       );
       _feedPingPongConfigured = true;
     }
@@ -261,6 +307,25 @@ class MediaKitPlayerPool {
       sourceUrl: sourceUrl,
       paintedAtMs: DateTime.now().millisecondsSinceEpoch,
     );
+    _trimRecentPaintCache();
+  }
+
+  /// Drop stale warm work when navigation mutes the feed (no full pool dispose).
+  void onEnterMutedContext() {
+    _warmInFlight.clear();
+    _trimRecentPaintCache();
+  }
+
+  void _trimRecentPaintCache() {
+    if (_recentPaintByKey.length <= _maxRecentPaintEntries) {
+      return;
+    }
+    final entries = _recentPaintByKey.entries.toList()
+      ..sort((a, b) => a.value.paintedAtMs.compareTo(b.value.paintedAtMs));
+    final removeCount = entries.length - _maxRecentPaintEntries;
+    for (var i = 0; i < removeCount; i++) {
+      _recentPaintByKey.remove(entries[i].key);
+    }
   }
 
   void clearRecentPaint(String key) {
@@ -469,7 +534,7 @@ class MediaKitPlayerPool {
     _leaseCount.remove(oldKey);
     _sourceByKey.remove(oldKey);
     _warmInFlight.remove(oldKey);
-    _clearFrameReady(oldKey);
+    // Keep frame-ready / buffer-primed so scroll-back skips poster and reveals video.
     _userPausedKeys.remove(oldKey);
     if (_activeKey == oldKey) {
       _activeKey = null;
@@ -511,6 +576,7 @@ class MediaKitPlayerPool {
 
       final suspendEpoch = _suspendEpoch;
       FeedPresentResult? result;
+      final fastReopen = hadRecentPaint(key, sourceUrl: sourceUrl);
       try {
         result = await _pingPong.presentReel(
           key: key,
@@ -518,6 +584,7 @@ class MediaKitPlayerPool {
           openToken: openToken,
           suspended: _isSuspendedSince(suspendEpoch),
           userPaused: _userPausedKeys.contains(key),
+          fastReopen: fastReopen,
         );
       } catch (_) {
         _unmapFeedVisibleKey(key);
@@ -584,6 +651,10 @@ class MediaKitPlayerPool {
     }
     await DeviceConstraints.instance.ensureInitialized();
     if (DeviceConstraints.instance.suppressScrollDecoderWarm) {
+      if (!_feedPingPongConfigured) {
+        await ensureFeedPingPongInitialized();
+      }
+      primeBufferHint(key: key, sourceUrl: sourceUrl);
       return;
     }
     if (!_feedPingPongConfigured) {
@@ -610,6 +681,34 @@ class MediaKitPlayerPool {
   }) {
     return _runPriority(() async {
       if (key.isEmpty || _feedVisibleKey != key) {
+        return;
+      }
+      await DeviceConstraints.instance.ensureInitialized();
+      final primedScrollBack = isFrameReady(key) ||
+          hadRecentPaint(key) ||
+          isBufferPrimed(key);
+      // Honor/MTK: never tear down the ImageReader here — logs show
+      // Rendered 0/s + VideoOutput deleteGlobalObjectRef when we force-recycle
+      // while the Flutter [Video] widget is still mounted (tab return, etc.).
+      if (DeviceConstraints.instance.needsConstrainedSurfaceRecovery) {
+        final player = _pingPong.activePlayer;
+        if (player != null) {
+          try {
+            if (!player.state.playing) {
+              await player.play();
+            }
+          } catch (_) {}
+        }
+        if (!primedScrollBack) {
+          await _pingPong.recycleActiveDecoderIfStale();
+        }
+        ReelsPerf.emit(
+          ReelsPerfEvent(
+            name: 'surface_recovery',
+            feedMode: _pingPong.singleSlotMode ? 'single_slot' : 'dual_slot',
+            extra: {'key': key, 'mtk_soft': true, 'primed': primedScrollBack},
+          ),
+        );
         return;
       }
       final now = DateTime.now().millisecondsSinceEpoch;
@@ -652,6 +751,11 @@ class MediaKitPlayerPool {
     });
   }
 
+  /// Proactive decoder recycle on Honor after many swipes (single-slot fatigue).
+  Future<bool> recycleFeedDecoderIfStale() {
+    return _runPriority(() => _pingPong.recycleActiveDecoderIfStale());
+  }
+
   /// Opens the next reel on the hidden ping-pong slot (muted, demux ahead).
   Future<void> prefetchFeedReel({
     required String key,
@@ -678,12 +782,56 @@ class MediaKitPlayerPool {
     return Future<void>.value();
   }
 
+  String? _lastAudibleResumeKey;
+  int _lastAudibleResumeMs = 0;
+
   /// Resume feed audio after tab/background mute without re-opening media.
   Future<void> resumeFeedVisible(String key) {
     return feedResumeAudibleWhenReady(key);
   }
 
-  /// Unmute only when [key] is on the active slot and a frame has painted.
+  /// Single unmute entry — debounced; never seek (Honor flush storms).
+  void unmuteFeedVisibleImmediate(String key) {
+    if (key.isEmpty ||
+        _feedVisibleKey != key ||
+        _userPausedKeys.contains(key)) {
+      return;
+    }
+    if (_pingPong.visibleKey != key) {
+      return;
+    }
+    if (!isFrameReady(key)) {
+      return;
+    }
+    if (isActiveAudible(key)) {
+      return;
+    }
+    final now = DateTime.now().millisecondsSinceEpoch;
+    if (_lastAudibleResumeKey == key && now - _lastAudibleResumeMs < 600) {
+      return;
+    }
+    _lastAudibleResumeKey = key;
+    _lastAudibleResumeMs = now;
+    _audibleTargetKey = key;
+    _activeKey = key;
+    unawaited(
+      _pingPong.resumeActiveAudible(
+        alreadyAudible: false,
+        expectedKey: key,
+      ),
+    );
+  }
+
+  /// Hint that disk prefetch finished — visible open resolves local bytes faster.
+  void primeBufferHint({required String key, required String sourceUrl}) {
+    if (key.isEmpty || sourceUrl.isEmpty) {
+      return;
+    }
+    _sourceByKey[key] = sourceUrl;
+    _bufferPrimedKeys.add(key);
+  }
+
+  /// Unmute when [key] is on the active slot and a frame has painted.
   Future<void> feedResumeAudibleWhenReady(String key) {
     return _runPriority(() async {
       if (key.isEmpty ||
@@ -700,6 +848,12 @@ class MediaKitPlayerPool {
       if (isActiveAudible(key)) {
         return;
       }
+      final now = DateTime.now().millisecondsSinceEpoch;
+      if (_lastAudibleResumeKey == key && now - _lastAudibleResumeMs < 600) {
+        return;
+      }
+      _lastAudibleResumeKey = key;
+      _lastAudibleResumeMs = now;
       _audibleTargetKey = key;
       _activeKey = key;
       await _pingPong.resumeActiveAudible(
@@ -756,6 +910,7 @@ class MediaKitPlayerPool {
   void _suspendPlayback() {
     _suspendEpoch++;
     _audibleTargetKey = null;
+    _lastAudibleResumeKey = null;
   }
 
   bool _isSuspendedSince(int epoch) => epoch != _suspendEpoch;

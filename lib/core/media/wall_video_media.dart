@@ -64,6 +64,10 @@ extension WallVideosMedia on WallVideos {
       return false;
     }
     if (playback.isNotEmpty && isStaticImagePlaybackUrl(playback)) {
+      // Fresh video uploads: backend puts cover JPG in video_url until transcode.
+      if (isImage != null && !isReelPhotoPostFlag(isImage)) {
+        return false;
+      }
       return true;
     }
     if (isTranscodeReady) {

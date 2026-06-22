@@ -26,9 +26,13 @@ class VideoSourceResolver {
       return const [];
     }
     final ready = video.isPlaybackReady;
+    final playback = video.resolvedPlaybackUrl;
+    final mp4Url = playback != null && isStaticImagePlaybackUrl(playback)
+        ? null
+        : playback;
     return resolveCandidates(
       hlsUrl: ready ? video.resolvedHlsUrl : null,
-      mp4Url: video.resolvedPlaybackUrl,
+      mp4Url: mp4Url,
       legacyPath: null,
       qualityMp4Urls: ready ? video.qualityMp4Urls : const [],
     );
@@ -60,6 +64,7 @@ class VideoSourceResolver {
 
     final normalizedMp4 = _normalize(mp4Url);
     if (normalizedMp4 != null &&
+        !isStaticImagePlaybackUrl(normalizedMp4) &&
         !candidates.any((c) => c.url == normalizedMp4)) {
       candidates.add(VideoSourceCandidate(url: normalizedMp4, type: 'mp4'));
     }

@@ -50,10 +50,14 @@ class FeedDecodeSlot {
 class FeedPingPongController {
   FeedPingPongController({
     this.onSlotsChanged,
+    this.onBeforeSlotRecycle,
+    this.onSlotRecycled,
     this.singleSlotMode = true,
   });
 
   final VoidCallback? onSlotsChanged;
+  final void Function(String key)? onBeforeSlotRecycle;
+  final VoidCallback? onSlotRecycled;
 
   /// MTK/Oppo cannot sustain two live [Video] surfaces — one decoder, one
   /// surface, swap media with [Player.open] on the same slot.
@@ -63,6 +67,11 @@ class FeedPingPongController {
   /// flush index — reuse the same two players for the whole feed session.
   static const bool hiddenSlotRecycleEnabled = false;
   static const int hiddenRecycleAfterOpens = 3;
+  /// Default recycle threshold for dual-slot / Tier S/A (Tier B uses [DeviceConstraints]).
+  static const int singleSlotRecycleAfterOpens = 8;
+
+  int _recycleAfterOpensSync() =>
+      DeviceConstraints.instance.singleSlotRecycleAfterOpensSync;
   static const Duration recycleDefer = Duration(milliseconds: 300);
 
   final FeedDecodeSlot slot0 = FeedDecodeSlot(index: 0);
@@ -114,6 +123,7 @@ class FeedPingPongController {
     required int openToken,
     required bool suspended,
     required bool userPaused,
+    bool fastReopen = false,
   }) async {
     await ensureInitialized();
     _openToken = openToken;
@@ -121,6 +131,11 @@ class FeedPingPongController {
 
     if (singleSlotMode) {
       _activeIndex = 0;
+      await DeviceConstraints.instance.ensureInitialized();
+      if (_active.boundKey != key &&
+          _active.openCount >= _recycleAfterOpensSync()) {
+        await _recycleSlotNow(_active);
+      }
       var openedMedia = false;
       if (_active.boundKey != key) {
         openedMedia = await _openOnSlot(
@@ -128,6 +143,7 @@ class FeedPingPongController {
           key: key,
           sourceUrl: sourceUrl,
           audible: false,
+          fastReopen: fastReopen,
         );
       } else {
         _syncSlotUrl(_active, sourceUrl);
@@ -164,6 +180,7 @@ class FeedPingPongController {
             key: key,
             sourceUrl: sourceUrl,
             audible: false,
+            fastReopen: fastReopen,
           );
         } else {
           _syncSlotUrl(_hidden, sourceUrl);
@@ -204,6 +221,7 @@ class FeedPingPongController {
           key: key,
           sourceUrl: sourceUrl,
           audible: false,
+          fastReopen: fastReopen,
         );
         if (isStaleOpen(openToken)) {
           return null;
@@ -369,6 +387,7 @@ class FeedPingPongController {
     required String key,
     required String sourceUrl,
     required bool audible,
+    bool fastReopen = false,
   }) {
     final completer = Completer<bool>();
     final previous = _slotOpenChain;
@@ -380,6 +399,7 @@ class FeedPingPongController {
             key: key,
             sourceUrl: sourceUrl,
             audible: audible,
+            fastReopen: fastReopen,
           ),
         );
       } catch (e, st) {
@@ -396,6 +416,7 @@ class FeedPingPongController {
     required String key,
     required String sourceUrl,
     required bool audible,
+    bool fastReopen = false,
   }) async {
     final player = slot.player!;
     final sameMedia = slot.boundKey == key && key.isNotEmpty;
@@ -406,18 +427,42 @@ class FeedPingPongController {
       }
       if (identical(slot, _active)) {
         await DeviceConstraints.instance.ensureInitialized();
-        if (DeviceConstraints.instance.needsConstrainedSurfaceRecovery &&
-            !_isLocalPlaybackUrl(sourceUrl)) {
-          // Let the outgoing poster settle before Player.open tears down ImageReader.
+        if (DeviceConstraints.instance.needsConstrainedSurfaceRecovery) {
+          if (!fastReopen) {
+            final baseMs =
+                _isLocalPlaybackUrl(sourceUrl) ? 48 : 120;
+            final fatigueMs =
+                (slot.openCount.clamp(0, 16) * 12).clamp(0, 192);
+            await Future<void>.delayed(
+              Duration(milliseconds: baseMs + fatigueMs),
+            );
+          }
+        } else if (!_isLocalPlaybackUrl(sourceUrl) && !fastReopen) {
           await Future<void>.delayed(const Duration(milliseconds: 120));
         }
       }
-      await player.open(Media(sourceUrl), play: true);
+      final honorActiveOpen = identical(slot, _active) &&
+          DeviceConstraints.instance.needsConstrainedSurfaceRecovery;
+      if (honorActiveOpen) {
+        try {
+          if (player.state.playing) {
+            await player.pause();
+          }
+        } catch (_) {}
+      }
+      await player.open(
+        Media(sourceUrl),
+        play: !honorActiveOpen,
+      );
       await player.setVolume(0);
-      if (identical(slot, _active) &&
-          DeviceConstraints.instance.needsConstrainedSurfaceRecovery) {
-        final postOpenMs = _isLocalPlaybackUrl(sourceUrl) ? 24 : 64;
-        await Future<void>.delayed(Duration(milliseconds: postOpenMs));
+      if (honorActiveOpen) {
+        try {
+          await player.play();
+        } catch (_) {}
+        if (!fastReopen) {
+          final postOpenMs = _isLocalPlaybackUrl(sourceUrl) ? 32 : 64;
+          await Future<void>.delayed(Duration(milliseconds: postOpenMs));
+        }
       }
       slot.boundKey = key;
       slot.boundUrl = sourceUrl;
@@ -425,7 +470,8 @@ class FeedPingPongController {
       slot.isPrimed = true;
       openedMedia = true;
       ReelsPerf.log(
-        'pingpong open slot=${slot.index} key=$key tier=${_tierFromUrl(sourceUrl)}',
+        'pingpong open slot=${slot.index} key=$key tier=${_tierFromUrl(sourceUrl)} '
+        'openCount=${slot.openCount} honorOpen=$honorActiveOpen',
       );
       if (identical(slot, _active)) {
         await DeviceConstraints.instance.ensureInitialized();
@@ -548,17 +594,44 @@ class FeedPingPongController {
     }
   }
 
-  Future<void> _recycleHiddenSlotNow() async {
-    if (!hiddenSlotRecycleEnabled) {
-      return;
+  /// Recycle the active decoder when the single-slot open count is high (Honor).
+  Future<bool> recycleActiveDecoderIfStale() async {
+    await DeviceConstraints.instance.ensureInitialized();
+    if (!singleSlotMode || _active.openCount < _recycleAfterOpensSync()) {
+      return false;
     }
-    final hidden = _hidden;
-    final retiring = hidden.player;
-    hidden.player = Player();
-    hidden.videoController = VideoController(hidden.player!);
-    hidden.openCount = 0;
-    hidden.resetBinding();
+    await _recycleSlotNow(_active);
+    return true;
+  }
+
+  int get activeOpenCount => _active.openCount;
+
+  /// Hard reset of the visible decoder — use when MTK surface is stuck.
+  Future<void> forceRecycleActiveDecoder() async {
+    await _recycleSlotNow(_active);
+  }
+
+  Future<void> _recycleSlotNow(FeedDecodeSlot slot) async {
+    final retiringKey = slot.boundKey;
+    if (retiringKey != null && retiringKey.isNotEmpty) {
+      onBeforeSlotRecycle?.call(retiringKey);
+    }
+    final retiring = slot.player;
+    await _disableSlotAudio(slot);
+    final player = Player(
+      configuration: const PlayerConfiguration(muted: true),
+    );
+    slot.player = player;
+    slot.videoController = VideoController(player);
+    slot.openCount = 0;
+    slot.resetBinding();
+    slot.generation++;
     onSlotsChanged?.call();
+    onSlotRecycled?.call();
+    ReelsPerf.log(
+      'pingpong recycle slot=${slot.index} mode=${singleSlotMode ? 'single' : 'dual'} '
+      'gen=${slot.generation}',
+    );
     if (retiring != null) {
       unawaited(
         Future<void>.delayed(recycleDefer, () async {
@@ -568,6 +641,13 @@ class FeedPingPongController {
         }),
       );
     }
+  }
+
+  Future<void> _recycleHiddenSlotNow() async {
+    if (!hiddenSlotRecycleEnabled) {
+      return;
+    }
+    await _recycleSlotNow(_hidden);
   }
 
   String _tierFromUrl(String url) {

@@ -24,6 +24,7 @@ import 'package:flutter/foundation.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:cookster/core/video/media_kit_player_pool.dart';
 import 'package:cookster/core/video/video_player_pool.dart';
+import 'package:cookster/core/video/reels_playback_route_observer.dart';
 import 'package:cookster/modules/landing/landingTabs/home/homeController/homeController.dart';
 import 'package:cookster/appUtils/apiEndPoints.dart';
 import 'package:cookster/core/network/test_server_http_overrides.dart';
@@ -246,15 +247,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         if (Get.isRegistered<HomeController>()) {
           final home = Get.find<HomeController>();
           home.isAppInBackground.value = false;
-          home.isNavigating.value = false;
-          home.setReelsTabVisible(true);
-          home.isVideoPlaying.value = true;
-          home.feedPlaybackEpoch.value++;
-          unawaited(
-            home.resumeVisibleVideo(
-              home.visiblePageIndex.value,
-            ),
-          );
+          home.resumeAfterAppForegroundIfAllowed();
         }
         break;
       case AppLifecycleState.inactive:
@@ -390,6 +383,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
             ),
           ),
           navigatorObservers: [
+            ReelsPlaybackRouteObserver(),
             GetObserver((routing) {
               if (routing?.current != null) {
                 if (routing!.current != AppRoutes.noInternet &&

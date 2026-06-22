@@ -71,7 +71,7 @@ class ReelsPlaybackCoordinator {
         context,
         anchorIndex: fromActualIndex,
         direction: direction,
-        count: 5 + extraDepth,
+        count: 3 + extraDepth,
       );
     }
   }
@@ -85,7 +85,7 @@ class ReelsPlaybackCoordinator {
         context,
         anchorIndex: actualIndex,
         direction: 1,
-        count: 5,
+        count: 3,
       );
       _precacheTiersForIndex(context, actualIndex - 1);
     }
@@ -147,7 +147,7 @@ class ReelsPlaybackCoordinator {
         } else {
           ReelPosterImageCache.put(tier.url, provider);
         }
-      }),
+      }).catchError((_) {}),
     );
   }
 

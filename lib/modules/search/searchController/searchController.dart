@@ -48,6 +48,7 @@ class UserSearchController extends GetxController {
   int? _lastIsFollowing;
   String? _lastCity;
   String? _lastCountry;
+  int _searchRequestId = 0;
 
   bool get canLoadMoreVideos =>
       videoSearchTypes.contains(type.value) &&
@@ -174,14 +175,14 @@ class UserSearchController extends GetxController {
     }
 
     if (reset) {
-      if (isLoading.value) return;
       isLoading.value = true;
     } else {
-      if (isLoading.value || isLoadingMore.value) return;
+      if (isLoadingMore.value) return;
       if (!canLoadMoreVideos) return;
       isLoadingMore.value = true;
     }
     hasSearched.value = true;
+    final requestId = reset ? ++_searchRequestId : _searchRequestId;
 
     try {
       if (reset && keywords.isNotEmpty) {
@@ -237,7 +238,13 @@ class UserSearchController extends GetxController {
       );
 
       if (response.statusCode == 200) {
+        if (reset && requestId != _searchRequestId) {
+          return;
+        }
         final parsed = await compute(parseSearchResult, response.body);
+        if (reset && requestId != _searchRequestId) {
+          return;
+        }
 
         if (reset) {
           searchResult.value = parsed;
@@ -275,7 +282,9 @@ class UserSearchController extends GetxController {
       Get.snackbar('Error', 'Something went wrong: $e');
     } finally {
       if (reset) {
-        isLoading.value = false;
+        if (requestId == _searchRequestId) {
+          isLoading.value = false;
+        }
       } else {
         isLoadingMore.value = false;
       }

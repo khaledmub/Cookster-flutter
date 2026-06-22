@@ -214,7 +214,8 @@ class _ProfileReelScreenState extends State<ProfileReelScreen>
   Future<void> _teardownPoolAndResumeHome() async {
     await MediaKitPlayerPool.instance.awaitOperationsIdle();
     await MediaKitPlayerPool.instance.disposeAll();
-    _homeController.resumeReelsAfterRouteOverlay();
+    // Do not call [resumeReelsAfterRouteOverlay] here — [VisitProfileView] (or
+    // another parent overlay) still owns route pause depth until it is popped.
   }
 
   Future<void> _loadAuth() async {
@@ -396,6 +397,7 @@ class _ProfileReelScreenState extends State<ProfileReelScreen>
       if (_maskActiveVideoWithPoster) {
         setState(() => _maskActiveVideoWithPoster = false);
       }
+      ReelScreenPlaybackHelpers.resumeAudibleForReel(videoId);
       return;
     }
     if (!_maskActiveVideoWithPoster) {
@@ -864,8 +866,9 @@ class _ProfileReelScreenState extends State<ProfileReelScreen>
                     valueListenable: _visibleIndexNotifier,
                     builder: (context, visibleIndex, _) {
                       final isActivePage = index == visibleIndex;
-                      final isActiveVideo =
-                          isActivePage && !video.isPhotoPost;
+                      final isActiveVideo = isActivePage &&
+                          !video.isPhotoPost &&
+                          video.isPlaybackReady;
                       final maskPoster =
                           isActiveVideo && _maskActiveVideoWithPoster;
                       return Stack(

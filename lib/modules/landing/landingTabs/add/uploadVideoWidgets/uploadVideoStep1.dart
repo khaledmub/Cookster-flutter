@@ -44,6 +44,7 @@ class _UploadVideoStep1State extends State<UploadVideoStep1> {
         child: Form(
           key: videoAddController.step1key,
           child: Column(
+            mainAxisSize: MainAxisSize.min,
             spacing: 2,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [

@@ -26,6 +26,18 @@ class ReelFeedPlayerKit {
         '';
   }
 
+  /// Avoid passing cover JPG as a video source before transcode finishes.
+  static String _playbackUrlForPlayer(WallVideos video) {
+    if (!video.isTranscodeReady) {
+      return '';
+    }
+    final url = video.resolvedPlaybackUrl?.trim() ?? '';
+    if (url.isEmpty || isStaticImagePlaybackUrl(url)) {
+      return '';
+    }
+    return url;
+  }
+
   /// Fast LQIP for image posts — CDN thumbnail tier when full file lives elsewhere.
   static String? imageLqipUrl(WallVideos video) {
     final lqip = video.resolvedPhotoLqipUrl?.trim();
@@ -217,6 +229,7 @@ class ReelFeedPlayerKit {
     required GlobalKey<ReelVideoPlayerState> playerKey,
     VoidCallback? onPlaybackReady,
     VoidCallback? onFeedVideoPainted,
+    VoidCallback? onFeedAwaitingPaint,
     VoidCallback? onVideoCompleted,
     bool releaseOnDispose = false,
     bool wrapPositioned = true,
@@ -232,12 +245,13 @@ class ReelFeedPlayerKit {
           ? video.resolvedBlurThumbnailUrl
           : video.resolvedReelPosterFallbackUrl,
       transcodeReady: video.isTranscodeReady,
-      videoUrl: video.resolvedPlaybackUrl ?? '',
+      videoUrl: _playbackUrlForPlayer(video),
       hlsUrl: video.resolvedHlsUrl,
       qualityMp4Urls:
           video.isTranscodeReady ? video.qualityMp4Urls : const [],
       onPlaybackReady: onPlaybackReady,
       onFeedVideoPainted: onFeedVideoPainted,
+      onFeedAwaitingPaint: onFeedAwaitingPaint,
       onVideoCompleted: onVideoCompleted,
     );
     if (wrapPositioned) {

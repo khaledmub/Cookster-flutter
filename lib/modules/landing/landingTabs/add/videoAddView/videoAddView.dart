@@ -104,7 +104,7 @@ class _VideoPreviewScreenState extends State<VideoPreviewScreen> {
     return WillPopScope(
       onWillPop: () => videoAddController.onWillPop(context),
       child: Scaffold(
-        // Keep the form area full-height; only lift the nav bar above the keyboard.
+        // Form keeps full height; scroll padding + nav lift handle the keyboard.
         resizeToAvoidBottomInset: false,
         body: Stack(
           children: [
@@ -190,8 +190,8 @@ class _VideoPreviewScreenState extends State<VideoPreviewScreen> {
   }
 }
 
-/// Scroll area that grows bottom padding when the keyboard opens so inputs stay visible.
-class _KeyboardAwareScrollView extends StatelessWidget {
+/// Scroll area grows bottom padding when the keyboard opens so inputs stay visible.
+class _KeyboardAwareScrollView extends StatefulWidget {
   const _KeyboardAwareScrollView({
     required this.navBarHeight,
     required this.child,
@@ -201,12 +201,47 @@ class _KeyboardAwareScrollView extends StatelessWidget {
   final Widget child;
 
   @override
+  State<_KeyboardAwareScrollView> createState() =>
+      _KeyboardAwareScrollViewState();
+}
+
+class _KeyboardAwareScrollViewState extends State<_KeyboardAwareScrollView> {
+  double _lastKeyboardInset = 0;
+
+  void _scrollFocusedFieldIntoView() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      final focusContext = FocusManager.instance.primaryFocus?.context;
+      if (focusContext == null) {
+        return;
+      }
+      Scrollable.ensureVisible(
+        focusContext,
+        alignment: 0.15,
+        duration: const Duration(milliseconds: 150),
+        curve: Curves.easeOut,
+      );
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
     final keyboardBottom = MediaQuery.viewInsetsOf(context).bottom;
+    if (keyboardBottom > 0 && keyboardBottom != _lastKeyboardInset) {
+      _lastKeyboardInset = keyboardBottom;
+      _scrollFocusedFieldIntoView();
+    } else if (keyboardBottom == 0) {
+      _lastKeyboardInset = 0;
+    }
+
     return SingleChildScrollView(
       keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-      padding: EdgeInsets.only(bottom: keyboardBottom + navBarHeight + 16),
-      child: child,
+      padding: EdgeInsets.only(
+        bottom: keyboardBottom + widget.navBarHeight + 16,
+      ),
+      child: widget.child,
     );
   }
 }

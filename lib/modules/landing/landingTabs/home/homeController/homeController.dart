@@ -38,6 +38,8 @@ class HomeController extends GetxController with WidgetsBindingObserver {
   var isAppInBackground = false.obs;
   int _routeOverlayPauseDepth = 0;
   int _mediaCaptureDepth = 0;
+  int _playbackMuteDepth = 0;
+  int _bottomNavMuteDepth = 0;
   bool _feedResumePendingWhenHomeTab = false;
 
   /// True while camera / picker / editor / upload flow holds feed decoders released.
@@ -247,6 +249,7 @@ class HomeController extends GetxController with WidgetsBindingObserver {
       return null;
     }
     final parsed = await compute(parseVideoFeed, response.body);
+    _sortFeedNewestFirst(parsed);
     if (kDebugMode && selectedType.value == 'Near Me') {
       debugPrint(
         'Near Me reels: count=${parsed.videos?.length ?? 0} '
@@ -254,6 +257,32 @@ class HomeController extends GetxController with WidgetsBindingObserver {
       );
     }
     return parsed;
+  }
+
+  void _sortFeedNewestFirst(VideoFeed feed) {
+    final videos = feed.videos;
+    if (videos == null || videos.length < 2) {
+      return;
+    }
+    int rank(WallVideos video) {
+      final created = video.createdAt;
+      if (created != null && created.isNotEmpty) {
+        final parsed = DateTime.tryParse(created);
+        if (parsed != null) {
+          return parsed.millisecondsSinceEpoch;
+        }
+      }
+      final updated = video.updatedAt;
+      if (updated != null && updated.isNotEmpty) {
+        final parsed = DateTime.tryParse(updated);
+        if (parsed != null) {
+          return parsed.millisecondsSinceEpoch;
+        }
+      }
+      return 0;
+    }
+
+    videos.sort((a, b) => rank(b).compareTo(rank(a)));
   }
 
   Future<void> checkLocationStatus() async {
@@ -1014,42 +1043,123 @@ class HomeController extends GetxController with WidgetsBindingObserver {
     isReelsTabVisible.value = visible;
   }
 
-  bool get canPlayHomeReels =>
-      !isAppInBackground.value &&
-      !isNavigating.value &&
-      isReelsTabVisible.value &&
-      !isInMediaCaptureFlow;
+  bool _hasOverlayRoute() => Get.key.currentState?.canPop() ?? false;
 
-  /// Immediate silence before a route push (no depth change). Pair with
-  /// [pauseReelsForRouteOverlay] on the pushed screen's [initState].
-  void silenceHomeReelsForTransition() {
+  /// Single gate for audible playback and user-initiated resume.
+  bool get shouldAllowHomeReelsPlayback =>
+      !isAppInBackground.value &&
+      !isInMediaCaptureFlow &&
+      _playbackMuteDepth == 0 &&
+      _bottomNavMuteDepth == 0 &&
+      _routeOverlayPauseDepth == 0 &&
+      isReelsTabVisible.value &&
+      _isOnHomeTab() &&
+      !_hasOverlayRoute();
+
+  /// Keeps the feed decoder mounted (paused) during bottom-nav tab switches.
+  bool get canMountHomeReelPlayer =>
+      !isAppInBackground.value &&
+      !isInMediaCaptureFlow &&
+      _playbackMuteDepth == 0 &&
+      _routeOverlayPauseDepth == 0 &&
+      isReelsTabVisible.value &&
+      !_hasOverlayRoute() &&
+      (_isOnHomeTab() || _bottomNavMuteDepth > 0);
+
+  bool get canPlayHomeReels => shouldAllowHomeReelsPlayback;
+
+  void _applyMutedPlaybackSync() {
     isNavigating.value = true;
     setReelsTabVisible(false);
     pauseAllVideosSync();
     MediaKitPlayerPool.instance.pauseAllImmediate();
     unawaited(pauseAllVideosAwait());
+  }
+
+  /// Pause + silence when leaving Home via bottom nav — keeps decoder warm.
+  void enterBottomNavMute() {
+    _bottomNavMuteDepth++;
+    isNavigating.value = true;
+    isVideoPlaying.value = false;
+    final tab = selectedType.value;
+    final videos = videoFeed.value.videos;
+    if (videos != null && videos.isNotEmpty) {
+      final idx = visiblePageIndex.value.clamp(0, videos.length - 1);
+      saveTabScrollIndex(tab, idx);
+      saveTabVideoId(tab, videos[idx].id);
+    }
+    MediaKitPlayerPool.instance.silenceAllSync();
+    MediaKitPlayerPool.instance.pauseAllImmediate();
+    unawaited(pauseAllVideosAwait());
+  }
+
+  /// Sync mute when leaving home feed context (routes, overlays).
+  void enterMutedPlaybackContext([String reason = '']) {
+    _playbackMuteDepth++;
+    if (_playbackMuteDepth == 1) {
+      _applyMutedPlaybackSync();
+    }
+    MediaKitPlayerPool.instance.onEnterMutedContext();
+  }
+
+  /// Attempt resume when returning to home feed context.
+  void exitMutedPlaybackContext() {
+    if (_playbackMuteDepth <= 0) {
+      return;
+    }
+    _playbackMuteDepth--;
+    if (_playbackMuteDepth > 0) {
+      return;
+    }
+    _tryRestoreHomeFeedPlayback();
+  }
+
+  void _tryRestoreHomeFeedPlayback() {
+    if (_routeOverlayPauseDepth > 0 || isAppInBackground.value) {
+      return;
+    }
+    if (!_isOnHomeTab() || _hasOverlayRoute()) {
+      _feedResumePendingWhenHomeTab = true;
+      return;
+    }
+    restoreHomeFeedPlayback();
+  }
+
+  /// App resume from background — only restore when user is on home with no overlay.
+  void resumeAfterAppForegroundIfAllowed() {
+    if (isAppInBackground.value) {
+      return;
+    }
+    if (!shouldAllowHomeReelsPlayback && _playbackMuteDepth == 0) {
+      return;
+    }
+    if (!shouldAllowHomeReelsPlayback) {
+      _feedResumePendingWhenHomeTab = true;
+      return;
+    }
+    isVideoPlaying.value = true;
+    feedPlaybackEpoch.value++;
+    unawaited(resumeVisibleVideo(visiblePageIndex.value));
+  }
+
+  /// Immediate silence before a route push (no depth change). Pair with
+  /// [pauseReelsForRouteOverlay] on the pushed screen's [initState].
+  void silenceHomeReelsForTransition() {
+    enterMutedPlaybackContext('transition');
   }
 
   /// Stops reel audio/video immediately when pushing another route (e.g. profile).
   void pauseReelsForRouteOverlay() {
     _routeOverlayPauseDepth++;
-    isNavigating.value = true;
-    setReelsTabVisible(false);
-    pauseAllVideosSync();
-    MediaKitPlayerPool.instance.pauseAllImmediate();
-    unawaited(pauseAllVideosAwait());
+    enterMutedPlaybackContext('route_overlay');
   }
 
   /// Re-applies silence while an overlay stack is still open (no depth change).
   void reinforceReelsPausedForOverlay() {
-    if (_routeOverlayPauseDepth <= 0) {
+    if (_routeOverlayPauseDepth <= 0 && _playbackMuteDepth <= 0) {
       return;
     }
-    isNavigating.value = true;
-    setReelsTabVisible(false);
-    pauseAllVideosSync();
-    MediaKitPlayerPool.instance.pauseAllImmediate();
-    unawaited(pauseAllVideosAwait());
+    _applyMutedPlaybackSync();
   }
 
   /// Resumes the visible reel after closing an overlay route, only on the home tab.
@@ -1058,18 +1168,14 @@ class HomeController extends GetxController with WidgetsBindingObserver {
       return;
     }
     _routeOverlayPauseDepth--;
+    exitMutedPlaybackContext();
     if (_routeOverlayPauseDepth > 0) {
       return;
     }
-    isNavigating.value = false;
-    if (isAppInBackground.value) {
+    if (_playbackMuteDepth > 0) {
       return;
     }
-    if (!_isOnHomeTab()) {
-      _feedResumePendingWhenHomeTab = true;
-      return;
-    }
-    restoreHomeFeedPlayback();
+    _tryRestoreHomeFeedPlayback();
   }
 
   bool _isOnHomeTab() {
@@ -1077,6 +1183,92 @@ class HomeController extends GetxController with WidgetsBindingObserver {
       return true;
     }
     return Get.find<NavBarController>().selectedIndex.value == 0;
+  }
+
+  /// Drops off-screen pool entries when leaving the home tab (long-session hygiene).
+  void trimPoolOnNavAway() {
+    final videos = videoFeed.value.videos;
+    if (videos == null || videos.isEmpty) {
+      return;
+    }
+    unawaited(
+      MediaKitPlayerPool.instance.releaseFarFrom(
+        currentIndex.value,
+        window: 0,
+        keyResolver: (index) {
+          if (index < 0 || index >= videos.length) {
+            return null;
+          }
+          final video = videos[index];
+          return video.id ?? video.videoUrl ?? video.video;
+        },
+      ),
+    );
+    unawaited(
+      VideoPlayerPool.instance.releaseFarFrom(
+        currentIndex.value,
+        window: 0,
+        keyResolver: (index) {
+          if (index < 0 || index >= videos.length) {
+            return null;
+          }
+          final video = videos[index];
+          return video.id ?? video.videoUrl ?? video.video;
+        },
+      ),
+    );
+  }
+
+  /// Called after bottom-nav lands on Home — fast resume when decoder stayed warm.
+  void onReturnedToHomeTab() {
+    if (_routeOverlayPauseDepth > 0 || _hasOverlayRoute()) {
+      _feedResumePendingWhenHomeTab = true;
+      return;
+    }
+    _playbackMuteDepth = 0;
+    _bottomNavMuteDepth = 0;
+    _feedResumePendingWhenHomeTab = false;
+    isNavigating.value = false;
+    isVideoPlaying.value = true;
+    setReelsTabVisible(true);
+
+    final videos = videoFeed.value.videos;
+    if (videos == null || videos.isEmpty) {
+      return;
+    }
+    final tab = selectedType.value;
+    final idx = resolveScrollIndexForTab(tab, videos);
+    visiblePageIndex.value = idx;
+    currentIndex.value = idx;
+
+    final key = videos[idx].id;
+    if (key != null &&
+        key.isNotEmpty &&
+        MediaKitPlayerPool.instance.isFeedVisibleKey(key)) {
+      unawaited(MediaKitPlayerPool.instance.resumeFeedVisible(key));
+      unawaited(resumeVisibleVideo(idx));
+      return;
+    }
+    restoreHomeFeedPlayback();
+  }
+
+  /// Called from [ReelsPlaybackRouteObserver] after the navigator stack changes.
+  void syncPlaybackWithRouteStack({required bool hasOverlay}) {
+    if (isAppInBackground.value || isInMediaCaptureFlow) {
+      return;
+    }
+    if (hasOverlay) {
+      if (_routeOverlayPauseDepth > 0) {
+        reinforceReelsPausedForOverlay();
+      } else if (shouldAllowHomeReelsPlayback) {
+        enterMutedPlaybackContext('route_observer');
+      } else {
+        reinforceReelsPausedForOverlay();
+      }
+    } else if (_routeOverlayPauseDepth <= 0 && _isOnHomeTab()) {
+      exitMutedPlaybackContext();
+      _tryRestoreHomeFeedPlayback();
+    }
   }
 
   /// Re-attaches the home feed after profile/collection overlays tore down the pool.

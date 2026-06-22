@@ -39,6 +39,7 @@ class ReelVideoPlayer extends StatefulWidget {
     this.transcodeReady = true,
     this.onPlaybackReady,
     this.onFeedVideoPainted,
+    this.onFeedAwaitingPaint,
     this.onVideoCompleted,
   });
 
@@ -58,6 +59,8 @@ class ReelVideoPlayer extends StatefulWidget {
   /// Fired after the feed surface is opaque and has composited real frames —
   /// parent can drop the poster mask on top without a black flash.
   final VoidCallback? onFeedVideoPainted;
+  /// Fired before slot recycle / awaiting paint — parent should force poster mask.
+  final VoidCallback? onFeedAwaitingPaint;
   final VoidCallback? onVideoCompleted;
 
   @override
@@ -88,6 +91,9 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
   bool _videoSurfaceVisible = false;
   /// Skip heavy reveal delays when pool already has media / flip-back resume.
   bool _fastFeedReveal = false;
+  /// After proactive slot recycle, use cold unmask gates until next paint.
+  bool _postRecycleUnmask = false;
+  int _surfaceRevealedAtMs = 0;
   /// Composited frames counted after [_videoSurfaceVisible] — pre-visible ticks
   /// do not render on MTK (Rendered 0/s while opacity 0).
   int _visibleSurfacePaintFrames = 0;
@@ -159,6 +165,8 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
     );
     if (_usesFeedVisibleChannel) {
       _pool.feedActiveSlotIndexNotifier.addListener(_onFeedActiveSlotChanged);
+      _pool.addFeedSlotRecycleListener(_onFeedSlotRecycled);
+      _pool.addFeedSlotAwaitingRecycleListener(_onFeedSlotAwaitingRecycle);
       _pool.feedSurfaceGeneration.addListener(_onFeedSurfaceBumped);
       _activeFeedSlotIndex = _pool.activeFeedSlotIndex;
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -181,13 +189,34 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
       return;
     }
     final key = _poolKey;
+    await _pool.ensureFeedPingPongInitialized();
     if (key.isNotEmpty &&
         _pooledKey == key &&
         _pool.isFeedVisibleKey(key)) {
       await _pool.resumeFeedVisible(key);
       return;
     }
+    // Pool was torn down (profile reels) — discard stale attach state and reopen.
+    _playbackGeneration++;
+    _revealGeneration++;
+    _attachGeneration = _playbackGeneration;
+    _frameReady = false;
+    _videoSurfaceVisible = false;
+    _videoSurfaceMounted = false;
+    _pooledKey = null;
+    _fastFeedReveal = false;
+    _postRecycleUnmask = false;
+    _surfacePaintFrames = 0;
+    _visibleSurfacePaintFrames = 0;
+    _resetDimensionStability();
+    _activeFeedSlotIndex = _pool.activeFeedSlotIndex;
+    _videoController = _pool.feedSlotVideoController(_activeFeedSlotIndex);
     _failedSourceUrls.clear();
+    widget.onFeedAwaitingPaint?.call();
+    _logPoster(
+      'route_overlay_resume',
+      detail: 'key=$key openCount=${_pool.feedOpenCount}',
+    );
     await _loadVideo();
   }
 
@@ -264,20 +293,68 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
       return;
     }
     _activeFeedSlotIndex = slotIndex;
+    _videoController = _pool.feedSlotVideoController(slotIndex);
     setState(() {});
+  }
+
+  void _onFeedSlotAwaitingRecycle() {
+    if (!mounted || _isDisposed || !_usesFeedVisibleChannel) {
+      return;
+    }
+    _revealGeneration++;
+    _videoSurfaceVisible = false;
+    _frameReady = false;
+    _postRecycleUnmask = true;
+    _fastFeedReveal = false;
+    widget.onFeedAwaitingPaint?.call();
+    _logPoster(
+      'slot_recycle_await',
+      detail: 'openCount=${_pool.feedOpenCount} gen=$_playbackGeneration',
+    );
+  }
+
+  void _onFeedSlotRecycled() {
+    if (!mounted || _isDisposed || !_usesFeedVisibleChannel) {
+      return;
+    }
+    _surfacePaintFrames = 0;
+    _resetDimensionStability();
+    _activeFeedSlotIndex = _pool.activeFeedSlotIndex;
+    _videoController = _pool.feedSlotVideoController(_activeFeedSlotIndex);
+    _logPoster(
+      'slot_recycled',
+      detail: 'openCount=${_pool.feedOpenCount} gen=$_playbackGeneration',
+    );
+    setState(() {});
+  }
+
+  /// Cancel in-flight reveal/unmask when the user swipes to another reel.
+  void cancelInFlightPlaybackForPageChange() {
+    if (_isDisposed || !_usesFeedVisibleChannel) {
+      return;
+    }
+    _playbackGeneration++;
+    _revealGeneration++;
+    _videoSurfaceVisible = false;
+    _frameReady = false;
   }
 
   void _onFeedSurfaceBumped() {
     if (!mounted || _isDisposed || !_usesFeedVisibleChannel) {
       return;
     }
-    _videoSurfaceVisible = false;
-    _frameReady = false;
-    _surfacePaintFrames = 0;
-    _resetDimensionStability();
     final key = _pooledKey;
-    if (key != null && key.isNotEmpty) {
-      _pool.invalidatePrimedFrame(key);
+    final keepVisible = key != null &&
+        key.isNotEmpty &&
+        _poolProvenSurfacePaint(key);
+    if (!keepVisible) {
+      _videoSurfaceVisible = false;
+      _frameReady = false;
+      _surfacePaintFrames = 0;
+      _resetDimensionStability();
+      if (key != null && key.isNotEmpty) {
+        _pool.invalidatePrimedFrame(key);
+      }
     }
     final player = _activePlayer;
     if (player != null) {
@@ -286,7 +363,7 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
         paintTicks: _needsConstrainedStartGate ? 10 : 4,
       );
     }
-    _logPoster('surface_bumped', detail: 'key=$key');
+    _logPoster('surface_bumped', detail: 'key=$key keep=$keepVisible');
     setState(() {});
   }
 
@@ -328,9 +405,9 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
         widget.playerPoolKey != oldWidget.playerPoolKey;
     if (videoChanged || _pooledKey != _poolKey) {
       _revealGeneration++;
+      _failedSourceUrls.clear();
       _videoSurfaceVisible = false;
       _frameReady = false;
-      _failedSourceUrls.clear();
       if (mounted) {
         setState(() {});
       }
@@ -348,6 +425,8 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
     _isDisposed = true;
     if (_usesFeedVisibleChannel) {
       _pool.feedActiveSlotIndexNotifier.removeListener(_onFeedActiveSlotChanged);
+      _pool.removeFeedSlotRecycleListener(_onFeedSlotRecycled);
+      _pool.removeFeedSlotAwaitingRecycleListener(_onFeedSlotAwaitingRecycle);
       _pool.feedSurfaceGeneration.removeListener(_onFeedSurfaceBumped);
     }
     _playbackGeneration++;
@@ -403,6 +482,12 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
       DeviceConstraints.instance.needsConstrainedSurfaceRecovery;
 
   int _frameWaitTimeoutMs() {
+    if (_fastFeedReveal || _scrollBackCacheEligible(_pooledKey)) {
+      return _needsConstrainedStartGate ? 1600 : 1200;
+    }
+    if (_lastOpenCacheHit || _lastOpenPartialCache) {
+      return _needsConstrainedStartGate ? 2400 : 1600;
+    }
     if (_needsConstrainedStartGate) {
       return 5200;
     }
@@ -457,12 +542,19 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
 
   int _minPositionAdvanceForPosterUnmask() {
     if (_needsConstrainedStartGate) {
+      final key = _pooledKey ?? '';
+      final scrollBackReopen = key.isNotEmpty &&
+          _pool.hadRecentPaint(key) &&
+          !_pool.isFeedVisibleKey(key);
+      if (scrollBackReopen) {
+        return 150;
+      }
       if (_lastOpenCacheHit ||
           _lastOpenPartialCache ||
-          _pool.hadRecentPaint(_pooledKey ?? '')) {
-        return 64;
+          _pool.hadRecentPaint(key)) {
+        return 100;
       }
-      return 180;
+      return 200;
     }
     return 32;
   }
@@ -660,13 +752,24 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
     _frameTimeout = null;
   }
 
+  void _notifyFrameReady(Player player, {required int generation}) {
+    if (_usesFeedVisibleChannel && _needsConstrainedStartGate) {
+      _scheduleFeedFrameReadyAfterSurfaceMount(
+        player,
+        generation: generation,
+      );
+      return;
+    }
+    unawaited(_onFrameReady(player, generation: generation));
+  }
+
   void _onPlayerStateTick(Player player) {
     if (!mounted || _isDisposed || _frameReady) {
       return;
     }
     _trackDimensionStability(player);
     if (_canShowVideo(player)) {
-      unawaited(_onFrameReady(player, generation: _attachGeneration));
+      _notifyFrameReady(player, generation: _attachGeneration);
     }
   }
 
@@ -721,8 +824,11 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
   bool _scrollBackCacheEligible(String? key) =>
       key != null && key.isNotEmpty && _pool.hadRecentPaint(key);
 
-  /// Fast skip of the 280ms Honor gate — pool painted this key or scroll-back cache.
+  /// Honor/MTK: never fast-reveal — logs show surface_revealed before onSurfaceAvailable.
   bool _eligibleForFastReveal(Player player) {
+    if (_needsConstrainedStartGate) {
+      return false;
+    }
     final key = _pooledKey;
     if (_fastFeedReveal && _poolProvenSurfacePaint(key)) {
       return true;
@@ -737,14 +843,83 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
         _hasRealFrame(player);
   }
 
+  bool _isWarmUnmaskPath() {
+    if (!_needsConstrainedStartGate) {
+      return true;
+    }
+    if (_postRecycleUnmask) {
+      return false;
+    }
+    final key = _pooledKey ?? '';
+    return _lastOpenCacheHit ||
+        _lastOpenPartialCache ||
+        (_fastFeedReveal &&
+            key.isNotEmpty &&
+            (_pool.hadRecentPaint(key) || _pool.isBufferPrimed(key)));
+  }
+
   int _requiredOpaquePaintFrames() {
     if (!_needsConstrainedStartGate) {
       return 2;
     }
-    if (_poolProvenSurfacePaint(_pooledKey)) {
-      return 3;
+    return _isWarmUnmaskPath() ? 4 : 8;
+  }
+
+  /// Mount [Video] and wait for native ImageReader before [Player.open] on Honor.
+  /// Logs: decode headless → onSurfaceAvailable → codec release → Rendered 0/s.
+  Future<void> _ensureFeedSurfaceMountedBeforeOpen({
+    required int generation,
+  }) async {
+    if (!_usesFeedVisibleChannel || !_needsConstrainedStartGate) {
+      return;
     }
-    return 4;
+    await _pool.ensureFeedPingPongInitialized();
+    final slotIndex = _pool.activeFeedSlotIndex;
+    _activeFeedSlotIndex = slotIndex;
+    _videoController = _pool.feedSlotVideoController(slotIndex);
+    final needsBuild = !_videoSurfaceMounted;
+    _videoSurfaceMounted = true;
+    if (needsBuild && mounted && !_isDisposed) {
+      setState(() {});
+    }
+    for (var i = 0; i < 6; i++) {
+      await WidgetsBinding.instance.endOfFrame;
+      if (generation != _playbackGeneration || !mounted || _isDisposed) {
+        return;
+      }
+    }
+    await Future<void>.delayed(const Duration(milliseconds: 150));
+    _logPoster('surface_mounted', detail: 'slot=$slotIndex gen=$generation');
+  }
+
+  void _scheduleFeedFrameReadyAfterSurfaceMount(
+    Player player, {
+    required int generation,
+  }) {
+    unawaited(() async {
+      if (!_needsConstrainedStartGate) {
+        if (_canShowVideo(player) &&
+            _isCurrentAttach(generation) &&
+            mounted &&
+            !_isDisposed) {
+          await _onFrameReady(player, generation: generation);
+        }
+        return;
+      }
+      for (var i = 0; i < 4; i++) {
+        await WidgetsBinding.instance.endOfFrame;
+        if (!_isCurrentAttach(generation) || !mounted || _isDisposed) {
+          return;
+        }
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 80));
+      if (!_isCurrentAttach(generation) || !mounted || _isDisposed) {
+        return;
+      }
+      if (_canShowVideo(player)) {
+        await _onFrameReady(player, generation: generation);
+      }
+    }());
   }
 
   Future<void> _setVideoSurfaceVisible({
@@ -754,6 +929,7 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
   }) async {
     _videoSurfaceVisible = true;
     _visibleSurfacePaintFrames = 0;
+    _surfaceRevealedAtMs = DateTime.now().millisecondsSinceEpoch;
     _logPoster(
       'surface_revealed',
       detail: '$detail ${player.state.width}x${player.state.height} '
@@ -764,13 +940,16 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
     }
     if (_usesFeedVisibleChannel) {
       final key = _pooledKey;
-      if (key != null && key.isNotEmpty) {
-        _pool.markFrameReadyFromSurface(key);
-        // Unmute as soon as the video layer goes visible — waiting for
-        // poster_unmask added 96–400ms of silent video on Honor/MTK.
-        unawaited(_resumeAudibleAfterReveal(key: key, generation: generation));
-      }
       await _awaitFeedOpaquePaint(generation: generation, player: player);
+      if (key != null &&
+          key.isNotEmpty &&
+          _isCurrentAttach(generation) &&
+          mounted &&
+          !_isDisposed &&
+          _videoSurfaceVisible) {
+        _pool.markFrameReadyFromSurface(key);
+        _pool.unmuteFeedVisibleImmediate(key);
+      }
     }
   }
 
@@ -835,10 +1014,13 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
     if (_needsConstrainedStartGate) {
       final gateMs = (_lastOpenCacheHit ||
               _lastOpenPartialCache ||
-              _scrollBackCacheEligible(_pooledKey))
-          ? 48
-          : 220;
-      await Future<void>.delayed(Duration(milliseconds: gateMs));
+              _scrollBackCacheEligible(_pooledKey) ||
+              _fastFeedReveal)
+          ? 0
+          : 120;
+      if (gateMs > 0) {
+        await Future<void>.delayed(Duration(milliseconds: gateMs));
+      }
       if (!_isCurrentAttach(generation) ||
           revealGen != _revealGeneration ||
           !mounted ||
@@ -857,7 +1039,10 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
         }
       }
       var polled = 0;
-      while (polled < 2800) {
+      final pollLimitMs = (_fastFeedReveal || _scrollBackCacheEligible(_pooledKey))
+          ? 1200
+          : 2800;
+      while (polled < pollLimitMs) {
         if (!_isCurrentAttach(generation) ||
             revealGen != _revealGeneration ||
             !mounted ||
@@ -909,7 +1094,6 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
         final key = _pooledKey;
         if (key != null && key.isNotEmpty) {
           _pool.invalidatePrimedFrame(key);
-          unawaited(_pool.recoverFeedVisibleSurface(key));
         }
         if (mounted && !_isDisposed) {
           setState(() {});
@@ -946,7 +1130,9 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
   }) async {
     final requiredFrames = _requiredOpaquePaintFrames();
     final wallStartMs = DateTime.now().millisecondsSinceEpoch;
-    final minWallMs = _needsConstrainedStartGate ? 96 : 0;
+    final minWallMs = _needsConstrainedStartGate
+        ? (_isWarmUnmaskPath() ? 80 : 200)
+        : 0;
     final startPosMs = player.state.position.inMilliseconds;
 
     for (var i = 0; i < requiredFrames; i++) {
@@ -1021,8 +1207,10 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
     }
     _logPoster(
       'poster_unmask',
-      detail: 'opaque=$_visibleSurfacePaintFrames/$requiredFrames',
+      detail: 'opaque=$_visibleSurfacePaintFrames/$requiredFrames '
+          'warm=${_isWarmUnmaskPath()} revealAge=${DateTime.now().millisecondsSinceEpoch - _surfaceRevealedAtMs}ms',
     );
+    _postRecycleUnmask = false;
     widget.onFeedVideoPainted?.call();
   }
 
@@ -1049,6 +1237,19 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
           'pos=${player.state.position.inMilliseconds}ms',
     );
 
+    if (_needsConstrainedStartGate && _usesFeedVisibleChannel) {
+      for (var i = 0; i < 3; i++) {
+        await WidgetsBinding.instance.endOfFrame;
+        if (!_isCurrentAttach(generation) || !mounted || _isDisposed) {
+          return;
+        }
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 80));
+      if (!_isCurrentAttach(generation) || !mounted || _isDisposed) {
+        return;
+      }
+    }
+
     await _revealVideoSurface(generation: generation, player: player);
     if (!_isCurrentAttach(generation) || !mounted || _isDisposed) {
       return;
@@ -1057,10 +1258,11 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
       return;
     }
 
-    // Backup — primary unmute runs in [_setVideoSurfaceVisible].
-    await _resumeAudibleAfterReveal(key: key, generation: generation);
-    if (!_isCurrentAttach(generation) || !mounted || _isDisposed) {
-      return;
+    if (!_usesFeedVisibleChannel) {
+      await _resumeAudibleAfterReveal(key: key, generation: generation);
+      if (!_isCurrentAttach(generation) || !mounted || _isDisposed) {
+        return;
+      }
     }
     unawaited(_maybeUpgradeToCached1080(generation: generation));
   }
@@ -1199,7 +1401,7 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
         return;
       }
       if (_canShowVideo(player, pos)) {
-        unawaited(_onFrameReady(player, generation: _attachGeneration));
+        _notifyFrameReady(player, generation: _attachGeneration);
         return;
       }
       _onPlayerStateTick(player);
@@ -1211,7 +1413,7 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
       _trackDimensionStability(player);
       final pos = player.state.position;
       if (_canShowVideo(player, pos)) {
-        unawaited(_onFrameReady(player, generation: _attachGeneration));
+        _notifyFrameReady(player, generation: _attachGeneration);
         return;
       }
       _onPlayerStateTick(player);
@@ -1339,7 +1541,10 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
       }
       _surfacePaintFrames = _minSurfacePaintFramesBuffered;
       _showThumbnail = false;
-      unawaited(_onFrameReady(player, generation: _attachGeneration));
+      _scheduleFeedFrameReadyAfterSurfaceMount(
+        player,
+        generation: _attachGeneration,
+      );
     } else {
       final key = _pooledKey;
       if (!_lastOpenWasCold &&
@@ -1350,7 +1555,10 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
         _fastFeedReveal = true;
         _surfacePaintFrames = _minSurfacePaintFramesBuffered;
         _showThumbnail = false;
-        unawaited(_onFrameReady(player, generation: _attachGeneration));
+        _scheduleFeedFrameReadyAfterSurfaceMount(
+          player,
+          generation: _attachGeneration,
+        );
       } else if (!_lastOpenWasCold &&
           key != null &&
           key.isNotEmpty &&
@@ -1358,7 +1566,32 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
           _hasRealFrame(player)) {
         _surfacePaintFrames = 0;
         _showThumbnail = false;
-        unawaited(_onFrameReady(player, generation: _attachGeneration));
+        _scheduleFeedFrameReadyAfterSurfaceMount(
+          player,
+          generation: _attachGeneration,
+        );
+      } else if (key != null &&
+          key.isNotEmpty &&
+          _fastFeedReveal &&
+          _poolProvenSurfacePaint(key)) {
+        _videoSurfaceVisible = false;
+        _surfacePaintFrames = _minSurfacePaintFramesBuffered;
+        _showThumbnail = false;
+        _afterSurfaceMounted(
+          player,
+          paintTicks: _needsConstrainedStartGate ? 4 : 2,
+        );
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted || _isDisposed || _frameReady) {
+            return;
+          }
+          if (_canShowVideo(player)) {
+            _scheduleFeedFrameReadyAfterSurfaceMount(
+              player,
+              generation: _attachGeneration,
+            );
+          }
+        });
       } else {
         _frameReady = false;
         _videoSurfaceVisible = false;
@@ -1373,7 +1606,10 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
             return;
           }
           if (_canShowVideo(player)) {
-            unawaited(_onFrameReady(player, generation: _attachGeneration));
+            _scheduleFeedFrameReadyAfterSurfaceMount(
+              player,
+              generation: _attachGeneration,
+            );
           }
         });
       }
@@ -1484,34 +1720,32 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
       generation: generation,
       timeoutMs: _frameWaitTimeoutMs(),
     );
-    if (frameReady ||
-        !DeviceConstraints.instance.needsConstrainedSurfaceRecovery) {
+    if (frameReady || !_needsConstrainedStartGate) {
+      if (!frameReady &&
+          _isCurrentAttach(generation) &&
+          _isDecodeLikelyActive(player)) {
+        await _onFrameReady(player, generation: generation);
+        return true;
+      }
       return frameReady;
     }
-    while (!frameReady &&
-        _surfaceRecoveryAttempts < _maxSurfaceRecoveryAttempts &&
-        _isCurrentAttach(generation) &&
-        mounted &&
-        !_isDisposed) {
+    final fastScrollPath = _fastFeedReveal || _scrollBackCacheEligible(poolKey);
+    // Honor: flush-based recovery loops permanently break the surface — recycle once.
+    if (!fastScrollPath && _surfaceRecoveryAttempts == 0) {
       _surfaceRecoveryAttempts++;
-      if (_usesFeedVisibleChannel) {
-        await _recoverFeedSurface(
-          player: player,
-          poolKey: poolKey,
+      await _pool.recycleFeedDecoderIfStale();
+      final freshPlayer = _activePlayer;
+      if (freshPlayer != null &&
+          freshPlayer != player &&
+          _isCurrentAttach(generation) &&
+          mounted &&
+          !_isDisposed) {
+        frameReady = await _waitForFrameReady(
+          player: freshPlayer,
           generation: generation,
-        );
-      } else {
-        await _recoverStrictSurface(
-          player: player,
-          poolKey: poolKey,
-          generation: generation,
+          timeoutMs: 3600,
         );
       }
-      frameReady = await _waitForFrameReady(
-        player: player,
-        generation: generation,
-        timeoutMs: 2800,
-      );
     }
     if (!frameReady &&
         _isCurrentAttach(generation) &&
@@ -1713,6 +1947,18 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
     return ordered.isEmpty ? raw : ordered;
   }
 
+  Future<bool> _awaitFeedFrameOrAudioPrimed(
+    Player player, {
+    required int generation,
+  }) async {
+    if (_frameReady && _videoSurfaceVisible) {
+      return true;
+    }
+    await _awaitFeedFrameOrAudio(player, generation: generation);
+    return _isCurrentAttach(generation) &&
+        (_frameReady || _canShowVideo(player));
+  }
+
   Future<void> _awaitFeedFrameOrAudio(
     Player player, {
     required int generation,
@@ -1864,6 +2110,12 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
       _surfaceRecoveryAttempts = 0;
       final playbackUrl = await _resolvePlaybackUrlForSource(source, network);
       _openStartedAt = DateTime.now();
+      if (_usesFeedVisibleChannel) {
+        await _ensureFeedSurfaceMountedBeforeOpen(generation: generation);
+        if (!mounted || _isDisposed || generation != _playbackGeneration) {
+          return;
+        }
+      }
       final pooled = _usesFeedVisibleChannel
           ? await _pool.openVisibleReel(
               key: poolKey,
@@ -1877,10 +2129,11 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
             );
       _lastOpenWasCold =
           _usesFeedVisibleChannel ? pooled.feedOpenedMedia : true;
-      if (_usesFeedVisibleChannel && !pooled.feedOpenedMedia) {
-        if (_pool.isFrameReady(poolKey)) {
-          _fastFeedReveal = true;
-        }
+      if (_usesFeedVisibleChannel &&
+          (_pool.isFrameReady(poolKey) ||
+              _pool.hadRecentPaint(poolKey) ||
+              _pool.isBufferPrimed(poolKey))) {
+        _fastFeedReveal = true;
       }
       if (!mounted || _isDisposed || generation != _playbackGeneration) {
         return;
@@ -1888,6 +2141,11 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
       _pooledKey = poolKey;
       _attachGeneration = generation;
       if (_usesFeedVisibleChannel) {
+        _logPoster(
+          'open_done',
+          detail: 'key=$poolKey opened=${pooled.feedOpenedMedia} '
+              'openCount=${_pool.feedOpenCount}',
+        );
         await _pool.ensureFeedPingPongInitialized();
         final slotIndex =
             pooled.feedActiveSlotIndex ?? _pool.activeFeedSlotIndex;
@@ -1906,11 +2164,19 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
           generation: generation,
         );
       }
-      final frameReady = await _waitForFrameReadyWithRecovery(
-        player: pooled.player,
-        generation: generation,
-        poolKey: poolKey,
-      );
+      final fastPrimedOpen = _usesFeedVisibleChannel &&
+          _fastFeedReveal &&
+          _poolProvenSurfacePaint(poolKey);
+      final frameReady = fastPrimedOpen
+          ? await _awaitFeedFrameOrAudioPrimed(
+              pooled.player,
+              generation: generation,
+            )
+          : await _waitForFrameReadyWithRecovery(
+              player: pooled.player,
+              generation: generation,
+              poolKey: poolKey,
+            );
       final openMs = _openStartedAt == null
           ? 0
           : DateTime.now().difference(_openStartedAt!).inMilliseconds;
@@ -1971,15 +2237,17 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
     if (kReleaseMode) {
       return;
     }
+    final openCount =
+        _usesFeedVisibleChannel ? _pool.feedOpenCount : 0;
     debugPrint(
-      '[ReelsPoster] $event reel=${widget.videoId} '
-      'thumb=$_showThumbnail frame=$_frameReady visible=$_videoSurfaceVisible '
-      '${detail ?? ''}',
+      '[ReelsPoster] $event reel=${widget.videoId} gen=$_playbackGeneration '
+      'openCount=$openCount thumb=$_showThumbnail frame=$_frameReady '
+      'visible=$_videoSurfaceVisible ${detail ?? ''}',
     );
   }
 
   void _prepareSwitchUiState(String newKey) {
-    if (_usesFeedVisibleChannel && _videoSurfaceMounted) {
+    if (_usesFeedVisibleChannel) {
       _revealGeneration++;
       _frameWatchGeneration++;
       _userPaused = false;
@@ -1991,40 +2259,35 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
       _fastFeedReveal = false;
       if (newKey.isNotEmpty) {
         _pool.clearUserPaused(newKey);
-        final canFastResume = _pool.canInstantResume(newKey) &&
+        final liveSameReel = _pool.isFeedVisibleKey(newKey) &&
+            _pool.canInstantResume(newKey) &&
             _pool.isFrameReady(newKey);
-        if (canFastResume) {
+        if (liveSameReel) {
           _fastFeedReveal = true;
-        } else if (_pool.hadRecentPaint(newKey)) {
-          _fastFeedReveal = true;
+        } else {
+          // Stale frame-ready from a prior visit must not skip the poster.
+          _pool.invalidatePrimedFrame(newKey);
+          if (_pool.hadRecentPaint(newKey) || _pool.isBufferPrimed(newKey)) {
+            _fastFeedReveal = true;
+          }
         }
       }
       final switching = (_pooledKey ?? '').isNotEmpty &&
           newKey.isNotEmpty &&
           _pooledKey != newKey;
-      if (newKey.isNotEmpty && _fastFeedReveal && _pool.isFrameReady(newKey)) {
-        _frameReady = true;
-        _videoSurfaceVisible = true;
-        _showThumbnail = false;
-        _surfacePaintFrames = _minSurfacePaintFramesBuffered;
-        _logPoster('switch_primede', detail: 'key=$newKey');
-        widget.onFeedVideoPainted?.call();
-      } else if (newKey.isNotEmpty &&
-          _fastFeedReveal &&
-          _pool.hadRecentPaint(newKey) &&
-          !_pool.isFrameReady(newKey)) {
+      if (newKey.isNotEmpty && _fastFeedReveal && _pool.isFeedVisibleKey(newKey)) {
         _frameReady = false;
         _videoSurfaceVisible = false;
         _showThumbnail = false;
-        _surfacePaintFrames = 0;
-        _logPoster('switch_cached', detail: 'key=$newKey');
-      } else if (newKey.isNotEmpty &&
-          _fastFeedReveal &&
-          _pool.isBufferPrimed(newKey)) {
+        _surfacePaintFrames = _minSurfacePaintFramesBuffered;
+        _logPoster('switch_primede', detail: 'key=$newKey live');
+      } else if (newKey.isNotEmpty && _fastFeedReveal) {
+        // Cached / scroll-back: decode under poster, reveal only after paint.
         _frameReady = false;
+        _videoSurfaceVisible = false;
         _showThumbnail = false;
-        _surfacePaintFrames = 0;
-        _logPoster('switch_buffered', detail: 'key=$newKey');
+        _surfacePaintFrames = _minSurfacePaintFramesBuffered;
+        _logPoster('switch_cached', detail: 'key=$newKey');
       } else if (switching && _frameReady) {
         // Page poster stays visible under transparent player; hide video until paint.
         _frameReady = false;

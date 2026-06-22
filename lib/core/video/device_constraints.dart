@@ -67,6 +67,15 @@ class DeviceConstraints {
   bool get suppressScrollDecoderWarm =>
       deviceTierSync == ReelsDeviceTier.b;
 
+  /// Proactive single-slot decoder recycle threshold (Honor fatigues ~4 opens).
+  int get singleSlotRecycleAfterOpensSync {
+    final tier = deviceTierSync;
+    if (tier == ReelsDeviceTier.b || tier == ReelsDeviceTier.c) {
+      return 4;
+    }
+    return 8;
+  }
+
   /// Throttle decoder warm-up during burst swipes — disk prefetch is never skipped.
   bool shouldThrottleDecoderWarm() {
     final now = DateTime.now();

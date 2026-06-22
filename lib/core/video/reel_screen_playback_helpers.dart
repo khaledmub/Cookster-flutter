@@ -10,12 +10,28 @@ import 'package:flutter/material.dart';
 class ReelScreenPlaybackHelpers {
   ReelScreenPlaybackHelpers._();
 
+  /// Hide poster only when this reel is still the live feed decoder with a painted frame.
+  /// Never use [hadRecentPaint] alone — that hides the poster while [Player.open] runs → black.
   static bool shouldKeepPosterHidden(String? videoId) {
     if (videoId == null || videoId.isEmpty) {
       return false;
     }
     final pool = MediaKitPlayerPool.instance;
-    return pool.isFrameReady(videoId) || pool.hadRecentPaint(videoId);
+    return pool.isFeedVisibleKey(videoId) &&
+        pool.isFrameReady(videoId) &&
+        pool.canInstantResume(videoId);
+  }
+
+  /// Backup audible resume when scroll-back skips the poster — only if still muted.
+  static void resumeAudibleForReel(String? videoId) {
+    if (videoId == null || videoId.isEmpty) {
+      return;
+    }
+    final pool = MediaKitPlayerPool.instance;
+    if (pool.isActiveAudible(videoId)) {
+      return;
+    }
+    unawaited(pool.feedResumeAudibleWhenReady(videoId));
   }
 
   static Future<void> warmVisibleIndex({

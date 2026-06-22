@@ -166,6 +166,7 @@ class _HashtagReelScreenState extends State<HashtagReelScreen>
       if (_maskActiveVideoWithPoster) {
         setState(() => _maskActiveVideoWithPoster = false);
       }
+      ReelScreenPlaybackHelpers.resumeAudibleForReel(videoId);
       return;
     }
     if (!_maskActiveVideoWithPoster) {
@@ -357,8 +358,9 @@ class _HashtagReelScreenState extends State<HashtagReelScreen>
                     valueListenable: _visibleIndexNotifier,
                     builder: (context, visibleIndex, _) {
                       final isActivePage = index == visibleIndex;
-                      final isActiveVideo =
-                          isActivePage && !video.isPhotoPost;
+                      final isActiveVideo = isActivePage &&
+                          !video.isPhotoPost &&
+                          video.isPlaybackReady;
                       final maskPoster =
                           isActiveVideo && _maskActiveVideoWithPoster;
                       return ReelFeedPageMediaChrome(

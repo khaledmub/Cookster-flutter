@@ -78,6 +78,9 @@ class _SearchViewState extends State<SearchView>
       SearchBinding().dependencies();
     }
     searchController = Get.find<UserSearchController>();
+    if (Get.isRegistered<HomeController>()) {
+      Get.find<HomeController>().pauseReelsForRouteOverlay();
+    }
     initPaginatedScroll(() {
       if (searchController.canLoadMoreVideos &&
           !searchController.isLoadingMore.value) {
@@ -117,8 +120,48 @@ class _SearchViewState extends State<SearchView>
     });
   }
 
+  void _refetchSearchIfQueryReady() {
+    final query = _searchController.text.trim();
+    if (query.length < 3) {
+      return;
+    }
+    if (searchController.type.value == 5) {
+      searchController.searchB2BCategories(query);
+      return;
+    }
+    searchController.fetchSearchResults(
+      query,
+      isGeneral: widget.isGeneral,
+      isFollowing: widget.isFollowing,
+    );
+  }
+
+  void _selectSearchTab(int index) {
+    if (_tabController.index != index) {
+      _tabController.animateTo(index);
+    }
+    if (index == 0) {
+      searchController.selectedType.value = 0;
+      searchController.type.value = 6;
+    } else if (index == 1) {
+      searchController.selectedType.value = 1;
+      searchController.type.value = 1;
+    } else if (index == 2) {
+      searchController.selectedType.value = 2;
+      searchController.type.value = 4;
+    } else if (index == 3) {
+      searchController.selectedType.value = 3;
+      searchController.type.value = 5;
+      searchController.fetchB2BCategories();
+    }
+    _refetchSearchIfQueryReady();
+  }
+
   @override
   void dispose() {
+    if (Get.isRegistered<HomeController>()) {
+      Get.find<HomeController>().resumeReelsAfterRouteOverlay();
+    }
     disposePaginatedScroll();
     _tabController.dispose();
     _searchController.dispose();
@@ -207,34 +250,7 @@ class _SearchViewState extends State<SearchView>
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 8.0),
                     child: TabBar(
-                      onTap: (index) {
-                        if (index == 0) {
-                          searchController.selectedType.value =
-                              0; // Users Search
-                          searchController.type.value = 6;
-                        } else if (index == 1) {
-                          searchController.selectedType.value =
-                              1; // General Selected
-                          searchController.type.value = 1; // General Selected
-                        } else if (index == 2) {
-                          searchController.selectedType.value = 2; // Top Rated
-
-                          searchController.type.value = 4; // Top Rated
-                        } else if (index == 3) {
-                          searchController.selectedType.value = 0; // Top Rated
-
-                          searchController.type.value = 5;
-                          searchController.fetchB2BCategories();
-                        } else if (_searchController.text.length >= 3) {
-                          searchController.selectedType.value = 0; // Top Rated
-
-                          searchController.fetchSearchResults(
-                            _searchController.text,
-                            isGeneral: widget.isGeneral,
-                            isFollowing: widget.isFollowing,
-                          );
-                        }
-                      },
+                      onTap: (index) => _selectSearchTab(index),
                       controller: _tabController,
                       indicatorColor: ColorUtils.darkBrown,
                       labelColor: ColorUtils.darkBrown,
@@ -269,7 +285,8 @@ class _SearchViewState extends State<SearchView>
                             typeValue: 1,
                             selectedType: searchController.type,
                             onTap: () {
-                              searchController.type.value = 1; // General Search
+                              searchController.type.value = 1;
+                              _refetchSearchIfQueryReady();
                             },
                           ),
                           SizedBox(width: 16),
@@ -278,8 +295,8 @@ class _SearchViewState extends State<SearchView>
                             typeValue: 2,
                             selectedType: searchController.type,
                             onTap: () {
-                              searchController.type.value =
-                                  2; // Business Accounts
+                              searchController.type.value = 2;
+                              _refetchSearchIfQueryReady();
                             },
                           ),
                         ],
@@ -294,7 +311,8 @@ class _SearchViewState extends State<SearchView>
                             typeValue: 4,
                             selectedType: searchController.type,
                             onTap: () {
-                              searchController.type.value = 4; // Top Rated
+                              searchController.type.value = 4;
+                              _refetchSearchIfQueryReady();
                             },
                           ),
                           SizedBox(width: 16),
@@ -304,8 +322,8 @@ class _SearchViewState extends State<SearchView>
                             typeValue: 7,
                             selectedType: searchController.type,
                             onTap: () {
-                              searchController.type.value =
-                                  7; // Business Accounts
+                              searchController.type.value = 7;
+                              _refetchSearchIfQueryReady();
                             },
                           ),
                         ],

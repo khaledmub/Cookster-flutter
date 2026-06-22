@@ -55,7 +55,6 @@ class _LandingState extends State<Landing> {
   Future<List<Widget>>? _screensFuture;
   StreamSubscription<Uri>? _deepLinkSubscription;
   Worker? _subscriptionExpiryWorker;
-  Worker? _tabAudioWorker;
   bool _deepLinksInitialized = false;
   final RxBool _isSubscriptionExpired = false.obs;
   SaveController get saveController => Get.find<SaveController>();
@@ -375,11 +374,8 @@ class _LandingState extends State<Landing> {
     fetchUserDetails();
     navBarController.checkForUpdate();
     _initDeepLinks();
-    _tabAudioWorker = ever(navBarController.selectedIndex, (index) {
-      if (index != 0) {
-        unawaited(_stopAllVideoAudio());
-      }
-    });
+    // Bottom-nav mute/restore is handled in [_performTabNavigation] only.
+    // A listener here caused double [enterMutedPlaybackContext] (depth stuck > 0).
     // Start loading secondary tabs immediately; home tab mounts above without
     // waiting for this future.
     _screensFuture = _screens(context);
@@ -399,7 +395,6 @@ class _LandingState extends State<Landing> {
   @override
   void dispose() {
     _subscriptionExpiryWorker?.dispose();
-    _tabAudioWorker?.dispose();
     _deepLinkSubscription?.cancel();
     super.dispose();
   }
@@ -561,47 +556,42 @@ class _LandingState extends State<Landing> {
   }
 
   Future<void> _stopAllVideoAudio() async {
-    MediaKitPlayerPool.instance.silenceAllSync();
     if (Get.isRegistered<HomeController>()) {
-      final home = Get.find<HomeController>();
-      home.setReelsTabVisible(false);
-      home.isNavigating.value = true;
-      await home.pauseAllVideosAwait();
+      Get.find<HomeController>().enterBottomNavMute();
     } else {
+      MediaKitPlayerPool.instance.silenceAllSync();
       await MediaKitPlayerPool.instance.pauseAllAwait();
       await VideoPlayerPool.instance.pauseAll();
     }
   }
 
   Future<void> _performTabNavigation(int index) async {
+    final wasOnHome = navBarController.selectedIndex.value == 0;
+
     if (index != 0) {
       await _stopAllVideoAudio();
-    } else if (Get.isRegistered<HomeController>()) {
+      navBarController.changeTab(index);
+      if (index == 1 && Get.isRegistered<LocationController>()) {
+        unawaited(Get.find<LocationController>().ensureDiscoverLoaded());
+      }
+      return;
+    }
+
+    navBarController.changeTab(0);
+
+    if (Get.isRegistered<HomeController>()) {
       final home = Get.find<HomeController>();
       final hasRouteOverlay = Get.key.currentState?.canPop() ?? false;
-      final alreadyOnHome = navBarController.selectedIndex.value == 0;
       if (hasRouteOverlay) {
         home.isNavigating.value = true;
         home.setReelsTabVisible(false);
         MediaKitPlayerPool.instance.silenceAllSync();
-      } else if (alreadyOnHome) {
-        // Re-tapping Home while already on the feed refreshes it (TikTok-style).
-        home.isNavigating.value = false;
-        home.setReelsTabVisible(true);
+      } else if (wasOnHome) {
+        home.onReturnedToHomeTab();
         unawaited(home.refreshHomeFeed());
-      } else if (home.feedResumePendingWhenHomeTab) {
-        home.restoreHomeFeedPlayback();
       } else {
-        home.isNavigating.value = false;
-        home.setReelsTabVisible(true);
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          unawaited(home.resumeVisibleVideo(home.visiblePageIndex.value));
-        });
+        home.onReturnedToHomeTab();
       }
-    }
-    navBarController.changeTab(index);
-    if (index == 1 && Get.isRegistered<LocationController>()) {
-      unawaited(Get.find<LocationController>().ensureDiscoverLoaded());
     }
   }
 
