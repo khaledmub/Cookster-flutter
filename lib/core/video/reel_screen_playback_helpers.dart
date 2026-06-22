@@ -28,10 +28,13 @@ class ReelScreenPlaybackHelpers {
       return;
     }
     final pool = MediaKitPlayerPool.instance;
+    if (!pool.isFeedVisibleKey(videoId) || !pool.isFrameReady(videoId)) {
+      return;
+    }
     if (pool.isActiveAudible(videoId)) {
       return;
     }
-    unawaited(pool.feedResumeAudibleWhenReady(videoId));
+    unawaited(pool.forceFeedAudibleAtPosterUnmask(videoId));
   }
 
   static Future<void> warmVisibleIndex({

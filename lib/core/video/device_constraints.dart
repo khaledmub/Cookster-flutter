@@ -1,9 +1,11 @@
 import 'dart:io';
 
+import 'package:cookster/core/video/reels_device_capability_store.dart';
 import 'package:cookster/core/video/reels_perf.dart';
 import 'package:cookster/services/feature_flags/remote_config_service.dart';
 import 'package:cookster/services/settings/settings_service.dart';
 import 'package:device_info_plus/device_info_plus.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 /// Graduated device capability for reel decode / prefetch.
 enum ReelsDeviceTier {
@@ -29,10 +31,36 @@ class DeviceConstraints {
   bool? _needsSingleSlotFeed;
   DateTime? _lastSwipeAt;
 
-  /// Safe default until [ensureInitialized] completes — MTK-style single slot.
-  bool get needsSingleSlotFeedSync => _needsSingleSlotFeed ?? true;
+  /// Hardware-derived worst-case floor. Measured promotion can never go below
+  /// this — a constrained Honor/MTK device must not self-promote to S/A off a
+  /// false poster_unmask (Rendered 0/s while the surface never paints).
+  ReelsDeviceTier _brandFloor = ReelsDeviceTier.s;
 
-  ReelsDeviceTier get deviceTierSync => _tier ?? ReelsDeviceTier.b;
+  static int _rankOf(ReelsDeviceTier tier) => switch (tier) {
+        ReelsDeviceTier.s => 0,
+        ReelsDeviceTier.a => 1,
+        ReelsDeviceTier.b => 2,
+        ReelsDeviceTier.c => 3,
+      };
+
+  static ReelsDeviceTier _tierOfRank(int rank) => switch (rank.clamp(0, 3)) {
+        0 => ReelsDeviceTier.s,
+        1 => ReelsDeviceTier.a,
+        2 => ReelsDeviceTier.b,
+        _ => ReelsDeviceTier.c,
+      };
+
+  /// Clamp a measured tier so it is never *better* (lower rank) than the floor.
+  /// Demotion (higher rank) is always honored.
+  ReelsDeviceTier _clampToFloor(ReelsDeviceTier measured) =>
+      _tierOfRank(_rankOf(measured) > _rankOf(_brandFloor)
+          ? _rankOf(measured)
+          : _rankOf(_brandFloor));
+
+  /// Safe default until [ensureInitialized] — attempt Tier S path.
+  bool get needsSingleSlotFeedSync => _needsSingleSlotFeed ?? false;
+
+  ReelsDeviceTier get deviceTierSync => _tier ?? ReelsDeviceTier.s;
 
   bool get feedDualSlotEnabled =>
       !needsSingleSlotFeedSync &&
@@ -55,28 +83,36 @@ class DeviceConstraints {
       RemoteConfigService.instance.reelsScrollDemuxPrefetch &&
       deviceTierSync != ReelsDeviceTier.c;
 
-  /// Honor/MTK/Oppo — surface often decodes but Rendered stays 0/s.
   bool get needsConstrainedSurfaceRecovery =>
       deviceTierSync == ReelsDeviceTier.b ||
       deviceTierSync == ReelsDeviceTier.c;
 
-  /// Cold network opens should start at 360p, not 720p.
-  bool get prefer360ColdOpen => needsConstrainedSurfaceRecovery;
+  bool get prefer360ColdOpen => deviceTierSync == ReelsDeviceTier.c;
 
-  /// Buffer-only warm competes with the visible decoder on Honor.
-  bool get suppressScrollDecoderWarm =>
-      deviceTierSync == ReelsDeviceTier.b;
+  bool get suppressScrollDecoderWarm => deviceTierSync == ReelsDeviceTier.b;
 
-  /// Proactive single-slot decoder recycle threshold (Honor fatigues ~4 opens).
   int get singleSlotRecycleAfterOpensSync {
     final tier = deviceTierSync;
-    if (tier == ReelsDeviceTier.b || tier == ReelsDeviceTier.c) {
-      return 4;
+    // Recycling forces a cold MediaCodec reopen (~1-2s). Defer during fast
+    // scroll ([shouldDeferDecoderRecycle]) and only recycle after many opens.
+    if (tier == ReelsDeviceTier.c) {
+      return 20;
     }
-    return 8;
+    if (tier == ReelsDeviceTier.b) {
+      return 24;
+    }
+    return 32;
   }
 
-  /// Throttle decoder warm-up during burst swipes — disk prefetch is never skipped.
+  /// True during rapid swiping — skip proactive decoder recycle so scroll stays smooth.
+  bool get shouldDeferDecoderRecycle {
+    final last = _lastSwipeAt;
+    if (last == null) {
+      return false;
+    }
+    return DateTime.now().difference(last).inMilliseconds < 800;
+  }
+
   bool shouldThrottleDecoderWarm() {
     final now = DateTime.now();
     final last = _lastSwipeAt;
@@ -87,13 +123,26 @@ class DeviceConstraints {
     return now.difference(last).inMilliseconds < 150;
   }
 
+  /// Call on every reel page change so recycle defer tracks fast scroll bursts.
+  void recordSwipe() {
+    _lastSwipeAt = DateTime.now();
+  }
+
   Future<void> ensureInitialized() async {
     if (_tier != null) {
       return;
     }
-    _tier = await _detectTier();
-    _needsSingleSlotFeed = _tier != ReelsDeviceTier.s ||
-        !RemoteConfigService.instance.reelsDualSlotEnabled;
+    final appVersion = await _appVersion();
+    await ReelsDeviceCapabilityStore.instance.load(
+      currentAppVersion: appVersion,
+    );
+    final brandPrior = await _brandPriorTier();
+    _brandFloor = brandPrior;
+    await ReelsDeviceCapabilityStore.instance.seedInitialTierIfNeeded(
+      brandPrior,
+    );
+    _tier = await _resolveEffectiveTier();
+    _applyFeedModeForTier(_tier!);
     ReelsPerf.emit(
       ReelsPerfEvent(
         name: 'device_init',
@@ -103,7 +152,32 @@ class DeviceConstraints {
     );
   }
 
-  Future<ReelsDeviceTier> _detectTier() async {
+  /// Re-read measured tier after promotion/demotion (ignores RC override).
+  void refreshFromMeasuredProfile() {
+    final override = RemoteConfigService.instance.reelsDeviceTierOverride;
+    if (override.isNotEmpty) {
+      return;
+    }
+    if (SettingsService.instance.dataSaverEnabled.value) {
+      _tier = ReelsDeviceTier.c;
+    } else if (!Platform.isAndroid) {
+      _tier = ReelsDeviceTier.s;
+    } else {
+      final profile = ReelsDeviceCapabilityStore.instance.profile;
+      if (!profile.hasCompletedFirstMeasuredOpen) {
+        return;
+      }
+      _tier = _clampToFloor(profile.measuredTier);
+    }
+    _applyFeedModeForTier(_tier!);
+  }
+
+  void _applyFeedModeForTier(ReelsDeviceTier tier) {
+    _needsSingleSlotFeed = tier != ReelsDeviceTier.s ||
+        !RemoteConfigService.instance.reelsDualSlotEnabled;
+  }
+
+  Future<ReelsDeviceTier> _resolveEffectiveTier() async {
     final override = RemoteConfigService.instance.reelsDeviceTierOverride;
     if (override.isNotEmpty) {
       return switch (override) {
@@ -111,7 +185,7 @@ class DeviceConstraints {
         'a' => ReelsDeviceTier.a,
         'b' => ReelsDeviceTier.b,
         'c' => ReelsDeviceTier.c,
-        _ => ReelsDeviceTier.b,
+        _ => ReelsDeviceTier.s,
       };
     }
     if (SettingsService.instance.dataSaverEnabled.value) {
@@ -120,6 +194,15 @@ class DeviceConstraints {
     if (!Platform.isAndroid) {
       return ReelsDeviceTier.s;
     }
+    final profile = ReelsDeviceCapabilityStore.instance.profile;
+    if (!profile.hasCompletedFirstMeasuredOpen) {
+      return _brandFloor;
+    }
+    return _clampToFloor(profile.measuredTier);
+  }
+
+  /// One-time cold-start prior before any measured open exists.
+  Future<ReelsDeviceTier> _brandPriorTier() async {
     try {
       final info = await DeviceInfoPlugin().androidInfo;
       final hardware = info.hardware.toLowerCase();
@@ -163,10 +246,18 @@ class DeviceConstraints {
         }
       }
 
-      // Remaining Qualcomm / other Android — tier A.
       return ReelsDeviceTier.a;
     } catch (_) {
       return ReelsDeviceTier.b;
+    }
+  }
+
+  Future<String> _appVersion() async {
+    try {
+      final info = await PackageInfo.fromPlatform();
+      return info.version;
+    } catch (_) {
+      return '';
     }
   }
 

@@ -1,6 +1,7 @@
 import 'package:cookster/core/media/media_url_resolver.dart';
 import 'package:cookster/core/media/wall_video_media.dart';
 import 'package:cookster/core/video/cached_playback_url.dart';
+import 'package:cookster/core/video/device_constraints.dart';
 import 'package:cookster/core/video/network_policy.dart';
 import 'package:cookster/core/video/reels_video_cache_manager.dart';
 import 'package:cookster/modules/landing/landingTabs/home/homeModel/videoFeedModel.dart';
@@ -156,23 +157,55 @@ class VideoSourceResolver {
       pick1080 ??= tier == '1080' ? candidate : null;
     }
 
-    // Visible reel: warm 720 first (smaller → partial cache / first frame faster),
-    // then 1080 for HD upgrade while the poster is still showing.
+    // Visible reel: 360-first only on tier C (data saver class). Honor/MTK tier B
+    // prefetches 720+1080 so Wi-Fi opens hit HD bytes on disk.
     if (offsetFromVisible == 0) {
       final visible = <VideoSourceCandidate>[];
-      if (pick720 != null) {
-        visible.add(pick720);
-      }
-      if (pick1080 != null && pick1080 != pick720) {
-        visible.add(pick1080);
+      final smallFirst = DeviceConstraints.instance.prefer360ColdOpen;
+      if (smallFirst) {
+        if (pick360 != null) {
+          visible.add(pick360);
+        }
+        if (pick720 != null && pick720 != pick360) {
+          visible.add(pick720);
+        }
+        if (pick1080 != null &&
+            pick1080 != pick720 &&
+            pick1080 != pick360) {
+          visible.add(pick1080);
+        }
+      } else {
+        if (pick720 != null) {
+          visible.add(pick720);
+        }
+        if (pick1080 != null && pick1080 != pick720) {
+          visible.add(pick1080);
+        }
       }
       if (visible.isNotEmpty) {
         return visible;
       }
     }
 
-    if (offsetFromVisible <= 2 && pick1080 != null) {
-      return [pick1080];
+    // Honor/MTK (tier B): N+1/N+2 prefetch 720 first — sharp enough, lighter
+    // surface than 1080, matches Wi-Fi playback ladder.
+    final honorHdPreload =
+        DeviceConstraints.instance.needsConstrainedSurfaceRecovery &&
+        !DeviceConstraints.instance.prefer360ColdOpen;
+    if (offsetFromVisible <= 2) {
+      if (honorHdPreload && pick720 != null) {
+        final result = <VideoSourceCandidate>[pick720];
+        if (pick1080 != null && pick1080 != pick720) {
+          result.add(pick1080);
+        }
+        if (pick360 != null && pick360 != pick720) {
+          result.add(pick360);
+        }
+        return result;
+      }
+      if (pick1080 != null) {
+        return [pick1080];
+      }
     }
 
     if (dualTier && offsetFromVisible <= 2) {
@@ -304,15 +337,16 @@ class VideoSourceResolver {
     return false;
   }
 
-  /// Cached 1080 MP4 candidate for adaptive upgrade after first frame, if any.
-  Future<VideoSourceCandidate?> cached1080Candidate(
+  /// Cached MP4 at [tier] for adaptive upgrade after first frame, if on disk.
+  Future<VideoSourceCandidate?> cachedTierCandidate(
     List<VideoSourceCandidate> candidates, {
+    required String tier,
     BaseCacheManager? cacheManager,
   }) async {
     final cache = cacheManager ?? ReelsVideoCacheManager.instance.manager;
     for (final candidate in candidates) {
       if (candidate.type != 'mp4_quality' ||
-          mp4Tier(candidate.url) != '1080') {
+          mp4Tier(candidate.url) != tier) {
         continue;
       }
       if (await isPlaybackUrlCached(candidate.url, cacheManager: cache)) {
@@ -320,6 +354,18 @@ class VideoSourceResolver {
       }
     }
     return null;
+  }
+
+  /// Cached 1080 MP4 candidate for adaptive upgrade after first frame, if any.
+  Future<VideoSourceCandidate?> cached1080Candidate(
+    List<VideoSourceCandidate> candidates, {
+    BaseCacheManager? cacheManager,
+  }) async {
+    return cachedTierCandidate(
+      candidates,
+      tier: '1080',
+      cacheManager: cacheManager,
+    );
   }
 
   int _tierRank(String? tier) {

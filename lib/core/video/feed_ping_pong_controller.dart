@@ -133,7 +133,8 @@ class FeedPingPongController {
       _activeIndex = 0;
       await DeviceConstraints.instance.ensureInitialized();
       if (_active.boundKey != key &&
-          _active.openCount >= _recycleAfterOpensSync()) {
+          _active.openCount >= _recycleAfterOpensSync() &&
+          !DeviceConstraints.instance.shouldDeferDecoderRecycle) {
         await _recycleSlotNow(_active);
       }
       var openedMedia = false;
@@ -318,6 +319,27 @@ class FeedPingPongController {
     await _enableSlotAudio(_active);
   }
 
+  /// Poster-unmask audio — Honor/BT needs pause→play to recreate AudioTrack.
+  Future<void> forceRestartActiveAudio() async {
+    await ensureInitialized();
+    final player = _active.player;
+    if (player == null) {
+      return;
+    }
+    await DeviceConstraints.instance.ensureInitialized();
+    try {
+      await player.setVolume(100);
+      if (DeviceConstraints.instance.needsConstrainedSurfaceRecovery) {
+        if (player.state.playing) {
+          await player.pause();
+        }
+        await player.play();
+      } else if (!player.state.playing) {
+        await player.play();
+      }
+    } catch (_) {}
+  }
+
   Future<void> muteActiveForUser() async {
     await pauseActiveForUser();
   }
@@ -429,13 +451,16 @@ class FeedPingPongController {
         await DeviceConstraints.instance.ensureInitialized();
         if (DeviceConstraints.instance.needsConstrainedSurfaceRecovery) {
           if (!fastReopen) {
-            final baseMs =
-                _isLocalPlaybackUrl(sourceUrl) ? 48 : 120;
-            final fatigueMs =
-                (slot.openCount.clamp(0, 16) * 12).clamp(0, 192);
-            await Future<void>.delayed(
-              Duration(milliseconds: baseMs + fatigueMs),
-            );
+            final local = _isLocalPlaybackUrl(sourceUrl);
+            final baseMs = local ? 16 : 120;
+            final fatigueMs = local
+                ? 0
+                : (slot.openCount.clamp(0, 16) * 12).clamp(0, 192);
+            if (baseMs + fatigueMs > 0) {
+              await Future<void>.delayed(
+                Duration(milliseconds: baseMs + fatigueMs),
+              );
+            }
           }
         } else if (!_isLocalPlaybackUrl(sourceUrl) && !fastReopen) {
           await Future<void>.delayed(const Duration(milliseconds: 120));
@@ -460,7 +485,7 @@ class FeedPingPongController {
           await player.play();
         } catch (_) {}
         if (!fastReopen) {
-          final postOpenMs = _isLocalPlaybackUrl(sourceUrl) ? 32 : 64;
+          final postOpenMs = _isLocalPlaybackUrl(sourceUrl) ? 16 : 64;
           await Future<void>.delayed(Duration(milliseconds: postOpenMs));
         }
       }
@@ -508,7 +533,9 @@ class FeedPingPongController {
       return;
     }
     try {
-      // Mid-reel rewind on revisit thrashes MTK flush index — restart only at EOS.
+      // Mid-reel rewind on revisit thrashes MTK/Honor flush index (constant
+      // MediaCodec::flush() → stale buffer callbacks → Rendered 0/s). Restart
+      // only at EOS; a resumed position is acceptable on scroll-back.
       if (player.state.completed) {
         await player.seek(Duration.zero);
       }
@@ -531,6 +558,11 @@ class FeedPingPongController {
     await _disableSlotAudio(slot);
     final player = slot.player;
     if (player == null) {
+      return;
+    }
+    // Single-slot feed (Honor/MTK): mute only — never pause the active demuxer.
+    // Resume is volume-only; pausing here leaves audio silent after swipe/unmute.
+    if (singleSlotMode && identical(slot, _active)) {
       return;
     }
     try {
@@ -570,10 +602,19 @@ class FeedPingPongController {
       return;
     }
     try {
-      if (player.state.volume > 50) {
+      if (player.state.volume > 50 && player.state.playing) {
         return;
       }
       await player.setVolume(100);
+      await DeviceConstraints.instance.ensureInitialized();
+      if (DeviceConstraints.instance.needsConstrainedSurfaceRecovery) {
+        if (player.state.playing) {
+          await player.pause();
+        }
+        await player.play();
+      } else if (!player.state.playing) {
+        await player.play();
+      }
     } catch (_) {}
   }
 
@@ -597,7 +638,9 @@ class FeedPingPongController {
   /// Recycle the active decoder when the single-slot open count is high (Honor).
   Future<bool> recycleActiveDecoderIfStale() async {
     await DeviceConstraints.instance.ensureInitialized();
-    if (!singleSlotMode || _active.openCount < _recycleAfterOpensSync()) {
+    if (!singleSlotMode ||
+        _active.openCount < _recycleAfterOpensSync() ||
+        DeviceConstraints.instance.shouldDeferDecoderRecycle) {
       return false;
     }
     await _recycleSlotNow(_active);

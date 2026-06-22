@@ -233,8 +233,7 @@ class MediaKitPlayerPool {
       if (player == null) {
         return false;
       }
-      // Feed demux stays hot from open(play:true); MTK lies about [playing] after mute.
-      return player.state.volume > 50;
+      return player.state.volume > 50 && player.state.playing;
     }
     if (_activeKey != key) {
       return false;
@@ -546,10 +545,12 @@ class MediaKitPlayerPool {
 
   /// Feed-only: ping-pong present — flip if prefetched, else open on active slot.
   /// [openToken] must be the widget's [_playbackGeneration]; stale calls are ignored.
+  /// [preserveFrameReady] — quality-tier swaps while the poster is already down.
   Future<PooledMediaKitPlayer> openVisibleReel({
     required String key,
     required String sourceUrl,
     required int openToken,
+    bool preserveFrameReady = false,
   }) {
     return _runPriority(() async {
       _feedOpenToken = openToken;
@@ -576,7 +577,8 @@ class MediaKitPlayerPool {
 
       final suspendEpoch = _suspendEpoch;
       FeedPresentResult? result;
-      final fastReopen = hadRecentPaint(key, sourceUrl: sourceUrl);
+      final fastReopen = hadRecentPaint(key, sourceUrl: sourceUrl) ||
+          isLocalPlaybackUrl(sourceUrl);
       try {
         result = await _pingPong.presentReel(
           key: key,
@@ -613,7 +615,7 @@ class MediaKitPlayerPool {
       _warmInFlight.remove(key);
       _touchLru(key);
       _bufferPrimedKeys.add(key);
-      if (result.openedMedia) {
+      if (result.openedMedia && !preserveFrameReady) {
         _clearFrameReady(key);
       }
 
@@ -679,76 +681,113 @@ class MediaKitPlayerPool {
     String key, {
     bool bumpSurface = true,
   }) {
+    return _runPriority(() => _recoverFeedVisibleSurfaceLocked(
+          key,
+          bumpSurface: bumpSurface,
+        ));
+  }
+
+  /// Render-stall recovery: surface bump + hard decoder recycle (openToken guarded).
+  Future<void> recoverFeedVisibleSurfaceAfterStall(
+    String key, {
+    required int openToken,
+  }) {
     return _runPriority(() async {
-      if (key.isEmpty || _feedVisibleKey != key) {
+      if (key.isEmpty || _feedVisibleKey != key || _isStaleFeedOpen(openToken)) {
         return;
       }
-      await DeviceConstraints.instance.ensureInitialized();
-      final primedScrollBack = isFrameReady(key) ||
-          hadRecentPaint(key) ||
-          isBufferPrimed(key);
-      // Honor/MTK: never tear down the ImageReader here — logs show
-      // Rendered 0/s + VideoOutput deleteGlobalObjectRef when we force-recycle
-      // while the Flutter [Video] widget is still mounted (tab return, etc.).
-      if (DeviceConstraints.instance.needsConstrainedSurfaceRecovery) {
-        final player = _pingPong.activePlayer;
-        if (player != null) {
-          try {
-            if (!player.state.playing) {
-              await player.play();
-            }
-          } catch (_) {}
-        }
-        if (!primedScrollBack) {
-          await _pingPong.recycleActiveDecoderIfStale();
-        }
-        ReelsPerf.emit(
-          ReelsPerfEvent(
-            name: 'surface_recovery',
-            feedMode: _pingPong.singleSlotMode ? 'single_slot' : 'dual_slot',
-            extra: {'key': key, 'mtk_soft': true, 'primed': primedScrollBack},
-          ),
-        );
+      if (!_feedPingPongConfigured) {
+        await ensureFeedPingPongInitialized();
+      }
+      await _recoverFeedVisibleSurfaceLocked(key, bumpSurface: true);
+      if (_isStaleFeedOpen(openToken)) {
         return;
       }
-      final now = DateTime.now().millisecondsSinceEpoch;
-      if (bumpSurface &&
-          _lastSurfaceRecoveryKey == key &&
-          now - _lastSurfaceRecoveryMs < 900) {
-        return;
+      if (!DeviceConstraints.instance.needsConstrainedSurfaceRecovery) {
+        await _pingPong.forceRecycleActiveDecoder();
       }
-      final player = _pingPong.activePlayer;
-      if (player == null) {
-        return;
-      }
-      try {
-        await player.pause();
-        await player.seek(Duration.zero);
-        await Future<void>.delayed(const Duration(milliseconds: 48));
-        await player.play();
-        await player.setVolume(0);
-      } catch (_) {}
-      _lastSurfaceRecoveryKey = key;
-      _lastSurfaceRecoveryMs = now;
-      if (!bumpSurface) {
-        ReelsPerf.emit(
-          ReelsPerfEvent(
-            name: 'surface_recovery',
-            feedMode: _pingPong.singleSlotMode ? 'single_slot' : 'dual_slot',
-            extra: {'key': key, 'bump': false},
-          ),
-        );
-        return;
-      }
-      feedSurfaceGeneration.value++;
       ReelsPerf.emit(
         ReelsPerfEvent(
           name: 'surface_recovery',
           feedMode: _pingPong.singleSlotMode ? 'single_slot' : 'dual_slot',
-          extra: {'key': key},
+          extra: {'key': key, 'stall': true},
         ),
       );
     });
+  }
+
+  Future<void> _recoverFeedVisibleSurfaceLocked(
+    String key, {
+    required bool bumpSurface,
+  }) async {
+    if (key.isEmpty || _feedVisibleKey != key) {
+      return;
+    }
+    await DeviceConstraints.instance.ensureInitialized();
+    final primedScrollBack = isFrameReady(key) ||
+        hadRecentPaint(key) ||
+        isBufferPrimed(key);
+    // Honor/MTK: never tear down the ImageReader here — logs show
+    // Rendered 0/s + VideoOutput deleteGlobalObjectRef when we force-recycle
+    // while the Flutter [Video] widget is still mounted (tab return, etc.).
+    if (DeviceConstraints.instance.needsConstrainedSurfaceRecovery) {
+      final player = _pingPong.activePlayer;
+      if (player != null) {
+        try {
+          if (!player.state.playing) {
+            await player.play();
+          }
+        } catch (_) {}
+      }
+      if (!primedScrollBack) {
+        await _pingPong.recycleActiveDecoderIfStale();
+      }
+      ReelsPerf.emit(
+        ReelsPerfEvent(
+          name: 'surface_recovery',
+          feedMode: _pingPong.singleSlotMode ? 'single_slot' : 'dual_slot',
+          extra: {'key': key, 'mtk_soft': true, 'primed': primedScrollBack},
+        ),
+      );
+      return;
+    }
+    final now = DateTime.now().millisecondsSinceEpoch;
+    if (bumpSurface &&
+        _lastSurfaceRecoveryKey == key &&
+        now - _lastSurfaceRecoveryMs < 900) {
+      return;
+    }
+    final player = _pingPong.activePlayer;
+    if (player == null) {
+      return;
+    }
+    try {
+      await player.pause();
+      await player.seek(Duration.zero);
+      await Future<void>.delayed(const Duration(milliseconds: 48));
+      await player.play();
+      await player.setVolume(0);
+    } catch (_) {}
+    _lastSurfaceRecoveryKey = key;
+    _lastSurfaceRecoveryMs = now;
+    if (!bumpSurface) {
+      ReelsPerf.emit(
+        ReelsPerfEvent(
+          name: 'surface_recovery',
+          feedMode: _pingPong.singleSlotMode ? 'single_slot' : 'dual_slot',
+          extra: {'key': key, 'bump': false},
+        ),
+      );
+      return;
+    }
+    feedSurfaceGeneration.value++;
+    ReelsPerf.emit(
+      ReelsPerfEvent(
+        name: 'surface_recovery',
+        feedMode: _pingPong.singleSlotMode ? 'single_slot' : 'dual_slot',
+        extra: {'key': key},
+      ),
+    );
   }
 
   /// Proactive decoder recycle on Honor after many swipes (single-slot fatigue).
@@ -790,8 +829,51 @@ class MediaKitPlayerPool {
     return feedResumeAudibleWhenReady(key);
   }
 
+  /// Primary audio entry at poster_unmask — bypasses suspend-epoch and pool-map gates.
+  Future<void> forceFeedAudibleAtPosterUnmask(String key) {
+    return _runPriority(() async {
+      if (key.isEmpty ||
+          _feedVisibleKey != key ||
+          _userPausedKeys.contains(key) ||
+          _pingPong.visibleKey != key) {
+        ReelsPerf.log(
+          'feed_audible skip key=$key feed=$_feedVisibleKey vis=${_pingPong.visibleKey}',
+        );
+        return;
+      }
+      _audibleTargetKey = key;
+      _activeKey = key;
+      _lastAudibleResumeKey = key;
+      _lastAudibleResumeMs = DateTime.now().millisecondsSinceEpoch;
+      final player = _feedVisiblePlayer;
+      if (player == null) {
+        ReelsPerf.log('feed_audible skip no player key=$key');
+        return;
+      }
+      if (_players[key] == null) {
+        _players[key] = player;
+        _leaseCount[key] = (_leaseCount[key] ?? 0).clamp(1, 999);
+      }
+      await _pingPong.forceRestartActiveAudio();
+      if (!isActiveAudible(key)) {
+        try {
+          await player.setVolume(100);
+          if (player.state.playing) {
+            await player.pause();
+          }
+          await player.play();
+        } catch (_) {}
+      }
+      ReelsPerf.log(
+        'feed_audible key=$key ok=${isActiveAudible(key)} '
+        'vol=${player.state.volume} playing=${player.state.playing}',
+      );
+    });
+  }
+
   /// Single unmute entry — debounced; never seek (Honor flush storms).
-  void unmuteFeedVisibleImmediate(String key) {
+  /// Post-paint retries pass [force: true] so the 600ms debounce cannot block them.
+  void unmuteFeedVisibleImmediate(String key, {bool force = false}) {
     if (key.isEmpty ||
         _feedVisibleKey != key ||
         _userPausedKeys.contains(key)) {
@@ -800,14 +882,16 @@ class MediaKitPlayerPool {
     if (_pingPong.visibleKey != key) {
       return;
     }
-    if (!isFrameReady(key)) {
+    if (!force && !isFrameReady(key)) {
       return;
     }
     if (isActiveAudible(key)) {
       return;
     }
     final now = DateTime.now().millisecondsSinceEpoch;
-    if (_lastAudibleResumeKey == key && now - _lastAudibleResumeMs < 600) {
+    if (!force &&
+        _lastAudibleResumeKey == key &&
+        now - _lastAudibleResumeMs < 600) {
       return;
     }
     _lastAudibleResumeKey = key;
@@ -815,9 +899,8 @@ class MediaKitPlayerPool {
     _audibleTargetKey = key;
     _activeKey = key;
     unawaited(
-      _pingPong.resumeActiveAudible(
-        alreadyAudible: false,
-        expectedKey: key,
+      _runPriority(
+        () => _unmuteAndPlayLocked(key, suspendEpoch: _suspendEpoch),
       ),
     );
   }
@@ -832,7 +915,7 @@ class MediaKitPlayerPool {
   }
 
   /// Unmute when [key] is on the active slot and a frame has painted.
-  Future<void> feedResumeAudibleWhenReady(String key) {
+  Future<void> feedResumeAudibleWhenReady(String key, {bool force = false}) {
     return _runPriority(() async {
       if (key.isEmpty ||
           _feedVisibleKey != key ||
@@ -842,24 +925,23 @@ class MediaKitPlayerPool {
       if (_pingPong.visibleKey != key) {
         return;
       }
-      if (!isFrameReady(key)) {
+      if (!force && !isFrameReady(key)) {
         return;
       }
       if (isActiveAudible(key)) {
         return;
       }
       final now = DateTime.now().millisecondsSinceEpoch;
-      if (_lastAudibleResumeKey == key && now - _lastAudibleResumeMs < 600) {
+      if (!force &&
+          _lastAudibleResumeKey == key &&
+          now - _lastAudibleResumeMs < 600) {
         return;
       }
       _lastAudibleResumeKey = key;
       _lastAudibleResumeMs = now;
       _audibleTargetKey = key;
       _activeKey = key;
-      await _pingPong.resumeActiveAudible(
-        alreadyAudible: false,
-        expectedKey: key,
-      );
+      await _unmuteAndPlayLocked(key, suspendEpoch: _suspendEpoch);
     });
   }
 
@@ -1065,10 +1147,15 @@ class MediaKitPlayerPool {
         key != _feedVisibleKey) {
       return;
     }
-    if (_userPausedKeys.contains(key) || _isSuspendedSince(suspendEpoch)) {
+    if (_userPausedKeys.contains(key)) {
       return;
     }
-    final player = _players[key];
+    final isFeedVisible =
+        _feedVisibleKey == key && _isFeedPingPongPlayer(_feedVisiblePlayer);
+    if (!isFeedVisible && _isSuspendedSince(suspendEpoch)) {
+      return;
+    }
+    final player = _players[key] ?? _feedVisiblePlayer;
     if (player == null) {
       return;
     }
@@ -1080,9 +1167,9 @@ class MediaKitPlayerPool {
         !identical(player, _feedVisiblePlayer)) {
       await _silenceOthersLocked(key);
     }
-    if (_players[key] != player ||
+    if ((_players[key] != null && _players[key] != player) ||
         _audibleTargetKey != key ||
-        _isSuspendedSince(suspendEpoch)) {
+        (!isFeedVisible && _isSuspendedSince(suspendEpoch))) {
       return;
     }
     if (player.state.completed) {
@@ -1115,8 +1202,10 @@ class MediaKitPlayerPool {
         key != _feedVisibleKey) {
       return false;
     }
-    if (_isSuspendedSince(suspendEpoch) ||
-        _players[key] != player ||
+    final isFeedVisible =
+        _feedVisibleKey == key && _isFeedPingPongPlayer(_feedVisiblePlayer);
+    if ((!isFeedVisible && _isSuspendedSince(suspendEpoch)) ||
+        (_players[key] != player && player != _feedVisiblePlayer) ||
         _userPausedKeys.contains(key) ||
         _audibleTargetKey != key) {
       return false;
@@ -1125,9 +1214,13 @@ class MediaKitPlayerPool {
       if (player.state.volume <= 50) {
         await player.setVolume(100);
       }
-      final isFeedPlayer = _isFeedPingPongPlayer(player);
-      // Feed demux is started by open(play:true); never call play() again on MTK.
-      if (!isFeedPlayer && !player.state.playing) {
+      if (_isFeedPingPongPlayer(player) &&
+          DeviceConstraints.instance.needsConstrainedSurfaceRecovery) {
+        if (player.state.playing) {
+          await player.pause();
+        }
+        await player.play();
+      } else if (!player.state.playing) {
         await player.play();
       }
     } catch (_) {}
@@ -1164,10 +1257,7 @@ class MediaKitPlayerPool {
         }
         _audibleTargetKey = key;
         _activeKey = key;
-        await _pingPong.resumeActiveAudible(
-          alreadyAudible: false,
-          expectedKey: key,
-        );
+        await _unmuteAndPlayLocked(key, suspendEpoch: suspendEpoch);
         return;
       }
       final now = DateTime.now().millisecondsSinceEpoch;

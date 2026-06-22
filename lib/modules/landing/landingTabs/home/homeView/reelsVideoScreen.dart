@@ -273,7 +273,13 @@ class _VideoReelScreenState extends State<VideoReelScreen>
     if (key == null || key.isEmpty) {
       return;
     }
-    unawaited(MediaKitPlayerPool.instance.resumeFeedVisible(key));
+    if (!MediaKitPlayerPool.instance.isFeedVisibleKey(key) ||
+        !MediaKitPlayerPool.instance.isFrameReady(key)) {
+      return;
+    }
+    unawaited(
+      MediaKitPlayerPool.instance.forceFeedAudibleAtPosterUnmask(key),
+    );
   }
 
   Future<void> _warmVisibleBeforePlayback(
@@ -325,6 +331,8 @@ class _VideoReelScreenState extends State<VideoReelScreen>
       final id = video.id;
       if (id != null &&
           id.isNotEmpty &&
+          MediaKitPlayerPool.instance.isFeedVisibleKey(id) &&
+          MediaKitPlayerPool.instance.isFrameReady(id) &&
           !MediaKitPlayerPool.instance.isActiveAudible(id)) {
         _resumeFeedAudibleOnce();
       }
@@ -348,7 +356,6 @@ class _VideoReelScreenState extends State<VideoReelScreen>
         }
         unawaited(_feedReelPlayerKey.currentState?.resumeAfterRouteOverlay());
       }
-      _resumeFeedAudibleOnce();
     });
   }
 
@@ -448,6 +455,12 @@ class _VideoReelScreenState extends State<VideoReelScreen>
       _syncActiveTabScrollListener(previousTab, newTabType);
       if (hasCache) {
         _finishFeedTabPlayback(newTabType, fromTabSwitch: true);
+        unawaited(
+          _preloadManager.prefetchVisibleReel(
+            targetIndex!,
+            maxWaitMs: 280,
+          ),
+        );
         unawaited(controller.fetchVideos(fromTabSwitch: true));
         await _waitForTabSwitchFrame();
       } else {
@@ -459,6 +472,12 @@ class _VideoReelScreenState extends State<VideoReelScreen>
               controller.resolveScrollIndexForTab(newTabType, videos);
           _tabSwitchTargetVideoId = videos[resolved].id;
           _finishFeedTabPlayback(newTabType, fromTabSwitch: true);
+          unawaited(
+            _preloadManager.prefetchVisibleReel(
+              resolved,
+              maxWaitMs: 280,
+            ),
+          );
           await _waitForTabSwitchFrame();
         }
       }
@@ -576,7 +595,9 @@ class _VideoReelScreenState extends State<VideoReelScreen>
       return;
     }
     layer.activePlayerVideo = targetVideo;
-    _preloadManager.prepareForSessionStart();
+    if (!fromTabSwitch) {
+      _preloadManager.prepareForSessionStart();
+    }
     layer.visibleIndexNotifier.value = targetIndex;
     _resetPosterMaskForPageChange(
       videoId: targetId,
@@ -592,7 +613,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
       unawaited(
         _warmVisibleBeforePlayback(
           targetIndex,
-          maxWaitMs: fromTabSwitch ? 120 : 360,
+          maxWaitMs: fromTabSwitch ? 280 : 360,
         ).then((_) {
           if (!mounted || tab != _activeTabType) {
             return;
@@ -624,6 +645,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
       return;
     }
     setState(() => _maskActiveVideoWithPoster = false);
+    _resumeFeedAudibleOnce();
   }
 
   void _onFeedAwaitingPaint() {
@@ -1282,7 +1304,6 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                 controller.visiblePageIndex.value,
                 forceReattach: !poolLive,
               );
-              _resumeFeedAudibleOnce();
             }
           : null,
       child: PageView.custom(
@@ -1302,6 +1323,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                 if (length == 0) {
                   return;
                 }
+                MediaKitPlayerPool.instance.pauseAllImmediate();
                 _feedReelPlayerKey.currentState
                     ?.cancelInFlightPlaybackForPageChange();
                 final actualIndex = index % length;
@@ -1309,6 +1331,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                 controller.saveTabScrollIndex(tab, actualIndex);
                 controller.saveTabVideoId(tab, videos[actualIndex].id);
                 layer.visibleIndexNotifier.value = actualIndex;
+                DeviceConstraints.instance.recordSwipe();
                 _resetPosterMaskForPageChange(
                   videoId: videos[actualIndex].id,
                 );

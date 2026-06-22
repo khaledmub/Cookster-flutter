@@ -57,7 +57,8 @@ class VideoPreloadManager {
     _diskBootstrapDone = false;
     _decoderBootstrapDone = false;
     _lastPreloadIndex = -1;
-    decoderWarmEnabled = false;
+    // Keep decoder warm enabled when switching tabs — Near Me / Following should
+    // prefetch ahead the same way General does after the first visible paint.
   }
 
   /// Tab switch / cold session — resets decoder warm pipeline.
@@ -74,8 +75,8 @@ class VideoPreloadManager {
   /// @deprecated Use [prepareForSessionStart] for tab/overlay; [onVisiblePageSettled] for swipes.
   void prepareForVisibleAttach() => prepareForSessionStart();
 
-  /// Disk-prefetch the visible reel immediately (720 then 1080) so the first
-  /// open can hit partial/full cache instead of a cold CDN stream.
+  /// Disk-prefetch the visible reel immediately (720+1080 on Honor Wi-Fi, else
+  /// tier-appropriate ladder) so the first open can hit partial/full cache.
   ///
   /// Waits up to [maxWaitMs] for a fast-start partial on disk before returning
   /// so [openVisibleReel] can open from local bytes when prefetch wins the race.
@@ -218,6 +219,7 @@ class VideoPreloadManager {
       return;
     }
     await _deviceConstraints.ensureInitialized();
+    _deviceConstraints.recordSwipe();
     final depth = await _resolvePreloadDepth();
     final indices = buildDirectionalPrefetchIndices(
       fromIndex: fromIndex,

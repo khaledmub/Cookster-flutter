@@ -1,6 +1,8 @@
 import 'package:cookster/core/video/device_constraints.dart';
 import 'package:cookster/core/video/feed_ping_pong_controller.dart';
+import 'package:cookster/core/video/reels_device_capability_store.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   group('FeedPingPongController slot mode', () {
@@ -16,12 +18,17 @@ void main() {
   });
 
   group('DeviceConstraints defaults', () {
-    test('needsSingleSlotFeedSync defaults true before init', () {
-      expect(DeviceConstraints.instance.needsSingleSlotFeedSync, isTrue);
+    setUp(() async {
+      SharedPreferences.setMockInitialValues({});
+      ReelsDeviceCapabilityStore.instance.resetForTesting();
     });
 
-    test('deviceTierSync defaults to tier B before init', () {
-      expect(DeviceConstraints.instance.deviceTierSync, ReelsDeviceTier.b);
+    test('needsSingleSlotFeedSync defaults false before init', () {
+      expect(DeviceConstraints.instance.needsSingleSlotFeedSync, isFalse);
+    });
+
+    test('deviceTierSync defaults to tier S before init', () {
+      expect(DeviceConstraints.instance.deviceTierSync, ReelsDeviceTier.s);
     });
   });
 }
