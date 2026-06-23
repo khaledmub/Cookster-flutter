@@ -441,7 +441,7 @@ class FeedPingPongController {
     bool fastReopen = false,
   }) async {
     final player = slot.player!;
-    final sameMedia = slot.boundKey == key && key.isNotEmpty;
+    final sameMedia = slot.boundKey == key && key.isNotEmpty && slot.boundUrl == sourceUrl;
     var openedMedia = false;
     if (!sameMedia) {
       if (!identical(slot, _active)) {
