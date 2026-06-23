@@ -455,7 +455,7 @@ class FeedPingPongController {
             final baseMs = local ? 16 : 120;
             final fatigueMs = local
                 ? 0
-                : (slot.openCount.clamp(0, 16) * 12).clamp(0, 192);
+                : (slot.openCount.clamp(0, 8) * 12).clamp(0, 96);
             if (baseMs + fatigueMs > 0) {
               await Future<void>.delayed(
                 Duration(milliseconds: baseMs + fatigueMs),
@@ -463,7 +463,7 @@ class FeedPingPongController {
             }
           }
         } else if (!_isLocalPlaybackUrl(sourceUrl) && !fastReopen) {
-          await Future<void>.delayed(const Duration(milliseconds: 120));
+          await Future<void>.delayed(const Duration(milliseconds: 64));
         }
       }
       final honorActiveOpen = identical(slot, _active) &&

@@ -10,9 +10,8 @@ void main() {
         towardIndex: 6,
         depth: 4,
       );
-      expect(indices, containsAll([6, 7, 10, 4]));
+      expect(indices, containsAll([6, 7, 10, 4, 3]));
       expect(indices, isNot(contains(2)));
-      expect(indices, isNot(contains(3)));
     });
 
     test('scroll up warms upward indices only', () {

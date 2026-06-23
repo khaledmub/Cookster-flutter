@@ -1093,9 +1093,10 @@ class MediaKitPlayerPool {
         if (player.state.playing) {
           await player.pause();
         }
-        if (_players[entry.key] == player && _needsBackgroundReset(player)) {
-          await player.seek(Duration.zero);
-        }
+        // Skip seek-to-zero for background players during feed swipe —
+        // rewind happens lazily via _quickStartLocked when the player
+        // becomes visible again. Removing the eager seek saves ~30ms
+        // per silenced player per swipe.
         if (_players[entry.key] == player) {
           await player.setVolume(0);
         }
@@ -1334,7 +1335,9 @@ class MediaKitPlayerPool {
     final toDispose = <String>[];
     for (final entry in _players.entries) {
       final slotKey = entry.key;
-      if (slotKey == key || (_leaseCount[slotKey] ?? 0) > 0) {
+      if (slotKey == key ||
+          (_leaseCount[slotKey] ?? 0) > 0 ||
+          _warmInFlight.contains(slotKey)) {
         continue;
       }
       if (_isFeedPingPongPlayer(entry.value)) {
@@ -1466,7 +1469,24 @@ class MediaKitPlayerPool {
       await player.stop();
     } catch (_) {}
     _clearFrameReady(key);
-    await player.open(Media(sourceUrl), play: false);
+    try {
+      await player.open(Media(sourceUrl), play: false);
+    } catch (e) {
+      // Native decoder crash during recycle — dispose broken player,
+      // fall back to a fresh instance so the pool map stays consistent.
+      try {
+        await player.dispose();
+      } catch (_) {}
+      final fresh = Player();
+      try {
+        await fresh.open(Media(sourceUrl), play: false);
+        await fresh.setVolume(0);
+      } catch (_) {}
+      _players[key] = fresh;
+      _sourceByKey[key] = sourceUrl;
+      _bufferPrimedKeys.add(key);
+      return fresh;
+    }
     await player.setVolume(0);
     _players[key] = player;
     _sourceByKey[key] = sourceUrl;
@@ -1615,6 +1635,7 @@ class MediaKitPlayerPool {
     required String sourceUrl,
   }) async {
     final generation = _disposeGeneration;
+    final warmOpenToken = _feedOpenToken;
     try {
       while (_activeWarmTasks >= _maxWarmSlots) {
         await Future<void>.delayed(const Duration(milliseconds: 16));
@@ -1634,6 +1655,10 @@ class MediaKitPlayerPool {
       }
 
       if (generation != _disposeGeneration) {
+        return;
+      }
+      // Bail if a newer visible reel was requested while we waited
+      if (warmOpenToken < _feedOpenToken) {
         return;
       }
       final player = Player(

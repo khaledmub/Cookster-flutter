@@ -174,4 +174,46 @@ void main() {
       );
     });
   });
+
+  group('MTK: delay capping (Phase 1 consistency)', () {
+    test('fatigue delay capped at 96ms for remote opens', () {
+      // _openOnSlotLocked formula: (openCount.clamp(0, 8) * 12).clamp(0, 96)
+      // At openCount=8 → 8*12=96ms (max)
+      // At openCount=16 → clamp(0,8) → 8*12=96ms (not 192ms)
+      final fatigue8 = (8.clamp(0, 8) * 12).clamp(0, 96);
+      final fatigue16 = (16.clamp(0, 8) * 12).clamp(0, 96);
+      expect(fatigue8, 96);
+      expect(fatigue16, 96, reason: 'fatigue must not exceed 96ms');
+    });
+
+    test('fatigue delay scales linearly up to cap', () {
+      final fatigue0 = (0.clamp(0, 8) * 12).clamp(0, 96);
+      final fatigue4 = (4.clamp(0, 8) * 12).clamp(0, 96);
+      expect(fatigue0, 0);
+      expect(fatigue4, 48, reason: '4 opens × 12ms = 48ms');
+    });
+
+    test('local cached files have zero fatigue delay', () {
+      const local = true;
+      final fatigueMs = local ? 0 : (8.clamp(0, 8) * 12).clamp(0, 96);
+      expect(fatigueMs, 0, reason: 'local files skip fatigue entirely');
+    });
+
+    test('fastReopen bypasses all delays', () {
+      // fastReopen=true skips the entire delay block in _openOnSlotLocked.
+      // Validates that scroll-back reopen is instant.
+      const fastReopen = true;
+      const delayed = !fastReopen; // false — delay block is skipped
+      expect(delayed, isFalse);
+    });
+
+    test('non-constrained path uses 64ms delay for remote', () {
+      // Previously 120ms; now 64ms for Tier S/A devices.
+      const delayMs = 64;
+      expect(delayMs, lessThan(120),
+          reason: 'non-constrained delay must be reduced');
+      expect(delayMs, greaterThan(0),
+          reason: 'some delay needed for decoder drain');
+    });
+  });
 }

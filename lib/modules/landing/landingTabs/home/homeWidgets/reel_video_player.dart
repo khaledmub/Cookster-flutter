@@ -1849,7 +1849,7 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
       return;
     }
     _surfacePaintFrames = 0;
-    _afterSurfaceMounted(player);
+    _afterSurfaceMounted(player, paintTicks: _lastOpenCacheHit ? 2 : 6);
   }
 
   void _bindFeedPlayer(
@@ -2211,7 +2211,7 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
     required int generation,
   }) async {
     var waited = 0;
-    while (waited < 3200 &&
+    while (waited < 2000 &&
         mounted &&
         !_isDisposed &&
         _isCurrentAttach(generation)) {
