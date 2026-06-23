@@ -329,14 +329,19 @@ class _SingleVideoScreenState extends State<SingleVideoScreen>
   void _pauseVideo() {
     final key = _playerKey;
     if (key != null && key.isNotEmpty) {
-      unawaited(MediaKitPlayerPool.instance.pause(key));
+      final player = MediaKitPlayerPool.instance.playerForKey(key);
+      if (player != null) {
+        try {
+          unawaited(player.pause());
+        } catch (_) {}
+      }
     }
   }
 
   void _resumeVideo() {
     final key = _playerKey;
     if (key != null && key.isNotEmpty) {
-      unawaited(MediaKitPlayerPool.instance.setActive(key));
+      unawaited(MediaKitPlayerPool.instance.unmuteAndPlay(key));
     }
   }
 
@@ -364,9 +369,18 @@ class _SingleVideoScreenState extends State<SingleVideoScreen>
   bool _isProcessing = false;
 
   void _toggleMute() {
-    setState(() {
-      _isMuted = !_isMuted;
-    });
+    final key = _playerKey;
+    if (key != null && key.isNotEmpty) {
+      final player = MediaKitPlayerPool.instance.playerForKey(key);
+      if (player != null) {
+        setState(() {
+          _isMuted = !_isMuted;
+        });
+        try {
+          unawaited(player.setVolume(_isMuted ? 0 : 100));
+        } catch (_) {}
+      }
+    }
   }
 
   @override

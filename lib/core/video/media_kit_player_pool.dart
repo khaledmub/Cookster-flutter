@@ -74,6 +74,7 @@ class MediaKitPlayerPool {
 
   /// LRU order: oldest at [LinkedHashMap.keys.first], MRU at last.
   final LinkedHashMap<String, Player> _players = LinkedHashMap<String, Player>();
+  String? _lastAudioRecoveryKey;
   final Map<String, int> _leaseCount = <String, int>{};
   final Map<String, String> _sourceByKey = <String, String>{};
   final Set<String> _warmInFlight = <String>{};
@@ -1142,7 +1143,11 @@ class MediaKitPlayerPool {
     if (openToken != null && _isStaleFeedOpen(openToken)) {
       return;
     }
-    if (_feedVisiblePlayer != null &&
+    // Only block feed ping-pong players competing for a different feed slot.
+    // Standalone (non-feed) players must be allowed to unmute.
+    final player = _players[key] ?? _feedVisiblePlayer;
+    if (player != null &&
+        _isFeedPingPongPlayer(player) &&
         _feedVisibleKey != null &&
         key != _feedVisibleKey) {
       return;
@@ -1152,10 +1157,10 @@ class MediaKitPlayerPool {
     }
     final isFeedVisible =
         _feedVisibleKey == key && _isFeedPingPongPlayer(_feedVisiblePlayer);
-    if (!isFeedVisible && _isSuspendedSince(suspendEpoch)) {
+    final isStandalone = player != null && !_isFeedPingPongPlayer(player);
+    if (!isFeedVisible && !isStandalone && _isSuspendedSince(suspendEpoch)) {
       return;
     }
-    final player = _players[key] ?? _feedVisiblePlayer;
     if (player == null) {
       return;
     }
@@ -1169,13 +1174,13 @@ class MediaKitPlayerPool {
     }
     if ((_players[key] != null && _players[key] != player) ||
         _audibleTargetKey != key ||
-        (!isFeedVisible && _isSuspendedSince(suspendEpoch))) {
+        (!isFeedVisible && !isStandalone && _isSuspendedSince(suspendEpoch))) {
       return;
     }
     if (player.state.completed) {
       await player.seek(Duration.zero);
       await _waitForPositionNearStart(player, key);
-      if (_players[key] != player || _isSuspendedSince(suspendEpoch)) {
+      if (_players[key] != player || (!isStandalone && _isSuspendedSince(suspendEpoch))) {
         return;
       }
     }
@@ -1197,14 +1202,17 @@ class MediaKitPlayerPool {
     if (openToken != null && _isStaleFeedOpen(openToken)) {
       return false;
     }
-    if (_feedVisiblePlayer != null &&
+    // Only block feed ping-pong players competing for a different feed slot.
+    final isStandalonePlayer = _players[key] == player && !_isFeedPingPongPlayer(player);
+    if (!isStandalonePlayer &&
+        _feedVisiblePlayer != null &&
         _feedVisibleKey != null &&
         key != _feedVisibleKey) {
       return false;
     }
     final isFeedVisible =
         _feedVisibleKey == key && _isFeedPingPongPlayer(_feedVisiblePlayer);
-    if ((!isFeedVisible && _isSuspendedSince(suspendEpoch)) ||
+    if ((!isFeedVisible && !isStandalonePlayer && _isSuspendedSince(suspendEpoch)) ||
         (_players[key] != player && player != _feedVisiblePlayer) ||
         _userPausedKeys.contains(key) ||
         _audibleTargetKey != key) {
@@ -1216,15 +1224,22 @@ class MediaKitPlayerPool {
       }
       if (_isFeedPingPongPlayer(player) &&
           DeviceConstraints.instance.needsConstrainedSurfaceRecovery) {
-        if (player.state.playing) {
-          await player.pause();
+        if (_lastAudioRecoveryKey != key) {
+          if (player.state.playing) {
+            _lastAudioRecoveryKey = key;
+            await player.pause();
+            await player.play();
+          } else {
+            await player.play();
+          }
+        } else if (!player.state.playing) {
+          await player.play();
         }
-        await player.play();
       } else if (!player.state.playing) {
         await player.play();
       }
     } catch (_) {}
-    return !_isSuspendedSince(suspendEpoch) &&
+    return (isStandalonePlayer || !_isSuspendedSince(suspendEpoch)) &&
         _players[key] == player &&
         player.state.volume > 50 &&
         player.state.playing;
@@ -1243,11 +1258,15 @@ class MediaKitPlayerPool {
           _isSuspendedSince(suspendEpoch)) {
         return;
       }
-      if (_feedVisiblePlayer != null &&
+      // Only block feed ping-pong players competing for a different feed slot.
+      final playerForKey = _players[key];
+      if (playerForKey != null &&
+          _isFeedPingPongPlayer(playerForKey) &&
           _feedVisibleKey != null &&
           key != _feedVisibleKey) {
         return;
       }
+      final isStandaloneKey = playerForKey != null && !_isFeedPingPongPlayer(playerForKey);
       if (_feedVisibleKey == key && _isFeedPingPongPlayer(_players[key])) {
         if (isActiveAudible(key)) {
           return;
@@ -1276,7 +1295,7 @@ class MediaKitPlayerPool {
 
       _audibleTargetKey = key;
       await _silenceOthersLocked(key);
-      if (_audibleTargetKey != key || _isSuspendedSince(suspendEpoch)) {
+      if (_audibleTargetKey != key || (!isStandaloneKey && _isSuspendedSince(suspendEpoch))) {
         return;
       }
 
