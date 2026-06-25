@@ -1077,7 +1077,7 @@ class HomeController extends GetxController with WidgetsBindingObserver {
   }
 
   /// Pause + silence when leaving Home via bottom nav — keeps decoder warm.
-  void enterBottomNavMute() {
+  Future<void> enterBottomNavMute() async {
     _bottomNavMuteDepth++;
     isNavigating.value = true;
     isVideoPlaying.value = false;
@@ -1090,7 +1090,7 @@ class HomeController extends GetxController with WidgetsBindingObserver {
     }
     MediaKitPlayerPool.instance.silenceAllSync();
     MediaKitPlayerPool.instance.pauseAllImmediate();
-    unawaited(pauseAllVideosAwait());
+    await pauseAllVideosAwait();
   }
 
   /// Sync mute when leaving home feed context (routes, overlays).
@@ -1145,7 +1145,7 @@ class HomeController extends GetxController with WidgetsBindingObserver {
   /// Immediate silence before a route push (no depth change). Pair with
   /// [pauseReelsForRouteOverlay] on the pushed screen's [initState].
   void silenceHomeReelsForTransition() {
-    enterMutedPlaybackContext('transition');
+    MediaKitPlayerPool.instance.silenceAllSync();
   }
 
   /// Stops reel audio/video immediately when pushing another route (e.g. profile).

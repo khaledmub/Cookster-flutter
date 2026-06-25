@@ -3,13 +3,13 @@ import 'package:get/get.dart';
 import 'package:share_plus/share_plus.dart';
 
 String profileShareUrl({String? email, String? userId}) {
-  final trimmedId = userId?.trim() ?? '';
-  if (trimmedId.isNotEmpty) {
-    return 'https://cookster.org/web/visitProfile?userId=$trimmedId';
-  }
   final trimmedEmail = email?.trim() ?? '';
   if (trimmedEmail.isNotEmpty) {
     return 'https://cookster.org/profile?email=${Uri.encodeComponent(trimmedEmail)}';
+  }
+  final trimmedId = userId?.trim() ?? '';
+  if (trimmedId.isNotEmpty) {
+    return 'https://cookster.org/web/visitProfile?userId=$trimmedId';
   }
   return 'https://cookster.org';
 }
@@ -50,13 +50,13 @@ Future<void> shareProfile({
 }
 
 String trimmedIdFallbackUrl({String? userId, String? email}) {
-  final id = userId?.trim() ?? '';
-  if (id.isNotEmpty) {
-    return 'https://cookster.org/web/visitProfile?userId=$id';
-  }
   final trimmedEmail = email?.trim() ?? '';
   if (trimmedEmail.isNotEmpty) {
     return 'https://cookster.org/profile?email=${Uri.encodeComponent(trimmedEmail)}';
+  }
+  final id = userId?.trim() ?? '';
+  if (id.isNotEmpty) {
+    return 'https://cookster.org/web/visitProfile?userId=$id';
   }
   return 'https://cookster.org';
 }

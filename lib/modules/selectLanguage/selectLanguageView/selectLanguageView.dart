@@ -8,6 +8,8 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:get/get.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:cookster/modules/landing/landingTabs/home/homeController/homeController.dart';
+import 'package:cookster/core/video/media_kit_player_pool.dart';
 
 import '../../../appUtils/colorUtils.dart';
 
@@ -125,6 +127,13 @@ class _SelectLanguageViewState extends State<SelectLanguageView> {
                           text: "Save".tr,
                           onTap: () async {
                             await languageController.applyLanguageChange();
+                            
+                            // Prevent zombie players when rebuilding the root navigation stack
+                            if (Get.isRegistered<HomeController>()) {
+                              Get.find<HomeController>().disposeControllers();
+                            }
+                            await MediaKitPlayerPool.instance.releaseAll();
+                            
                             final prefs = await SharedPreferences.getInstance();
                             final userId = prefs.getString('user_id');
                             if (userId != null && userId.isNotEmpty) {

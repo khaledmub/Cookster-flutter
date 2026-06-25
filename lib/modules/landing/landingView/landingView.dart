@@ -557,7 +557,7 @@ class _LandingState extends State<Landing> {
 
   Future<void> _stopAllVideoAudio() async {
     if (Get.isRegistered<HomeController>()) {
-      Get.find<HomeController>().enterBottomNavMute();
+      await Get.find<HomeController>().enterBottomNavMute();
     } else {
       MediaKitPlayerPool.instance.silenceAllSync();
       await MediaKitPlayerPool.instance.pauseAllAwait();
