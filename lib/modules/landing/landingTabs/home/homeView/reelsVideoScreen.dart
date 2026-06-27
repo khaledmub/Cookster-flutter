@@ -1466,42 +1466,48 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                             top: MediaQuery.paddingOf(context).top + 50,
                             left: isRtl ? 0 : null,
                             right: isRtl ? null : 0,
-                            child: GestureDetector(
-                              onTap: () {
-                                controller.silenceHomeReelsForTransition();
-                                Get.to(
-                                  () => SearchView(
-                                    isGeneral: tab == 'General' ? 1 : 0,
-                                  ),
-                                  binding: SearchBinding(),
-                                );
-                              },
-                              child: Container(
-                                margin: EdgeInsets.symmetric(
-                                  horizontal: 16,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: Colors.transparent,
-                                  shape: BoxShape.circle,
-                                ),
-                                child: ClipRRect(
-                                  borderRadius: BorderRadius.circular(100),
-                                  child: Container(
-                                    padding: const EdgeInsets.all(4),
-                                    decoration: BoxDecoration(
-                                      color: Colors.black.withValues(
-                                        alpha: 0.45,
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                _buildFilterIcon(context, tab),
+                                GestureDetector(
+                                  onTap: () {
+                                    controller.silenceHomeReelsForTransition();
+                                    Get.to(
+                                      () => SearchView(
+                                        isGeneral: tab == 'General' ? 1 : 0,
                                       ),
+                                      binding: SearchBinding(),
+                                    );
+                                  },
+                                  child: Container(
+                                    margin: EdgeInsets.symmetric(
+                                      horizontal: 16,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: Colors.transparent,
                                       shape: BoxShape.circle,
                                     ),
-                                    child: Icon(
-                                      Icons.search,
-                                      color: Colors.white,
-                                      size: 28.sp,
+                                    child: ClipRRect(
+                                      borderRadius: BorderRadius.circular(100),
+                                      child: Container(
+                                        padding: const EdgeInsets.all(4),
+                                        decoration: BoxDecoration(
+                                          color: Colors.black.withValues(
+                                            alpha: 0.45,
+                                          ),
+                                          shape: BoxShape.circle,
+                                        ),
+                                        child: Icon(
+                                          Icons.search,
+                                          color: Colors.white,
+                                          size: 28.sp,
+                                        ),
+                                      ),
                                     ),
                                   ),
                                 ),
-                              ),
+                              ],
                             ),
                           ),
                         if (isActivePage &&
@@ -2634,6 +2640,81 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                 // ),
               ],
             ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildFilterIcon(BuildContext context, String tab) {
+    bool isRtl = Get.locale?.languageCode == 'ar';
+    return GestureDetector(
+      onTap: () {
+        _showFilterBottomSheet(context);
+      },
+      child: Container(
+        margin: EdgeInsets.only(right: isRtl ? 0 : 16, left: isRtl ? 16 : 0),
+        decoration: BoxDecoration(
+          color: Colors.transparent,
+          shape: BoxShape.circle,
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(100),
+          child: Container(
+            padding: const EdgeInsets.all(4),
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.45),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              Icons.filter_list,
+              color: Colors.white,
+              size: 28.sp,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showFilterBottomSheet(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (BuildContext context) {
+        return Container(
+          padding: EdgeInsets.all(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                "Sort Videos".tr,
+                style: TextStyle(
+                  fontSize: 18.sp,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              SizedBox(height: 16),
+              ListTile(
+                leading: Icon(Icons.arrow_downward),
+                title: Text("Newest to Oldest".tr),
+                onTap: () {
+                  controller.setSortOrder('newest');
+                  Get.back();
+                },
+              ),
+              ListTile(
+                leading: Icon(Icons.arrow_upward),
+                title: Text("Oldest to Newest".tr),
+                onTap: () {
+                  controller.setSortOrder('oldest');
+                  Get.back();
+                },
+              ),
+              SizedBox(height: 16),
+            ],
           ),
         );
       },

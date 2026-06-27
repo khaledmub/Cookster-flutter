@@ -233,6 +233,13 @@ class HomeController extends GetxController with WidgetsBindingObserver {
         }
       }
     }
+    
+    // Attach the active sort order. Since sorting is uniform across pagination
+    // cursors and the backend uses created_at + sort_by to paginate reliably,
+    // this should always be sent.
+    if (feedSortOrder.value.isNotEmpty) {
+      params['sort_by'] = feedSortOrder.value;
+    }
 
     var endpoint = EndPoints.reels;
     if (params.isNotEmpty) {
@@ -249,7 +256,6 @@ class HomeController extends GetxController with WidgetsBindingObserver {
       return null;
     }
     final parsed = await compute(parseVideoFeed, response.body);
-    _sortFeedNewestFirst(parsed);
     if (kDebugMode && selectedType.value == 'Near Me') {
       debugPrint(
         'Near Me reels: count=${parsed.videos?.length ?? 0} '
@@ -259,31 +265,6 @@ class HomeController extends GetxController with WidgetsBindingObserver {
     return parsed;
   }
 
-  void _sortFeedNewestFirst(VideoFeed feed) {
-    final videos = feed.videos;
-    if (videos == null || videos.length < 2) {
-      return;
-    }
-    int rank(WallVideos video) {
-      final created = video.createdAt;
-      if (created != null && created.isNotEmpty) {
-        final parsed = DateTime.tryParse(created);
-        if (parsed != null) {
-          return parsed.millisecondsSinceEpoch;
-        }
-      }
-      final updated = video.updatedAt;
-      if (updated != null && updated.isNotEmpty) {
-        final parsed = DateTime.tryParse(updated);
-        if (parsed != null) {
-          return parsed.millisecondsSinceEpoch;
-        }
-      }
-      return 0;
-    }
-
-    videos.sort((a, b) => rank(b).compareTo(rank(a)));
-  }
 
   Future<void> checkLocationStatus() async {
     isLocationServiceEnabled.value =
@@ -369,6 +350,16 @@ class HomeController extends GetxController with WidgetsBindingObserver {
   var longitude = "".obs;
   var currentCityId = "".obs;
   var currentCountry = "".obs;
+  
+  var feedSortOrder = "newest".obs;
+
+  void setSortOrder(String order) {
+    if (feedSortOrder.value == order) return;
+    feedSortOrder.value = order;
+    final tab = selectedType.value;
+    _tabFeedCache.remove(tab);
+    fetchVideos(forceNetwork: true);
+  }
 
   // Add flags to track if location has been fetched
   var hasLocationBeenFetched = false.obs;
