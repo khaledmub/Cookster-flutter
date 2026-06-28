@@ -633,6 +633,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
     if (!mounted || !controller.isReelsTabVisible.value) {
       return;
     }
+    _lastHandledPlaybackEpoch = controller.feedPlaybackEpoch.value;
     _completeTabSwitchFrameIfReady();
     _preloadManager.decoderWarmEnabled = true;
     _maybeBootstrapPreload();
@@ -644,6 +645,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
     if (!mounted || !_maskActiveVideoWithPoster) {
       return;
     }
+    _lastHandledPlaybackEpoch = controller.feedPlaybackEpoch.value;
     setState(() => _maskActiveVideoWithPoster = false);
     _resumeFeedAudibleOnce();
   }
@@ -859,6 +861,18 @@ class _VideoReelScreenState extends State<VideoReelScreen>
     _feedPlaybackEpochWorker = ever(controller.feedPlaybackEpoch, (_) {
       _scheduleFinishPlaybackIfReady();
     });
+    ever(controller.feedSortOrder, (_) {
+      if (!mounted) {
+        return;
+      }
+      final tab = _activeTabType;
+      final layer = _layerFor(tab);
+      layer.visibleIndexNotifier.value = 0;
+      layer.activePlayerVideo = null;
+      if (layer.pageController.hasClients) {
+        layer.pageController.jumpToPage(0);
+      }
+    });
     ever(controller.reelListLength, (len) {
       if (len is int && len > 0) {
         _scheduleFinishPlaybackIfReady();
@@ -866,7 +880,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
     });
     ever(controller.isLoading, (loading) {
       if (loading == false) {
-        _scheduleFinishPlaybackIfReady();
+        _kickColdStartPlaybackIfReady();
       }
     });
     _loadLanguage();
@@ -922,10 +936,37 @@ class _VideoReelScreenState extends State<VideoReelScreen>
       MediaKitPlayerPool.instance.setScreenWidth(
         MediaQuery.sizeOf(context).width,
       );
-      if (controller.isReelsTabVisible.value) {
-        _scheduleFinishPlaybackIfReady();
-      }
+      _kickColdStartPlaybackIfReady();
     });
+  }
+
+  /// Feed may finish loading before [ever] workers register on first app open.
+  void _kickColdStartPlaybackIfReady() {
+    if (!mounted) {
+      return;
+    }
+    controller.isAppInBackground.value = false;
+    if (!controller.isReelsTabVisible.value) {
+      return;
+    }
+    final videos = controller.videoFeed.value.videos;
+    if (videos == null || videos.isEmpty || controller.isLoading.value) {
+      return;
+    }
+    if (!controller.canPlayHomeReels) {
+      return;
+    }
+    final key = _activeLayer.activePlayerVideo?.id;
+    final poolLive = key != null &&
+        key.isNotEmpty &&
+        MediaKitPlayerPool.instance.isFeedVisibleKey(key);
+    if (poolLive && MediaKitPlayerPool.instance.isFrameReady(key!)) {
+      _lastHandledPlaybackEpoch = controller.feedPlaybackEpoch.value;
+      _resumeFeedAudibleOnce();
+      return;
+    }
+    _lastHandledPlaybackEpoch = -1;
+    _scheduleFinishPlaybackIfReady();
   }
 
   void _scheduleFinishPlaybackIfReady() {
@@ -960,7 +1001,6 @@ class _VideoReelScreenState extends State<VideoReelScreen>
       if (latest == null || latest.isEmpty || controller.isLoading.value) {
         return;
       }
-      _lastHandledPlaybackEpoch = controller.feedPlaybackEpoch.value;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {
           _finishFeedTabPlayback(_activeTabType);
@@ -2681,43 +2721,85 @@ class _VideoReelScreenState extends State<VideoReelScreen>
     showModalBottomSheet(
       context: context,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20.r)),
       ),
       builder: (BuildContext context) {
-        return Container(
-          padding: EdgeInsets.all(16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                "Sort Videos".tr,
-                style: TextStyle(
-                  fontSize: 18.sp,
-                  fontWeight: FontWeight.bold,
-                ),
+        return Obx(() {
+          final selected = controller.feedSortOrder.value;
+          return SafeArea(
+            child: Padding(
+              padding: EdgeInsets.fromLTRB(16.w, 16.h, 16.w, 24.h),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'sort_videos_title'.tr,
+                    style: TextStyle(
+                      fontSize: 18.sp,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  SizedBox(height: 12.h),
+                  _SortOptionTile(
+                    title: 'sort_newest_to_oldest'.tr,
+                    icon: Icons.arrow_downward_rounded,
+                    selected: selected == 'newest',
+                    onTap: () {
+                      controller.setSortOrder('newest');
+                      Get.back();
+                    },
+                  ),
+                  _SortOptionTile(
+                    title: 'sort_oldest_to_newest'.tr,
+                    icon: Icons.arrow_upward_rounded,
+                    selected: selected == 'oldest',
+                    onTap: () {
+                      controller.setSortOrder('oldest');
+                      Get.back();
+                    },
+                  ),
+                ],
               ),
-              SizedBox(height: 16),
-              ListTile(
-                leading: Icon(Icons.arrow_downward),
-                title: Text("Newest to Oldest".tr),
-                onTap: () {
-                  controller.setSortOrder('newest');
-                  Get.back();
-                },
-              ),
-              ListTile(
-                leading: Icon(Icons.arrow_upward),
-                title: Text("Oldest to Newest".tr),
-                onTap: () {
-                  controller.setSortOrder('oldest');
-                  Get.back();
-                },
-              ),
-              SizedBox(height: 16),
-            ],
-          ),
-        );
+            ),
+          );
+        });
       },
+    );
+  }
+}
+
+class _SortOptionTile extends StatelessWidget {
+  const _SortOptionTile({
+    required this.title,
+    required this.icon,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String title;
+  final IconData icon;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      contentPadding: EdgeInsets.symmetric(horizontal: 4.w),
+      leading: Icon(
+        icon,
+        color: selected ? ColorUtils.primaryColor : Colors.grey,
+      ),
+      title: Text(
+        title,
+        style: TextStyle(
+          fontSize: 15.sp,
+          fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+        ),
+      ),
+      trailing: selected
+          ? Icon(Icons.check_circle, color: ColorUtils.primaryColor, size: 22.sp)
+          : null,
+      onTap: onTap,
     );
   }
 }

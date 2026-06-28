@@ -433,12 +433,14 @@ class VideoAddController extends GetxController {
     selectedCountry.value = location;
     selectedLocationId.value = stateId;
     selectedCountryId.value = stateId;
+    update([idUploadLocation]);
     print("Selected Location: ${selectedCountry.value} (ID: $stateId)");
   }
 
   void selectCity(String location, int cityIdValue) {
     selectedCity.value = location;
     selectedCityId.value = cityIdValue;
+    update([idUploadLocation]);
     print("Selected City: ${selectedCity.value} (ID: $cityIdValue)");
   }
 
@@ -604,10 +606,14 @@ class VideoAddController extends GetxController {
     MediaKitPlayerPool.instance.pauseAllImmediate();
     await MediaKitPlayerPool.instance.releaseAll();
     await _refreshProfileAfterUpload();
-    Get.offAll(
+    if (Get.isRegistered<HomeController>()) {
+      await Get.find<HomeController>().endMediaCaptureFlow();
+    }
+    await Get.offAll(
       () => Landing(initialIndex: 3),
       binding: LandingBinding(),
     );
+    resetController();
   }
 
   void previousStep() {
@@ -698,8 +704,14 @@ class VideoAddController extends GetxController {
 
   String errorMessage = "";
 
-  Future<void> uploadVideo(File videoFile, BuildContext context) async {
+  Future<void> uploadVideo(
+    File videoFile,
+    BuildContext context, {
+    bool uploadAsImage = false,
+  }) async {
     if (isVideoUploading.value || isCompressing.value) return;
+    final imageUploadFlag = uploadAsImage ? '1' : '0';
+    isImage.value = imageUploadFlag;
     if (Get.isRegistered<HomeController>()) {
       Get.find<HomeController>().reinforceMediaCaptureSilence();
     }
@@ -808,7 +820,7 @@ class VideoAddController extends GetxController {
       }
 
       // Enforce client-side size cap before paying/uploading to avoid nginx 413.
-      if (isImage.value != "1") {
+      if (imageUploadFlag != "1") {
         final videoSize = await videoFile.length();
         print("Video size check: ${(videoSize / 1024 / 1024).toStringAsFixed(1)} MB");
         if (videoSize > _clientMaxVideoBytes) {
@@ -863,7 +875,7 @@ class VideoAddController extends GetxController {
       request.fields['take_order'] = acceptOrder.value ? '1' : '0';
       request.fields['allow_comments'] = allowComments.value ? "1" : "0";
       request.fields['publish_type'] = publishType.value;
-      request.fields['is_image'] = isImage.value;
+      request.fields['is_image'] = imageUploadFlag;
 
       if (entityDetails.value['is_sponsored'] == 1) {
         request.fields['sponsor_type'] = sponsorType.toString();
@@ -886,7 +898,7 @@ class VideoAddController extends GetxController {
             paymentParams["PaymentType"]?.toString() ?? "";
       }
 
-      print("Is Image?: ${isImage}");
+      print("Is Image?: $imageUploadFlag");
 
       AwesomeDialog? dialog;
       dialog = AwesomeDialog(
@@ -949,7 +961,6 @@ class VideoAddController extends GetxController {
           isUploadSuccessful.value = true;
 
           _scheduleThumbnailProcessingPoll(response.body);
-          resetController();
           await _finishUploadAndOpenProfile();
           return;
 
@@ -1024,7 +1035,7 @@ class VideoAddController extends GetxController {
       }
 
       // Enforce client-side size cap before uploading to avoid nginx 413.
-      if (isImage.value != "1") {
+      if (imageUploadFlag != "1") {
         final videoSize = await videoFile.length();
         print("Video size check: ${(videoSize / 1024 / 1024).toStringAsFixed(1)} MB");
         if (videoSize > _clientMaxVideoBytes) {
@@ -1066,12 +1077,12 @@ class VideoAddController extends GetxController {
       request.fields['take_order'] = acceptOrder.value ? '1' : '0';
       request.fields['allow_comments'] = allowComments.value ? "1" : "0";
       request.fields['publish_type'] = publishType.value;
-      request.fields['is_image'] = isImage.value;
+      request.fields['is_image'] = imageUploadFlag;
 
       print(
         "Upload payload location: country=${selectedLocationId.value} city=${selectedCityId.value} video_type=${videoType.value}",
       );
-      print("Is Image?: ${isImage}");
+      print("Is Image?: $imageUploadFlag");
 
       AwesomeDialog? dialog;
       dialog = AwesomeDialog(
@@ -1134,21 +1145,6 @@ class VideoAddController extends GetxController {
           isUploadSuccessful.value = true;
 
           _scheduleThumbnailProcessingPoll(response.body);
-
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text("upload_success_message".tr),
-              backgroundColor: Colors.green,
-              behavior: SnackBarBehavior.floating,
-              action: SnackBarAction(
-                label: "ok".tr,
-                textColor: Colors.white,
-                onPressed: () {},
-              ),
-            ),
-          );
-
-          resetController();
           await _finishUploadAndOpenProfile();
         } else {
           print("❌ Failed to upload video. Status: ${response.statusCode}");
@@ -1409,6 +1405,7 @@ class VideoAddController extends GetxController {
     publishType.value = "2";
     isVideoUploading.value = false;
     isUploadSuccessful.value = false;
+    isImage.value = "0";
     selectedCountry.value = "";
     selectedCity.value = "";
     currentStep.value = 1;

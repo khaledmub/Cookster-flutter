@@ -43,44 +43,15 @@ extension WallVideosMedia on WallVideos {
 
   /// Backend sends `is_image: 1` for photos and `0` for videos. When the flag
   /// disagrees with an obvious static-image URL, trust the URL (mis-tagged rows).
-  bool get isPhotoPost {
-    if (isReelPhotoPostFlag(isImage)) {
-      return true;
-    }
-    if (_looksLikeStaticImagePost) {
-      return true;
-    }
-    if (isImage != null) {
-      return false;
-    }
-    return _looksLikeStaticImagePost;
-  }
-
-  bool get _looksLikeStaticImagePost {
-    final playback = resolvedPlaybackUrl?.trim().toLowerCase() ?? '';
-    if (playback.contains('.m3u8') ||
-        playback.contains('.mp4') ||
-        playback.contains('/hls/')) {
-      return false;
-    }
-    if (playback.isNotEmpty && isStaticImagePlaybackUrl(playback)) {
-      // Fresh video uploads: backend puts cover JPG in video_url until transcode.
-      if (isImage != null && !isReelPhotoPostFlag(isImage)) {
-        return false;
-      }
-      return true;
-    }
-    if (isTranscodeReady) {
-      return false;
-    }
-    final hasVideoFields =
-        (videoUrl?.trim().isNotEmpty == true) ||
-        (video?.trim().isNotEmpty == true);
-    final cover = resolvedThumbnailUrl?.trim().toLowerCase() ?? '';
-    return !hasVideoFields &&
-        cover.isNotEmpty &&
-        isStaticImagePlaybackUrl(cover);
-  }
+  bool get isPhotoPost => isReelGridPhotoPost(
+        isImage: isImage,
+        videoUrl: videoUrl,
+        video: video,
+        thumbnailUrl: thumbnailUrl,
+        imageUrl: imageUrl,
+        image: image,
+        transcodeStatus: transcodeStatus,
+      );
 
   /// Full-screen photo URL — uses API [video_url] first; thumbnail upgrade is legacy fallback.
   String? get resolvedPhotoDisplayUrl => MediaUrlResolver.photoDisplayUrl(
@@ -106,6 +77,57 @@ extension WallVideosMedia on WallVideos {
         playbackReady: playbackReady,
         transcodeStatus: transcodeStatus,
       );
+}
+
+/// Shared photo-post detection for feed items and profile grid tiles.
+bool isReelGridPhotoPost({
+  required dynamic isImage,
+  dynamic videoUrl,
+  dynamic video,
+  dynamic thumbnailUrl,
+  dynamic imageUrl,
+  dynamic image,
+  dynamic transcodeStatus,
+}) {
+  if (isReelPhotoPostFlag(isImage)) {
+    return true;
+  }
+  final playback = MediaUrlResolver.playbackUrl(
+        videoUrl: videoUrl?.toString(),
+        video: video?.toString(),
+      )
+          ?.trim()
+          .toLowerCase() ??
+      '';
+  if (playback.contains('.m3u8') ||
+      playback.contains('.mp4') ||
+      playback.contains('/hls/')) {
+    return false;
+  }
+  if (playback.isNotEmpty && isStaticImagePlaybackUrl(playback)) {
+    // Fresh video uploads: backend puts cover JPG in video_url until transcode.
+    if (isImage != null && !isReelPhotoPostFlag(isImage)) {
+      return false;
+    }
+    return true;
+  }
+  if (transcodeStatus?.toString() == 'ready') {
+    return false;
+  }
+  final cover = MediaUrlResolver.thumbnailUrl(
+        thumbnailUrl: thumbnailUrl?.toString(),
+        imageUrl: imageUrl?.toString(),
+        image: image?.toString(),
+      )
+          ?.trim()
+          .toLowerCase() ??
+      '';
+  final hasVideoFields =
+      (videoUrl?.toString().trim().isNotEmpty == true) ||
+      (video?.toString().trim().isNotEmpty == true);
+  return !hasVideoFields &&
+      cover.isNotEmpty &&
+      isStaticImagePlaybackUrl(cover);
 }
 
 /// Shared photo-post flag parsing for [WallVideos] and profile grid tiles.

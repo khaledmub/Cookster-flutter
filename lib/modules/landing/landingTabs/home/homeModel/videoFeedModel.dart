@@ -21,6 +21,8 @@ class FeedMeta {
   int? sponsoredIndex;
   int? patternIndex;
   int? normalOffset;
+  /// Echoed from GET /api/reels when `sort_by` is active (`newest` | `oldest`).
+  String? sortBy;
   /// True when Near Me geo filter returned nothing and the server fell back
   /// to the general reels feed (`GET /api/reels?feed=near_me`).
   bool geoFallback;
@@ -35,6 +37,7 @@ class FeedMeta {
     this.sponsoredIndex,
     this.patternIndex,
     this.normalOffset,
+    this.sortBy,
     this.geoFallback = false,
   });
 
@@ -52,6 +55,7 @@ class FeedMeta {
       sponsoredIndex: json['sponsored_index'] as int?,
       patternIndex: json['pattern_index'] as int?,
       normalOffset: json['normal_offset'] as int?,
+      sortBy: json['sort_by'] as String?,
       geoFallback: json['geo_fallback'] == true,
     );
   }
@@ -83,7 +87,8 @@ class VideoFeed {
 
   VideoFeed.fromJson(Map<String, dynamic> json) {
     status = json['status'] == true;
-    final rawList = json['videos'] ?? json['data'];
+    // GET /api/reels returns items in `data`; legacy feeds use `videos`.
+    final rawList = json['data'] ?? json['videos'];
     if (rawList is List) {
       videos = rawList
           .whereType<Map<String, dynamic>>()

@@ -7,7 +7,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
-export 'package:cookster/core/media/wall_video_media.dart' show isReelPhotoPostFlag;
+export 'package:cookster/core/media/wall_video_media.dart'
+    show isReelPhotoPostFlag, isReelGridPhotoPost;
 
 /// TikTok-style in-feed chrome: photos are static, videos play — badge + layout differ.
 class ReelPhotoBadge extends StatelessWidget {
@@ -116,6 +117,37 @@ class ReelGridMediaTypeIcon extends StatelessWidget {
       Icons.play_circle_outline,
       color: Colors.white.withValues(alpha: 0.7),
       size: iconSize,
+    );
+  }
+}
+
+/// Profile grid: centered badge so it does not overlap menu, sponsor, or stats.
+class ProfileGridMediaTypeOverlay extends StatelessWidget {
+  const ProfileGridMediaTypeOverlay({
+    super.key,
+    required this.isPhoto,
+    this.iconSize,
+  });
+
+  final bool isPhoto;
+  final double? iconSize;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: Colors.black.withValues(alpha: 0.38),
+          shape: BoxShape.circle,
+        ),
+        child: Padding(
+          padding: EdgeInsets.all(7.w),
+          child: ReelGridMediaTypeIcon(
+            isPhoto: isPhoto,
+            size: iconSize ?? 18.sp,
+          ),
+        ),
+      ),
     );
   }
 }

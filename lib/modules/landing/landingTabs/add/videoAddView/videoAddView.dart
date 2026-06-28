@@ -37,6 +37,7 @@ class _VideoPreviewScreenState extends State<VideoPreviewScreen> {
   String _language = 'en';
   int _currentStep = 1;
   late final Worker _stepWorker;
+  late final bool _uploadAsImage;
 
   final List<String> _stepTitles = [
     "video_information_label".tr,
@@ -58,10 +59,8 @@ class _VideoPreviewScreenState extends State<VideoPreviewScreen> {
       }
     });
     unawaited(_loadLanguage());
-    videoAddController.isImage.value =
-        (widget.isImage == null || widget.isImage!.isEmpty)
-            ? "0"
-            : widget.isImage!;
+    _uploadAsImage = widget.isImage == '1';
+    videoAddController.isImage.value = _uploadAsImage ? '1' : '0';
     videoAddController.loadLocationData();
     unawaited(VideoSettingsService.instance.load());
     unawaited(videoAddController.prepareThumbnail(widget.videoFile));
@@ -181,7 +180,10 @@ class _VideoPreviewScreenState extends State<VideoPreviewScreen> {
               left: 0,
               right: 0,
               bottom: 0,
-              child: _UploadNavBarOverlay(videoFile: widget.videoFile),
+              child: _UploadNavBarOverlay(
+                videoFile: widget.videoFile,
+                uploadAsImage: _uploadAsImage,
+              ),
             ),
           ],
         ),
@@ -248,9 +250,13 @@ class _KeyboardAwareScrollViewState extends State<_KeyboardAwareScrollView> {
 
 /// Nav bar pinned above the keyboard — keyboard padding isolated from step state.
 class _UploadNavBarOverlay extends StatelessWidget {
-  const _UploadNavBarOverlay({required this.videoFile});
+  const _UploadNavBarOverlay({
+    required this.videoFile,
+    required this.uploadAsImage,
+  });
 
   final File videoFile;
+  final bool uploadAsImage;
 
   @override
   Widget build(BuildContext context) {
@@ -277,6 +283,7 @@ class _UploadNavBarOverlay extends StatelessWidget {
               return _UploadNavBar(
                 controller: controller,
                 videoFile: videoFile,
+                uploadAsImage: uploadAsImage,
                 currentStep: step,
                 isBusy: isBusy,
                 buttonLabel: buttonLabel,
@@ -415,6 +422,7 @@ class _UploadNavBar extends StatelessWidget {
   const _UploadNavBar({
     required this.controller,
     required this.videoFile,
+    required this.uploadAsImage,
     required this.currentStep,
     required this.isBusy,
     required this.buttonLabel,
@@ -422,6 +430,7 @@ class _UploadNavBar extends StatelessWidget {
 
   final VideoAddController controller;
   final File videoFile;
+  final bool uploadAsImage;
   final int currentStep;
   final bool isBusy;
   final String buttonLabel;
@@ -463,7 +472,11 @@ class _UploadNavBar extends StatelessWidget {
         _showError(buildContext, "step2_invalid_form_error".tr);
       }
     } else {
-      controller.uploadVideo(videoFile, buildContext);
+      controller.uploadVideo(
+        videoFile,
+        buildContext,
+        uploadAsImage: uploadAsImage,
+      );
     }
   }
 

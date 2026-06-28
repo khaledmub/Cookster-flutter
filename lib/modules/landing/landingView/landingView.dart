@@ -389,6 +389,9 @@ class _LandingState extends State<Landing> {
         );
       }
       if (mounted) setState(() {});
+      if (widget.initialIndex == 0 && Get.isRegistered<HomeController>()) {
+        Get.find<HomeController>().onReturnedToHomeTab();
+      }
     });
   }
 

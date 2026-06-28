@@ -87,6 +87,23 @@ curl -s -X POST 'https://cookster.mubreq.com/api/videos/list' \
 
 Expect `meta.has_more`, `meta.feed_seed`, `meta.next_cursor`, and `https://` URLs on video fields.
 
+## GET `/api/reels` sort filter
+
+| Query | Values |
+|-------|--------|
+| `sort_by` | `newest` (default) \| `oldest` |
+
+- Items are in **`data`** (not `videos`); the client parser accepts both.
+- Every item includes ISO `created_at` / `updated_at` (e.g. `2026-06-27T14:54:33.000000Z`).
+- `meta.sort_by` echoes the active sort; cursor pagination is tied to `created_at` + `id` + sort.
+- With `sort_by` set, the feed is pure chronological (no feed_seed shuffle).
+
+```bash
+curl -s 'https://cookster.mubreq.com/api/reels?sort_by=oldest' \
+  -H 'Authorization: Bearer YOUR_TOKEN' \
+  | jq '.meta.sort_by, .data[0:3] | .[] | {id, created_at}'
+```
+
 ## QA checklist
 
 | # | Test | Pass |

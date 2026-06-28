@@ -253,6 +253,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         }
         break;
       case AppLifecycleState.inactive:
+        break;
       case AppLifecycleState.paused:
       case AppLifecycleState.detached:
       case AppLifecycleState.hidden:

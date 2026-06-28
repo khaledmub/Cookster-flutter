@@ -900,6 +900,7 @@ class _ProfileReelScreenState extends State<ProfileReelScreen>
                           ReelFeedPageMediaChrome(
                             video: video,
                             isActivePage: isActivePage,
+                            showPhotoBadge: false,
                             child: RepaintBoundary(
                               child: Stack(
                                 fit: StackFit.expand,

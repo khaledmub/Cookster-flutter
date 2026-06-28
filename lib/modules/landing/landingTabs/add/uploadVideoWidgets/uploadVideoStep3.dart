@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:cookster/appUtils/colorUtils.dart';
 import 'package:cookster/modules/landing/landingTabs/add/uploadVideoWidgets/sponsorBox.dart';
 import 'package:cookster/modules/landing/landingTabs/add/uploadVideoWidgets/location_picker_dialog.dart';
 import 'package:cookster/modules/landing/landingTabs/add/videoAddController/videoAddController.dart';
+import 'package:cookster/services/video_settings_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:get/get.dart';
@@ -20,6 +23,7 @@ class _UploadVideoStep3State extends State<UploadVideoStep3> {
   @override
   void initState() {
     super.initState();
+    unawaited(VideoSettingsService.instance.load());
     WidgetsBinding.instance.addPostFrameCallback((_) {
       controller.validateSelectedCountry();
     });
@@ -86,7 +90,9 @@ class _UploadLocationSection extends StatelessWidget {
         return Column(
           children: [
             InkWell(
-              onTap: () => showLocationDialog(context),
+              onTap: () async {
+                await showUploadCountryPicker(context);
+              },
               child: Padding(
                 padding: const EdgeInsets.symmetric(vertical: 8.0),
                 child: Row(
@@ -124,7 +130,9 @@ class _UploadLocationSection extends StatelessWidget {
             ),
             SizedBox(height: 8.h),
             InkWell(
-              onTap: () => showCityDialog(context),
+              onTap: () async {
+                await showUploadCityPicker(context);
+              },
               child: Padding(
                 padding: const EdgeInsets.symmetric(vertical: 8.0),
                 child: Row(

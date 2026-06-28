@@ -62,5 +62,15 @@ void main() {
         0,
       );
     });
+
+    test('resetTabScrollRestore clears saved id and index', () {
+      final videos = [video('a'), video('b'), video('c')];
+      controller.saveTabScrollIndex('Near Me', 2);
+      controller.saveTabVideoId('Near Me', 'c');
+
+      controller.resetTabScrollRestore('Near Me');
+
+      expect(controller.resolveScrollIndexForTab('Near Me', videos), 0);
+    });
   });
 }

@@ -192,6 +192,7 @@ class HomeController extends GetxController with WidgetsBindingObserver {
           .toList();
 
       videoFeed.value.videos!.addAll(uniqueIncoming);
+      _sortFeedByOrder(videoFeed.value);
       videoFeed.value.meta = parsed.meta ?? videoFeed.value.meta;
       if (parsed.meta?.page != null) {
         currentPage.value = parsed.meta!.page!;
@@ -256,6 +257,11 @@ class HomeController extends GetxController with WidgetsBindingObserver {
       return null;
     }
     final parsed = await compute(parseVideoFeed, response.body);
+    _sortFeedByOrder(parsed);
+    final echoedSort = parsed.meta?.sortBy?.trim();
+    if (echoedSort == 'newest' || echoedSort == 'oldest') {
+      feedSortOrder.value = echoedSort!;
+    }
     if (kDebugMode && selectedType.value == 'Near Me') {
       debugPrint(
         'Near Me reels: count=${parsed.videos?.length ?? 0} '
@@ -357,8 +363,48 @@ class HomeController extends GetxController with WidgetsBindingObserver {
     if (feedSortOrder.value == order) return;
     feedSortOrder.value = order;
     final tab = selectedType.value;
-    _tabFeedCache.remove(tab);
-    fetchVideos(forceNetwork: true);
+    _tabFeedCache.clear();
+    resetTabScrollRestore(tab);
+    visiblePageIndex.value = 0;
+    currentIndex.value = 0;
+    fetchVideos(forceNetwork: true, resetScrollPosition: true);
+  }
+
+  /// Drop saved tab position so a sort/filter reload always opens at reel 0.
+  void resetTabScrollRestore(String tab) {
+    _tabVideoId.remove(tab);
+    saveTabScrollIndex(tab, 0);
+  }
+
+  void _sortFeedByOrder(VideoFeed feed) {
+    final videos = feed.videos;
+    if (videos == null || videos.length < 2) {
+      return;
+    }
+
+    int rank(WallVideos video) {
+      final created = video.createdAt;
+      if (created != null && created.isNotEmpty) {
+        final parsed = DateTime.tryParse(created);
+        if (parsed != null) {
+          return parsed.millisecondsSinceEpoch;
+        }
+      }
+      final updated = video.updatedAt;
+      if (updated != null && updated.isNotEmpty) {
+        final parsed = DateTime.tryParse(updated);
+        if (parsed != null) {
+          return parsed.millisecondsSinceEpoch;
+        }
+      }
+      return 0;
+    }
+
+    if (feedSortOrder.value == 'oldest') {
+      videos.sort((a, b) => rank(a).compareTo(rank(b)));
+    } else {
+      videos.sort((a, b) => rank(b).compareTo(rank(a)));
+    }
   }
 
   // Add flags to track if location has been fetched
@@ -668,8 +714,15 @@ class HomeController extends GetxController with WidgetsBindingObserver {
     bool forceNetwork = false,
     bool fromTabSwitch = false,
     bool backgroundRefresh = false,
+    bool resetScrollPosition = false,
   }) async {
     final tab = selectedType.value;
+    if (resetScrollPosition) {
+      resetTabScrollRestore(tab);
+      visiblePageIndex.value = 0;
+      currentIndex.value = 0;
+      feedPlaybackEpoch.value++;
+    }
     final cached = _tabFeedCache[tab];
     final hasCachedFeed =
         !forceNetwork && cached != null && (cached.videos?.isNotEmpty ?? false);
@@ -678,6 +731,7 @@ class HomeController extends GetxController with WidgetsBindingObserver {
       final cachedVideos = cached!.videos!;
       final target = resolveScrollIndexForTab(tab, cachedVideos);
       videoFeed.value = cached;
+      _sortFeedByOrder(videoFeed.value);
       reelListLength.value = cachedVideos.length;
       visiblePageIndex.value = target;
       currentIndex.value = target;
@@ -737,7 +791,9 @@ class HomeController extends GetxController with WidgetsBindingObserver {
         currentPage.value = parsed.meta?.page ?? 1;
         final parsedVideos = parsed.videos;
         if (parsedVideos != null && parsedVideos.isNotEmpty) {
-          final target = resolveScrollIndexForTab(tab, parsedVideos);
+          final target = resetScrollPosition
+              ? 0
+              : resolveScrollIndexForTab(tab, parsedVideos);
           visiblePageIndex.value = target;
           currentIndex.value = target;
         }
@@ -755,6 +811,7 @@ class HomeController extends GetxController with WidgetsBindingObserver {
       error.value = "Error: $e";
     } finally {
       isLoading.value = false;
+      isAppInBackground.value = false;
       update();
     }
   }

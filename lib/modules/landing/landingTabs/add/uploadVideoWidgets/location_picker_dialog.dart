@@ -4,21 +4,100 @@ import 'package:cookster/appUtils/colorUtils.dart';
 import 'package:cookster/modules/auth/signUp/signUpController/cityController.dart';
 import 'package:cookster/modules/landing/landingTabs/add/videoAddController/videoAddController.dart';
 import 'package:cookster/modules/landing/landingTabs/profile/profileControlller/profileController.dart';
+import 'package:cookster/modules/landing/landingTabs/add/videoUploadSettingsModel/videoUploadSettingsModel.dart';
+import 'package:cookster/services/video_settings_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:get/get.dart';
+
+Future<List<Countries>> _ensureCountriesLoaded() async {
+  final profileController = Get.find<ProfileController>();
+  if (profileController.videoUploadSettings.value?.countries?.isNotEmpty !=
+      true) {
+    await VideoSettingsService.instance.load();
+  }
+  return profileController.videoUploadSettings.value?.countries ?? const [];
+}
+
+void _showLocationLoadError(String message) {
+  Get.snackbar(
+    'select_country_label'.tr,
+    message,
+    snackPosition: SnackPosition.BOTTOM,
+    backgroundColor: Colors.orange,
+    colorText: Colors.white,
+  );
+}
+
+Future<T> _withLocationBusy<T>(Future<T> Function() action) async {
+  var showedLoader = false;
+  if (!(Get.isDialogOpen ?? false)) {
+    showedLoader = true;
+    unawaited(
+      Get.dialog(
+        PopScope(
+          canPop: false,
+          child: const Center(child: CircularProgressIndicator()),
+        ),
+        barrierDismissible: false,
+      ),
+    );
+  }
+  try {
+    return await action();
+  } finally {
+    if (showedLoader && (Get.isDialogOpen ?? false)) {
+      Get.back();
+    }
+  }
+}
+
+Map<String, int> _buildCityMap(CityController cityController) {
+  final cityMap = <String, int>{};
+  for (final city in cityController.cityList) {
+    final name = city.name?.trim();
+    final id = city.id;
+    if (name == null || name.isEmpty || id == null) continue;
+    cityMap[name] = id;
+  }
+  return cityMap;
+}
+
+Future<bool> _ensureCitiesForSelectedCountry(
+  VideoAddController controller,
+  CityController cityController,
+) async {
+  final countryId = controller.selectedLocationId.value;
+  if (countryId <= 0) {
+    return false;
+  }
+
+  final selectedCityName = controller.selectedCity.value.trim();
+  final hasSelectedCity = cityController.cityList.any(
+    (city) => city.name == selectedCityName,
+  );
+  if (cityController.cityList.isNotEmpty && hasSelectedCity) {
+    return true;
+  }
+
+  await _withLocationBusy(() => cityController.fetchCities(countryId));
+  return cityController.cityList.isNotEmpty;
+}
 
 /// Country picker with debounced search and reliable tap selection.
 Future<void> showUploadCountryPicker(
   BuildContext context, {
   int? initialCountryId,
+  bool openCityPickerAfterCountry = true,
 }) async {
   final controller = Get.find<VideoAddController>();
-  final profileController = Get.find<ProfileController>();
   final cityController = Get.find<CityController>();
 
-  final countries = profileController.videoUploadSettings.value?.countries;
-  if (countries == null || countries.isEmpty) return;
+  final countries = await _ensureCountriesLoaded();
+  if (countries.isEmpty) {
+    _showLocationLoadError('select_country_error'.tr);
+    return;
+  }
 
   final countryMap = <String, int>{};
   final countryNames = <String>[];
@@ -31,6 +110,11 @@ Future<void> showUploadCountryPicker(
   }
   countryNames.sort((a, b) => a.compareTo(b));
 
+  if (countryNames.isEmpty) {
+    _showLocationLoadError('select_country_error'.tr);
+    return;
+  }
+
   var initialName = controller.selectedCountry.value.trim();
   if (initialCountryId != null) {
     for (final entry in countryMap.entries) {
@@ -39,6 +123,9 @@ Future<void> showUploadCountryPicker(
         break;
       }
     }
+  }
+  if (initialName == 'Unknown') {
+    initialName = '';
   }
 
   final picked = await Get.dialog<String>(
@@ -58,8 +145,19 @@ Future<void> showUploadCountryPicker(
   controller.selectLocation(picked, selectedId);
   controller.selectedCity.value = '';
   controller.selectedCityId.value = -1;
-  await cityController.fetchCities(selectedId);
+
+  if (!openCityPickerAfterCountry) {
+    return;
+  }
+
+  await _withLocationBusy(
+    () => cityController.fetchCities(selectedId),
+  );
   if (!context.mounted) return;
+  if (cityController.cityList.isEmpty) {
+    _showLocationLoadError('select_country_error'.tr);
+    return;
+  }
   await showUploadCityPicker(context);
 }
 
@@ -71,25 +169,24 @@ Future<void> showUploadCityPicker(
   final controller = Get.find<VideoAddController>();
   final cityController = Get.find<CityController>();
 
-  final cityMap = <String, int>{};
-  final cityNames = <String>[];
-  for (final city in cityController.cityList) {
-    final name = city.name?.trim();
-    final id = city.id;
-    if (name == null || name.isEmpty || id == null) continue;
-    cityMap[name] = id;
-    cityNames.add(name);
+  final country = controller.selectedCountry.value.trim();
+  if (country.isEmpty || country == 'Unknown') {
+    _showLocationLoadError('select_country_error'.tr);
+    return;
   }
-  cityNames.sort((a, b) => a.compareTo(b));
 
+  final citiesReady = await _withLocationBusy(
+    () => _ensureCitiesForSelectedCountry(controller, cityController),
+  );
+  if (!citiesReady) {
+    _showLocationLoadError('select_country_error'.tr);
+    return;
+  }
+
+  final cityMap = _buildCityMap(cityController);
+  final cityNames = cityMap.keys.toList()..sort((a, b) => a.compareTo(b));
   if (cityNames.isEmpty) {
-    Get.snackbar(
-      'select_city_label'.tr,
-      'select_country_error'.tr,
-      snackPosition: SnackPosition.BOTTOM,
-      backgroundColor: Colors.orange,
-      colorText: Colors.white,
-    );
+    _showLocationLoadError('select_country_error'.tr);
     return;
   }
 
@@ -101,6 +198,9 @@ Future<void> showUploadCityPicker(
         break;
       }
     }
+  }
+  if (initialName == 'Unknown') {
+    initialName = '';
   }
 
   final picked = await Get.dialog<String>(
@@ -329,10 +429,22 @@ class _LocationPickerDialogState extends State<_LocationPickerDialog> {
 }
 
 /// Legacy entry points used across upload UI.
-void showLocationDialog(BuildContext context, {int? initialCountryId}) {
-  unawaited(showUploadCountryPicker(context, initialCountryId: initialCountryId));
+Future<void> showLocationDialog(
+  BuildContext context, {
+  int? initialCountryId,
+}) {
+  return showUploadCountryPicker(
+    context,
+    initialCountryId: initialCountryId,
+  );
 }
 
-void showCityDialog(BuildContext context, {int? initialCityId}) {
-  unawaited(showUploadCityPicker(context, initialCityId: initialCityId));
+Future<void> showCityDialog(
+  BuildContext context, {
+  int? initialCityId,
+}) {
+  return showUploadCityPicker(
+    context,
+    initialCityId: initialCityId,
+  );
 }

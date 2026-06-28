@@ -994,9 +994,15 @@ class _VisitProfileViewState extends State<VisitProfileView>
                       borderRadius: 12.r,
                       logicalSize: 100,
                     ),
-                    Center(
-                      child: ReelGridMediaTypeIcon(
-                        isPhoto: isReelPhotoPostFlag(video.isImage),
+                    ProfileGridMediaTypeOverlay(
+                      isPhoto: isReelGridPhotoPost(
+                        isImage: video.isImage,
+                        videoUrl: video.videoUrl,
+                        video: video.video,
+                        thumbnailUrl: video.thumbnailUrl,
+                        imageUrl: video.imageUrl,
+                        image: video.image,
+                        transcodeStatus: video.transcodeStatus,
                       ),
                     ),
                     Positioned(
