@@ -36,5 +36,5 @@ if [[ -z "${DEVICE_ID}" ]]; then
 fi
 
 echo ""
-echo "Launching profile build on: $DEVICE_ID"
+echo "Launching profile build on: $DEVICE_ID (API: https://cookster.org/api/)"
 exec flutter run --profile -d "$DEVICE_ID"

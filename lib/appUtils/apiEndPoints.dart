@@ -1,13 +1,9 @@
 class Common {
-  /// Override at build time: `--dart-define=API_BASE_URL=https://cookster.org/api/`
-  /// Test VM IP override: `--dart-define=TEST_SERVER_IP=34.40.83.204`
+  /// Override at build time: `--dart-define=API_BASE_URL=https://other-host/api/`
   static const String _apiBaseOverride = String.fromEnvironment('API_BASE_URL');
-  static const String testServerIp = String.fromEnvironment(
-    'TEST_SERVER_IP',
-    defaultValue: '34.40.83.204',
-  );
+  static const String testServerIp = String.fromEnvironment('TEST_SERVER_IP');
 
-  static const String _defaultApiBase = 'https://34.40.83.204/api/';
+  static const String _defaultApiBase = 'https://cookster.org/api/';
   static String get baseUrl {
     if (_apiBaseOverride.isNotEmpty) {
       return _apiBaseOverride.endsWith('/')
