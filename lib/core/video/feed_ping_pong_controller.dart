@@ -3,9 +3,30 @@ import 'dart:ui' show VoidCallback;
 
 import 'package:cookster/core/video/device_constraints.dart';
 import 'package:cookster/core/video/feed_ping_pong_logic.dart';
+import 'package:cookster/core/video/mpv_surface_stability.dart';
 import 'package:cookster/core/video/reels_perf.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
+
+/// [VideoController] for reel playback. Honor/Huawei/MTK must disable hardware
+/// video decode here — NOT on [Player]. [VideoController.create] sets mpv
+/// `hwdec=auto-safe` + MediaCodec by default, which ignores any later
+/// Player.setProperty('hwdec') and causes the Rendered 0/s flush storm.
+VideoController createReelVideoController(Player player) {
+  final tier = DeviceConstraints.instance.deviceTierSync;
+  final software = DeviceConstraints.instance.preferSoftwareVideoDecode;
+  if (software) {
+    ReelsPerf.log('reel_video_ctrl software_decode tier=${tier.name}');
+    return VideoController(
+      player,
+      configuration: const VideoControllerConfiguration(
+        enableHardwareAcceleration: false,
+        hwdec: 'no',
+      ),
+    );
+  }
+  return VideoController(player);
+}
 
 /// Result of presenting a reel on the feed ping-pong path.
 class FeedPresentResult {
@@ -110,11 +131,12 @@ class FeedPingPongController {
     if (slot.player != null && slot.videoController != null) {
       return;
     }
+    await DeviceConstraints.instance.ensureInitialized();
     final player = Player(
       configuration: const PlayerConfiguration(muted: true),
     );
     slot.player = player;
-    slot.videoController = VideoController(player);
+    slot.videoController = createReelVideoController(player);
   }
 
   Future<FeedPresentResult?> presentReel({
@@ -319,7 +341,8 @@ class FeedPingPongController {
     await _enableSlotAudio(_active);
   }
 
-  /// Poster-unmask audio — Honor/BT needs pause→play to recreate AudioTrack.
+  /// Poster-unmask audio. When video is already playing, volume-only unmute —
+  /// pause→play flushes MediaCodec on Honor/MTK (Rendered 0/s after unmask).
   Future<void> forceRestartActiveAudio() async {
     await ensureInitialized();
     final player = _active.player;
@@ -328,16 +351,19 @@ class FeedPingPongController {
     }
     await DeviceConstraints.instance.ensureInitialized();
     try {
-      await player.setVolume(100);
-      if (DeviceConstraints.instance.needsConstrainedSurfaceRecovery) {
-        if (player.state.playing) {
-          await player.pause();
-        }
-        await player.play();
-      } else if (!player.state.playing) {
-        await player.play();
-      }
+      await _unmutePlayingDecoder(player);
     } catch (_) {}
+  }
+
+  /// Unmute without tearing down an active video decode session.
+  Future<void> _unmutePlayingDecoder(Player player) async {
+    if (player.state.volume > 50 && player.state.playing) {
+      return;
+    }
+    await player.setVolume(100);
+    if (!player.state.playing) {
+      await player.play();
+    }
   }
 
   Future<void> muteActiveForUser() async {
@@ -479,6 +505,7 @@ class FeedPingPongController {
         Media(sourceUrl),
         play: !honorActiveOpen,
       );
+      await stabilizeMpvSurfaceDimensions(player);
       await player.setVolume(0);
       if (honorActiveOpen) {
         try {
@@ -602,19 +629,7 @@ class FeedPingPongController {
       return;
     }
     try {
-      if (player.state.volume > 50 && player.state.playing) {
-        return;
-      }
-      await player.setVolume(100);
-      await DeviceConstraints.instance.ensureInitialized();
-      if (DeviceConstraints.instance.needsConstrainedSurfaceRecovery) {
-        if (player.state.playing) {
-          await player.pause();
-        }
-        await player.play();
-      } else if (!player.state.playing) {
-        await player.play();
-      }
+      await _unmutePlayingDecoder(player);
     } catch (_) {}
   }
 
@@ -665,7 +680,7 @@ class FeedPingPongController {
       configuration: const PlayerConfiguration(muted: true),
     );
     slot.player = player;
-    slot.videoController = VideoController(player);
+    slot.videoController = createReelVideoController(player);
     slot.openCount = 0;
     slot.resetBinding();
     slot.generation++;

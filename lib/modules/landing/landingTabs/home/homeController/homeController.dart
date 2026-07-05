@@ -191,8 +191,9 @@ class HomeController extends GetxController with WidgetsBindingObserver {
           .where((v) => v.id != null && !existingIds.contains(v.id))
           .toList();
 
+      // Cursor pages arrive in sort order — append only. Re-sorting the full
+      // list reshuffles indices and swaps the reel at the user's scroll position.
       videoFeed.value.videos!.addAll(uniqueIncoming);
-      _sortFeedByOrder(videoFeed.value);
       videoFeed.value.meta = parsed.meta ?? videoFeed.value.meta;
       if (parsed.meta?.page != null) {
         currentPage.value = parsed.meta!.page!;
@@ -729,12 +730,23 @@ class HomeController extends GetxController with WidgetsBindingObserver {
 
     if (hasCachedFeed) {
       final cachedVideos = cached!.videos!;
-      final target = resolveScrollIndexForTab(tab, cachedVideos);
+      final wasEmpty =
+          videoFeed.value.videos == null || videoFeed.value.videos!.isEmpty;
       videoFeed.value = cached;
       _sortFeedByOrder(videoFeed.value);
       reelListLength.value = cachedVideos.length;
-      visiblePageIndex.value = target;
-      currentIndex.value = target;
+      if (fromTabSwitch || resetScrollPosition) {
+        final target = resetScrollPosition
+            ? 0
+            : resolveScrollIndexForTab(tab, cachedVideos);
+        visiblePageIndex.value = target;
+        currentIndex.value = target;
+      } else if (wasEmpty) {
+        // Cold start only — restore saved tab position from cache.
+        final target = resolveScrollIndexForTab(tab, cachedVideos);
+        visiblePageIndex.value = target;
+        currentIndex.value = target;
+      }
       update();
 
       // Tab switch with warm cache: show instantly, no network replace, and no
@@ -791,11 +803,16 @@ class HomeController extends GetxController with WidgetsBindingObserver {
         currentPage.value = parsed.meta?.page ?? 1;
         final parsedVideos = parsed.videos;
         if (parsedVideos != null && parsedVideos.isNotEmpty) {
-          final target = resetScrollPosition
-              ? 0
-              : resolveScrollIndexForTab(tab, parsedVideos);
-          visiblePageIndex.value = target;
-          currentIndex.value = target;
+          if (resetScrollPosition) {
+            visiblePageIndex.value = 0;
+            currentIndex.value = 0;
+          } else if (fromTabSwitch) {
+            final target = resolveScrollIndexForTab(tab, parsedVideos);
+            visiblePageIndex.value = target;
+            currentIndex.value = target;
+          }
+          // Else: keep the user's current scroll — do not snap back to a stale
+          // saved video id when a background fetch completes mid-playback.
         }
         // Skip epoch bump during tab switch — serialized attach runs from the
         // tab handler; a concurrent epoch was spawning duplicate decoders on MTK.

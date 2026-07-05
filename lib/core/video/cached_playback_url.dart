@@ -147,11 +147,10 @@ Future<String> resolveBestPlaybackUrl(
     if (file != null && await file.exists()) {
       final len = await file.length();
       if (len > 0) {
+        // Only play from disk when moov is ahead of mdat (partial prefetch safe).
+        // Incomplete cache files stall mid-decode on Honor after the first frame.
         if (len >= minFastStartBytes &&
             await looksLikeFastStartMp4(file)) {
-          return Uri.file(file.path).toString();
-        }
-        if (await isPlaybackUrlCached(url, cacheManager: cache)) {
           return Uri.file(file.path).toString();
         }
       }

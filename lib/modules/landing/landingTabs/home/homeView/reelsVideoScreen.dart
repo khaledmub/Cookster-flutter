@@ -561,10 +561,25 @@ class _VideoReelScreenState extends State<VideoReelScreen>
       return;
     }
     _pendingFeedTabPlayback = false;
-    final targetIndex = controller.resolveScrollIndexForTab(tab, videos);
+    final layer = _layerFor(tab);
+    // While the user is on a reel, trust the live PageView index — not the saved
+    // tab scroll id (fetchVideos + epoch replay was jumping to another video).
+    var targetIndex = fromTabSwitch
+        ? controller.resolveScrollIndexForTab(tab, videos)
+        : layer.visibleIndexNotifier.value.clamp(0, videos.length - 1);
+    // When the feed grows (fetch-more), keep the reel that is already playing
+    // even if its index shifted in the list.
+    if (!fromTabSwitch) {
+      final pinnedId = layer.activePlayerVideo?.id;
+      if (pinnedId != null && pinnedId.isNotEmpty) {
+        final pinnedIndex = videos.indexWhere((v) => v.id == pinnedId);
+        if (pinnedIndex >= 0) {
+          targetIndex = pinnedIndex;
+        }
+      }
+    }
     final targetVideo = videos[targetIndex];
     final targetId = targetVideo.id;
-    final layer = _layerFor(tab);
     final currentPage = layer.pageController.hasClients
         ? (layer.pageController.page?.round() ?? -1) % videos.length
         : -1;
@@ -645,8 +660,8 @@ class _VideoReelScreenState extends State<VideoReelScreen>
     if (!mounted || !_maskActiveVideoWithPoster) {
       return;
     }
-    _lastHandledPlaybackEpoch = controller.feedPlaybackEpoch.value;
     setState(() => _maskActiveVideoWithPoster = false);
+    _lastHandledPlaybackEpoch = controller.feedPlaybackEpoch.value;
     _resumeFeedAudibleOnce();
   }
 
@@ -875,6 +890,15 @@ class _VideoReelScreenState extends State<VideoReelScreen>
     });
     ever(controller.reelListLength, (len) {
       if (len is int && len > 0) {
+        final layer = _activeLayer;
+        final key = layer.activePlayerVideo?.id;
+        // Pagination append must not reattach while the current reel is live.
+        if (key != null &&
+            key.isNotEmpty &&
+            MediaKitPlayerPool.instance.isFeedVisibleKey(key) &&
+            MediaKitPlayerPool.instance.isActiveAudible(key)) {
+          return;
+        }
         _scheduleFinishPlaybackIfReady();
       }
     });
@@ -1363,10 +1387,10 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                 if (length == 0) {
                   return;
                 }
+                final actualIndex = index % length;
                 MediaKitPlayerPool.instance.pauseAllImmediate();
                 _feedReelPlayerKey.currentState
                     ?.cancelInFlightPlaybackForPageChange();
-                final actualIndex = index % length;
                 controller.visiblePageIndex.value = actualIndex;
                 controller.saveTabScrollIndex(tab, actualIndex);
                 controller.saveTabVideoId(tab, videos[actualIndex].id);

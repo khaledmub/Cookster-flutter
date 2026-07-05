@@ -5,6 +5,7 @@ import 'package:cookster/core/video/reels_device_capability_store.dart';
 import 'package:cookster/core/video/reels_tier_analytics.dart';
 import 'package:cookster/core/video/cached_playback_url.dart';
 import 'package:cookster/core/video/device_constraints.dart';
+import 'package:cookster/core/video/feed_ping_pong_controller.dart';
 import 'package:cookster/core/video/media_kit_player_pool.dart';
 import 'package:cookster/core/video/network_policy.dart';
 import 'package:cookster/core/video/reels_perf.dart';
@@ -98,6 +99,14 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
   int _surfaceRevealedAtMs = 0;
   /// Last successful poster_unmask — ignore spurious native stall events shortly after.
   int _feedPosterUnmaskedAtMs = 0;
+  /// Post-unmask position-freeze watchdog: native telemetry only detects a
+  /// stall *before* first frame, so a decoder that dies after a clean unmask
+  /// (Rendered 0/s flush storm) is otherwise invisible to us until it crashes.
+  Timer? _renderDeathWatchdog;
+  int _watchdogLastPositionMs = -1;
+  int _watchdogStuckTicks = 0;
+  int _watchdogNearZeroTicks = 0;
+  bool _renderDeathRecoveryInFlight = false;
   /// Composited frames counted after [_videoSurfaceVisible] — pre-visible ticks
   /// do not render on MTK (Rendered 0/s while opacity 0).
   int _visibleSurfacePaintFrames = 0;
@@ -303,6 +312,7 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
     if (!mounted || _isDisposed || !_usesFeedVisibleChannel) {
       return;
     }
+    _stopRenderDeathWatchdog();
     _revealGeneration++;
     _videoSurfaceVisible = false;
     _frameReady = false;
@@ -341,6 +351,7 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
       return;
     }
     _pool.pauseAllImmediate();
+    _stopRenderDeathWatchdog();
     _feedPosterUnmaskedAtMs = 0;
     _playbackGeneration++;
     _revealGeneration++;
@@ -464,6 +475,7 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
     _playbackGeneration++;
     _cancelFrameWatch();
     _frameTimeout?.cancel();
+    _stopRenderDeathWatchdog();
     _iconHideTimer?.cancel();
     _detachAnalyticsAndListeners();
     final key = _pooledKey;
@@ -583,6 +595,54 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
     return dw <= 32 && dh <= 32;
   }
 
+  /// Honor/MTK: wait until codec output size stops changing (406→416 stride,
+  /// 720→721 crop) before attaching the visible surface — otherwise media_kit
+  /// tears down ImageReader mid-reveal (Rendered 0/s, Discarded 30/s).
+  Future<bool> _awaitCodecOutputDimensionsSettled(
+    Player player, {
+    required int generation,
+    required int revealGen,
+    int stableMs = 200,
+  }) async {
+    if (!_needsConstrainedStartGate) {
+      return true;
+    }
+    int? lastW = player.state.width;
+    int? lastH = player.state.height;
+    var settledSince = DateTime.now();
+    final deadline = DateTime.now().add(const Duration(milliseconds: 2400));
+    while (DateTime.now().isBefore(deadline)) {
+      if (!_isCurrentAttach(generation) ||
+          revealGen != _revealGeneration ||
+          !mounted ||
+          _isDisposed) {
+        return false;
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 24));
+      final w = player.state.width;
+      final h = player.state.height;
+      if (w == null || h == null || w <= 0 || h <= 0) {
+        lastW = w;
+        lastH = h;
+        settledSince = DateTime.now();
+        continue;
+      }
+      if (w == lastW && h == lastH) {
+        if (DateTime.now().difference(settledSince).inMilliseconds >=
+            stableMs) {
+          return true;
+        }
+      } else {
+        lastW = w;
+        lastH = h;
+        settledSince = DateTime.now();
+      }
+    }
+    final w = lastW;
+    final h = lastH;
+    return w != null && h != null && w > 0 && h > 0;
+  }
+
   int _minPositionAdvanceForPosterUnmask() {
     if (_needsConstrainedStartGate) {
       final key = _pooledKey ?? '';
@@ -621,6 +681,11 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
   }
 
   void _trackDimensionStability(Player player) {
+    // After poster_unmask, codec stride tweaks must not hide the surface —
+    // that recreates ImageReader and kills playback on Honor.
+    if (_feedPosterUnmaskedAtMs > 0) {
+      return;
+    }
     final width = player.state.width;
     final height = player.state.height;
     if (width == null || height == null || width <= 0 || height <= 0) {
@@ -647,9 +712,9 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
       _dimensionStableTicks = 0;
       if (hadStableDims &&
           _needsConstrainedStartGate &&
-          (_videoSurfaceVisible || _frameReady)) {
+          _frameReady &&
+          !_videoSurfaceVisible) {
         _revealGeneration++;
-        _videoSurfaceVisible = false;
         _frameReady = false;
         _surfacePaintFrames = 0;
         final key = _pooledKey;
@@ -750,6 +815,7 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
     _surfacePaintFrames = 0;
     _resetDimensionStability();
     _surfaceRecoveryAttempts = 0;
+    _stopRenderDeathWatchdog();
     if (key.isNotEmpty) {
       _pool.clearUserPaused(key);
       if (_strictSurfaceGate) {
@@ -1038,20 +1104,6 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
       return;
     }
     await _pool.forceFeedAudibleAtPosterUnmask(key);
-    if (!_isCurrentAttach(generation) ||
-        !mounted ||
-        _isDisposed ||
-        _pool.isActiveAudible(key)) {
-      return;
-    }
-    await Future<void>.delayed(const Duration(milliseconds: 80));
-    if (!_isCurrentAttach(generation) ||
-        !mounted ||
-        _isDisposed ||
-        !_videoSurfaceVisible) {
-      return;
-    }
-    await _pool.forceFeedAudibleAtPosterUnmask(key);
   }
 
   Future<void> _resumeAudibleAfterReveal({
@@ -1102,6 +1154,17 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
             !mounted ||
             _isDisposed) {
           return;
+        }
+        if (_needsConstrainedStartGate) {
+          final settled = await _awaitCodecOutputDimensionsSettled(
+            player,
+            generation: generation,
+            revealGen: revealGen,
+          );
+          if (!settled) {
+            _logPoster('surface_reveal_aborted', detail: 'dims_unsettled_fast');
+            return;
+          }
         }
         await _setVideoSurfaceVisible(
           generation: generation,
@@ -1221,6 +1284,17 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
         !_canShowVideo(player)) {
       _logPoster('surface_reveal_aborted', detail: 'final_check');
       return;
+    }
+    if (_needsConstrainedStartGate) {
+      final settled = await _awaitCodecOutputDimensionsSettled(
+        player,
+        generation: generation,
+        revealGen: revealGen,
+      );
+      if (!settled) {
+        _logPoster('surface_reveal_aborted', detail: 'dims_unsettled');
+        return;
+      }
     }
     await _setVideoSurfaceVisible(
       generation: generation,
@@ -1359,8 +1433,16 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
     );
     _postRecycleUnmask = false;
     _feedPosterUnmaskedAtMs = DateTime.now().millisecondsSinceEpoch;
+    if (key != null && key.isNotEmpty) {
+      _startRenderDeathWatchdog(player: player, generation: generation, key: key);
+    }
     if (_usesFeedVisibleChannel) {
-      widget.onFeedVideoPainted?.call();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || _isDisposed) {
+          return;
+        }
+        widget.onFeedVideoPainted?.call();
+      });
       unawaited(_recordCleanOpen());
       if (key != null && key.isNotEmpty) {
         unawaited(_ensureFeedAudibleAfterPaint(key, generation));
@@ -1403,6 +1485,9 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
   }
 
   Future<void> _recordCleanOpen() async {
+    if (_needsConstrainedStartGate) {
+      return;
+    }
     final fromTier = DeviceConstraints.instance.deviceTierSync;
     final promoted =
         await ReelsDeviceCapabilityStore.instance.recordCleanOpen();
@@ -1416,6 +1501,148 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
           ),
         );
       }
+    }
+  }
+
+  void _startRenderDeathWatchdog({
+    required Player player,
+    required int generation,
+    required String key,
+  }) {
+    if (!_needsConstrainedStartGate || key.isEmpty) {
+      return;
+    }
+    _renderDeathWatchdog?.cancel();
+    _watchdogLastPositionMs = player.state.position.inMilliseconds;
+    _watchdogStuckTicks = 0;
+    _watchdogNearZeroTicks = 0;
+    _renderDeathWatchdog = Timer.periodic(const Duration(milliseconds: 500), (
+      timer,
+    ) {
+      if (!_isCurrentAttach(generation) ||
+          !mounted ||
+          _isDisposed ||
+          _renderDeathRecoveryInFlight) {
+        timer.cancel();
+        return;
+      }
+      final posMs = player.state.position.inMilliseconds;
+      final sinceUnmaskMs =
+          DateTime.now().millisecondsSinceEpoch - _feedPosterUnmaskedAtMs;
+      if (player.state.playing && !player.state.completed) {
+        if (posMs - _watchdogLastPositionMs < 120) {
+          _watchdogStuckTicks++;
+        } else {
+          _watchdogStuckTicks = 0;
+        }
+        // media_kit seeks to 0 on every 721↔720 surface twitch — position
+        // stays near the start while audio may still play.
+        if (sinceUnmaskMs > 1500 && posMs < 280) {
+          _watchdogNearZeroTicks++;
+        } else {
+          _watchdogNearZeroTicks = 0;
+        }
+      } else {
+        _watchdogStuckTicks = 0;
+        _watchdogNearZeroTicks = 0;
+      }
+      _watchdogLastPositionMs = posMs;
+      // ~1s frozen while the OS believes it is playing — this is the exact
+      // signature of the Honor Rendered:0/s flush storm or seek-on-resize loop.
+      if (_watchdogStuckTicks >= 2 || _watchdogNearZeroTicks >= 3) {
+        timer.cancel();
+        _logPoster(
+          'render_death_detected',
+          detail: 'pos=${posMs}ms stuck=$_watchdogStuckTicks '
+              'nearZero=$_watchdogNearZeroTicks key=$key',
+        );
+        unawaited(_recoverFromRenderDeath(key));
+      }
+    });
+  }
+
+  void _stopRenderDeathWatchdog() {
+    _renderDeathWatchdog?.cancel();
+    _renderDeathWatchdog = null;
+    _watchdogStuckTicks = 0;
+    _watchdogNearZeroTicks = 0;
+    _watchdogLastPositionMs = -1;
+  }
+
+  /// Resolve the 360 MP4 playback URL for this reel, if the ladder has one.
+  /// Used as a render-death fallback tier on constrained devices.
+  Future<String?> _lowestTierSourceUrl() async {
+    for (final candidate in _resolvedCandidates()) {
+      if (_resolver.mp4Tier(candidate.url) == '360') {
+        final network = await _networkPolicy.currentNetworkClass();
+        return _resolvePlaybackUrlForSource(candidate, network);
+      }
+    }
+    return null;
+  }
+
+  /// Hard recovery for a decoder that has gone render-dead after a clean
+  /// unmask. Native telemetry cannot see this (it only watches for a stall
+  /// before the first frame), and soft play/seek recovery does not restore a
+  /// broken render pipe — only a brand new Player/texture does.
+  Future<void> _recoverFromRenderDeath(String key) async {
+    if (_renderDeathRecoveryInFlight || _isDisposed || !mounted) {
+      return;
+    }
+    _renderDeathRecoveryInFlight = true;
+    _stopRenderDeathWatchdog();
+    final generation = ++_playbackGeneration;
+    _logPoster('render_death_recovery', detail: 'key=$key gen=$generation');
+    try {
+      // Render death on Honor is a surface/dimension failure, not a decode-
+      // capacity one, so retry on the lowest (360) tier: it often carries
+      // friendlier (even) dimensions than the odd-height 720 that trips the
+      // MediaCodec surface reconfigure loop.
+      final sourceUrl =
+          await _lowestTierSourceUrl() ?? _pool.sourceUrlForKey(key);
+      await _pool.forceRecycleFeedVisibleSurfaceHard(key);
+      if (!_isCurrentAttach(generation) || !mounted || _isDisposed) {
+        return;
+      }
+      _feedPosterUnmaskedAtMs = 0;
+      _frameReady = false;
+      _videoSurfaceVisible = false;
+      _surfacePaintFrames = 0;
+      _visibleSurfacePaintFrames = 0;
+      _resetDimensionStability();
+      _showThumbnail = true;
+      _postRecycleUnmask = true;
+      if (mounted && !_isDisposed) {
+        setState(() {});
+      }
+      widget.onFeedAwaitingPaint?.call();
+      if (sourceUrl == null || sourceUrl.isEmpty) {
+        _isInitializing = false;
+        unawaited(_loadVideo());
+        return;
+      }
+      _activeFeedSlotIndex = _pool.activeFeedSlotIndex;
+      _videoController = _pool.feedSlotVideoController(_activeFeedSlotIndex);
+      _pooledKey = key;
+      final pooled = await _pool.openVisibleReel(
+        key: key,
+        sourceUrl: sourceUrl,
+        openToken: generation,
+      );
+      if (!_isCurrentAttach(generation) || !mounted || _isDisposed) {
+        return;
+      }
+      _activeFeedSlotIndex =
+          pooled.feedActiveSlotIndex ?? _pool.activeFeedSlotIndex;
+      _videoController = _pool.feedSlotVideoController(_activeFeedSlotIndex);
+      await _registerRenderSlot(pooled.player);
+      await _attachPlayer(pooled.player, generation: generation);
+    } catch (e) {
+      _logPoster('render_death_recovery_failed', detail: 'err=$e');
+      _isInitializing = false;
+      unawaited(_loadVideo());
+    } finally {
+      _renderDeathRecoveryInFlight = false;
     }
   }
 
@@ -1826,7 +2053,7 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
     final sameSurface = _videoController?.player == player;
     if (!sameSurface) {
       _surfaceEpoch++;
-      _videoController = VideoController(player);
+      _videoController = createReelVideoController(player);
       _videoSurfaceMounted = true;
     }
     final key = _pooledKey;
@@ -1943,16 +2170,22 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
 
   /// One permanent full-size surface — single [Video] widget bound to the active
   /// slot. Never mount two surfaces (Honor/MTK log: Rendered 0/s, surface errors).
+  ///
+  /// On Honor/MTK [visible] only gates non-constrained devices. When constrained,
+  /// keep opacity 1 as soon as the surface is mounted — opacity 0 makes the
+  /// codec decode headless (Rendered 0/s, Discarded 30/s). The feed poster in
+  /// [ReelsVideoScreen] masks until [onFeedVideoPainted].
   Widget _buildFeedVideoSurfaces({required bool visible}) {
     final controller =
         _pool.feedSlotVideoController(_activeFeedSlotIndex);
     if (controller == null) {
       return const SizedBox.shrink();
     }
+    final opaque = _needsConstrainedStartGate || visible;
     return Positioned.fill(
       child: IgnorePointer(
         child: Opacity(
-          opacity: visible ? 1.0 : 0.0,
+          opacity: opaque ? 1.0 : 0.0,
           child: ClipRect(
             child: Align(
               alignment: Alignment.center,
@@ -2796,12 +3029,14 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
     // Honor/MTK: 1×1 strict gate never paints — keep full size, hide via opacity.
     final collapseSurface =
         _strictSurfaceGate && !showVideo && !_needsConstrainedStartGate;
+    // Parent poster masks feed video until paint; Honor needs opaque surface from mount.
+    final feedSurfaceMounted = _usesFeedVisibleChannel && _videoSurfaceMounted;
     return Stack(
       fit: StackFit.expand,
       children: [
         if (!_usesFeedVisibleChannel && _videoSurfaceVisible)
           const ColoredBox(color: Colors.black),
-        if (_usesFeedVisibleChannel && _videoSurfaceMounted)
+        if (feedSurfaceMounted)
           _buildFeedVideoSurfaces(visible: feedVideoVisible),
         if (_usesFeedVisibleChannel)
           Positioned.fill(

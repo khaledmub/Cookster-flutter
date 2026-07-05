@@ -87,6 +87,28 @@ class DeviceConstraints {
       deviceTierSync == ReelsDeviceTier.b ||
       deviceTierSync == ReelsDeviceTier.c;
 
+  /// Honor/Huawei/MTK (tier b/c): the MediaCodec (`c2.qti.avc.decoder`) path
+  /// fails to bind its render surface ("codec was not configured for a new
+  /// surface") and enters an endless flush storm (Rendered 0/s, Discarded
+  /// 30/s) that kills playback. copy-mode hwdec did not help because media_kit
+  /// already decodes to ByteBuffers on Android. Fall back to pure software
+  /// decode (libavcodec) which removes MediaCodec from the pipeline entirely.
+  ///
+  /// Before [ensureInitialized] completes, default Android to software decode
+  /// so the first [VideoController] is not created with MediaCodec on Honor.
+  bool get preferSoftwareVideoDecode {
+    if (_tier != null) {
+      return deviceTierSync == ReelsDeviceTier.b ||
+          deviceTierSync == ReelsDeviceTier.c;
+    }
+    return Platform.isAndroid;
+  }
+
+  /// libmpv `hwdec` value for this device. `no` forces software decode on
+  /// devices whose MediaCodec surface path is broken; `auto-safe` is the
+  /// media_kit default hardware path used on capable devices.
+  String get mpvHwdecMode => preferSoftwareVideoDecode ? 'no' : 'auto-safe';
+
   bool get prefer360ColdOpen => deviceTierSync == ReelsDeviceTier.c;
 
   bool get suppressScrollDecoderWarm => deviceTierSync == ReelsDeviceTier.b;

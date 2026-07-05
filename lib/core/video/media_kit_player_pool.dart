@@ -74,7 +74,6 @@ class MediaKitPlayerPool {
 
   /// LRU order: oldest at [LinkedHashMap.keys.first], MRU at last.
   final LinkedHashMap<String, Player> _players = LinkedHashMap<String, Player>();
-  String? _lastAudioRecoveryKey;
   final Map<String, int> _leaseCount = <String, int>{};
   final Map<String, String> _sourceByKey = <String, String>{};
   final Set<String> _warmInFlight = <String>{};
@@ -796,6 +795,24 @@ class MediaKitPlayerPool {
     return _runPriority(() => _pingPong.recycleActiveDecoderIfStale());
   }
 
+  /// Hard reset for post-unmask render death (Rendered 0/s, decoder flush
+  /// storm) that native telemetry cannot see — it only watches for a stall
+  /// *before* first frame. Soft recovery (play/seek on the same decoder) does
+  /// not help once the render pipe is dead, so this forces a brand new
+  /// Player/texture even on Honor/MTK, deliberately bypassing the tier guard
+  /// that normally avoids recycling those devices.
+  Future<void> forceRecycleFeedVisibleSurfaceHard(String key) {
+    return _runPriority(() async {
+      if (key.isEmpty || _feedVisibleKey != key) {
+        return;
+      }
+      if (!_feedPingPongConfigured) {
+        await ensureFeedPingPongInitialized();
+      }
+      await _pingPong.forceRecycleActiveDecoder();
+    });
+  }
+
   /// Opens the next reel on the hidden ping-pong slot (muted, demux ahead).
   Future<void> prefetchFeedReel({
     required String key,
@@ -856,15 +873,6 @@ class MediaKitPlayerPool {
         _leaseCount[key] = (_leaseCount[key] ?? 0).clamp(1, 999);
       }
       await _pingPong.forceRestartActiveAudio();
-      if (!isActiveAudible(key)) {
-        try {
-          await player.setVolume(100);
-          if (player.state.playing) {
-            await player.pause();
-          }
-          await player.play();
-        } catch (_) {}
-      }
       ReelsPerf.log(
         'feed_audible key=$key ok=${isActiveAudible(key)} '
         'vol=${player.state.volume} playing=${player.state.playing}',
@@ -1223,21 +1231,11 @@ class MediaKitPlayerPool {
       if (player.state.volume <= 50) {
         await player.setVolume(100);
       }
-      if (_isFeedPingPongPlayer(player) &&
-          DeviceConstraints.instance.needsConstrainedSurfaceRecovery) {
-        if (_lastAudioRecoveryKey != key) {
-          if (player.state.playing) {
-            _lastAudioRecoveryKey = key;
-            await player.pause();
-            await player.play();
-          } else {
-            await player.play();
-          }
-        } else if (!player.state.playing) {
-          await player.play();
-        }
-      } else if (!player.state.playing) {
+      if (!player.state.playing) {
         await player.play();
+      }
+      if (player.state.volume <= 50) {
+        await player.setVolume(100);
       }
     } catch (_) {}
     return (isStandalonePlayer || !_isSuspendedSince(suspendEpoch)) &&
