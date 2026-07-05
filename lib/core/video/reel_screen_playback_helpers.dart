@@ -34,7 +34,7 @@ class ReelScreenPlaybackHelpers {
     if (pool.isActiveAudible(videoId)) {
       return;
     }
-    unawaited(pool.forceFeedAudibleAtPosterUnmask(videoId));
+    unawaited(pool.ensureFeedAudibleWithRetry(videoId));
   }
 
   static Future<void> warmVisibleIndex({

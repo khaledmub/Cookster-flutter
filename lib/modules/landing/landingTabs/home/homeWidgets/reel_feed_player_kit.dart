@@ -233,10 +233,12 @@ class ReelFeedPlayerKit {
     VoidCallback? onVideoCompleted,
     bool releaseOnDispose = false,
     bool wrapPositioned = true,
+    bool showProgressBar = false,
   }) {
     final player = ReelVideoPlayer(
       key: playerKey,
       releaseOnDispose: releaseOnDispose,
+      showProgressBar: showProgressBar,
       playerPoolKey: video.id,
       videoId: video.id,
       thumbnailUrl: posterUrl(video),

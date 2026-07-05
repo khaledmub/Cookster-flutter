@@ -14,6 +14,7 @@ import 'package:cookster/core/video/video_analytics_tracker.dart';
 import 'package:cookster/core/video/video_source_resolver.dart';
 import 'package:cookster/services/feature_flags/remote_config_service.dart';
 import 'package:cookster/core/widgets/reel_gapless_poster.dart';
+import 'package:cookster/core/widgets/reel_playback_progress_bar.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:media_kit/media_kit.dart';
@@ -44,6 +45,7 @@ class ReelVideoPlayer extends StatefulWidget {
     this.onFeedVideoPainted,
     this.onFeedAwaitingPaint,
     this.onVideoCompleted,
+    this.showProgressBar = false,
   });
 
   final String thumbnailUrl;
@@ -65,6 +67,8 @@ class ReelVideoPlayer extends StatefulWidget {
   /// Fired before slot recycle / awaiting paint — parent should force poster mask.
   final VoidCallback? onFeedAwaitingPaint;
   final VoidCallback? onVideoCompleted;
+  /// Thin gold progress line at the bottom of feed reels.
+  final bool showProgressBar;
 
   @override
   State<ReelVideoPlayer> createState() => ReelVideoPlayerState();
@@ -350,7 +354,8 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
     if (_isDisposed || !_usesFeedVisibleChannel) {
       return;
     }
-    _pool.pauseAllImmediate();
+    // onPageChanged already called pauseAllImmediate — a second suspend here
+    // bumps the epoch twice and aborts the unmute that should follow unmask.
     _stopRenderDeathWatchdog();
     _feedPosterUnmaskedAtMs = 0;
     _playbackGeneration++;
@@ -386,9 +391,20 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
         paintTicks: _needsConstrainedStartGate ? 10 : 4,
       );
     }
+    final hadUnmasked = _feedPosterUnmaskedAtMs > 0;
     _logPoster('surface_bumped', detail: 'key=$key keep=$keepVisible');
+    if (hadUnmasked &&
+        key != null &&
+        key.isNotEmpty &&
+        !_userPaused &&
+        _feedVisibleKeyMatches(key)) {
+      unawaited(_pool.ensureFeedAudibleWithRetry(key));
+    }
     setState(() {});
   }
+
+  bool _feedVisibleKeyMatches(String key) =>
+      _pool.isFeedVisibleKey(key) && _pool.feedVisibleKey == key;
 
   /// Hide video surface when a reel switch is committed — not during partial scroll.
   void deferSurfaceForSwipe() {
@@ -1103,7 +1119,7 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
         !_videoSurfaceVisible) {
       return;
     }
-    await _pool.forceFeedAudibleAtPosterUnmask(key);
+    await _pool.ensureFeedAudibleWithRetry(key);
   }
 
   Future<void> _resumeAudibleAfterReveal({
@@ -1445,7 +1461,7 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
       });
       unawaited(_recordCleanOpen());
       if (key != null && key.isNotEmpty) {
-        unawaited(_ensureFeedAudibleAfterPaint(key, generation));
+        unawaited(_pool.ensureFeedAudibleWithRetry(key));
       }
     }
   }
@@ -3083,6 +3099,11 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
               color: Colors.white70,
               size: 72,
             ),
+          ),
+        if (widget.showProgressBar && player != null)
+          ReelPlaybackProgressBar(
+            player: player,
+            bottomInset: MediaQuery.paddingOf(context).bottom + 6,
           ),
       ],
     );

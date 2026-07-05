@@ -343,7 +343,7 @@ class FeedPingPongController {
 
   /// Poster-unmask audio. When video is already playing, volume-only unmute —
   /// pause→play flushes MediaCodec on Honor/MTK (Rendered 0/s after unmask).
-  Future<void> forceRestartActiveAudio() async {
+  Future<void> forceRestartActiveAudio({bool hard = false}) async {
     await ensureInitialized();
     final player = _active.player;
     if (player == null) {
@@ -351,18 +351,20 @@ class FeedPingPongController {
     }
     await DeviceConstraints.instance.ensureInitialized();
     try {
-      await _unmutePlayingDecoder(player);
+      await _unmutePlayingDecoder(player, hard: hard);
     } catch (_) {}
   }
 
   /// Unmute without tearing down an active video decode session.
-  Future<void> _unmutePlayingDecoder(Player player) async {
-    if (player.state.volume > 50 && player.state.playing) {
+  Future<void> _unmutePlayingDecoder(Player player, {bool hard = false}) async {
+    if (!hard && player.state.volume > 50 && player.state.playing) {
       return;
     }
     await player.setVolume(100);
-    if (!player.state.playing) {
-      await player.play();
+    if (hard || !player.state.playing) {
+      try {
+        await player.play();
+      } catch (_) {}
     }
   }
 

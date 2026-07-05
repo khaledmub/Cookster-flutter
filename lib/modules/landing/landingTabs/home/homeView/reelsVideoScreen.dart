@@ -278,7 +278,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
       return;
     }
     unawaited(
-      MediaKitPlayerPool.instance.forceFeedAudibleAtPosterUnmask(key),
+      MediaKitPlayerPool.instance.ensureFeedAudibleWithRetry(key),
     );
   }
 
@@ -657,10 +657,12 @@ class _VideoReelScreenState extends State<VideoReelScreen>
   }
 
   void _onFeedVideoPainted() {
-    if (!mounted || !_maskActiveVideoWithPoster) {
+    if (!mounted) {
       return;
     }
-    setState(() => _maskActiveVideoWithPoster = false);
+    if (_maskActiveVideoWithPoster) {
+      setState(() => _maskActiveVideoWithPoster = false);
+    }
     _lastHandledPlaybackEpoch = controller.feedPlaybackEpoch.value;
     _resumeFeedAudibleOnce();
   }
@@ -769,6 +771,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
     return ReelFeedPlayerKit.buildInlinePlayer(
       video: video,
       playerKey: _feedReelPlayerKey,
+      showProgressBar: true,
       onPlaybackReady: () {
         _onVisibleReelReady();
       },
@@ -1197,6 +1200,19 @@ class _VideoReelScreenState extends State<VideoReelScreen>
         ),
       );
     });
+
+    if (videos != null &&
+        actualIndex < videos.length &&
+        !videos[actualIndex].isPhotoPost) {
+      unawaited(
+        Future<void>.delayed(const Duration(milliseconds: 450), () {
+          if (!mounted) {
+            return;
+          }
+          ReelScreenPlaybackHelpers.resumeAudibleForReel(videoId);
+        }),
+      );
+    }
 
     // Defer non-critical Firestore reads until after the frame paints.
     Timer(const Duration(milliseconds: 120), () {
