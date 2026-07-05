@@ -66,6 +66,7 @@ class LikedVideos {
   dynamic userImage;
   dynamic followersCount;
   dynamic followingCount;
+  dynamic isImage;
 
   LikedVideos(
       {this.id,
@@ -91,7 +92,8 @@ class LikedVideos {
         this.userName,
         this.userImage,
         this.followersCount,
-        this.followingCount});
+        this.followingCount,
+        this.isImage});
 
   LikedVideos.fromJson(Map<String, dynamic> json) {
     id = json['id'];
@@ -126,6 +128,7 @@ class LikedVideos {
     userImage = json['user_image_url'] ?? json['user_image'];
     followersCount = json['followers_count'];
     followingCount = json['following_count'];
+    isImage = json['is_image'];
   }
 
   Map<String, dynamic> toJson() {
@@ -154,6 +157,7 @@ class LikedVideos {
     data['user_image'] = this.userImage;
     data['followers_count'] = this.followersCount;
     data['following_count'] = this.followingCount;
+    data['is_image'] = this.isImage;
     return data;
   }
 }

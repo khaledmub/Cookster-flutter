@@ -374,6 +374,7 @@ class _HashtagReelScreenState extends State<HashtagReelScreen>
                                 video: video,
                                 playerKey: _reelPlayerKey,
                                 wrapPositioned: false,
+                                showProgressBar: true,
                                 onPlaybackReady: () {
                                   _onVisibleReelReady(index);
                                 },

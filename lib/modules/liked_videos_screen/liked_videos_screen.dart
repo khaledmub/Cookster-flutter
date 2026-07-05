@@ -47,14 +47,15 @@ class _LikedVideosScreenState extends State<LikedVideosScreen>
   }
 
   bool _likedTileIsPhoto(LikedVideos video) {
-    final playback = video.resolvedPlaybackUrl?.trim() ?? '';
-    final thumb = video.resolvedThumbnailUrl?.trim() ?? '';
-    if (playback.isEmpty) {
-      return false;
-    }
-    return !playback.contains('.mp4') &&
-        !playback.contains('.m3u8') &&
-        thumb.isNotEmpty;
+    return isReelGridPhotoPost(
+      isImage: video.isImage,
+      videoUrl: video.videoUrl,
+      video: video.video,
+      thumbnailUrl: video.thumbnailUrl,
+      imageUrl: video.imageUrl,
+      image: video.image,
+      transcodeStatus: video.transcodeStatus,
+    );
   }
 
   Widget _buildVideoTile(LikedVideos video, int thumbCache) {

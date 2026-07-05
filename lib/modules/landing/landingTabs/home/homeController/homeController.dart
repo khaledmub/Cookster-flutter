@@ -37,6 +37,9 @@ class HomeController extends GetxController with WidgetsBindingObserver {
   var isNavigating = false.obs;
   var isAppInBackground = false.obs;
   int _routeOverlayPauseDepth = 0;
+
+  /// How many overlay routes currently hold the home feed paused.
+  int get routeOverlayPauseDepth => _routeOverlayPauseDepth;
   int _mediaCaptureDepth = 0;
   int _playbackMuteDepth = 0;
   int _bottomNavMuteDepth = 0;

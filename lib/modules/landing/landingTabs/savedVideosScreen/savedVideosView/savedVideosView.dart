@@ -7,6 +7,7 @@ import 'package:get/get.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 
 import 'package:cookster/core/widgets/grid_thumbnail_cache.dart';
+import 'package:cookster/core/widgets/reel_content_chrome.dart';
 import 'package:cookster/core/video/fullscreen_video_playback.dart';
 import 'package:cookster/core/video/profile_reel_prefetch.dart';
 import 'package:cookster/modules/collection_reel/collection_reel_screen.dart';
@@ -98,10 +99,16 @@ class _SavedVideosViewState extends State<SavedVideosView>
                   ),
           ),
           Center(
-            child: Icon(
-              Icons.play_circle_outline,
-              color: Colors.white.withValues(alpha: 0.7),
-              size: 30.sp,
+            child: ReelGridMediaTypeIcon(
+              isPhoto: isReelGridPhotoPost(
+                isImage: video.isImage,
+                videoUrl: video.videoUrl,
+                video: video.video,
+                thumbnailUrl: video.thumbnailUrl,
+                imageUrl: video.imageUrl,
+                image: video.image,
+                transcodeStatus: video.transcodeStatus,
+              ),
             ),
           ),
         ],

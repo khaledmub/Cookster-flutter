@@ -22,8 +22,9 @@ Future<void> prepareForProfileReelRoute() async {
   await MediaKitPlayerPool.instance.awaitOperationsIdle();
   if (Get.isRegistered<HomeController>()) {
     final home = Get.find<HomeController>();
-    home.pauseReelsForRouteOverlay();
-    // Let home [ReelVideoPlayer] unmount (canPlayHomeReels=false) before pool dispose.
+    // Do not bump [routeOverlayPauseDepth] here — the pushed reel screen (or
+    // visit-profile shell) owns pause/resume pairing. An extra pause left the
+    // home feed permanently blocked after closing profile reels.
     await SchedulerBinding.instance.endOfFrame;
     await SchedulerBinding.instance.endOfFrame;
     await home.releaseAllVideoResources();

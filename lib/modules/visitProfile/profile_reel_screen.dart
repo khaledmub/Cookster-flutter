@@ -74,6 +74,8 @@ class _ProfileReelScreenState extends State<ProfileReelScreen>
   final ValueNotifier<int> _visibleIndexNotifier = ValueNotifier<int>(0);
   bool _maskActiveVideoWithPoster = true;
   bool _poolSessionReady = false;
+  /// True when this screen pushed [pauseReelsForRouteOverlay] (own profile path).
+  bool _ownsRouteOverlayPause = false;
 
   final List<WallVideos> _videos = [];
   FeedMeta? _meta;
@@ -96,7 +98,14 @@ class _ProfileReelScreenState extends State<ProfileReelScreen>
     WidgetsBinding.instance.addObserver(this);
     ensureVisitProfileDependencies();
     _homeController = Get.find<HomeController>();
-    _homeController.reinforceReelsPausedForOverlay();
+    // Visit-profile shell already paused home; own-profile grid opens this
+    // screen directly and must own the pause/resume pair.
+    if (_homeController.routeOverlayPauseDepth == 0) {
+      _homeController.pauseReelsForRouteOverlay();
+      _ownsRouteOverlayPause = true;
+    } else {
+      _homeController.reinforceReelsPausedForOverlay();
+    }
 
     var startIndex = 0;
     final seeds = widget.seedVideos;
@@ -214,8 +223,10 @@ class _ProfileReelScreenState extends State<ProfileReelScreen>
   Future<void> _teardownPoolAndResumeHome() async {
     await MediaKitPlayerPool.instance.awaitOperationsIdle();
     await MediaKitPlayerPool.instance.disposeAll();
-    // Do not call [resumeReelsAfterRouteOverlay] here — [VisitProfileView] (or
-    // another parent overlay) still owns route pause depth until it is popped.
+    if (_ownsRouteOverlayPause) {
+      _homeController.resumeReelsAfterRouteOverlay();
+      _ownsRouteOverlayPause = false;
+    }
   }
 
   Future<void> _loadAuth() async {
@@ -478,6 +489,7 @@ class _ProfileReelScreenState extends State<ProfileReelScreen>
     return ReelFeedPlayerKit.buildInlinePlayer(
       video: video,
       playerKey: _reelPlayerKey,
+      showProgressBar: true,
       onPlaybackReady: () {
         _onVisibleReelReady(index);
       },
@@ -633,6 +645,8 @@ class _ProfileReelScreenState extends State<ProfileReelScreen>
   }
 
   void _onPageChanged(int index) {
+    MediaKitPlayerPool.instance.pauseAllImmediate();
+    _reelPlayerKey.currentState?.cancelInFlightPlaybackForPageChange();
     _visibleIndexNotifier.value = index;
     _resetPosterMaskForPageChange(
       videoId: index < _videos.length ? _videos[index].id : null,

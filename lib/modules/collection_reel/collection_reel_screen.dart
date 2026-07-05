@@ -63,6 +63,7 @@ class _CollectionReelScreenState extends State<CollectionReelScreen>
   final List<WallVideos> _videos = [];
   bool _isLoading = true;
   bool _isLoadingMore = false;
+  bool _poolSessionReady = false;
   String? _error;
   bool _isAuthenticated = false;
   final Set<String> _trackedVideoIds = {};
@@ -196,18 +197,28 @@ class _CollectionReelScreenState extends State<CollectionReelScreen>
     if (!mounted) {
       return;
     }
+    await MediaKitPlayerPool.instance.ensureFeedPingPongInitialized();
+    if (!mounted) {
+      return;
+    }
     _preloadManager.prepareForSessionStart();
     _syncVideosFromController(preserveVisible: false);
-    setState(() => _isLoading = false);
+    setState(() {
+      _isLoading = false;
+      _poolSessionReady = true;
+    });
 
     if (_videos.isNotEmpty) {
       final start = _visibleIndexNotifier.value;
+      unawaited(
+        _preloadManager.prefetchVisibleReel(start, maxWaitMs: 360),
+      );
       unawaited(_preloadManager.bootstrapFromVisible(start));
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) {
           return;
         }
-        unawaited(_attachPlaybackForIndex(start));
+        unawaited(_attachPlaybackForIndex(start, warmMaxWaitMs: 360));
       });
       unawaited(_preloadAllPages());
     }
@@ -334,6 +345,7 @@ class _CollectionReelScreenState extends State<CollectionReelScreen>
   Future<void> _attachPlaybackForIndex(
     int index, {
     bool forceReattach = false,
+    int warmMaxWaitMs = 200,
   }) async {
     if (index < 0 || index >= _videos.length) {
       return;
@@ -349,6 +361,7 @@ class _CollectionReelScreenState extends State<CollectionReelScreen>
       index: index,
       playerKey: _reelPlayerKey,
       forcePlayerReattach: forceReattach,
+      warmMaxWaitMs: warmMaxWaitMs,
     );
   }
 
@@ -356,6 +369,7 @@ class _CollectionReelScreenState extends State<CollectionReelScreen>
     return ReelFeedPlayerKit.buildInlinePlayer(
       video: video,
       playerKey: _reelPlayerKey,
+      showProgressBar: true,
       onPlaybackReady: () {
         _onVisibleReelReady(index);
       },
@@ -373,12 +387,16 @@ class _CollectionReelScreenState extends State<CollectionReelScreen>
       return null;
     }
     final key = video.id ?? video.resolvedPlaybackUrl ?? '';
-    if (key.isEmpty || !video.isPlaybackReady) {
+    if (key.isEmpty) {
+      return VideoPreloadTarget(key: key, candidates: const []);
+    }
+    final candidates = _sourceResolver.resolveForWallVideo(video);
+    if (candidates.isEmpty) {
       return VideoPreloadTarget(key: key, candidates: const []);
     }
     return VideoPreloadTarget(
       key: key,
-      candidates: _sourceResolver.resolveForWallVideo(video),
+      candidates: candidates,
     );
   }
 
@@ -473,6 +491,8 @@ class _CollectionReelScreenState extends State<CollectionReelScreen>
   }
 
   void _onPageChanged(int index) {
+    MediaKitPlayerPool.instance.pauseAllImmediate();
+    _reelPlayerKey.currentState?.cancelInFlightPlaybackForPageChange();
     _visibleIndexNotifier.value = index;
     _resetPosterMaskForPageChange(
       videoId: index < _videos.length ? _videos[index].id : null,
@@ -653,7 +673,7 @@ class _CollectionReelScreenState extends State<CollectionReelScreen>
                             child: Stack(
                               fit: StackFit.expand,
                               children: [
-                                if (isActiveVideo)
+                                if (isActiveVideo && _poolSessionReady)
                                   _buildInlineReelPlayer(video, index),
                                 IgnorePointer(
                                   ignoring: isActiveVideo && !maskPoster,

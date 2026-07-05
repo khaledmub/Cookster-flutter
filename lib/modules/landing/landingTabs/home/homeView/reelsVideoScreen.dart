@@ -243,7 +243,12 @@ class _VideoReelScreenState extends State<VideoReelScreen>
     _preloadManager.prepareForSessionStart();
     _schedulePlayerForPage(tab, index, forceReattach: true);
     unawaited(
-      _warmVisibleBeforePlayback(index, maxWaitMs: 200).then((_) async {
+      MediaKitPlayerPool.instance.ensureFeedPingPongInitialized().then((_) async {
+        if (!mounted || !controller.canPlayHomeReels) {
+          return;
+        }
+        return _warmVisibleBeforePlayback(index, maxWaitMs: 360);
+      }).then((_) async {
         if (!mounted || !controller.canPlayHomeReels) {
           return;
         }

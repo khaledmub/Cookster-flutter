@@ -358,6 +358,7 @@ class WallVideos {
       followersCount: v.followersCount,
       allowComments: v.allowComments,
       createdAt: v.createdAt,
+      isImage: v.isImage,
     );
   }
 
@@ -383,6 +384,7 @@ class WallVideos {
       followersCount: v.followersCount,
       allowComments: v.allowComments,
       createdAt: v.createdAt,
+      isImage: v.isImage,
     );
   }
 

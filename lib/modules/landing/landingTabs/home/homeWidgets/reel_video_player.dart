@@ -3110,6 +3110,9 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
         if (widget.showProgressBar && player != null)
           ReelPlaybackProgressBar(
             player: player,
+            previewPosterUrl: widget.thumbnailUrl.isNotEmpty
+                ? widget.thumbnailUrl
+                : widget.posterFallbackUrl,
             bottomInset: MediaQuery.paddingOf(context).bottom + 6,
           ),
       ],
