@@ -148,6 +148,14 @@ class MediaKitPlayerPool {
         },
         onBeforeSlotRecycle: (key) {
           _clearFrameReady(key);
+          if (key.isNotEmpty) {
+            final mapped = _players[key];
+            if (mapped != null &&
+                !identical(mapped, _pingPong.slot0.player) &&
+                !identical(mapped, _pingPong.slot1.player)) {
+              _players.remove(key);
+            }
+          }
           _notifyFeedSlotAwaitingRecycle();
         },
         onSlotRecycled: () {
@@ -1069,7 +1077,7 @@ class MediaKitPlayerPool {
         if (player.state.playing) {
           unawaited(player.pause());
         }
-      } catch (_) {}
+      } on Object catch (_) {}
     }
     if (exceptKey == null || exceptKey.isEmpty) {
       unawaited(_pingPong.silenceAllSlots());

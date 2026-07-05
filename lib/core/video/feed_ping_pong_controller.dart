@@ -374,31 +374,21 @@ class FeedPingPongController {
     bool forPosterUnmask = false,
   }) async {
     await DeviceConstraints.instance.ensureInitialized();
-    final honor = DeviceConstraints.instance.needsConstrainedSurfaceRecovery;
 
     if (!forPosterUnmask && player.state.volume > 50 && player.state.playing) {
       return;
     }
 
-    await player.setVolume(100);
+    try {
+      await player.setVolume(100);
+    } on Object catch (_) {
+      return;
+    }
 
     if (!player.state.playing) {
       try {
         await player.play();
-      } catch (_) {}
-      return;
-    }
-
-    // Honor: OpenSL AudioTrack dies during surface reconfigure while mpv still
-    // reports playing — seek nudge reopens audio without pause/flush.
-    if (honor && forPosterUnmask) {
-      try {
-        await player.seek(player.state.position);
-      } catch (_) {
-        try {
-          await player.play();
-        } catch (_) {}
-      }
+      } on Object catch (_) {}
     }
   }
 
@@ -514,7 +504,7 @@ class FeedPingPongController {
         if (DeviceConstraints.instance.needsConstrainedSurfaceRecovery) {
           if (!fastReopen) {
             final local = _isLocalPlaybackUrl(sourceUrl);
-            final baseMs = local ? 16 : 120;
+            final baseMs = local ? 16 : 80;
             final fatigueMs = local
                 ? 0
                 : (slot.openCount.clamp(0, 8) * 12).clamp(0, 96);
@@ -530,13 +520,17 @@ class FeedPingPongController {
       }
       final honorActiveOpen = identical(slot, _active) &&
           DeviceConstraints.instance.needsConstrainedSurfaceRecovery;
+      // Network-only deferred decode on Honor — cached file:// opens with play:true
+      // so first frame arrives sooner (no extra startMutedFeedDecode round-trip).
+      final honorDeferredDecode =
+          honorActiveOpen && !_isLocalPlaybackUrl(sourceUrl);
       await player.open(
         Media(sourceUrl),
-        play: !honorActiveOpen,
+        play: !honorDeferredDecode,
       );
       await stabilizeMpvSurfaceDimensions(player);
       await player.setVolume(0);
-      if (honorActiveOpen) {
+      if (honorDeferredDecode) {
         await startMutedFeedDecode();
       }
       slot.boundKey = key;
@@ -640,7 +634,7 @@ class FeedPingPongController {
         return;
       }
       await player.setVolume(0);
-    } catch (_) {}
+    } on Object catch (_) {}
   }
 
   Future<void> _enableSlotAudio(FeedDecodeSlot slot) async {

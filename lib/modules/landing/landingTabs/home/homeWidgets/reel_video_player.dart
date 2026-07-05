@@ -674,7 +674,7 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
           _pool.hadRecentPaint(key)) {
         return 48;
       }
-      return 200;
+      return 120;
     }
     return 32;
   }
@@ -1006,7 +1006,7 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
     if (!_needsConstrainedStartGate) {
       return 2;
     }
-    return _isWarmUnmaskPath() ? 2 : 8;
+    return _isWarmUnmaskPath() ? 2 : 4;
   }
 
   /// Mount [Video] and wait for native ImageReader before [Player.open] on Honor.
@@ -1329,7 +1329,7 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
     final requiredFrames = _requiredOpaquePaintFrames();
     final wallStartMs = DateTime.now().millisecondsSinceEpoch;
     final minWallMs = _needsConstrainedStartGate
-        ? (_isWarmUnmaskPath() ? 32 : 200)
+        ? (_isWarmUnmaskPath() ? 32 : 120)
         : 0;
     final startPosMs = player.state.position.inMilliseconds;
 
@@ -1564,9 +1564,12 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
         _watchdogNearZeroTicks = 0;
       }
       _watchdogLastPositionMs = posMs;
-      // ~1s frozen while the OS believes it is playing — this is the exact
-      // signature of the Honor Rendered:0/s flush storm or seek-on-resize loop.
-      if (_watchdogStuckTicks >= 2 || _watchdogNearZeroTicks >= 3) {
+      // Only recover when decode never advances after unmask (Rendered 0/s /
+      // seek-on-resize loop). Mid-playback micro-stalls must not trigger a full
+      // slot recycle — that disposes VideoOutput and adds multi-second delay.
+      if (_watchdogNearZeroTicks >= 3 &&
+          sinceUnmaskMs > 1500 &&
+          posMs < 280) {
         timer.cancel();
         _logPoster(
           'render_death_detected',
