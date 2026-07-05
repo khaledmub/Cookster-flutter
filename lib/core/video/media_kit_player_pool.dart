@@ -177,6 +177,8 @@ class MediaKitPlayerPool {
   int _priorityDepth = 0;
   /// Latest reel that should receive audio; older [activateVisible] calls bail out.
   String? _audibleTargetKey;
+  /// Key that successfully unmuted — skip redundant unmute calls mid-playback.
+  String? _audibleLockedKey;
   final Set<String> _userPausedKeys = <String>{};
   /// Bumped on [pauseAllImmediate] — in-flight unmute retries must bail out.
   int _suspendEpoch = 0;
@@ -233,10 +235,6 @@ class MediaKitPlayerPool {
       final player = _feedVisiblePlayer;
       if (player == null) {
         return false;
-      }
-      // Honor/MTK: [Player.state.playing] lies after surface resize — volume only.
-      if (DeviceConstraints.instance.needsConstrainedSurfaceRecovery) {
-        return player.state.volume > 50;
       }
       return player.state.volume > 50 && player.state.playing;
     }
@@ -613,6 +611,7 @@ class MediaKitPlayerPool {
       _feedVisibleKey = key;
       _activeKey = key;
       _audibleTargetKey = key;
+      _audibleLockedKey = null;
       feedActiveSlotIndexNotifier.value = result.activeSlotIndex;
       _players[key] = result.player;
       _sourceByKey[key] = sourceUrl;
@@ -852,16 +851,22 @@ class MediaKitPlayerPool {
     return feedResumeAudibleWhenReady(key);
   }
 
+  /// Honor: begin muted decode after [Player.open] with play:false.
+  Future<void> startMutedFeedDecode() {
+    return _runPriority(() => _pingPong.startMutedFeedDecode());
+  }
+
   /// Primary audio entry at poster_unmask — bypasses suspend-epoch and pool-map gates.
-  Future<void> forceFeedAudibleAtPosterUnmask(String key, {bool hard = false}) {
+  Future<void> forceFeedAudibleAtPosterUnmask(String key) {
     return _runPriority(() async {
       if (key.isEmpty ||
           _feedVisibleKey != key ||
-          _userPausedKeys.contains(key) ||
-          _pingPong.visibleKey != key) {
-        ReelsPerf.log(
-          'feed_audible skip key=$key feed=$_feedVisibleKey vis=${_pingPong.visibleKey}',
-        );
+          _userPausedKeys.contains(key)) {
+        return;
+      }
+      if (_audibleLockedKey == key &&
+          isActiveAudible(key) &&
+          !DeviceConstraints.instance.needsConstrainedSurfaceRecovery) {
         return;
       }
       _audibleTargetKey = key;
@@ -870,52 +875,42 @@ class MediaKitPlayerPool {
       _lastAudibleResumeMs = DateTime.now().millisecondsSinceEpoch;
       final player = _feedVisiblePlayer;
       if (player == null) {
-        ReelsPerf.log('feed_audible skip no player key=$key');
         return;
       }
       if (_players[key] == null) {
         _players[key] = player;
         _leaseCount[key] = (_leaseCount[key] ?? 0).clamp(1, 999);
       }
-      await _pingPong.forceRestartActiveAudio(hard: hard);
-      ReelsPerf.log(
-        'feed_audible key=$key ok=${isActiveAudible(key)} '
-        'vol=${player.state.volume} playing=${player.state.playing} hard=$hard',
-      );
+      await _pingPong.forceRestartActiveAudio(forPosterUnmask: true);
+      if (isActiveAudible(key) &&
+          !DeviceConstraints.instance.needsConstrainedSurfaceRecovery) {
+        _audibleLockedKey = key;
+      }
     });
   }
 
-  /// Retry unmute after swipe / surface resize — single-shot unmute is often aborted.
-  Future<void> ensureFeedAudibleWithRetry(
-    String key, {
-    int maxAttempts = 6,
-  }) async {
+  /// One soft retry when the first unmute races surface attach — no volume pulse.
+  Future<void> ensureFeedAudibleWithRetry(String key) async {
     if (key.isEmpty || _userPausedKeys.contains(key)) {
       return;
     }
-    final token = _audibleRetryToken;
-    for (var attempt = 0; attempt < maxAttempts; attempt++) {
-      if (token != _audibleRetryToken) {
-        return;
-      }
-      if (_feedVisibleKey != key) {
-        await Future<void>.delayed(Duration(milliseconds: 80 * (attempt + 1)));
-        continue;
-      }
-      if (isActiveAudible(key) && _pingPong.visibleKey == key) {
-        return;
-      }
-      if (!isFrameReady(key)) {
-        await Future<void>.delayed(Duration(milliseconds: 80 * (attempt + 1)));
-        continue;
-      }
-      final hard = attempt >= maxAttempts - 2;
-      await forceFeedAudibleAtPosterUnmask(key, hard: hard);
-      if (isActiveAudible(key) && _pingPong.visibleKey == key) {
-        return;
-      }
-      await Future<void>.delayed(Duration(milliseconds: 100 * (attempt + 1)));
+    final honor = DeviceConstraints.instance.needsConstrainedSurfaceRecovery;
+    if (!honor && isActiveAudible(key)) {
+      return;
     }
+    final token = _audibleRetryToken;
+    await forceFeedAudibleAtPosterUnmask(key);
+    if (isActiveAudible(key)) {
+      return;
+    }
+    await Future<void>.delayed(const Duration(milliseconds: 200));
+    if (token != _audibleRetryToken ||
+        _feedVisibleKey != key ||
+        _userPausedKeys.contains(key) ||
+        isActiveAudible(key)) {
+      return;
+    }
+    await forceFeedAudibleAtPosterUnmask(key);
   }
 
   /// Single unmute entry — debounced; never seek (Honor flush storms).
@@ -1039,6 +1034,7 @@ class MediaKitPlayerPool {
   void _suspendPlayback() {
     _suspendEpoch++;
     _audibleRetryToken++;
+    _audibleLockedKey = null;
     _audibleTargetKey = null;
     _lastAudibleResumeKey = null;
   }

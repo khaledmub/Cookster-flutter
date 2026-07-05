@@ -1205,8 +1205,11 @@ class _VideoReelScreenState extends State<VideoReelScreen>
         actualIndex < videos.length &&
         !videos[actualIndex].isPhotoPost) {
       unawaited(
-        Future<void>.delayed(const Duration(milliseconds: 450), () {
+        Future<void>.delayed(const Duration(milliseconds: 350), () {
           if (!mounted) {
+            return;
+          }
+          if (MediaKitPlayerPool.instance.isActiveAudible(videoId)) {
             return;
           }
           ReelScreenPlaybackHelpers.resumeAudibleForReel(videoId);

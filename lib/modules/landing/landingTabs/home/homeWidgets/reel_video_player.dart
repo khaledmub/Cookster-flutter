@@ -397,8 +397,9 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
         key != null &&
         key.isNotEmpty &&
         !_userPaused &&
-        _feedVisibleKeyMatches(key)) {
-      unawaited(_pool.ensureFeedAudibleWithRetry(key));
+        _feedVisibleKeyMatches(key) &&
+        !_pool.isActiveAudible(key)) {
+      unawaited(_pool.forceFeedAudibleAtPosterUnmask(key));
     }
     setState(() {});
   }
@@ -1461,7 +1462,7 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
       });
       unawaited(_recordCleanOpen());
       if (key != null && key.isNotEmpty) {
-        unawaited(_pool.ensureFeedAudibleWithRetry(key));
+        unawaited(_pool.forceFeedAudibleAtPosterUnmask(key));
       }
     }
   }
@@ -2459,6 +2460,9 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
     Player player, {
     required int generation,
   }) async {
+    if (_needsConstrainedStartGate && !player.state.playing) {
+      await _pool.startMutedFeedDecode();
+    }
     var waited = 0;
     while (waited < 2000 &&
         mounted &&

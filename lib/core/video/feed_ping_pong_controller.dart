@@ -341,30 +341,64 @@ class FeedPingPongController {
     await _enableSlotAudio(_active);
   }
 
-  /// Poster-unmask audio. When video is already playing, volume-only unmute —
-  /// pause→play flushes MediaCodec on Honor/MTK (Rendered 0/s after unmask).
-  Future<void> forceRestartActiveAudio({bool hard = false}) async {
+  /// Poster-unmask audio. Volume-only unmute — never pause (Honor flush storm).
+  Future<void> forceRestartActiveAudio({bool forPosterUnmask = false}) async {
     await ensureInitialized();
     final player = _active.player;
     if (player == null) {
       return;
     }
-    await DeviceConstraints.instance.ensureInitialized();
     try {
-      await _unmutePlayingDecoder(player, hard: hard);
+      await _unmutePlayingDecoder(player, forPosterUnmask: forPosterUnmask);
+    } catch (_) {}
+  }
+
+  /// Start decode with volume 0 — after [Player.open] on Honor (play:false).
+  Future<void> startMutedFeedDecode() async {
+    await ensureInitialized();
+    final player = _active.player;
+    if (player == null) {
+      return;
+    }
+    try {
+      await player.setVolume(0);
+      if (!player.state.playing) {
+        await player.play();
+      }
     } catch (_) {}
   }
 
   /// Unmute without tearing down an active video decode session.
-  Future<void> _unmutePlayingDecoder(Player player, {bool hard = false}) async {
-    if (!hard && player.state.volume > 50 && player.state.playing) {
+  Future<void> _unmutePlayingDecoder(
+    Player player, {
+    bool forPosterUnmask = false,
+  }) async {
+    await DeviceConstraints.instance.ensureInitialized();
+    final honor = DeviceConstraints.instance.needsConstrainedSurfaceRecovery;
+
+    if (!forPosterUnmask && player.state.volume > 50 && player.state.playing) {
       return;
     }
+
     await player.setVolume(100);
-    if (hard || !player.state.playing) {
+
+    if (!player.state.playing) {
       try {
         await player.play();
       } catch (_) {}
+      return;
+    }
+
+    // Honor: OpenSL AudioTrack dies during surface reconfigure while mpv still
+    // reports playing — seek nudge reopens audio without pause/flush.
+    if (honor && forPosterUnmask) {
+      try {
+        await player.seek(player.state.position);
+      } catch (_) {
+        try {
+          await player.play();
+        } catch (_) {}
+      }
     }
   }
 
@@ -496,13 +530,6 @@ class FeedPingPongController {
       }
       final honorActiveOpen = identical(slot, _active) &&
           DeviceConstraints.instance.needsConstrainedSurfaceRecovery;
-      if (honorActiveOpen) {
-        try {
-          if (player.state.playing) {
-            await player.pause();
-          }
-        } catch (_) {}
-      }
       await player.open(
         Media(sourceUrl),
         play: !honorActiveOpen,
@@ -510,13 +537,7 @@ class FeedPingPongController {
       await stabilizeMpvSurfaceDimensions(player);
       await player.setVolume(0);
       if (honorActiveOpen) {
-        try {
-          await player.play();
-        } catch (_) {}
-        if (!fastReopen) {
-          final postOpenMs = _isLocalPlaybackUrl(sourceUrl) ? 16 : 64;
-          await Future<void>.delayed(Duration(milliseconds: postOpenMs));
-        }
+        await startMutedFeedDecode();
       }
       slot.boundKey = key;
       slot.boundUrl = sourceUrl;
