@@ -624,6 +624,16 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
     if (!_needsConstrainedStartGate) {
       return true;
     }
+    // A locally cached file exposes stable codec dimensions almost immediately;
+    // the full 200ms settle window is only needed for cold network opens where
+    // the decoder renegotiates size mid-start. Shorten it for cache hits so the
+    // poster comes down faster (composited-frame + render-confirm gates below
+    // still guard against a black flash, and audio unmask is unchanged).
+    if (_lastOpenCacheHit ||
+        _lastOpenPartialCache ||
+        _scrollBackCacheEligible(_pooledKey)) {
+      stableMs = stableMs < 90 ? stableMs : 90;
+    }
     int? lastW = player.state.width;
     int? lastH = player.state.height;
     var settledSince = DateTime.now();
@@ -1288,7 +1298,14 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
         return;
       }
     } else {
-      await Future<void>.delayed(const Duration(milliseconds: 80));
+      // Cached reels already have decoded frames on disk — skip most of the
+      // pre-reveal settle so they start fast. Cold/network opens keep the full
+      // 80ms cushion. The opaque-paint + render-confirm pass in
+      // [_awaitFeedOpaquePaint] still gates the actual unmask, so this only
+      // trims dead wait time and never reveals a black surface.
+      final revealDelayMs =
+          (_lastOpenCacheHit || _lastOpenPartialCache) ? 16 : 80;
+      await Future<void>.delayed(Duration(milliseconds: revealDelayMs));
       if (!_isCurrentAttach(generation) || revealGen != _revealGeneration) {
         return;
       }
