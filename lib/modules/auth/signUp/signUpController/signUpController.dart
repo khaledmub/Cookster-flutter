@@ -4,7 +4,10 @@ import 'dart:developer';
 import 'package:awesome_dialog/awesome_dialog.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cookster/appUtils/apiEndPoints.dart';
+import 'package:cookster/core/i18n/api_message_localizer.dart';
+import 'package:cookster/core/location/app_location_defaults.dart';
 import 'package:cookster/core/user/public_user_identity.dart';
+import 'package:cookster/modules/auth/signUp/signUpController/cityController.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
@@ -73,6 +76,7 @@ class SignUpController extends GetxController {
   var usernameError = ''.obs;
   var isCheckingUsername = false.obs;
   var isUsernameAvailable = RxnBool();
+  var isUsernameCheckFailed = false.obs;
   var passwordError = ''.obs;
   var dobError = ''.obs;
   var businessTypeError = ''.obs;
@@ -89,6 +93,7 @@ class SignUpController extends GetxController {
     nameError.value = '';
     usernameError.value = '';
     isUsernameAvailable.value = null;
+    isUsernameCheckFailed.value = false;
     passwordError.value = '';
     dobError.value = '';
     contactPhoneError.value = '';
@@ -329,13 +334,17 @@ class SignUpController extends GetxController {
     final formatError = validateUsername(normalized);
     if (formatError != null) {
       isUsernameAvailable.value = null;
+      isUsernameCheckFailed.value = false;
       return;
     }
 
     isCheckingUsername.value = true;
+    isUsernameCheckFailed.value = false;
     try {
+      final result = await UsernameAvailabilityService.check(normalized);
+      isUsernameCheckFailed.value = result.isCheckFailed;
       isUsernameAvailable.value =
-          await UsernameAvailabilityService.checkAvailability(normalized);
+          result.checked ? result.available : null;
     } finally {
       isCheckingUsername.value = false;
     }
@@ -422,9 +431,20 @@ class SignUpController extends GetxController {
     if (validateUsername(usernameController.text) != null) {
       usernameError.value = validateUsername(usernameController.text)!;
       isValid = false;
-    } else if (isUsernameAvailable.value != true) {
-      usernameError.value = 'username_unavailable_error'.tr;
+    } else if (isUsernameCheckFailed.value) {
+      usernameError.value = 'username_check_failed_error'.tr;
       isValid = false;
+    } else if (isUsernameAvailable.value != true) {
+      if (isUsernameAvailable.value == null) {
+        await checkUsernameAvailability();
+      }
+      if (isUsernameCheckFailed.value) {
+        usernameError.value = 'username_check_failed_error'.tr;
+        isValid = false;
+      } else if (isUsernameAvailable.value != true) {
+        usernameError.value = 'username_unavailable_error'.tr;
+        isValid = false;
+      }
     }
 
     if (validateEmail(emailController.text) != null) {
@@ -710,25 +730,33 @@ class SignUpController extends GetxController {
         requestBody,
       );
 
-      final data = jsonDecode(response.body);
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
 
       print(response.statusCode);
       log(response.body);
 
-      if (response.statusCode == 201 && data['status'] == true) {
-        Map<String, dynamic> user = data['user'];
+      final user = data['user'];
+      final registerSucceeded = data['status'] == true &&
+          user is Map<String, dynamic> &&
+          (response.statusCode == 200 || response.statusCode == 201);
 
-        // Navigate to OTP verification screen
+      if (registerSucceeded) {
+        final otpSent = data['otp_sent'] == true;
+        final otpDelivery = data['otp_delivery']?.toString() ?? '';
+        final resumed = data['resumed'] == true;
+
         Get.toNamed(
           AppRoutes.signUpOtp,
           arguments: {
             'user': user,
-            'email': emailController.text,
+            'email': emailController.text.trim(),
             'deviceToken': deviceToken,
+            'otpSent': otpSent,
+            'otpDelivery': otpDelivery,
+            'resumed': resumed,
           },
         );
-      } else {
-        if (data['errors'] != null) {
+      } else if (data['errors'] != null) {
           Map<String, dynamic> errors = data['errors'];
           errors.forEach((key, value) {
             if (value is List && value.isNotEmpty) {
@@ -779,13 +807,17 @@ class SignUpController extends GetxController {
         } else {
           ScaffoldMessenger.of(Get.context!).showSnackBar(
             SnackBar(
-              content: Text(data['message'] ?? 'Signup failed'),
+              content: Text(
+                ApiMessageLocalizer.localize(
+                  data['message'],
+                  fallbackLocaleKey: 'form_unknown_error',
+                ),
+              ),
               backgroundColor: Colors.red,
               behavior: SnackBarBehavior.floating,
             ),
           );
         }
-      }
     } catch (e) {
       print("Error submitting form: $e");
       ScaffoldMessenger.of(Get.context!).showSnackBar(
@@ -897,6 +929,7 @@ class SignUpController extends GetxController {
             accountType.value = selectedProfileId.value.toString();
           }
         }
+        await _applyDefaultCountryAndCityIfNeeded();
       } else {
         ScaffoldMessenger.of(Get.context!).showSnackBar(
           SnackBar(
@@ -916,6 +949,48 @@ class SignUpController extends GetxController {
       );
     } finally {
       isSettingsLoading(false);
+    }
+  }
+
+  Future<void> _applyDefaultCountryAndCityIfNeeded() async {
+    if (selectCountryId.value.isNotEmpty && selectedCityId.value.isNotEmpty) {
+      return;
+    }
+
+    final countries = registrationSettings.value.countries;
+    if (countries == null || countries.isEmpty) {
+      return;
+    }
+
+    Countries? saudi;
+    for (final country in countries) {
+      if (AppLocationDefaults.isSaudiCountryName(country.name)) {
+        saudi = country;
+        break;
+      }
+    }
+    if (saudi?.id == null) {
+      return;
+    }
+
+    if (selectCountryId.value.isEmpty) {
+      selectCountryId.value = saudi!.id.toString();
+    }
+
+    if (selectedCityId.value.isNotEmpty) {
+      return;
+    }
+
+    final cityController = Get.isRegistered<CityController>()
+        ? Get.find<CityController>()
+        : Get.put(CityController());
+    await cityController.fetchCities(saudi!.id!);
+    for (final city in cityController.cityList) {
+      if (AppLocationDefaults.matchesRiyadhCityName(city.name)) {
+        selectedCityId.value = city.id?.toString() ?? '';
+        cityController.selectCity(city);
+        break;
+      }
     }
   }
 

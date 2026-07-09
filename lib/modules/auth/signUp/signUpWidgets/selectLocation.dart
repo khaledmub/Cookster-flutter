@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:cookster/core/location/app_location_defaults.dart';
 import 'package:flutter/material.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:get/get.dart';
@@ -10,9 +13,9 @@ import '../../../../appUtils/appUtils.dart';
 import '../../../../appUtils/colorUtils.dart';
 
 class LocationPickerScreen extends StatefulWidget {
-  final double? initialLatitude; // Add initial latitude
-  final double? initialLongitude; // Add initial longitude
-  final String? initialAddress; // Add initial address
+  final double? initialLatitude;
+  final double? initialLongitude;
+  final String? initialAddress;
 
   const LocationPickerScreen({
     Key? key,
@@ -31,41 +34,45 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
   LatLng? selectedLocation;
   LatLng? userLocation;
   String selectedAddress = "Search or select location";
+  bool _isFetchingLocation = false;
   static const String apiKey = "AIzaSyDwKQgoyXFVb6hXQY67yLogwHMojkjHCgo";
+
+  bool get _hasValidInitialCoords {
+    final lat = widget.initialLatitude;
+    final lng = widget.initialLongitude;
+    if (lat == null || lng == null || lat == 0.0 || lng == 0.0) {
+      return false;
+    }
+    return lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180;
+  }
 
   @override
   void initState() {
     super.initState();
-    // Set initial values from widget parameters if provided and valid
-    if (widget.initialLatitude != null && widget.initialLongitude != null) {
-      // Check if the coordinates are valid (not 0.0 or invalid range)
-      if (widget.initialLatitude != 0.0 &&
-          widget.initialLongitude != 0.0 &&
-          widget.initialLatitude! >= -90 &&
-          widget.initialLatitude! <= 90 &&
-          widget.initialLongitude! >= -180 &&
-          widget.initialLongitude! <= 180) {
-        selectedLocation = LatLng(
-          widget.initialLatitude!,
-          widget.initialLongitude!,
-        );
-        selectedAddress = widget.initialAddress ?? "Selected Location";
-      }
+    if (_hasValidInitialCoords) {
+      selectedLocation = LatLng(widget.initialLatitude!, widget.initialLongitude!);
+      selectedAddress = widget.initialAddress ?? "Selected Location";
+    } else {
+      selectedLocation = AppLocationDefaults.mapCenter;
+      selectedAddress = "finding_address".tr;
+      unawaited(_getAddressFromLatLng(AppLocationDefaults.mapCenter));
     }
-    // Always get user location
-    _getUserLocation();
+    unawaited(_getUserLocation(applyAsSelection: !_hasValidInitialCoords));
   }
 
-  /// Get user's current location
-  Future<void> _getUserLocation() async {
+  Future<void> _getUserLocation({bool applyAsSelection = false}) async {
+    if (_isFetchingLocation) {
+      return;
+    }
+    _isFetchingLocation = true;
     try {
-      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      final serviceEnabled = await Geolocator.isLocationServiceEnabled();
       if (!serviceEnabled) {
         Get.snackbar("location_error".tr, "please_enable_location_services".tr);
         return;
       }
 
-      LocationPermission permission = await Geolocator.checkPermission();
+      var permission = await Geolocator.checkPermission();
       if (permission == LocationPermission.denied) {
         permission = await Geolocator.requestPermission();
         if (permission == LocationPermission.denied) {
@@ -82,31 +89,55 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
         return;
       }
 
-      Position position = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
+      Position? position = await Geolocator.getLastKnownPosition();
+      position ??= await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+          timeLimit: Duration(seconds: 12),
+        ),
       );
 
+      final current = LatLng(position.latitude, position.longitude);
+      if (!mounted) {
+        return;
+      }
+
       setState(() {
-        userLocation = LatLng(position.latitude, position.longitude);
-        // If no valid initial location was provided, use user's current location
-        if (selectedLocation == null ||
-            (widget.initialLatitude == 0.0 && widget.initialLongitude == 0.0)) {
-          selectedLocation = userLocation;
-          _getAddressFromLatLng(userLocation!);
+        userLocation = current;
+        if (applyAsSelection || selectedLocation == null) {
+          selectedLocation = current;
         }
       });
 
-      // Move camera to appropriate location
-      LatLng target = selectedLocation ?? userLocation!;
-      if (mapController != null) {
-        mapController!.animateCamera(CameraUpdate.newLatLngZoom(target, 14));
+      if (applyAsSelection || selectedLocation == current) {
+        await _getAddressFromLatLng(current);
       }
+
+      final target = selectedLocation ?? current;
+      await mapController?.animateCamera(
+        CameraUpdate.newLatLngZoom(target, 14),
+      );
     } catch (e) {
       Get.snackbar("error".tr, "failed_to_get_location".tr);
+    } finally {
+      _isFetchingLocation = false;
     }
   }
 
-  /// Update location when map camera moves
+  Future<void> _goToCurrentLocation() async {
+    if (userLocation != null) {
+      setState(() {
+        selectedLocation = userLocation;
+      });
+      await _getAddressFromLatLng(userLocation!);
+      await mapController?.animateCamera(
+        CameraUpdate.newLatLngZoom(userLocation!, 14),
+      );
+      return;
+    }
+    await _getUserLocation(applyAsSelection: true);
+  }
+
   void _onCameraMove(CameraPosition position) {
     setState(() {
       selectedLocation = position.target;
@@ -114,34 +145,36 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
     });
   }
 
-  /// Get address when camera stops moving
   Future<void> _onCameraIdle() async {
-    await _getAddressFromLatLng(selectedLocation!);
+    if (selectedLocation != null) {
+      await _getAddressFromLatLng(selectedLocation!);
+    }
   }
 
   Future<void> _getAddressFromLatLng(LatLng position) async {
     try {
-      List<Placemark> placemarks = await placemarkFromCoordinates(
+      final placemarks = await placemarkFromCoordinates(
         position.latitude,
         position.longitude,
       );
 
       if (placemarks.isNotEmpty) {
-        Placemark place = placemarks[0];
+        final place = placemarks[0];
+        if (!mounted) {
+          return;
+        }
         setState(() {
           selectedAddress =
-              "${place.name}, ${place.locality}, ${place.country}" ??
-              "Unknown Address";
+              "${place.name}, ${place.locality}, ${place.country}";
         });
       }
     } catch (e) {
-      print("Error fetching address: $e");
+      debugPrint("Error fetching address: $e");
     }
   }
 
-  /// Confirm location selection
   void confirmLocation() {
-    LatLng? finalLocation = selectedLocation ?? userLocation;
+    final finalLocation = selectedLocation ?? userLocation;
 
     if (finalLocation != null) {
       Get.back(
@@ -170,10 +203,9 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
-      appBar: AppBar(title:  Text("pick_a_location".tr)),
+      appBar: AppBar(title: Text("pick_a_location".tr)),
       body: Column(
         children: [
-          // Search Bar (Google Places Autocomplete)
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 16),
             child: GooglePlaceAutoCompleteTextField(
@@ -198,19 +230,19 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
                 ),
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide(color: Colors.grey, width: 1),
+                  borderSide: const BorderSide(color: Colors.grey, width: 1),
                 ),
               ),
               debounceTime: 800,
               isLatLngRequired: true,
               itemClick: (Prediction prediction) {
-                Future.delayed(Duration(milliseconds: 300), () {
+                Future.delayed(const Duration(milliseconds: 300), () {
                   searchFocusNode.requestFocus();
                 });
               },
               getPlaceDetailWithLatLng: (Prediction prediction) {
-                double? lat = double.tryParse(prediction.lat!);
-                double? lng = double.tryParse(prediction.lng!);
+                final lat = double.tryParse(prediction.lat ?? '');
+                final lng = double.tryParse(prediction.lng ?? '');
                 if (lat != null && lng != null) {
                   setState(() {
                     selectedLocation = LatLng(lat, lng);
@@ -223,14 +255,12 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
                   );
                 }
 
-                Future.delayed(Duration(milliseconds: 300), () {
+                Future.delayed(const Duration(milliseconds: 300), () {
                   searchFocusNode.requestFocus();
                 });
               },
             ),
           ),
-
-          // Google Map with Static Center Marker
           Expanded(
             child: Stack(
               children: [
@@ -239,27 +269,25 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
                     target:
                         selectedLocation ??
                         userLocation ??
-                        const LatLng(31.5204, 74.3587),
+                        AppLocationDefaults.mapCenter,
                     zoom: 12,
                   ),
                   onMapCreated: (controller) {
                     mapController = controller;
-                    // Only animate if we have a valid location
-                    if (selectedLocation != null || userLocation != null) {
-                      LatLng target = selectedLocation ?? userLocation!;
-                      controller.animateCamera(
-                        CameraUpdate.newLatLngZoom(target, 14),
-                      );
-                    }
+                    final target =
+                        selectedLocation ??
+                        userLocation ??
+                        AppLocationDefaults.mapCenter;
+                    controller.animateCamera(
+                      CameraUpdate.newLatLngZoom(target, 14),
+                    );
                   },
                   onCameraMove: _onCameraMove,
                   onCameraIdle: _onCameraIdle,
                 ),
-                // Static Center Marker
-                Center(
+                const Center(
                   child: Icon(Icons.location_pin, size: 40, color: Colors.red),
                 ),
-                // Address Display
                 Positioned(
                   top: 10,
                   left: 20,
@@ -269,7 +297,7 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
                     decoration: BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(8),
-                      boxShadow: [
+                      boxShadow: const [
                         BoxShadow(color: Colors.black26, blurRadius: 4),
                       ],
                     ),
@@ -289,39 +317,31 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
                     ),
                   ),
                 ),
-                // Custom Locate Button
                 Positioned(
                   bottom: 100,
                   right: 16,
                   child: FloatingActionButton(
-                    onPressed: () {
-                      if (userLocation != null) {
-                        mapController?.animateCamera(
-                          CameraUpdate.newLatLngZoom(userLocation!, 14),
-                        );
-                        setState(() {
-                          selectedLocation = userLocation;
-                        });
-                        _getAddressFromLatLng(userLocation!);
-                      } else {
-                        // Get.snackbar(
-                        //   "location_error".tr,
-                        //   "User location not found!",
-                        // );
-                      }
-                    },
+                    onPressed:
+                        _isFetchingLocation ? null : () => _goToCurrentLocation(),
                     backgroundColor: Colors.white,
-                    child: const Icon(Icons.my_location, color: Colors.blue),
+                    child: _isFetchingLocation
+                        ? const SizedBox(
+                            width: 22,
+                            height: 22,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.my_location, color: Colors.blue),
                   ),
                 ),
               ],
             ),
           ),
-
-          // Confirm Button
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 16),
-            child: AppButton(text: "confirm_location".tr, onTap: confirmLocation),
+            child: AppButton(
+              text: "confirm_location".tr,
+              onTap: confirmLocation,
+            ),
           ),
         ],
       ),

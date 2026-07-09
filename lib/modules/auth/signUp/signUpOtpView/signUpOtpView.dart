@@ -45,7 +45,15 @@ class _SignUpOtpViewState extends State<SignUpOtpView> {
     bool isRtl = _language == 'ar';
     final SignUpOtpController controller = Get.find();
 
-    return Scaffold(
+    return PopScope(
+      canPop: true,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) {
+          return;
+        }
+        navigateBackFromContext(context, result);
+      },
+      child: Scaffold(
       appBar: AppBar(
         backgroundColor: ColorUtils.primaryColor,
         toolbarHeight: 0,
@@ -77,7 +85,7 @@ class _SignUpOtpViewState extends State<SignUpOtpView> {
                             child: GestureDetector(
                               behavior: HitTestBehavior.opaque,
                               onTap: () {
-                                Get.back();
+                                navigateBackFromContext(context);
                               },
                               child: Container(
                                 height: 40,
@@ -134,7 +142,7 @@ class _SignUpOtpViewState extends State<SignUpOtpView> {
                                 ),
                               ),
                               Text(
-                                "signup_otp_sent".tr,
+                                '${'signup_otp_sent'.tr}\n${controller.email}',
                                 textAlign: TextAlign.center,
                                 style: TextStyle(
                                   color: Colors.black,
@@ -142,6 +150,24 @@ class _SignUpOtpViewState extends State<SignUpOtpView> {
                                   fontWeight: FontWeight.w400,
                                 ),
                               ),
+                              Obx(() {
+                                final notice = controller.deliveryNotice.value;
+                                if (notice.isEmpty) {
+                                  return const SizedBox.shrink();
+                                }
+                                return Padding(
+                                  padding: EdgeInsets.only(top: 8.h),
+                                  child: Text(
+                                    notice,
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                      color: Colors.orange.shade800,
+                                      fontSize: 12.sp,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                );
+                              }),
                               _buildOtpInput(controller),
                               SizedBox(height: 10.h),
                               Obx(
@@ -167,6 +193,7 @@ class _SignUpOtpViewState extends State<SignUpOtpView> {
             ),
           ],
         ),
+      ),
       ),
     );
   }
@@ -227,7 +254,7 @@ class _SignUpOtpViewState extends State<SignUpOtpView> {
                     await controller.resendOtp();
                   },
             child: Text(
-              "Resend OTP to ${controller.email}",
+              '${'resend_otp'.tr} ${controller.email}',
               style: TextStyle(
                 color: ColorUtils.darkBrown,
                 fontSize: 13.sp,

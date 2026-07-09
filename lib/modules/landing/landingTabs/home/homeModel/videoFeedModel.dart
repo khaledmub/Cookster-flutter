@@ -26,6 +26,8 @@ class FeedMeta {
   /// True when Near Me geo filter returned nothing and the server fell back
   /// to the general reels feed (`GET /api/reels?feed=near_me`).
   bool geoFallback;
+  /// True when the server widened the Near Me radius (50/80/120 km expansion).
+  bool geoExpanded;
 
   FeedMeta({
     this.page,
@@ -39,6 +41,7 @@ class FeedMeta {
     this.normalOffset,
     this.sortBy,
     this.geoFallback = false,
+    this.geoExpanded = false,
   });
 
   factory FeedMeta.fromJson(Map<String, dynamic>? json) {
@@ -57,6 +60,7 @@ class FeedMeta {
       normalOffset: json['normal_offset'] as int?,
       sortBy: json['sort_by'] as String?,
       geoFallback: json['geo_fallback'] == true,
+      geoExpanded: json['geo_expanded'] == true,
     );
   }
 

@@ -42,6 +42,10 @@ const Map<String, String> en = {
   "message": "Welcome to our app",
   "change_language": "Change Language",
   "Near Me": "Near Me",
+  "near_me_geo_fallback_notice":
+      "No nearby posts found — showing general reels. Enable location or change city.",
+  "near_me_geo_expanded_notice":
+      "Showing posts from a wider area around you.",
   "General": "General",
   "Change Location": "Change Location",
   "Discover": "Discover",
@@ -254,6 +258,8 @@ const Map<String, String> en = {
   "username_format_error":
       "Username must be 3-30 characters: lowercase letters, numbers, and underscores only.",
   "username_unavailable_error": "This username is already taken.",
+  "username_check_failed_error":
+      "Could not verify username. Check your connection and try again.",
   "username_available": "Username is available",
   "checking_username": "Checking availability...",
   "phone_required_error": "Please enter your phone number",
@@ -324,6 +330,18 @@ const Map<String, String> en = {
   "reset_password": "Reset Password",
   "verify_otp": "Verify OTP",
   "verify_email": "Verify Email",
+  "otp_complete_error": "Please enter the complete 5-digit code.",
+  "otp_invalid": "Invalid OTP. Please try again.",
+  "otp_resent_success": "OTP sent to your email.",
+  "otp_resend_failed": "Failed to resend OTP. Check your email or try again.",
+  "otp_error_generic": "Something went wrong. Please try again.",
+  "resend_otp": "Resend OTP to",
+  "otp_delivery_queued":
+      "Your verification code is being sent. If you don't receive it within a minute, tap Resend.",
+  "otp_delivery_failed":
+      "We couldn't send the verification email. Tap Resend or check your email address.",
+  "registration_resumed_notice":
+      "Continuing your previous signup — enter the code we email you.",
   "new_password": "New Password",
   "confirm_password": "Confirm Password",
   "connect_with_us": "Connect With Us",

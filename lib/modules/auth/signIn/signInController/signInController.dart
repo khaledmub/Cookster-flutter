@@ -73,6 +73,9 @@ class LogInController extends GetxController {
         'user': user,
         'email': email,
         'deviceToken': deviceToken,
+        'otpSent': false,
+        'otpDelivery': '',
+        'resumed': true,
       },
     );
   }

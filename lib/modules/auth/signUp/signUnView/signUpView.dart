@@ -108,6 +108,7 @@ class _SignVpViewState extends State<SignVpView> {
     _usernameDebounce?.cancel();
     signUpController.usernameError.value = '';
     signUpController.isUsernameAvailable.value = null;
+    signUpController.isUsernameCheckFailed.value = false;
     _usernameDebounce = Timer(const Duration(milliseconds: 500), () {
       signUpController.checkUsernameAvailability();
     });
@@ -489,6 +490,22 @@ class _SignVpViewState extends State<SignVpView> {
                                                   'checking_username'.tr,
                                                   style: TextStyle(
                                                     color: Colors.grey,
+                                                    fontSize: 12.sp,
+                                                  ),
+                                                ),
+                                              );
+                                            }
+                                            if (signUpController
+                                                .isUsernameCheckFailed.value) {
+                                              return Padding(
+                                                padding: EdgeInsets.only(
+                                                  left: 16.w,
+                                                ),
+                                                child: Text(
+                                                  'username_check_failed_error'
+                                                      .tr,
+                                                  style: TextStyle(
+                                                    color: Colors.orange,
                                                     fontSize: 12.sp,
                                                   ),
                                                 ),

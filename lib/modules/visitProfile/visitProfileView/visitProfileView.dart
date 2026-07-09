@@ -87,7 +87,9 @@ class _VisitProfileViewState extends State<VisitProfileView>
     homeController = Get.find<HomeController>();
     profileController = Get.find<ProfileController>();
     professionalProfileController = Get.find<ProfessionalProfileController>();
-    homeController.pauseReelsForRouteOverlay();
+    if (!homeController.hasRouteOverlayPause) {
+      homeController.pauseReelsForRouteOverlay();
+    }
     _initializeProfile().then((_) => _syncTabController());
     _loadLanguage();
     fetchUserId();

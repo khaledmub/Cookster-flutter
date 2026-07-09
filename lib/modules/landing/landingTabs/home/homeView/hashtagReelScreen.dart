@@ -49,13 +49,21 @@ class _HashtagReelScreenState extends State<HashtagReelScreen>
   late final VideoPreloadManager _preloadManager;
   late final ReelsPlaybackCoordinator _playbackCoordinator;
   final VideoSourceResolver _sourceResolver = const VideoSourceResolver();
+  HomeController? _homeController;
+  bool _ownsRouteOverlayPause = false;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     if (Get.isRegistered<HomeController>()) {
-      Get.find<HomeController>().pauseReelsForRouteOverlay();
+      final home = Get.find<HomeController>();
+      _homeController = home;
+      if (!home.hasRouteOverlayPause) {
+        home.pauseReelsForRouteOverlay();
+        _ownsRouteOverlayPause = true;
+      }
+      home.enterOverlayReelAudibleSession();
     } else {
       MediaKitPlayerPool.instance.silenceAllSync();
     }
@@ -116,8 +124,10 @@ class _HashtagReelScreenState extends State<HashtagReelScreen>
     _pageController.dispose();
     _playbackCoordinator.dispose();
     unawaited(MediaKitPlayerPool.instance.pauseAllAwait());
-    if (Get.isRegistered<HomeController>()) {
-      Get.find<HomeController>().resumeReelsAfterRouteOverlay();
+    _homeController?.exitOverlayReelAudibleSession();
+    if (_ownsRouteOverlayPause) {
+      _homeController?.resumeReelsAfterRouteOverlay();
+      _ownsRouteOverlayPause = false;
     }
     super.dispose();
   }

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
-/// Pops the current route via the nearest navigator or GetX.
+/// Pops the current route via Flutter [Navigator] only (avoids GetX snackbar crash on back).
 bool popCurrentRoute([dynamic result]) {
   final ctx = Get.context;
   if (ctx != null) {
@@ -23,10 +23,15 @@ bool popCurrentRoute([dynamic result]) {
 
 /// Reliable back navigation for app bar / overlay back buttons.
 void navigateBack([dynamic result]) {
-  if (popCurrentRoute(result)) {
+  popCurrentRoute(result);
+}
+
+/// Prefer the widget [BuildContext] when popping (e.g. OTP / auth screens).
+void navigateBackFromContext(BuildContext context, [dynamic result]) {
+  final navigator = Navigator.of(context);
+  if (navigator.canPop()) {
+    navigator.pop(result);
     return;
   }
-  try {
-    Get.back(result: result);
-  } catch (_) {}
+  popCurrentRoute(result);
 }

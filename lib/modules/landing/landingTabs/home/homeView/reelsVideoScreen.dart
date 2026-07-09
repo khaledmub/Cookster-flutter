@@ -566,6 +566,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
       return;
     }
     _pendingFeedTabPlayback = false;
+    controller.notifyHomeReelsOwnsColdStartAttach();
     final layer = _layerFor(tab);
     // While the user is on a reel, trust the live PageView index — not the saved
     // tab scroll id (fetchVideos + epoch replay was jumping to another video).
@@ -1796,7 +1797,11 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                 child: Obx(
                   () => Container(
                     margin: const EdgeInsets.only(top: 6),
-                    child: Row(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Row(
                       crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
                         const SizedBox(width: 8),
@@ -1937,6 +1942,10 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                         const SizedBox(width: 8),
                       ],
                     ),
+                        if (controller.selectedType.value == 'Near Me')
+                          _buildNearMeGeoNotice(context),
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -1949,6 +1958,63 @@ class _VideoReelScreenState extends State<VideoReelScreen>
 
   String? selectedCountry;
   String? selectedCity;
+
+  Widget _buildNearMeGeoNotice(BuildContext context) {
+    final meta = controller.videoFeed.value.meta;
+    if (meta == null) {
+      return const SizedBox.shrink();
+    }
+    final String message;
+    if (meta.geoFallback) {
+      message = 'near_me_geo_fallback_notice'.tr;
+    } else if (meta.geoExpanded) {
+      message = 'near_me_geo_expanded_notice'.tr;
+    } else {
+      return const SizedBox.shrink();
+    }
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(8, 4, 8, 0),
+      child: Material(
+        color: Colors.black.withOpacity(0.55),
+        borderRadius: BorderRadius.circular(8),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          child: Row(
+            children: [
+              Icon(
+                Icons.info_outline,
+                size: 14,
+                color: Colors.white.withOpacity(0.85),
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  message,
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.9),
+                    fontSize: 11.sp,
+                  ),
+                ),
+              ),
+              if (meta.geoFallback)
+                GestureDetector(
+                  onTap: () => _showBottomSheet(context),
+                  child: Text(
+                    'Change Location'.tr,
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 11.sp,
+                      fontWeight: FontWeight.w600,
+                      decoration: TextDecoration.underline,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 
   void _showBottomSheet(BuildContext context) {
     showModalBottomSheet(

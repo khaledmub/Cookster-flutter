@@ -79,7 +79,10 @@ class _SearchViewState extends State<SearchView>
     }
     searchController = Get.find<UserSearchController>();
     if (Get.isRegistered<HomeController>()) {
-      Get.find<HomeController>().pauseReelsForRouteOverlay();
+      final home = Get.find<HomeController>();
+      if (!home.hasRouteOverlayPause) {
+        home.pauseReelsForRouteOverlay();
+      }
     }
     initPaginatedScroll(() {
       if (searchController.canLoadMoreVideos &&

@@ -106,6 +106,7 @@ class _ProfileReelScreenState extends State<ProfileReelScreen>
     } else {
       _homeController.reinforceReelsPausedForOverlay();
     }
+    _homeController.enterOverlayReelAudibleSession();
 
     var startIndex = 0;
     final seeds = widget.seedVideos;
@@ -221,6 +222,7 @@ class _ProfileReelScreenState extends State<ProfileReelScreen>
   }
 
   Future<void> _teardownPoolAndResumeHome() async {
+    _homeController.exitOverlayReelAudibleSession();
     await MediaKitPlayerPool.instance.awaitOperationsIdle();
     await MediaKitPlayerPool.instance.disposeAll();
     if (_ownsRouteOverlayPause) {

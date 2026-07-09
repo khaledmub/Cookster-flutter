@@ -42,6 +42,10 @@ const Map<String, String> ar = {
   "message": "مرحبًا بك في تطبيقنا",
   "change_language": "تغيير اللغة",
   "Near Me": "بالقرب مني",
+  "near_me_geo_fallback_notice":
+      "لا توجد منشورات قريبة — يتم عرض الريلز العامة. فعّل الموقع أو غيّر المدينة.",
+  "near_me_geo_expanded_notice":
+      "يتم عرض منشورات من منطقة أوسع حولك.",
   "General": "عام",
   "Change Location": "تغيير الموقع",
   "Discover": "اكتشف",
@@ -247,6 +251,8 @@ const Map<String, String> ar = {
   "username_format_error":
       "يجب أن يكون اسم المستخدم من 3 إلى 30 حرفًا: أحرف صغيرة وأرقام وشرطة سفلية فقط.",
   "username_unavailable_error": "اسم المستخدم هذا مستخدم بالفعل.",
+  "username_check_failed_error":
+      "تعذر التحقق من اسم المستخدم. تحقق من الاتصال وحاول مرة أخرى.",
   "username_available": "اسم المستخدم متاح",
   "checking_username": "جارٍ التحقق من التوفر...",
   "phone_required_error": "يرجى إدخال رقم الهاتف",
@@ -319,6 +325,18 @@ const Map<String, String> ar = {
   "reset_password": "إعادة تعيين كلمة المرور",
   "verify_otp": "التحقق من رمز OTP",
   "verify_email": "التحقق من البريد الإلكتروني",
+  "otp_complete_error": "يرجى إدخال رمز OTP المكوّن من 5 أرقام.",
+  "otp_invalid": "رمز OTP غير صحيح. يرجى المحاولة مرة أخرى.",
+  "otp_resent_success": "تم إرسال رمز OTP إلى بريدك الإلكتروني.",
+  "otp_resend_failed": "تعذر إعادة إرسال رمز OTP. تحقق من بريدك أو حاول مرة أخرى.",
+  "otp_error_generic": "حدث خطأ ما. يرجى المحاولة مرة أخرى.",
+  "resend_otp": "إعادة إرسال رمز OTP إلى",
+  "otp_delivery_queued":
+      "جارٍ إرسال رمز التحقق. إذا لم يصل خلال دقيقة، اضغط إعادة الإرسال.",
+  "otp_delivery_failed":
+      "تعذر إرسال بريد التحقق. اضغط إعادة الإرسال أو تحقق من عنوان بريدك.",
+  "registration_resumed_notice":
+      "متابعة تسجيلك السابق — أدخل الرمز الذي نرسله إلى بريدك.",
   "new_password": "كلمة المرور الجديدة",
   "confirm_password": "تأكيد كلمة المرور",
   "connect_with_us": "تواصل معنا",

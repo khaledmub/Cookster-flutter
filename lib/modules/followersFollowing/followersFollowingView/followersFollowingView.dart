@@ -47,7 +47,10 @@ class _SocialListsScreenState extends State<SocialListsScreen>
   void initState() {
     super.initState();
     if (Get.isRegistered<HomeController>()) {
-      Get.find<HomeController>().pauseReelsForRouteOverlay();
+      final home = Get.find<HomeController>();
+      if (!home.hasRouteOverlayPause) {
+        home.pauseReelsForRouteOverlay();
+      }
     }
     _tabController = TabController(
       length: 2,

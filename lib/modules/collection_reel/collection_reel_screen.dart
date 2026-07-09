@@ -64,6 +64,7 @@ class _CollectionReelScreenState extends State<CollectionReelScreen>
   bool _isLoading = true;
   bool _isLoadingMore = false;
   bool _poolSessionReady = false;
+  bool _ownsRouteOverlayPause = false;
   String? _error;
   bool _isAuthenticated = false;
   final Set<String> _trackedVideoIds = {};
@@ -99,7 +100,11 @@ class _CollectionReelScreenState extends State<CollectionReelScreen>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _homeController = Get.find<HomeController>();
-    _homeController.pauseReelsForRouteOverlay();
+    if (!_homeController.hasRouteOverlayPause) {
+      _homeController.pauseReelsForRouteOverlay();
+      _ownsRouteOverlayPause = true;
+    }
+    _homeController.enterOverlayReelAudibleSession();
 
     if (widget.kind == CollectionReelKind.saved) {
       _saveController = Get.find<SaveController>();
@@ -270,8 +275,12 @@ class _CollectionReelScreenState extends State<CollectionReelScreen>
   }
 
   Future<void> _teardownPoolAndResumeHome() async {
+    _homeController.exitOverlayReelAudibleSession();
     await MediaKitPlayerPool.instance.disposeAll();
-    _homeController.resumeReelsAfterRouteOverlay();
+    if (_ownsRouteOverlayPause) {
+      _homeController.resumeReelsAfterRouteOverlay();
+      _ownsRouteOverlayPause = false;
+    }
   }
 
   Future<void> _loadAuth() async {

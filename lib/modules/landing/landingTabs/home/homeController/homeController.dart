@@ -38,6 +38,9 @@ class HomeController extends GetxController with WidgetsBindingObserver {
   var isAppInBackground = false.obs;
   int _routeOverlayPauseDepth = 0;
 
+  /// How many overlay reel screens (profile / saved / liked / hashtag) are active.
+  int _overlayReelAudibleDepth = 0;
+
   /// How many overlay routes currently hold the home feed paused.
   int get routeOverlayPauseDepth => _routeOverlayPauseDepth;
   int _mediaCaptureDepth = 0;
@@ -78,6 +81,11 @@ class HomeController extends GetxController with WidgetsBindingObserver {
   /// (cache reorder race — see tab-switch handler in [VideoReelScreen]).
   bool _feedTabSwitchLocked = false;
 
+  /// Skips [onReturnedToHomeTab] epoch replay while reels screen owns cold start.
+  bool _initialHomePlaybackPending = true;
+
+  bool get hasRouteOverlayPause => _routeOverlayPauseDepth > 0;
+
   bool get isFeedTabSwitchLocked => _feedTabSwitchLocked;
 
   void beginFeedTabSwitch() => _feedTabSwitchLocked = true;
@@ -93,7 +101,14 @@ class HomeController extends GetxController with WidgetsBindingObserver {
     super.onInit();
     checkLocationStatus();
     WidgetsBinding.instance.addObserver(this);
+    MediaKitPlayerPool.instance.feedAudibleAllowed =
+        () => shouldAllowReelsAudible;
     unawaited(_bootstrapHomeFeed());
+  }
+
+  /// Called when the reels screen schedules the first cold-start attach.
+  void notifyHomeReelsOwnsColdStartAttach() {
+    _initialHomePlaybackPending = false;
   }
 
   /// Restore last known coords so Near Me can load before GPS finishes.
@@ -269,7 +284,8 @@ class HomeController extends GetxController with WidgetsBindingObserver {
     if (kDebugMode && selectedType.value == 'Near Me') {
       debugPrint(
         'Near Me reels: count=${parsed.videos?.length ?? 0} '
-        'geo_fallback=${parsed.meta?.geoFallback ?? false}',
+        'geo_fallback=${parsed.meta?.geoFallback ?? false} '
+        'geo_expanded=${parsed.meta?.geoExpanded ?? false}',
       );
     }
     return parsed;
@@ -289,6 +305,7 @@ class HomeController extends GetxController with WidgetsBindingObserver {
 
   @override
   void onClose() {
+    MediaKitPlayerPool.instance.feedAudibleAllowed = null;
     _debounceTimer?.cancel();
     _fetchMoreDebounce?.cancel();
     pauseAllVideos();
@@ -1124,6 +1141,26 @@ class HomeController extends GetxController with WidgetsBindingObserver {
       _isOnHomeTab() &&
       !_hasOverlayRoute();
 
+  /// Profile / saved / liked / hashtag reel routes share the feed pool but
+  /// intentionally pause home — they need their own audible permission.
+  bool get shouldAllowOverlayReelsPlayback =>
+      !isAppInBackground.value &&
+      !isInMediaCaptureFlow &&
+      _overlayReelAudibleDepth > 0;
+
+  bool get shouldAllowReelsAudible =>
+      shouldAllowHomeReelsPlayback || shouldAllowOverlayReelsPlayback;
+
+  void enterOverlayReelAudibleSession() {
+    _overlayReelAudibleDepth++;
+  }
+
+  void exitOverlayReelAudibleSession() {
+    if (_overlayReelAudibleDepth > 0) {
+      _overlayReelAudibleDepth--;
+    }
+  }
+
   /// Keeps the feed decoder mounted (paused) during bottom-nav tab switches.
   bool get canMountHomeReelPlayer =>
       !isAppInBackground.value &&
@@ -1210,10 +1247,14 @@ class HomeController extends GetxController with WidgetsBindingObserver {
     unawaited(resumeVisibleVideo(visiblePageIndex.value));
   }
 
-  /// Immediate silence before a route push (no depth change). Pair with
-  /// [pauseReelsForRouteOverlay] on the pushed screen's [initState].
+  /// Immediate silence before a route push. Arms overlay pause so async
+  /// poster-unmask cannot restore audio during the navigation gap.
   void silenceHomeReelsForTransition() {
-    MediaKitPlayerPool.instance.silenceAllSync();
+    if (_routeOverlayPauseDepth == 0) {
+      pauseReelsForRouteOverlay();
+    } else {
+      reinforceReelsPausedForOverlay();
+    }
   }
 
   /// Stops reel audio/video immediately when pushing another route (e.g. profile).
@@ -1313,11 +1354,14 @@ class HomeController extends GetxController with WidgetsBindingObserver {
     if (key != null &&
         key.isNotEmpty &&
         MediaKitPlayerPool.instance.isFeedVisibleKey(key)) {
+      _initialHomePlaybackPending = false;
       unawaited(MediaKitPlayerPool.instance.resumeFeedVisible(key));
       unawaited(resumeVisibleVideo(idx));
       return;
     }
-    restoreHomeFeedPlayback();
+    if (!_initialHomePlaybackPending) {
+      restoreHomeFeedPlayback();
+    }
   }
 
   /// Called from [ReelsPlaybackRouteObserver] after the navigator stack changes.
