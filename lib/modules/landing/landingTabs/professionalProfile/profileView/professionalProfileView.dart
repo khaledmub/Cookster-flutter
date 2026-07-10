@@ -314,15 +314,13 @@ class _ProfessionalProfileViewState extends State<ProfessionalProfileView>
                           userDetails?.id?.toString(),
                         ),
                       ),
-                    InkWell(
+                    ProfileAppBarCircleIcon(
                       onTap: () async {
-                        // Get email from controller
-                        final String? email =
-                            promoteVideoController
-                                .siteSettings
-                                .value
-                                ?.settings
-                                ?.email;
+                        final String? email = promoteVideoController
+                            .siteSettings
+                            .value
+                            ?.settings
+                            ?.email;
 
                         if (email == null || email.isEmpty) {
                           ScaffoldMessenger.of(context).showSnackBar(
@@ -333,16 +331,12 @@ class _ProfessionalProfileViewState extends State<ProfessionalProfileView>
                           return;
                         }
 
-                        // Create the mailto URL
                         final Uri emailUri = Uri(
                           scheme: 'mailto',
                           path: email,
-                          queryParameters: {
-                            'subject': '', // Pre-fill subject
-                          },
+                          queryParameters: {'subject': ''},
                         );
 
-                        // Launch the mail app
                         if (await canLaunchUrl(emailUri)) {
                           await launchUrl(emailUri);
                         } else {
@@ -353,39 +347,49 @@ class _ProfessionalProfileViewState extends State<ProfessionalProfileView>
                       },
                       child: Icon(
                         Icons.support_agent_outlined,
-                        color: Colors.black,
-                        size: 30,
+                        color: ColorUtils.darkBrown,
+                        size: 20.sp,
                       ),
                     ),
-                    SizedBox(width: 16),
-                    InkWell(
+                    SizedBox(width: 8.w),
+                    ProfileAppBarCircleIcon(
                       onTap: () {
                         Get.to(() => EditProfessionalProfileView());
                       },
                       child: SvgPicture.asset(
                         "assets/icons/settings.svg",
-                        height: 20.h,
+                        height: 16.h,
+                        colorFilter: const ColorFilter.mode(
+                          ColorUtils.darkBrown,
+                          BlendMode.srcIn,
+                        ),
                       ),
                     ),
-                    SizedBox(width: 16),
-                    InkWell(
+                    SizedBox(width: 8.w),
+                    ProfileAppBarCircleIcon(
                       onTap: () async {
                         await profileController.showLogoutDialog(context);
                       },
-                      child:
-                          Directionality.of(context) == TextDirection.rtl
-                              ? Transform.flip(
-                                flipX:
-                                    true, // Flips the icon horizontally for RTL
-                                child: SvgPicture.asset(
-                                  "assets/icons/logout.svg",
-                                  height: 18.h,
-                                ),
-                              )
-                              : SvgPicture.asset(
+                      child: Directionality.of(context) == TextDirection.rtl
+                          ? Transform.flip(
+                              flipX: true,
+                              child: SvgPicture.asset(
                                 "assets/icons/logout.svg",
-                                height: 18.h,
+                                height: 15.h,
+                                colorFilter: const ColorFilter.mode(
+                                  ColorUtils.darkBrown,
+                                  BlendMode.srcIn,
+                                ),
                               ),
+                            )
+                          : SvgPicture.asset(
+                              "assets/icons/logout.svg",
+                              height: 15.h,
+                              colorFilter: const ColorFilter.mode(
+                                ColorUtils.darkBrown,
+                                BlendMode.srcIn,
+                              ),
+                            ),
                     ),
                   ],
                 ),
@@ -737,152 +741,80 @@ class _ProfessionalProfileViewState extends State<ProfessionalProfileView>
                           ],
                         );
                       }),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 24.0),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            if (professionalAdditionalData?.contactPhone !=
-                                    null &&
-                                professionalAdditionalData!
-                                    .contactPhone!
-                                    .isNotEmpty)
-                              IconButtonWidget(
-                                icon: "assets/icons/phone.svg",
-                                onTap:
-                                    () => _launchPhone(
-                                      professionalAdditionalData.contactPhone,
-                                    ),
+                      ProfileActionCard(
+                        contacts: [
+                          if (professionalAdditionalData?.contactPhone !=
+                                  null &&
+                              professionalAdditionalData!
+                                  .contactPhone!
+                                  .isNotEmpty)
+                            ProfileContactAction(
+                              icon: "assets/icons/phone.svg",
+                              label: 'Phone',
+                              onTap: () => _launchPhone(
+                                professionalAdditionalData.contactPhone,
                               ),
-                            if (professionalAdditionalData?.contactEmail !=
-                                    null &&
-                                professionalAdditionalData!
-                                    .contactEmail!
-                                    .isNotEmpty)
-                              IconButtonWidget(
-                                icon: "assets/icons/email.svg",
-                                onTap:
-                                    () => _launchEmail(
-                                      professionalAdditionalData.contactEmail,
-                                    ),
+                            ),
+                          if (professionalAdditionalData?.contactEmail !=
+                                  null &&
+                              professionalAdditionalData!
+                                  .contactEmail!
+                                  .isNotEmpty)
+                            ProfileContactAction(
+                              icon: "assets/icons/email.svg",
+                              label: 'Email',
+                              onTap: () => _launchEmail(
+                                professionalAdditionalData.contactEmail,
                               ),
-                            if (professionalAdditionalData?.website != null &&
-                                professionalAdditionalData!.website!.isNotEmpty)
-                              IconButtonWidget(
-                                icon: "assets/icons/website.svg",
-                                onTap:
-                                    () => _launchWebsite(
-                                      professionalAdditionalData.website,
-                                    ),
+                            ),
+                          if (professionalAdditionalData?.website != null &&
+                              professionalAdditionalData!.website!.isNotEmpty)
+                            ProfileContactAction(
+                              icon: "assets/icons/website.svg",
+                              label: 'Web',
+                              onTap: () => _launchWebsite(
+                                professionalAdditionalData.website,
                               ),
-                            if (professionalAdditionalData?.latitude != null &&
-                                professionalAdditionalData?.longitude != null &&
-                                professionalAdditionalData!
-                                    .latitude!
-                                    .isNotEmpty &&
-                                professionalAdditionalData
-                                    .longitude!
-                                    .isNotEmpty)
-                              IconButtonWidget(
-                                icon: "assets/icons/location.svg",
-                                onTap:
-                                    () => _launchMaps(
-                                      double.tryParse(
-                                        professionalAdditionalData.latitude!,
-                                      ),
-                                      double.tryParse(
-                                        professionalAdditionalData.longitude!,
-                                      ),
-                                    ),
-                              ),
-                          ],
-                        ),
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            InkWell(
-                              onTap: () {
-                                shareProfile(
-                                  context: context,
-                                  email: userDetails.email?.toString(),
-                                  userId: userDetails.id?.toString(),
-                                  displayName: userDetails.name?.toString(),
-                                );
-                              },
-                              child: Container(
-                                padding: EdgeInsets.all(8),
-                                height: 40,
-                                width: 40,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  border: Border.all(
-                                    color: ColorUtils.darkBrown,
-                                  ),
+                            ),
+                          if (professionalAdditionalData?.latitude != null &&
+                              professionalAdditionalData?.longitude != null &&
+                              professionalAdditionalData!
+                                  .latitude!
+                                  .isNotEmpty &&
+                              professionalAdditionalData
+                                  .longitude!
+                                  .isNotEmpty)
+                            ProfileContactAction(
+                              icon: "assets/icons/location.svg",
+                              label: 'Map',
+                              onTap: () => _launchMaps(
+                                double.tryParse(
+                                  professionalAdditionalData.latitude!,
                                 ),
-                                child: Center(
-                                  child: Icon(
-                                    Icons.share_outlined,
-                                    color: ColorUtils.darkBrown,
-                                    size: 20,
-                                  ),
+                                double.tryParse(
+                                  professionalAdditionalData.longitude!,
                                 ),
                               ),
                             ),
-                            InkWell(
-                              onTap: () {
-                                showProfileQrCodeDialog(userDetails.email);
-                              },
-                              child: Container(
-                                padding: EdgeInsets.all(8),
-                                height: 40,
-                                width: 40,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  border: Border.all(
-                                    color: ColorUtils.darkBrown,
-                                  ),
-                                ),
-                                child: Center(
-                                  child: Icon(
-                                    Icons.qr_code_rounded,
-                                    color: ColorUtils.darkBrown,
-                                    size: 20,
-                                  ),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 6),
-                            InkWell(
-                              onTap: () {
-                                showMoreOptionsProfile(
-                                  context,
-                                  userDetails.name,
-                                  userDetails.email,
-                                );
-                              },
-                              child: Container(
-                                padding: EdgeInsets.all(8),
-                                height: 40,
-                                width: 40,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  border: Border.all(
-                                    color: ColorUtils.darkBrown,
-                                  ),
-                                ),
-                                child: Center(
-                                  child: SvgPicture.asset(
-                                    color: ColorUtils.darkBrown,
-                                    "assets/icons/chevron-down.svg",
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
+                        ],
+                        onShare: () {
+                          shareProfile(
+                            context: context,
+                            email: userDetails.email?.toString(),
+                            userId: userDetails.id?.toString(),
+                            displayName: userDetails.name?.toString(),
+                          );
+                        },
+                        onQr: () {
+                          showProfileQrCodeDialog(userDetails.email);
+                        },
+                        onMore: () {
+                          showMoreOptionsProfile(
+                            context,
+                            userDetails.name,
+                            userDetails.email,
+                          );
+                        },
                       ),
 
                       if (displayVideoTypes.isNotEmpty)

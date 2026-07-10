@@ -84,30 +84,254 @@ class ProfileStat extends StatelessWidget {
   }
 }
 
+class ProfileContactAction {
+  final String icon;
+  final String label;
+  final VoidCallback onTap;
+
+  const ProfileContactAction({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+}
+
 class IconButtonWidget extends StatelessWidget {
   final String icon;
   final VoidCallback onTap;
+  final String? label;
 
-  const IconButtonWidget({super.key, required this.icon, required this.onTap});
+  const IconButtonWidget({
+    super.key,
+    required this.icon,
+    required this.onTap,
+    this.label,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(18),
-      child: Container(
-        height: 36,
-        width: 36,
-        padding: const EdgeInsets.all(8),
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: Colors.white,
-          border: Border.all(color: ColorUtils.darkBrown),
+    final button = Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(22),
+        child: Ink(
+          height: 44,
+          width: 44,
+          decoration: const BoxDecoration(
+            shape: BoxShape.circle,
+            color: ColorUtils.secondaryColor,
+          ),
+          child: Center(
+            child: SvgPicture.asset(
+              icon,
+              height: 20,
+              colorFilter: const ColorFilter.mode(
+                ColorUtils.darkBrown,
+                BlendMode.srcIn,
+              ),
+            ),
+          ),
         ),
-        child: SvgPicture.asset(
-          icon,
-          height: 18,
-          color: ColorUtils.darkBrown,
+      ),
+    );
+    if (label == null || label!.isEmpty) {
+      return button;
+    }
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        button,
+        SizedBox(height: 6.h),
+        Text(
+          label!.tr,
+          style: TextStyle(
+            fontSize: 10.sp,
+            fontWeight: FontWeight.w500,
+            color: ColorUtils.darkBrown,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class ProfilePillAction extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  const ProfilePillAction({
+    super.key,
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(24.r),
+        child: Ink(
+          padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 10.h),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(24.r),
+            border: Border.all(
+              color: ColorUtils.primaryColor.withValues(alpha: 0.55),
+            ),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 16.sp, color: ColorUtils.darkBrown),
+              SizedBox(width: 6.w),
+              Flexible(
+                child: Text(
+                  label.tr,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 12.sp,
+                    fontWeight: FontWeight.w600,
+                    color: ColorUtils.darkBrown,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Soft cream card grouping contact icons + Share / QR / More pills.
+class ProfileActionCard extends StatelessWidget {
+  final List<ProfileContactAction> contacts;
+  final VoidCallback? onShare;
+  final VoidCallback? onQr;
+  final VoidCallback? onMore;
+
+  const ProfileActionCard({
+    super.key,
+    this.contacts = const [],
+    this.onShare,
+    this.onQr,
+    this.onMore,
+  });
+
+  bool get _hasContacts => contacts.isNotEmpty;
+
+  bool get _hasPills => onShare != null || onQr != null || onMore != null;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_hasContacts && !_hasPills) {
+      return const SizedBox.shrink();
+    }
+    return Padding(
+      padding: EdgeInsets.symmetric(horizontal: 16.w),
+      child: Container(
+        width: double.infinity,
+        padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 14.h),
+        decoration: BoxDecoration(
+          color: const Color(0xFFFFF8D6),
+          borderRadius: BorderRadius.circular(18.r),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (_hasContacts)
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  for (final action in contacts)
+                    IconButtonWidget(
+                      icon: action.icon,
+                      label: action.label,
+                      onTap: action.onTap,
+                    ),
+                ],
+              ),
+            if (_hasContacts && _hasPills) ...[
+              SizedBox(height: 12.h),
+              Divider(
+                height: 1,
+                thickness: 1,
+                color: ColorUtils.primaryColor.withValues(alpha: 0.35),
+              ),
+              SizedBox(height: 12.h),
+            ],
+            if (_hasPills)
+              Row(
+                children: [
+                  if (onShare != null)
+                    Expanded(
+                      child: ProfilePillAction(
+                        icon: Icons.share_outlined,
+                        label: 'Share',
+                        onTap: onShare!,
+                      ),
+                    ),
+                  if (onShare != null && (onQr != null || onMore != null))
+                    SizedBox(width: 8.w),
+                  if (onQr != null)
+                    Expanded(
+                      child: ProfilePillAction(
+                        icon: Icons.qr_code_rounded,
+                        label: 'QR',
+                        onTap: onQr!,
+                      ),
+                    ),
+                  if (onQr != null && onMore != null) SizedBox(width: 8.w),
+                  if (onMore != null)
+                    Expanded(
+                      child: ProfilePillAction(
+                        icon: Icons.more_horiz_rounded,
+                        label: 'More',
+                        onTap: onMore!,
+                      ),
+                    ),
+                ],
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Soft circular app-bar utility control (support / settings / logout).
+class ProfileAppBarCircleIcon extends StatelessWidget {
+  final Widget child;
+  final VoidCallback onTap;
+
+  const ProfileAppBarCircleIcon({
+    super.key,
+    required this.child,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(18),
+        child: Ink(
+          height: 36,
+          width: 36,
+          decoration: const BoxDecoration(
+            shape: BoxShape.circle,
+            color: ColorUtils.secondaryColor,
+          ),
+          child: Center(child: child),
         ),
       ),
     );

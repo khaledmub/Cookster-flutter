@@ -41,6 +41,8 @@ import '../../packagePopupDialog/packagePopupDialog.dart';
 import '../../savedVideosScreen/savedVideosView/savedVideosView.dart';
 import '../profileModel/simpleUserProfileModel.dart';
 import '../profileWidgets/profileWidgets.dart';
+import '../../professionalProfile/profileWidgets/professsionalProfileWidgets.dart'
+    show ProfileActionCard;
 import 'package:cookster/core/media/media_url_resolver.dart';
 
 class ProfileView extends StatefulWidget {
@@ -460,86 +462,25 @@ class _ProfileViewState extends State<ProfileView>
                         );
                       }),
                       SizedBox(height: 12.h),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            InkWell(
-                              onTap: () {
-                                shareProfile(
-                                  context: context,
-                                  email: userDetails.email?.toString(),
-                                  userId: userDetails.id?.toString(),
-                                  displayName: userDetails.name?.toString(),
-                                );
-                              },
-                              child: Container(
-                                padding: EdgeInsets.all(8),
-                                height: 40,
-                                width: 40,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  border: Border.all(color: ColorUtils.darkBrown),
-                                ),
-                                child: Center(
-                                  child: Icon(
-                                    Icons.share_outlined,
-                                    color: ColorUtils.darkBrown,
-                                    size: 20,
-                                  ),
-                                ),
-                              ),
-                            ),
-                            SizedBox(width: 4),
-                            InkWell(
-                              onTap: () {
-                                showProfileQrCodeDialog(userDetails.email);
-                              },
-                              child: Container(
-                                padding: EdgeInsets.all(8),
-                                height: 40,
-                                width: 40,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  border: Border.all(color: ColorUtils.darkBrown),
-                                ),
-                                child: Center(
-                                  child: Icon(
-                                    Icons.qr_code_rounded,
-                                    color: ColorUtils.darkBrown,
-                                    size: 20,
-                                  ),
-                                ),
-                              ),
-                            ),
-                            SizedBox(width: 4),
-                            InkWell(
-                              onTap: () {
-                                showMoreOptionsProfile(
-                                  context,
-                                  userDetails.name,
-                                  userDetails.email,
-                                );
-                              },
-                              child: Container(
-                                padding: EdgeInsets.all(8),
-                                height: 40,
-                                width: 40,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  border: Border.all(color: ColorUtils.darkBrown),
-                                ),
-                                child: Center(
-                                  child: SvgPicture.asset(
-                                    color: ColorUtils.darkBrown,
-                                    "assets/icons/chevron-down.svg",
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
+                      ProfileActionCard(
+                        onShare: () {
+                          shareProfile(
+                            context: context,
+                            email: userDetails.email?.toString(),
+                            userId: userDetails.id?.toString(),
+                            displayName: userDetails.name?.toString(),
+                          );
+                        },
+                        onQr: () {
+                          showProfileQrCodeDialog(userDetails.email);
+                        },
+                        onMore: () {
+                          showMoreOptionsProfile(
+                            context,
+                            userDetails.name,
+                            userDetails.email,
+                          );
+                        },
                       ),
                       if (displayVideoTypes.isNotEmpty) ...[
                         SizedBox(height: 16.h),

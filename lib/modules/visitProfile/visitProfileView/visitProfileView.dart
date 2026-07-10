@@ -694,61 +694,56 @@ class _VisitProfileViewState extends State<VisitProfileView>
 
                   if (user.user!.entity == 2 &&
                       professionalAdditionalData != null)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 24.0),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          if (professionalAdditionalData.contactPhone !=
-                                  null &&
-                              professionalAdditionalData
-                                  .contactPhone!
-                                  .isNotEmpty)
-                            IconButtonWidget(
-                              icon: "assets/icons/phone.svg",
-                              onTap:
-                                  () => _launchPhone(
-                                    professionalAdditionalData.contactPhone,
-                                  ),
+                    ProfileActionCard(
+                      contacts: [
+                        if (professionalAdditionalData.contactPhone != null &&
+                            professionalAdditionalData
+                                .contactPhone!
+                                .isNotEmpty)
+                          ProfileContactAction(
+                            icon: "assets/icons/phone.svg",
+                            label: 'Phone',
+                            onTap: () => _launchPhone(
+                              professionalAdditionalData.contactPhone,
                             ),
-                          if (professionalAdditionalData.contactEmail != null &&
-                              professionalAdditionalData
-                                  .contactEmail!
-                                  .isNotEmpty)
-                            IconButtonWidget(
-                              icon: "assets/icons/whatsapp.svg",
-                              onTap:
-                                  () => _launchWhatsApp(
-                                    professionalAdditionalData.contactPhone,
-                                  ),
+                          ),
+                        if (professionalAdditionalData.contactEmail != null &&
+                            professionalAdditionalData
+                                .contactEmail!
+                                .isNotEmpty)
+                          ProfileContactAction(
+                            icon: "assets/icons/whatsapp.svg",
+                            label: 'WhatsApp',
+                            onTap: () => _launchWhatsApp(
+                              professionalAdditionalData.contactPhone,
                             ),
-                          if (professionalAdditionalData.website != null &&
-                              professionalAdditionalData.website!.isNotEmpty)
-                            IconButtonWidget(
-                              icon: "assets/icons/website.svg",
-                              onTap:
-                                  () => _launchWebsite(
-                                    professionalAdditionalData.website,
-                                  ),
+                          ),
+                        if (professionalAdditionalData.website != null &&
+                            professionalAdditionalData.website!.isNotEmpty)
+                          ProfileContactAction(
+                            icon: "assets/icons/website.svg",
+                            label: 'Web',
+                            onTap: () => _launchWebsite(
+                              professionalAdditionalData.website,
                             ),
-                          if (professionalAdditionalData.latitude != null &&
-                              professionalAdditionalData.longitude != null &&
-                              professionalAdditionalData.latitude!.isNotEmpty &&
-                              professionalAdditionalData.longitude!.isNotEmpty)
-                            IconButtonWidget(
-                              icon: "assets/icons/location.svg",
-                              onTap:
-                                  () => _launchMaps(
-                                    double.tryParse(
-                                      professionalAdditionalData.latitude!,
-                                    ),
-                                    double.tryParse(
-                                      professionalAdditionalData.longitude!,
-                                    ),
-                                  ),
+                          ),
+                        if (professionalAdditionalData.latitude != null &&
+                            professionalAdditionalData.longitude != null &&
+                            professionalAdditionalData.latitude!.isNotEmpty &&
+                            professionalAdditionalData.longitude!.isNotEmpty)
+                          ProfileContactAction(
+                            icon: "assets/icons/location.svg",
+                            label: 'Map',
+                            onTap: () => _launchMaps(
+                              double.tryParse(
+                                professionalAdditionalData.latitude!,
+                              ),
+                              double.tryParse(
+                                professionalAdditionalData.longitude!,
+                              ),
                             ),
-                        ],
-                      ),
+                          ),
+                      ],
                     ),
 
                   if (widget.userId != userId) SizedBox(height: 8.h),
