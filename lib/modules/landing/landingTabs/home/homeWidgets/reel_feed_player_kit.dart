@@ -20,15 +20,18 @@ class ReelFeedPlayerKit {
   ReelFeedPlayerKit._();
 
   static String posterUrl(WallVideos video) {
-    return video.resolvedReelPosterFallbackUrl ??
-        video.resolvedReelPosterUrl ??
+    // Prefer the reel/frame poster (matches video framing). Grid cover JPGs are
+    // often a different crop — with BoxFit.cover they look heavily zoomed until
+    // the decoder unmasks (logs: video 406x721 vs cover JPG).
+    return video.resolvedReelPosterUrl ??
         video.resolvedThumbnailUrl ??
+        video.resolvedReelPosterFallbackUrl ??
         '';
   }
 
   /// Avoid passing cover JPG as a video source before transcode finishes.
   static String _playbackUrlForPlayer(WallVideos video) {
-    if (!video.isTranscodeReady) {
+    if (video.isPhotoPost || !video.isTranscodeReady) {
       return '';
     }
     final url = video.resolvedPlaybackUrl?.trim() ?? '';
@@ -143,16 +146,8 @@ class ReelFeedPlayerKit {
         return blur;
       }
     }
-    final fallback = video.resolvedReelPosterFallbackUrl?.trim() ?? '';
-    final primary = video.resolvedReelPosterFallbackUrl ??
-        video.resolvedReelPosterUrl ??
-        '';
-    if (fallback.isNotEmpty && fallback != primary) {
-      return fallback;
-    }
-    if (!video.isTranscodeReady && primary.isNotEmpty) {
-      return primary;
-    }
+    // Do not use grid cover as LQIP under the reel poster — different crop
+    // reads as a zoomed flash before the video unmasks.
     return null;
   }
 
@@ -173,9 +168,9 @@ class ReelFeedPlayerKit {
         fit: BoxFit.cover,
       );
     }
-    final primary = video.resolvedReelPosterFallbackUrl ??
-        video.resolvedReelPosterUrl ??
-        '';
+    // Same URL order as [posterUrl] / inline player — keeps poster→video framing
+    // identical (no side-shrink on unmask).
+    final primary = posterUrl(video);
     return ReelGaplessPoster(
       imageUrl: primary,
       blurUrl: videoPosterBlurUrl(video),
@@ -238,14 +233,14 @@ class ReelFeedPlayerKit {
     final player = ReelVideoPlayer(
       key: playerKey,
       releaseOnDispose: releaseOnDispose,
-      showProgressBar: showProgressBar,
+      showProgressBar: showProgressBar && !video.isPhotoPost,
       playerPoolKey: video.id,
       videoId: video.id,
       thumbnailUrl: posterUrl(video),
       posterFallbackUrl: video.resolvedReelPosterFallbackUrl,
-      blurThumbnailUrl: video.isTranscodeReady
-          ? video.resolvedBlurThumbnailUrl
-          : video.resolvedReelPosterFallbackUrl,
+      // Never put a differently-cropped grid cover under the reel poster —
+      // that reads as a zoom/shrink flash when the frame unmasks.
+      blurThumbnailUrl: videoPosterBlurUrl(video),
       transcodeReady: video.isTranscodeReady,
       videoUrl: _playbackUrlForPlayer(video),
       hlsUrl: video.resolvedHlsUrl,

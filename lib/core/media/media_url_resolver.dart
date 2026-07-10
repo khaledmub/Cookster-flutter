@@ -31,9 +31,10 @@ class MediaUrlResolver {
 
   /// Reel poster from API fields only (never synthesize `…/thumb.webp`).
   ///
-  /// CDN `thumb.webp` only when **both** cover and transcode are ready — fresh
-  /// uploads often have `processing_status=ready` before the file exists (404 →
-  /// white flash). Until then use grid [image]/[image_url].
+  /// When transcode is ready, prefer the CDN frame poster ([thumbnailUrl]) so
+  /// the pre-video image matches the decoded frame (avoids side-shrink when a
+  /// differently-cropped grid JPG was shown first). Before transcode, use the
+  /// grid cover — it is the only still available.
   static String? reelPosterUrl({
     String? processingStatus,
     String? transcodeStatus,
@@ -42,44 +43,22 @@ class MediaUrlResolver {
     String? image,
     String? legacyBase,
   }) {
-    final coverReady = processingStatus == 'ready';
     final transcodeReady = transcodeStatus == 'ready';
-    final useCdnPoster = coverReady && transcodeReady;
-
+    final thumb = _firstResolved([thumbnailUrl]);
     final grid = _firstResolved([imageUrl, image]);
 
-    if (useCdnPoster) {
-      final poster = _firstResolved([thumbnailUrl]);
-      if (poster != null && !_isPendingCdnThumb(poster, transcodeReady)) {
-        // Oppo/MediaTek often fail WEBP in Flutter's ImageDecoder ('unimplemented');
-        // prefer grid JPG when the CDN poster is WEBP.
-        if (_isWebp(poster) && grid != null) {
-          return grid;
-        }
-        return poster;
-      }
+    if (transcodeReady &&
+        thumb != null &&
+        !_isPendingCdnThumb(thumb, true)) {
+      return thumb;
     }
     if (grid != null) {
       return grid;
     }
-
-    final thumb = _firstResolved([thumbnailUrl]);
     if (thumb != null && !_isPendingCdnThumb(thumb, transcodeReady)) {
-      if (_isWebp(thumb) && grid != null) {
-        return grid;
-      }
       return thumb;
     }
-
     return grid;
-  }
-
-  static bool _isWebp(String? url) {
-    if (url == null) {
-      return false;
-    }
-    final lower = url.toLowerCase();
-    return lower.contains('.webp') || lower.contains('thumb.webp');
   }
 
   /// CDN `thumb.webp` before transcode finishes — often 404 or a white placeholder.

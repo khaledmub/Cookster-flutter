@@ -87,9 +87,7 @@ class _VisitProfileViewState extends State<VisitProfileView>
     homeController = Get.find<HomeController>();
     profileController = Get.find<ProfileController>();
     professionalProfileController = Get.find<ProfessionalProfileController>();
-    if (!homeController.hasRouteOverlayPause) {
-      homeController.pauseReelsForRouteOverlay();
-    }
+    homeController.pauseReelsForRouteOverlay();
     _initializeProfile().then((_) => _syncTabController());
     _loadLanguage();
     fetchUserId();
@@ -476,7 +474,7 @@ class _VisitProfileViewState extends State<VisitProfileView>
                                 child: OpenToWorkBadge(
                                   size: 52.h,
                                   showOpenToWork:
-                                      professionalAdditionalData!.isB2B == 0
+                                      (professionalAdditionalData?.isB2B ?? 0) == 0
                                           ? false
                                           : true,
 
@@ -694,13 +692,14 @@ class _VisitProfileViewState extends State<VisitProfileView>
 
                   SizedBox(height: 8.h),
 
-                  if (user.user!.entity == 2)
+                  if (user.user!.entity == 2 &&
+                      professionalAdditionalData != null)
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 24.0),
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          if (professionalAdditionalData!.contactPhone !=
+                          if (professionalAdditionalData.contactPhone !=
                                   null &&
                               professionalAdditionalData
                                   .contactPhone!
@@ -1005,6 +1004,7 @@ class _VisitProfileViewState extends State<VisitProfileView>
                         imageUrl: video.imageUrl,
                         image: video.image,
                         transcodeStatus: video.transcodeStatus,
+                        processingStatus: video.processingStatus,
                       ),
                     ),
                     Positioned(

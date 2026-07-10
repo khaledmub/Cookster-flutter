@@ -1027,6 +1027,7 @@ class _ProfessionalProfileViewState extends State<ProfessionalProfileView>
                         imageUrl: video.imageUrl,
                         image: video.image,
                         transcodeStatus: video.transcodeStatus,
+                        processingStatus: video.processingStatus,
                       ),
                     ),
                     Positioned(

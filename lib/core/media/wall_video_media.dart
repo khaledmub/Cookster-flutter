@@ -51,6 +51,7 @@ extension WallVideosMedia on WallVideos {
         imageUrl: imageUrl,
         image: image,
         transcodeStatus: transcodeStatus,
+        processingStatus: processingStatus,
       );
 
   /// Full-screen photo URL — uses API [video_url] first; thumbnail upgrade is legacy fallback.
@@ -88,6 +89,7 @@ bool isReelGridPhotoPost({
   dynamic imageUrl,
   dynamic image,
   dynamic transcodeStatus,
+  dynamic processingStatus,
 }) {
   if (isReelPhotoPostFlag(isImage)) {
     return true;
@@ -99,20 +101,26 @@ bool isReelGridPhotoPost({
           ?.trim()
           .toLowerCase() ??
       '';
-  if (playback.contains('.m3u8') ||
+  final hasRealVideoPlayback = playback.contains('.m3u8') ||
       playback.contains('.mp4') ||
-      playback.contains('/hls/')) {
+      playback.contains('/hls/');
+  if (hasRealVideoPlayback) {
     return false;
   }
   if (playback.isNotEmpty && isStaticImagePlaybackUrl(playback)) {
     // Fresh video uploads: backend puts cover JPG in video_url until transcode.
+    // Only keep that as "video" when the pipeline clearly says so — otherwise a
+    // mis-tagged photo (`is_image: 0` + JPG only) mounts the video player
+    // (progress bar, no Photo badge, odd zoom).
     if (isImage != null && !isReelPhotoPostFlag(isImage)) {
-      return false;
+      if (_looksLikePendingVideoTranscode(
+        transcodeStatus: transcodeStatus,
+        processingStatus: processingStatus,
+      )) {
+        return false;
+      }
     }
     return true;
-  }
-  if (transcodeStatus?.toString() == 'ready') {
-    return false;
   }
   final cover = MediaUrlResolver.thumbnailUrl(
         thumbnailUrl: thumbnailUrl?.toString(),
@@ -125,9 +133,41 @@ bool isReelGridPhotoPost({
   final hasVideoFields =
       (videoUrl?.toString().trim().isNotEmpty == true) ||
       (video?.toString().trim().isNotEmpty == true);
-  return !hasVideoFields &&
+  // Cover/image only and no playable video URL → photo, even when the API
+  // wrongly sends is_image=0 with transcode_status=ready (that used to force
+  // the video player + progress bar and hide the Photo badge).
+  if (!hasVideoFields &&
       cover.isNotEmpty &&
-      isStaticImagePlaybackUrl(cover);
+      isStaticImagePlaybackUrl(cover)) {
+    return true;
+  }
+  if (transcodeStatus?.toString() == 'ready' && hasRealVideoPlayback) {
+    return false;
+  }
+  return false;
+}
+
+bool _looksLikePendingVideoTranscode({
+  dynamic transcodeStatus,
+  dynamic processingStatus,
+}) {
+  final statuses = <String>[
+    transcodeStatus?.toString().trim().toLowerCase() ?? '',
+    processingStatus?.toString().trim().toLowerCase() ?? '',
+  ];
+  const pending = <String>{
+    'pending',
+    'processing',
+    'queued',
+    'running',
+    'transcoding',
+  };
+  for (final status in statuses) {
+    if (status.isNotEmpty && pending.contains(status)) {
+      return true;
+    }
+  }
+  return false;
 }
 
 /// Shared photo-post flag parsing for [WallVideos] and profile grid tiles.
@@ -135,14 +175,19 @@ bool isReelPhotoPostFlag(dynamic isImage) {
   if (isImage == null) {
     return false;
   }
-  if (isImage is int) {
-    return isImage == 1;
-  }
   if (isImage is bool) {
     return isImage;
   }
+  if (isImage is num) {
+    return isImage == 1;
+  }
   final normalized = isImage.toString().trim().toLowerCase();
-  return normalized == '1' || normalized == 'true';
+  if (normalized == '1' || normalized == 'true') {
+    return true;
+  }
+  // JSON sometimes yields "1.0" for numeric flags.
+  final asNum = num.tryParse(normalized);
+  return asNum != null && asNum == 1;
 }
 
 bool isStaticImagePlaybackUrl(String url) {

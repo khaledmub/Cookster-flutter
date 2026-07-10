@@ -147,10 +147,7 @@ class _SingleVideoScreenState extends State<SingleVideoScreen>
     super.initState();
     ensureSingleVideoDependencies();
     if (Get.isRegistered<HomeController>()) {
-      final home = Get.find<HomeController>();
-      if (!home.hasRouteOverlayPause) {
-        home.pauseReelsForRouteOverlay();
-      }
+      Get.find<HomeController>().pauseReelsForRouteOverlay();
     } else {
       MediaKitPlayerPool.instance.silenceAllSync();
     }

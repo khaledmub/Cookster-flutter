@@ -299,15 +299,15 @@ class _PosterImageLayer extends StatelessWidget {
 
   @override
   Widget build(BuildContext buildContext) {
-    final (memW, memH) = fullScreenPosterMemCacheSize(context);
+    final (memW, _) = fullScreenPosterMemCacheSize(context);
     final scaledW = (memW * memScale).round().clamp(64, memW);
-    final scaledH = (memH * memScale).round().clamp(64, memH);
 
     if (resolvedProvider != null) {
       return Positioned.fill(
         child: Image(
           image: resolvedProvider!,
           fit: fit,
+          alignment: Alignment.center,
           width: double.infinity,
           height: double.infinity,
           gaplessPlayback: true,
@@ -321,10 +321,10 @@ class _PosterImageLayer extends StatelessWidget {
         key: cacheKey != null ? ValueKey<String>(cacheKey!) : null,
         imageUrl: url,
         fit: fit,
+        alignment: Alignment.center,
         width: double.infinity,
         height: double.infinity,
         memCacheWidth: scaledW,
-        memCacheHeight: scaledH,
         filterQuality: filterQuality,
         fadeInDuration: Duration.zero,
         fadeOutDuration: Duration.zero,
@@ -335,16 +335,15 @@ class _PosterImageLayer extends StatelessWidget {
           if (fallback.isEmpty || fallback == url) {
             return const SizedBox.shrink();
           }
-          final (memW, memH) = fullScreenPosterMemCacheSize(context);
+          final (memW, _) = fullScreenPosterMemCacheSize(context);
           final scaledW = (memW * memScale).round().clamp(64, memW);
-          final scaledH = (memH * memScale).round().clamp(64, memH);
           return CachedNetworkImage(
             imageUrl: fallback,
             fit: fit,
+            alignment: Alignment.center,
             width: double.infinity,
             height: double.infinity,
             memCacheWidth: scaledW,
-            memCacheHeight: scaledH,
             filterQuality: filterQuality,
             fadeInDuration: Duration.zero,
             fadeOutDuration: Duration.zero,
@@ -354,6 +353,7 @@ class _PosterImageLayer extends StatelessWidget {
             imageBuilder: (ctx, imageProvider) => Image(
               image: imageProvider,
               fit: fit,
+              alignment: Alignment.center,
               width: double.infinity,
               height: double.infinity,
               gaplessPlayback: true,
@@ -376,6 +376,7 @@ class _PosterImageLayer extends StatelessWidget {
           return Image(
             image: imageProvider,
             fit: fit,
+            alignment: Alignment.center,
             width: double.infinity,
             height: double.infinity,
             gaplessPlayback: true,

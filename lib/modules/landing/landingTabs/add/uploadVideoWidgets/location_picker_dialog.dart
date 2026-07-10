@@ -73,15 +73,18 @@ Future<bool> _ensureCitiesForSelectedCountry(
   }
 
   final selectedCityName = controller.selectedCity.value.trim();
-  final hasSelectedCity = cityController.cityList.any(
-    (city) => city.name == selectedCityName,
-  );
-  if (cityController.cityList.isNotEmpty && hasSelectedCity) {
+  final listMatchesCountry = cityController.loadedCountryId == countryId;
+  final hasSelectedCity = selectedCityName.isNotEmpty &&
+      cityController.cityList.any((city) => city.name == selectedCityName);
+  if (listMatchesCountry &&
+      cityController.cityList.isNotEmpty &&
+      (selectedCityName.isEmpty || hasSelectedCity)) {
     return true;
   }
 
-  await _withLocationBusy(() => cityController.fetchCities(countryId));
-  return cityController.cityList.isNotEmpty;
+  await cityController.fetchCities(countryId);
+  return cityController.cityList.isNotEmpty &&
+      cityController.loadedCountryId == countryId;
 }
 
 /// Country picker with debounced search and reliable tap selection.
@@ -143,8 +146,6 @@ Future<void> showUploadCountryPicker(
   if (selectedId == null) return;
 
   controller.selectLocation(picked, selectedId);
-  controller.selectedCity.value = '';
-  controller.selectedCityId.value = -1;
 
   if (!openCityPickerAfterCountry) {
     return;

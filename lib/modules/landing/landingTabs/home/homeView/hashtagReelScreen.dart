@@ -49,21 +49,13 @@ class _HashtagReelScreenState extends State<HashtagReelScreen>
   late final VideoPreloadManager _preloadManager;
   late final ReelsPlaybackCoordinator _playbackCoordinator;
   final VideoSourceResolver _sourceResolver = const VideoSourceResolver();
-  HomeController? _homeController;
-  bool _ownsRouteOverlayPause = false;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     if (Get.isRegistered<HomeController>()) {
-      final home = Get.find<HomeController>();
-      _homeController = home;
-      if (!home.hasRouteOverlayPause) {
-        home.pauseReelsForRouteOverlay();
-        _ownsRouteOverlayPause = true;
-      }
-      home.enterOverlayReelAudibleSession();
+      Get.find<HomeController>().pauseReelsForRouteOverlay();
     } else {
       MediaKitPlayerPool.instance.silenceAllSync();
     }
@@ -124,10 +116,8 @@ class _HashtagReelScreenState extends State<HashtagReelScreen>
     _pageController.dispose();
     _playbackCoordinator.dispose();
     unawaited(MediaKitPlayerPool.instance.pauseAllAwait());
-    _homeController?.exitOverlayReelAudibleSession();
-    if (_ownsRouteOverlayPause) {
-      _homeController?.resumeReelsAfterRouteOverlay();
-      _ownsRouteOverlayPause = false;
+    if (Get.isRegistered<HomeController>()) {
+      Get.find<HomeController>().resumeReelsAfterRouteOverlay();
     }
     super.dispose();
   }
@@ -384,7 +374,7 @@ class _HashtagReelScreenState extends State<HashtagReelScreen>
                                 video: video,
                                 playerKey: _reelPlayerKey,
                                 wrapPositioned: false,
-                                showProgressBar: true,
+                                showProgressBar: !video.isPhotoPost,
                                 onPlaybackReady: () {
                                   _onVisibleReelReady(index);
                                 },

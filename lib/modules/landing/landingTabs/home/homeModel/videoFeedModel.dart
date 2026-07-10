@@ -248,7 +248,10 @@ class WallVideos {
     publishType = json['publish_type'] as int?;
     takeOrder = json['take_order'] as int?;
     allowComments = parseAllowComments(json['allow_comments']);
-    isImage = json['is_image'];
+    // Normalize bool/num/"1.0" so isPhotoPost never misses API flag shapes.
+    final rawIsImage = json['is_image'] ?? json['isImage'];
+    final parsedIsImage = PlaybackMedia.parseOptionalFlag(rawIsImage);
+    isImage = parsedIsImage == null ? rawIsImage : (parsedIsImage ? 1 : 0);
     playbackReady = PlaybackMedia.parseOptionalFlag(json['playback_ready']);
     location = json['location'] as String?;
     image = json['image'] as String?;

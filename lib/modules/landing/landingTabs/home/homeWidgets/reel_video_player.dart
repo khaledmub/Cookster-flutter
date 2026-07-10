@@ -624,16 +624,6 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
     if (!_needsConstrainedStartGate) {
       return true;
     }
-    // A locally cached file exposes stable codec dimensions almost immediately;
-    // the full 200ms settle window is only needed for cold network opens where
-    // the decoder renegotiates size mid-start. Shorten it for cache hits so the
-    // poster comes down faster (composited-frame + render-confirm gates below
-    // still guard against a black flash, and audio unmask is unchanged).
-    if (_lastOpenCacheHit ||
-        _lastOpenPartialCache ||
-        _scrollBackCacheEligible(_pooledKey)) {
-      stableMs = stableMs < 90 ? stableMs : 90;
-    }
     int? lastW = player.state.width;
     int? lastH = player.state.height;
     var settledSince = DateTime.now();
@@ -1298,14 +1288,7 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
         return;
       }
     } else {
-      // Cached reels already have decoded frames on disk — skip most of the
-      // pre-reveal settle so they start fast. Cold/network opens keep the full
-      // 80ms cushion. The opaque-paint + render-confirm pass in
-      // [_awaitFeedOpaquePaint] still gates the actual unmask, so this only
-      // trims dead wait time and never reveals a black surface.
-      final revealDelayMs =
-          (_lastOpenCacheHit || _lastOpenPartialCache) ? 16 : 80;
-      await Future<void>.delayed(Duration(milliseconds: revealDelayMs));
+      await Future<void>.delayed(const Duration(milliseconds: 80));
       if (!_isCurrentAttach(generation) || revealGen != _revealGeneration) {
         return;
       }
@@ -2224,19 +2207,34 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
         child: Opacity(
           opacity: opaque ? 1.0 : 0.0,
           child: ClipRect(
-            child: Align(
-              alignment: Alignment.center,
-              child: SizedBox(
-                width: double.infinity,
-                height: double.infinity,
-                child: RepaintBoundary(
-                  child: Video(
+            // Fill the reel slot with the same cover crop as the page poster.
+            // Align+loose constraints previously let the surface letterbox,
+            // which read as "shrinking from the sides" on unmask.
+            child: SizedBox.expand(
+              child: LayoutBuilder(
+                builder: (ctx, constraints) {
+                  if (!kReleaseMode && visible) {
+                    final screenW = MediaQuery.sizeOf(ctx).width;
+                    if ((constraints.maxWidth - screenW).abs() > 1.0) {
+                      debugPrint(
+                        '[ReelSurface] WIDTH_MISMATCH key=${widget.playerPoolKey} '
+                        'surface=${constraints.maxWidth.toStringAsFixed(1)} '
+                        'screen=${screenW.toStringAsFixed(1)} '
+                        'h=${constraints.maxHeight.toStringAsFixed(1)}',
+                      );
+                    }
+                  }
+                  return Video(
                     key: const ValueKey('reel_surface_feed'),
                     controller: controller,
                     fit: BoxFit.cover,
+                    // Transparent fill: during any surface transient (1px init,
+                    // resize handshake, loop restart) the identically-framed page
+                    // poster shows through instead of a black bar.
+                    fill: const Color(0x00000000),
                     controls: NoVideoControls,
-                  ),
-                ),
+                  );
+                },
               ),
             ),
           ),
@@ -2953,16 +2951,17 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
     }
   }
 
-  /// Poster URL safe for fresh uploads
+  /// Poster URL safe for fresh uploads.
+  ///
+  /// When the ladder is ready, keep the reel/frame poster (matches video crop).
+  /// Only fall back to grid cover before transcode — switching crops at unmask
+  /// is what made feed items look like they "shrunk from the sides".
   String get _effectivePosterUrl {
     final primary = widget.thumbnailUrl.trim();
     final fallback = widget.posterFallbackUrl?.trim() ?? '';
     final primaryIsPendingThumb = primary.contains('thumb.webp') &&
         !widget.transcodeReady;
     if (primaryIsPendingThumb && fallback.isNotEmpty) {
-      return fallback;
-    }
-    if (!widget.transcodeReady && fallback.isNotEmpty) {
       return fallback;
     }
     if (primary.isNotEmpty) {
@@ -2972,30 +2971,19 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
   }
 
   bool get _effectiveBlurVisible {
-    if (widget.transcodeReady) {
-      final blur = widget.blurThumbnailUrl?.trim() ?? '';
-      if (blur.isNotEmpty) {
-        return true;
-      }
+    final blur = widget.blurThumbnailUrl?.trim() ?? '';
+    if (blur.isEmpty) {
+      return false;
     }
-    final fallback = widget.posterFallbackUrl?.trim() ?? '';
-    final primary = _effectivePosterUrl;
-    return fallback.isNotEmpty && fallback != primary;
+    return blur != _effectivePosterUrl;
   }
 
   String? get _effectiveBlurUrl {
-    if (widget.transcodeReady) {
-      final blur = widget.blurThumbnailUrl?.trim() ?? '';
-      if (blur.isNotEmpty) {
-        return blur;
-      }
+    final blur = widget.blurThumbnailUrl?.trim() ?? '';
+    if (blur.isEmpty || blur == _effectivePosterUrl) {
+      return null;
     }
-    final fallback = widget.posterFallbackUrl?.trim() ?? '';
-    final primary = _effectivePosterUrl;
-    if (fallback.isNotEmpty && fallback != primary) {
-      return fallback;
-    }
-    return null;
+    return blur;
   }
 
   Future<void> _onRetryPressed() async {
@@ -3101,6 +3089,7 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
                         key: ValueKey('reel_surface_$_surfaceEpoch'),
                         controller: _videoController!,
                         fit: BoxFit.cover,
+                        fill: const Color(0x00000000),
                         controls: NoVideoControls,
                       ),
                     ),

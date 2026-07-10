@@ -106,7 +106,6 @@ class _ProfileReelScreenState extends State<ProfileReelScreen>
     } else {
       _homeController.reinforceReelsPausedForOverlay();
     }
-    _homeController.enterOverlayReelAudibleSession();
 
     var startIndex = 0;
     final seeds = widget.seedVideos;
@@ -171,6 +170,11 @@ class _ProfileReelScreenState extends State<ProfileReelScreen>
   }
 
   /// API fetch overlaps pool teardown — serial await was adding hundreds of ms.
+  ///
+  /// Important: do **not** set [_poolSessionReady] before the first feed merge.
+  /// Enabling the player while seeds are on screen, then clearing/replacing
+  /// [_videos] in [_applyFeedResult], disposes the [ReelVideoPlayer] mid-reveal
+  /// (logs: surface_revealed → dispose → render_confirm_failed).
   Future<void> _bootstrap() async {
     final feedFuture = ReelsFeedClient.fetchPage(
       reset: true,
@@ -195,7 +199,6 @@ class _ProfileReelScreenState extends State<ProfileReelScreen>
       return;
     }
     _preloadManager.prepareForSessionStart();
-    setState(() => _poolSessionReady = true);
 
     if (hadSeeds) {
       final idx = _visibleIndexNotifier.value.clamp(0, _videos.length - 1);
@@ -206,6 +209,18 @@ class _ProfileReelScreenState extends State<ProfileReelScreen>
     }
 
     await _applyFeedResult(await feedFuture);
+    if (!mounted) {
+      return;
+    }
+    if (!_poolSessionReady) {
+      setState(() => _poolSessionReady = true);
+    }
+    final idx = _videos.isEmpty
+        ? -1
+        : _visibleIndexNotifier.value.clamp(0, _videos.length - 1);
+    if (idx >= 0 && !_playbackLiveForId(_videos[idx].id)) {
+      _startPlaybackAt(idx, warmMaxWaitMs: 360);
+    }
   }
 
   @override
@@ -222,12 +237,16 @@ class _ProfileReelScreenState extends State<ProfileReelScreen>
   }
 
   Future<void> _teardownPoolAndResumeHome() async {
-    _homeController.exitOverlayReelAudibleSession();
-    await MediaKitPlayerPool.instance.awaitOperationsIdle();
-    await MediaKitPlayerPool.instance.disposeAll();
-    if (_ownsRouteOverlayPause) {
-      _homeController.resumeReelsAfterRouteOverlay();
-      _ownsRouteOverlayPause = false;
+    try {
+      await MediaKitPlayerPool.instance.awaitOperationsIdle();
+      await MediaKitPlayerPool.instance.disposeAll();
+    } finally {
+      // Always release the pause pair (even if disposeAll throws) so Home is
+      // not left with routeOverlayPauseDepth > 0 and a dead feed.
+      if (_ownsRouteOverlayPause) {
+        _homeController.resumeReelsAfterRouteOverlay();
+        _ownsRouteOverlayPause = false;
+      }
     }
   }
 
@@ -253,10 +272,6 @@ class _ProfileReelScreenState extends State<ProfileReelScreen>
         });
       } else {
         setState(() => _isLoading = false);
-        final idx = _visibleIndexNotifier.value.clamp(0, _videos.length - 1);
-        if (!_playbackLiveForId(_videos[idx].id)) {
-          _startPlaybackAt(idx);
-        }
       }
       return;
     }
@@ -268,12 +283,6 @@ class _ProfileReelScreenState extends State<ProfileReelScreen>
 
     if (incoming.isEmpty) {
       setState(() => _isLoading = false);
-      if (_videos.isNotEmpty) {
-        final idx = _visibleIndexNotifier.value.clamp(0, _videos.length - 1);
-        if (!_playbackLiveForId(_videos[idx].id)) {
-          _startPlaybackAt(idx);
-        }
-      }
       return;
     }
 
@@ -303,6 +312,8 @@ class _ProfileReelScreenState extends State<ProfileReelScreen>
       _error = null;
       _visibleIndexNotifier.value = startIndex;
     });
+    // Playback is started by [_bootstrap] after [_poolSessionReady] — starting
+    // here while the player is still unmounted caused dispose mid-reveal.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) {
         return;
@@ -310,10 +321,6 @@ class _ProfileReelScreenState extends State<ProfileReelScreen>
       if (_pageController.hasClients &&
           (_pageController.page?.round() ?? startIndex) != startIndex) {
         _pageController.jumpToPage(startIndex);
-      }
-      final keepId = merged[startIndex].id;
-      if (!_playbackLiveForId(keepId)) {
-        _startPlaybackAt(startIndex, warmMaxWaitMs: 360);
       }
     });
   }
@@ -491,7 +498,7 @@ class _ProfileReelScreenState extends State<ProfileReelScreen>
     return ReelFeedPlayerKit.buildInlinePlayer(
       video: video,
       playerKey: _reelPlayerKey,
-      showProgressBar: true,
+      showProgressBar: !video.isPhotoPost,
       onPlaybackReady: () {
         _onVisibleReelReady(index);
       },
@@ -916,7 +923,6 @@ class _ProfileReelScreenState extends State<ProfileReelScreen>
                           ReelFeedPageMediaChrome(
                             video: video,
                             isActivePage: isActivePage,
-                            showPhotoBadge: false,
                             child: RepaintBoundary(
                               child: Stack(
                                 fit: StackFit.expand,

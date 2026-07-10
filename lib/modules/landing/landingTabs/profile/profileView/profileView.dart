@@ -658,6 +658,7 @@ class _ProfileViewState extends State<ProfileView>
                                     imageUrl: video.imageUrl,
                                     image: video.image,
                                     transcodeStatus: video.transcodeStatus,
+                                    processingStatus: video.processingStatus,
                                   ),
                                 ),
                                 Positioned(

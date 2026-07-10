@@ -55,6 +55,7 @@ class _LikedVideosScreenState extends State<LikedVideosScreen>
       imageUrl: video.imageUrl,
       image: video.image,
       transcodeStatus: video.transcodeStatus,
+      processingStatus: video.processingStatus,
     );
   }
 

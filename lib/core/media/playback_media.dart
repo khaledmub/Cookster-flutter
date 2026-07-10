@@ -11,7 +11,7 @@ class PlaybackMedia {
 
   static bool isReady(String? transcodeStatus) => transcodeStatus == 'ready';
 
-  /// Parses API booleans sent as `true`, `1`, `"1"`, etc.
+  /// Parses API booleans sent as `true`, `1`, `"1"`, `1.0`, etc.
   static bool? parseOptionalFlag(dynamic value) {
     if (value == null) {
       return null;
@@ -19,7 +19,7 @@ class PlaybackMedia {
     if (value is bool) {
       return value;
     }
-    if (value is int) {
+    if (value is num) {
       return value == 1;
     }
     final normalized = value.toString().trim().toLowerCase();
@@ -28,6 +28,10 @@ class PlaybackMedia {
     }
     if (normalized == '0' || normalized == 'false') {
       return false;
+    }
+    final asNum = num.tryParse(normalized);
+    if (asNum != null) {
+      return asNum == 1;
     }
     return null;
   }

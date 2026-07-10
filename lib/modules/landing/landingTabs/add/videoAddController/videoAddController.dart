@@ -433,6 +433,9 @@ class VideoAddController extends GetxController {
     selectedCountry.value = location;
     selectedLocationId.value = stateId;
     selectedCountryId.value = stateId;
+    // Changing country invalidates the previous city selection.
+    selectedCity.value = '';
+    selectedCityId.value = -1;
     update([idUploadLocation]);
     print("Selected Location: ${selectedCountry.value} (ID: $stateId)");
   }
@@ -448,6 +451,20 @@ class VideoAddController extends GetxController {
   Future<bool> ensureLocationIdsReady() async {
     final profileController = Get.find<ProfileController>();
     final cityController = Get.find<CityController>();
+
+    // Already resolved from a prior picker selection — skip name rematch races.
+    if (selectedLocationId.value > 0 &&
+        selectedCountryId.value > 0 &&
+        selectedCityId.value > 0) {
+      final country = selectedCountry.value.trim();
+      final city = selectedCity.value.trim();
+      if (country.isNotEmpty &&
+          city.isNotEmpty &&
+          country != 'Unknown' &&
+          city != 'Unknown') {
+        return true;
+      }
+    }
 
     if (profileController.videoUploadSettings.value?.countries == null) {
       await VideoSettingsService.instance.load();
@@ -465,22 +482,34 @@ class VideoAddController extends GetxController {
       return false;
     }
 
-    int? countryId;
-    for (final c in countries) {
-      if (c.name == country && c.id != null) {
-        countryId = c.id;
-        break;
+    int? countryId = selectedLocationId.value > 0
+        ? selectedLocationId.value
+        : null;
+    if (countryId == null || countryId <= 0) {
+      for (final c in countries) {
+        if (c.name == country && c.id != null) {
+          countryId = c.id;
+          break;
+        }
       }
     }
-    if (countryId == null) return false;
+    if (countryId == null || countryId <= 0) return false;
 
     selectedLocationId.value = countryId;
     selectedCountryId.value = countryId;
 
-    final needsCities = cityController.cityList.isEmpty ||
+    final needsCities = cityController.loadedCountryId != countryId ||
+        cityController.cityList.isEmpty ||
         !cityController.cityList.any((c) => c.name == city);
     if (needsCities) {
       await cityController.fetchCities(countryId);
+    }
+
+    if (selectedCityId.value > 0 &&
+        cityController.cityList.any(
+          (c) => c.id == selectedCityId.value && c.name == city,
+        )) {
+      return true;
     }
 
     for (final c in cityController.cityList) {
@@ -552,6 +581,11 @@ class VideoAddController extends GetxController {
     if (_cachedThumbnail != null && await _cachedThumbnail!.exists()) {
       return _cachedThumbnail;
     }
+    // Photo uploads already are the cover — don't run video thumbnail extract.
+    if (_isSupportedImageFormat(videoFile)) {
+      _cachedThumbnail = videoFile;
+      return _cachedThumbnail;
+    }
     _thumbnailInFlight ??= _generateThumbnail(videoFile);
     try {
       _cachedThumbnail = await _thumbnailInFlight;
@@ -606,13 +640,16 @@ class VideoAddController extends GetxController {
     MediaKitPlayerPool.instance.pauseAllImmediate();
     await MediaKitPlayerPool.instance.releaseAll();
     await _refreshProfileAfterUpload();
-    if (Get.isRegistered<HomeController>()) {
-      await Get.find<HomeController>().endMediaCaptureFlow();
-    }
     await Get.offAll(
       () => Landing(initialIndex: 3),
       binding: LandingBinding(),
     );
+    // Clear capture/overlay mute gates on the (possibly recreated) controller
+    // AFTER the stack reset. Ending capture before offAll left
+    // isReelsTabVisible=false with no pending resume when canPop was still true.
+    if (Get.isRegistered<HomeController>()) {
+      Get.find<HomeController>().clearMediaCaptureGatesAfterLandingReset();
+    }
     resetController();
   }
 
@@ -645,13 +682,13 @@ class VideoAddController extends GetxController {
   // Backend guidance: nginx 300m, PHP upload_max_filesize 256M -> cap to ~250MB.
   static const int _clientMaxVideoBytes = 250 * 1024 * 1024; // 250 MiB
 
-  void _scheduleThumbnailProcessingPoll(String responseBody) {
+  void _scheduleThumbnailProcessingPoll(String responseBody, {bool waitForTranscode = true}) {
     final videoId =
         VideoProcessingService.extractVideoIdFromUploadResponse(responseBody);
     if (videoId != null) {
       VideoProcessingService.scheduleBackgroundPoll(
         videoId,
-        waitForTranscode: true,
+        waitForTranscode: waitForTranscode,
       );
     }
   }
@@ -666,6 +703,35 @@ class VideoAddController extends GetxController {
     'mpeg',
     'mpg',
   };
+
+  static const Set<String> _supportedImageExtensions = {
+    'jpg',
+    'jpeg',
+    'png',
+    'webp',
+    'heic',
+    'heif',
+  };
+
+  MediaType _resolveUploadMediaType(String filePath, {required bool asImage}) {
+    final extension = filePath.split('.').last.toLowerCase();
+    if (asImage || _supportedImageExtensions.contains(extension)) {
+      switch (extension) {
+        case 'png':
+          return MediaType('image', 'png');
+        case 'webp':
+          return MediaType('image', 'webp');
+        case 'heic':
+        case 'heif':
+          return MediaType('image', 'heic');
+        case 'jpg':
+        case 'jpeg':
+        default:
+          return MediaType('image', 'jpeg');
+      }
+    }
+    return _resolveVideoMediaType(filePath);
+  }
 
   MediaType _resolveVideoMediaType(String filePath) {
     final extension = filePath.split('.').last.toLowerCase();
@@ -696,6 +762,18 @@ class VideoAddController extends GetxController {
     return _supportedVideoExtensions.contains(extension);
   }
 
+  bool _isSupportedImageFormat(File file) {
+    final extension = file.path.split('.').last.toLowerCase();
+    return _supportedImageExtensions.contains(extension);
+  }
+
+  bool _isSupportedUploadFile(File file, {required bool asImage}) {
+    if (asImage) {
+      return _isSupportedImageFormat(file) || _isSupportedVideoFormat(file);
+    }
+    return _isSupportedVideoFormat(file);
+  }
+
   Future<File> _compressVideoIfNeeded(File videoFile, BuildContext context) async {
     // Per backend fix request: do not compress videos.
     // We enforce the allowed size via _clientMaxVideoBytes in uploadVideo().
@@ -717,11 +795,13 @@ class VideoAddController extends GetxController {
     }
     syncFormTextFromControllers();
     _resetUploadProgressTracking();
-    if (!_isSupportedVideoFormat(videoFile)) {
+    if (!_isSupportedUploadFile(videoFile, asImage: uploadAsImage)) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
+        SnackBar(
           content: Text(
-            'Unsupported video format. Please use MP4, MOV, MKV, AVI, WEBM, M4V, 3GP, MPEG, or MPG.',
+            uploadAsImage
+                ? 'Unsupported image format. Please use JPG, PNG, or WEBP.'
+                : 'Unsupported video format. Please use MP4, MOV, MKV, AVI, WEBM, M4V, 3GP, MPEG, or MPG.',
           ),
           backgroundColor: Colors.red,
           behavior: SnackBarBehavior.floating,
@@ -732,15 +812,21 @@ class VideoAddController extends GetxController {
 
     final bool isSponsored = entityDetails.value['is_sponsored'] == 1;
     if (!isSponsored) {
-      if (selectedCountry.value.isEmpty && selectedCity.value.isEmpty) {
+      final country = selectedCountry.value.trim();
+      final city = selectedCity.value.trim();
+      final countryMissing =
+          country.isEmpty || country == 'Unknown';
+      final cityMissing = city.isEmpty || city == 'Unknown';
+
+      if (countryMissing && cityMissing) {
         errorMessage = "select_country_city_error".tr;
-      } else if (selectedCountry.value.isEmpty) {
+      } else if (countryMissing) {
         errorMessage = "select_country_error".tr;
-      } else if (selectedCity.value.isEmpty) {
+      } else if (cityMissing) {
         errorMessage = "select_city_error".tr;
       }
 
-      if (selectedCountry.value.isEmpty || selectedCity.value.isEmpty) {
+      if (countryMissing || cityMissing) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(errorMessage),
@@ -939,7 +1025,10 @@ class VideoAddController extends GetxController {
         streamWithProgress,
         videoLength,
         filename: videoFile.path.split('/').last,
-        contentType: _resolveVideoMediaType(videoFile.path),
+        contentType: _resolveUploadMediaType(
+          videoFile.path,
+          asImage: imageUploadFlag == '1',
+        ),
       );
 
       request.files.add(videoMultipartFile);
@@ -960,7 +1049,10 @@ class VideoAddController extends GetxController {
           isVideoUploading.value = false;
           isUploadSuccessful.value = true;
 
-          _scheduleThumbnailProcessingPoll(response.body);
+          _scheduleThumbnailProcessingPoll(
+            response.body,
+            waitForTranscode: imageUploadFlag != '1',
+          );
           await _finishUploadAndOpenProfile();
           return;
 
@@ -1123,7 +1215,10 @@ class VideoAddController extends GetxController {
         streamWithProgress,
         videoLength,
         filename: videoFile.path.split('/').last,
-        contentType: _resolveVideoMediaType(videoFile.path),
+        contentType: _resolveUploadMediaType(
+          videoFile.path,
+          asImage: imageUploadFlag == '1',
+        ),
       );
 
       request.files.add(videoMultipartFile);
@@ -1144,7 +1239,10 @@ class VideoAddController extends GetxController {
           isVideoUploading.value = false;
           isUploadSuccessful.value = true;
 
-          _scheduleThumbnailProcessingPoll(response.body);
+          _scheduleThumbnailProcessingPoll(
+            response.body,
+            waitForTranscode: imageUploadFlag != '1',
+          );
           await _finishUploadAndOpenProfile();
         } else {
           print("❌ Failed to upload video. Status: ${response.statusCode}");

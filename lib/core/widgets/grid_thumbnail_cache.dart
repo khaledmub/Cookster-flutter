@@ -12,33 +12,36 @@ int avatarMemCacheSize(double logicalDiameter) =>
     gridThumbnailMemCacheSize(logicalDiameter);
 
 /// Full-screen reel poster decode size (width × height).
+///
+/// Only constrain width so aspect ratio is preserved. Passing both width and
+/// height into [ResizeImage] / CachedNetworkImage can produce a decode that
+/// later looks "zoomed" when composited with [BoxFit.cover] across LQIP→full
+/// swaps (feed photos + pre-video posters).
 (int, int) fullScreenPosterMemCacheSize(BuildContext context) {
   final size = MediaQuery.sizeOf(context);
   final ratio = MediaQuery.devicePixelRatioOf(context);
   final w = (size.width * ratio).round().clamp(360, 1080);
+  // Height hint only for callers that still need a pair; decode uses width.
   final h = (size.height * ratio).round().clamp(640, 1920);
   return (w, h);
 }
 
 /// RAM-sized provider for scroll-ahead poster precache (disk + decoded cache).
 ImageProvider reelPosterPrecacheProvider(String url, BuildContext context) {
-  final (memW, memH) = fullScreenPosterMemCacheSize(context);
+  final (memW, _) = fullScreenPosterMemCacheSize(context);
   return ResizeImage(
     CachedNetworkImageProvider(url),
     width: memW,
-    height: memH,
   );
 }
 
 /// Smaller decode for image-post LQIP / thumbnail underlay.
 ImageProvider reelPosterLqipPrecacheProvider(String url, BuildContext context) {
-  final (memW, memH) = fullScreenPosterMemCacheSize(context);
+  final (memW, _) = fullScreenPosterMemCacheSize(context);
   final scaledW = (memW * 0.35).round().clamp(64, memW);
-  final scaledH = (memH * 0.35).round().clamp(64, memH);
   return ResizeImage(
     CachedNetworkImageProvider(url),
     width: scaledW,
-    height: scaledH,
   );
 }
 

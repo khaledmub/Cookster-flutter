@@ -192,14 +192,6 @@ class MediaKitPlayerPool {
   int _suspendEpoch = 0;
   int _audibleRetryToken = 0;
 
-  /// When set (by [HomeController]), blocks feed unmute during route/tab mutes.
-  bool Function()? feedAudibleAllowed;
-
-  bool _isFeedAudibleAllowed() {
-    final gate = feedAudibleAllowed;
-    return gate == null || gate();
-  }
-
   bool _isStaleFeedOpen(int openToken) => openToken < _feedOpenToken;
 
   /// Chains only priority (visible / active) operations.
@@ -875,9 +867,6 @@ class MediaKitPlayerPool {
   /// Primary audio entry at poster_unmask — bypasses suspend-epoch and pool-map gates.
   Future<void> forceFeedAudibleAtPosterUnmask(String key) {
     return _runPriority(() async {
-      if (!_isFeedAudibleAllowed()) {
-        return;
-      }
       if (key.isEmpty ||
           _feedVisibleKey != key ||
           _userPausedKeys.contains(key)) {
@@ -911,9 +900,6 @@ class MediaKitPlayerPool {
   /// One soft retry when the first unmute races surface attach — no volume pulse.
   Future<void> ensureFeedAudibleWithRetry(String key) async {
     if (key.isEmpty || _userPausedKeys.contains(key)) {
-      return;
-    }
-    if (!_isFeedAudibleAllowed()) {
       return;
     }
     final honor = DeviceConstraints.instance.needsConstrainedSurfaceRecovery;

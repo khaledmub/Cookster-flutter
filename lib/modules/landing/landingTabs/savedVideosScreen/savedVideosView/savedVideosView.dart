@@ -108,6 +108,7 @@ class _SavedVideosViewState extends State<SavedVideosView>
                 imageUrl: video.imageUrl,
                 image: video.image,
                 transcodeStatus: video.transcodeStatus,
+                processingStatus: video.processingStatus,
               ),
             ),
           ),

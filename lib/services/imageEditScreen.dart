@@ -147,32 +147,34 @@ class _ImageEditScreenState extends State<ImageEditScreen> {
         finalImage = await inputFile.copy('${tempDir.path}/final_image.jpg');
         print('Using original image: ${finalImage.path}');
       }
+
+      // No audio → upload the still image (is_image=1). Converting to a silent
+      // MP4 made the server/client treat photos as videos (progress bar, no badge).
+      if (audioController.selectedFilePath.isEmpty) {
+        setState(() {
+          _isProcessing = false;
+        });
+        Navigator.pop(context);
+        Get.to(
+          () => VideoPreviewScreen(videoFile: finalImage, isImage: "1"),
+        );
+        return;
+      }
+
       final outputPath =
           '${tempDir.path}/processed_${DateTime
           .now()
           .millisecondsSinceEpoch}.mp4';
       print('Output path: $outputPath');
 
-      String command;
-      double videoDuration = 1.0; // Default duration if no audio
-      if (audioController.selectedFilePath.isNotEmpty) {
-        final audioPath = audioController.selectedFilePath;
-        videoDuration = audioController.selectedDuration.toDouble();
-        print('Using audio: $audioPath, Duration: $videoDuration seconds');
-        // FFmpeg command with H.264 and explicit AAC-LC
-        command =
+      final audioPath = audioController.selectedFilePath;
+      final videoDuration = audioController.selectedDuration.toDouble();
+      print('Using audio: $audioPath, Duration: $videoDuration seconds');
+      final command =
         '-loop 1 -i "${finalImage.path}" -i "$audioPath" '
             '-c:v libx264 -r 30 -preset fast -pix_fmt yuv420p -profile:v main -level 4.0 '
             '-c:a aac -b:a 192k -ar 44100 -t $videoDuration -shortest -movflags +faststart '
             '-vf "scale=trunc(iw/2)*2:trunc(ih/2)*2" "$outputPath"';
-      } else {
-        // FFmpeg command without audio, using H.264
-        command =
-        '-loop 1 -i "${finalImage.path}" '
-            '-c:v libx264 -r 30 -preset fast -pix_fmt yuv420p -profile:v main -level 4.0 '
-            '-t $videoDuration -movflags +faststart '
-            '-vf "scale=trunc(iw/2)*2:trunc(ih/2)*2" "$outputPath"';
-      }
       print('Executing FFmpeg Command: $command');
       final session = await FFmpegKit.executeAsync(command, (session) async {
         final returnCode = await session.getReturnCode();

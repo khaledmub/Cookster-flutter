@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:cookster/appUtils/apiEndPoints.dart';
 import 'package:get/get.dart';
@@ -5,58 +6,64 @@ import 'package:http/http.dart' as http;
 
 import '../../../../services/apiClient.dart';
 import '../registrationSettingsModel/cities.dart';
+
 class CityController extends GetxController {
-  // Observable variables
-  var isLoading = false.obs; // To show loading state
-  var cityList = <Cities>[].obs; // List of cities from API
-  var selectedCityId = ''.obs; // Selected city ID
-  var selectedCityName = ''.obs; // Selected city name
+  var isLoading = false.obs;
+  var cityList = <Cities>[].obs;
+  var selectedCityId = ''.obs;
+  var selectedCityName = ''.obs;
 
-  // Method to fetch cities based on country_id
+  /// Last country id whose cities are currently in [cityList].
+  int? _loadedCountryId;
+  int _fetchGeneration = 0;
+
+  int? get loadedCountryId => _loadedCountryId;
+
+  /// Fetches cities for [countryId], ignoring stale responses when the user
+  /// switches country mid-flight (race that caused lag / wrong city lists).
   Future<void> fetchCities(int countryId) async {
+    final generation = ++_fetchGeneration;
     try {
-      // Set loading to true
       isLoading(true);
+      if (_loadedCountryId != countryId) {
+        cityList.clear();
+      }
 
-      // Construct the endpoint (adjust based on your API)
-      String endpoint = '${EndPoints.getCity}?country_id=$countryId'; // Example endpoint
+      final endpoint = '${EndPoints.getCity}?country_id=$countryId';
+      final http.Response response = await ApiClient.getRequest(endpoint);
 
-      // Make GET request using ApiClient
-      http.Response response = await ApiClient.getRequest(endpoint);
+      if (generation != _fetchGeneration) {
+        return;
+      }
 
-
-
-      print("Hello I am there");
-      print(response.body);
-
-      // Check response status
       if (response.statusCode == 200) {
-        // Parse JSON response
-        City cityData = City.fromJson(jsonDecode(response.body));
-
-        // Check if status is true and cities are available
+        final City cityData = City.fromJson(jsonDecode(response.body));
         if (cityData.status == true && cityData.cities != null) {
-          // Update cityList with fetched cities
           cityList.assignAll(cityData.cities!);
+          _loadedCountryId = countryId;
         } else {
-          // Handle empty or failed response
           cityList.clear();
+          _loadedCountryId = null;
           Get.snackbar('Error', 'No cities found for this country');
         }
       } else {
-        // Handle API error
+        cityList.clear();
+        _loadedCountryId = null;
         Get.snackbar('Error', 'Failed to fetch cities: ${response.statusCode}');
       }
     } catch (e) {
-      // Handle exceptions
-      Get.snackbar('Error', 'An error occurred: $e');
+      if (generation == _fetchGeneration) {
+        cityList.clear();
+        _loadedCountryId = null;
+        Get.snackbar('Error', 'An error occurred: $e');
+      }
     } finally {
-      // Set loading to false
-      isLoading(false);
+      if (generation == _fetchGeneration) {
+        isLoading(false);
+      }
     }
   }
 
-  // Method to handle city selection
   void selectCity(Cities? city) {
     if (city != null) {
       selectedCityId.value = city.id.toString();
@@ -67,10 +74,10 @@ class CityController extends GetxController {
     }
   }
 
-  // Clear selections
   void clearSelection() {
     selectedCityId.value = '';
     selectedCityName.value = '';
     cityList.clear();
+    _loadedCountryId = null;
   }
 }

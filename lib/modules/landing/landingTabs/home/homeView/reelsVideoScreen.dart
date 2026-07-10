@@ -566,7 +566,6 @@ class _VideoReelScreenState extends State<VideoReelScreen>
       return;
     }
     _pendingFeedTabPlayback = false;
-    controller.notifyHomeReelsOwnsColdStartAttach();
     final layer = _layerFor(tab);
     // While the user is on a reel, trust the live PageView index — not the saved
     // tab scroll id (fetchVideos + epoch replay was jumping to another video).
@@ -777,7 +776,8 @@ class _VideoReelScreenState extends State<VideoReelScreen>
     return ReelFeedPlayerKit.buildInlinePlayer(
       video: video,
       playerKey: _feedReelPlayerKey,
-      showProgressBar: true,
+      // Photos must never show the scrubber — only real video posts.
+      showProgressBar: !video.isPhotoPost,
       onPlaybackReady: () {
         _onVisibleReelReady();
       },
@@ -1473,12 +1473,14 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                           video: videoDetail,
                           isActivePage: isActivePage,
                           belowFeedTabs: isActiveTab,
+                          // Active-tab badge is drawn below (avoids search overlap);
+                          // off-tab pages still get the chrome badge if kept alive.
                           showPhotoBadge: !isActiveTab,
                           child: RepaintBoundary(
                             child: Stack(
                               fit: StackFit.expand,
                               children: [
-                                if (showPlayer)
+                                if (showPlayer && !videoDetail.isPhotoPost)
                                   _buildInlineReelPlayer(
                                     videoDetail,
                                     tab: tab,
