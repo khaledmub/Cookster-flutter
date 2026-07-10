@@ -31,8 +31,10 @@ class ProfileGridThumbnail extends StatelessWidget {
                 fit: BoxFit.cover,
                 width: double.infinity,
                 height: double.infinity,
+                // Constrain width only — passing both dims decodes to a square
+                // and squishes non-square posters (reads as stretched/low quality
+                // under BoxFit.cover). Width-only preserves aspect; cover crops.
                 memCacheWidth: mem,
-                memCacheHeight: mem,
                 fadeInDuration: const Duration(milliseconds: 120),
                 placeholder: (_, __) => Image.asset(
                   fallbackAsset,

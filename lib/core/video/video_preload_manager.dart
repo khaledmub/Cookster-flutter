@@ -475,7 +475,8 @@ class VideoPreloadManager {
     final networkClass = await _networkPolicy.currentNetworkClass();
     switch (networkClass) {
       case NetworkClass.wifi:
-        return RemoteConfigService.instance.preloadLimitWifi.clamp(3, 5);
+        // Deeper window on Wi-Fi so fast swipes don't outrun the disk cache.
+        return RemoteConfigService.instance.preloadLimitWifi.clamp(3, 7);
       case NetworkClass.mobile:
         return RemoteConfigService.instance.preloadLimitMobile.clamp(3, 5);
       case NetworkClass.offline:

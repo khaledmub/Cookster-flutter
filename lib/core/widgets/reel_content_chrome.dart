@@ -34,13 +34,16 @@ class ReelPhotoBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isRtl = Directionality.of(context) == TextDirection.rtl;
+    // Top-center so the badge never overlaps corner controls (search/filter,
+    // back, action column) in either LTR or RTL — it stands alone.
     return Positioned(
       top: _topInset(context),
-      left: isRtl ? 16 : null,
-      right: isRtl ? null : 16,
+      left: 0,
+      right: 0,
       child: IgnorePointer(
-        child: DecoratedBox(
+        child: Align(
+          alignment: Alignment.topCenter,
+          child: DecoratedBox(
           decoration: BoxDecoration(
             color: Colors.black.withValues(alpha: 0.72),
             borderRadius: BorderRadius.circular(8),
@@ -81,6 +84,7 @@ class ReelPhotoBadge extends StatelessWidget {
                 ),
               ],
             ),
+          ),
           ),
         ),
       ),

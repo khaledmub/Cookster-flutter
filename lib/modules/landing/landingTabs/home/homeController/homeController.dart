@@ -11,6 +11,8 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:cookster/core/video/media_kit_player_pool.dart';
 import 'package:cookster/core/video/video_player_pool.dart';
+import 'package:cookster/core/video/video_source_resolver.dart';
+import 'package:cookster/core/video/cached_playback_url.dart';
 import 'package:cookster/modules/landing/landingController/landingController.dart';
 import '../../../../../services/apiClient.dart';
 import '../homeModel/videoFeedModel.dart';
@@ -203,11 +205,35 @@ class HomeController extends GetxController with WidgetsBindingObserver {
         currentPage.value = parsed.meta!.page!;
       }
       reelListLength.value = videoFeed.value.videos!.length;
+      // Warm the first reels of the freshly appended page so crossing the
+      // pagination boundary doesn't stall waiting on a live CDN fetch.
+      _prefetchNewPageHead(uniqueIncoming);
     } catch (e) {
       error.value = "Error loading more videos: $e";
     } finally {
       isLoadingMore.value = false;
       update();
+    }
+  }
+
+  /// Disk-warm the first couple of reels of a newly appended page so the user
+  /// hits cached bytes at the pagination boundary instead of a live CDN fetch.
+  void _prefetchNewPageHead(List<WallVideos> videos) {
+    if (videos.isEmpty) {
+      return;
+    }
+    const resolver = VideoSourceResolver();
+    for (final video in videos.take(2)) {
+      // resolveForWallVideo returns [] for photo posts, so no isPhotoPost check.
+      final candidates = resolver.resolveForWallVideo(video);
+      if (candidates.isEmpty) {
+        continue;
+      }
+      final preload =
+          resolver.prioritizeForPreload(candidates, offsetFromVisible: 1);
+      for (final candidate in preload) {
+        prefetchPlaybackUrl(candidate.url, priority: 85);
+      }
     }
   }
 
