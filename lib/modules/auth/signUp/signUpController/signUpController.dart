@@ -50,6 +50,8 @@ class SignUpController extends GetxController {
   }
 
   var selectedProfileId = 1.obs;
+  /// True when arriving from Google/Apple — hide password and treat email as social.
+  final RxBool isSocialSignUp = false.obs;
   var isSubscriptionRequired = 0.obs;
   final TextEditingController nameController = TextEditingController();
   final TextEditingController usernameController = TextEditingController();
@@ -454,7 +456,8 @@ class SignUpController extends GetxController {
       );
     }
 
-    if (validatePassword(passwordController.text) != null) {
+    if (!isSocialSignUp.value &&
+        validatePassword(passwordController.text) != null) {
       passwordError.value = validatePassword(passwordController.text)!;
       isValid = false;
       print('Step 11: Password validation failed, isValid set to $isValid');
@@ -862,6 +865,7 @@ class SignUpController extends GetxController {
     locationController.clear();
     selectedProfile.value = "Personal";
     selectedProfileId.value = 1;
+    isSocialSignUp.value = false;
     isSubscriptionRequired.value = 0;
     businessType.value = "";
     selectCountryId.value = "";
@@ -912,21 +916,15 @@ class SignUpController extends GetxController {
       if (response.statusCode == 200) {
         var data = jsonDecode(response.body);
         registrationSettings.value = RegistrationSettings.fromJson(data);
+        // Keep the user's current selection (default Personal). Never force
+        // Business on load — that broke Apple/Google signup form layout.
         final entities = registrationSettings.value.entities ?? <Entities>[];
-        Entities? businessEntity;
         for (final entity in entities) {
-          if ((entity.name ?? '').toLowerCase() == 'business') {
-            businessEntity = entity;
+          if (entity.id == selectedProfileId.value) {
+            selectedProfile.value = entity.name ?? selectedProfile.value;
+            isSubscriptionRequired.value =
+                entity.isSubscriptionRequired ?? isSubscriptionRequired.value;
             break;
-          }
-        }
-        if (businessEntity != null) {
-          selectedProfileId.value = businessEntity.id ?? selectedProfileId.value;
-          isSubscriptionRequired.value =
-              businessEntity.isSubscriptionRequired ?? isSubscriptionRequired.value;
-          selectedProfile.value = businessEntity.name ?? selectedProfile.value;
-          if (selectedProfileId.value != 1 && accountType.value.isEmpty) {
-            accountType.value = selectedProfileId.value.toString();
           }
         }
         await _applyDefaultCountryAndCityIfNeeded();

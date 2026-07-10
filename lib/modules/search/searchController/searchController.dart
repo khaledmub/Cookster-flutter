@@ -64,7 +64,13 @@ class UserSearchController extends GetxController {
   void onInit() async {
     super.onInit();
     await loadRecentSearches();
+    await _loadSavedLocationIds();
     try {
+      // Only fill display names from GPS when the user has not already
+      // chosen a country/city (IDs from prefs / filter dialog).
+      if (currentCountryId.value.isNotEmpty || currentCityId.value.isNotEmpty) {
+        return;
+      }
       Position position = await _getCurrentPosition();
       Map<String, String?> locationData =
           await _getCityAndCountryFromCoordinates(
@@ -85,8 +91,32 @@ class UserSearchController extends GetxController {
       }
     } catch (e) {
       print("Error setting initial location: $e");
-      currentCity.value = "Unknown";
-      currentCountry.value = "Unknown";
+      if (currentCity.value.isEmpty) {
+        currentCity.value = "Unknown";
+      }
+      if (currentCountry.value.isEmpty) {
+        currentCountry.value = "Unknown";
+      }
+    }
+  }
+
+  Future<void> _loadSavedLocationIds() async {
+    final prefs = await SharedPreferences.getInstance();
+    final countryId = prefs.getString('currentCountryId') ?? '';
+    final cityId = prefs.getString('currentCityId') ?? '';
+    final country = prefs.getString('currentCountry') ?? '';
+    final city = prefs.getString('currentCity') ?? '';
+    if (countryId.isNotEmpty) {
+      currentCountryId.value = countryId;
+    }
+    if (cityId.isNotEmpty) {
+      currentCityId.value = cityId;
+    }
+    if (country.isNotEmpty) {
+      currentCountry.value = country;
+    }
+    if (city.isNotEmpty) {
+      currentCity.value = city;
     }
   }
 

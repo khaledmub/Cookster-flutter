@@ -247,9 +247,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       case AppLifecycleState.resumed:
         clearNotificationBadge();
         if (Get.isRegistered<HomeController>()) {
-          final home = Get.find<HomeController>();
-          home.isAppInBackground.value = false;
-          home.resumeAfterAppForegroundIfAllowed();
+          Get.find<HomeController>().onAppLifecycleResumed();
         }
         break;
       case AppLifecycleState.inactive:

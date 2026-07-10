@@ -16,6 +16,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 
 import '../../../../services/apiClient.dart';
+import '../../signUp/signUpController/signUpController.dart';
 
 class LogInController extends GetxController {
   final TextEditingController emailController = TextEditingController();
@@ -277,6 +278,11 @@ class LogInController extends GetxController {
           AppRoutes.signUp,
           parameters: {'email': emailController.text.trim(), 'name': userName},
         );
+
+        // Mark social signup before the form paints so password stays hidden.
+        if (Get.isRegistered<SignUpController>()) {
+          Get.find<SignUpController>().isSocialSignUp.value = true;
+        }
 
         ScaffoldMessenger.of(Get.context!).showSnackBar(
           SnackBar(

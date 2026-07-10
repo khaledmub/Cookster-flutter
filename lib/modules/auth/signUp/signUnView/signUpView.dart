@@ -88,12 +88,14 @@ class _SignVpViewState extends State<SignVpView> {
       // Get instance of SharedPreferences
       final prefs = await SharedPreferences.getInstance();
       // Load the google_sign_in bit, default to 0 if not set
+      final socialBit = prefs.getInt('google_sign_in') ?? 0;
       setState(() {
-        googleSignInBit = prefs.getInt('google_sign_in') ?? 0;
-
-        if (googleSignInBit == 1)
-          signUpController.passwordController.text = "Welcome@119";
+        googleSignInBit = socialBit;
       });
+      signUpController.isSocialSignUp.value = socialBit == 1;
+      if (socialBit == 1) {
+        signUpController.passwordController.text = "Welcome@119";
+      }
 
       if (email != null && email.isNotEmpty) {
         signUpController.emailController.text = email;
@@ -844,8 +846,13 @@ class _SignVpViewState extends State<SignVpView> {
                                       SizedBox(height: 10),
 
                                       Obx(() {
-                                        return googleSignInBit == 0
-                                            ? Column(
+                                        // Social (Google/Apple) signup — no password field.
+                                        if (signUpController
+                                                .isSocialSignUp.value ||
+                                            googleSignInBit == 1) {
+                                          return const SizedBox.shrink();
+                                        }
+                                        return Column(
                                               children: [
                                                 AppUtils.customPasswordTextField(
                                                   fieldKey: passwordFieldKey,
@@ -885,8 +892,7 @@ class _SignVpViewState extends State<SignVpView> {
                                                 ),
                                                 SizedBox(height: 10),
                                               ],
-                                            )
-                                            : SizedBox.shrink();
+                                            );
                                       }),
 
                                       if (signUpController
@@ -1876,25 +1882,27 @@ class _SignVpViewState extends State<SignVpView> {
                     ],
                   ),
                 ),
-                cityController.isLoading.value
-                    ? Container(
-                      height: Get.height,
-                      width: Get.width,
-                      decoration: BoxDecoration(
-                        color: Colors.black.withOpacity(0.5),
+                // Non-blocking city fetch indicator — a full-screen dim looked
+                // like a permanent gray slab on the form (esp. Apple/Google signup
+                // which auto-fetches Saudi/Riyadh cities on open).
+                if (cityController.isLoading.value)
+                  Positioned(
+                    top: 12,
+                    right: 12,
+                    child: Material(
+                      elevation: 2,
+                      borderRadius: BorderRadius.circular(20),
+                      color: Colors.white,
+                      child: const Padding(
+                        padding: EdgeInsets.all(10),
+                        child: SizedBox(
+                          width: 22,
+                          height: 22,
+                          child: CircularProgressIndicator(strokeWidth: 2.5),
+                        ),
                       ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [CircularProgressIndicator()],
-                          ),
-                        ],
-                      ),
-                    )
-                    : SizedBox.shrink(),
+                    ),
+                  ),
               ],
             ),
           );

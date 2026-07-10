@@ -703,7 +703,14 @@ class _VideoReelScreenState extends State<VideoReelScreen>
       return;
     }
     _lastHandledPlaybackEpoch = -1;
-    controller.isAppInBackground.value = false;
+    // [HomeController.onAppLifecycleResumed] owns background/visibility gates.
+    // Never force [isReelsTabVisible]=true here — that remounts feed audio on
+    // Profile after app reopen.
+    if (!controller.canPlayHomeReels) {
+      MediaKitPlayerPool.instance.silenceAllSync();
+      MediaKitPlayerPool.instance.pauseAllImmediate();
+      return;
+    }
     controller.isNavigating.value = false;
     controller.setReelsTabVisible(true);
     final videos = controller.videoFeed.value.videos;
@@ -720,15 +727,11 @@ class _VideoReelScreenState extends State<VideoReelScreen>
       return;
     }
     layer.activePlayerVideo = video;
-    final key = video.id;
     unawaited(_warmVisibleBeforePlayback(index));
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) {
-        return;
-      }
-      controller.isAppInBackground.value = false;
-      controller.setReelsTabVisible(true);
-      if (!controller.canPlayHomeReels) {
+      if (!mounted || !controller.canPlayHomeReels) {
+        MediaKitPlayerPool.instance.silenceAllSync();
+        MediaKitPlayerPool.instance.pauseAllImmediate();
         return;
       }
       _schedulePlayerForPage(_activeTabType, index, forceReattach: true);
@@ -737,9 +740,20 @@ class _VideoReelScreenState extends State<VideoReelScreen>
     });
   }
 
+  void _silenceFeedOnAppBackground() {
+    MediaKitPlayerPool.instance.silenceAllSync();
+    MediaKitPlayerPool.instance.pauseAllImmediate();
+  }
+
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.hidden) {
+      _silenceFeedOnAppBackground();
+      return;
+    }
     if (state == AppLifecycleState.resumed) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {

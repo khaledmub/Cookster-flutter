@@ -1284,6 +1284,35 @@ class HomeController extends GetxController with WidgetsBindingObserver {
     unawaited(resumeVisibleVideo(visiblePageIndex.value));
   }
 
+  /// Called from [MyApp] on [AppLifecycleState.resumed].
+  ///
+  /// Must clear [isReelsTabVisible] *before* [isAppInBackground] when the user
+  /// is not on Home — otherwise [canMountHomeReelPlayer] flips true (warm-keep
+  /// via [_bottomNavMuteDepth]) and the feed player remounts with audio while
+  /// Profile/Discover/etc. is showing.
+  void onAppLifecycleResumed() {
+    final allowHomePlayback = _isOnHomeTab() &&
+        _bottomNavMuteDepth == 0 &&
+        _playbackMuteDepth == 0 &&
+        _routeOverlayPauseDepth == 0 &&
+        !isInMediaCaptureFlow &&
+        !_hasOverlayRoute();
+    if (!allowHomePlayback) {
+      setReelsTabVisible(false);
+      isNavigating.value = true;
+      isVideoPlaying.value = false;
+      MediaKitPlayerPool.instance.silenceAllSync();
+      MediaKitPlayerPool.instance.pauseAllImmediate();
+      isAppInBackground.value = false;
+      _feedResumePendingWhenHomeTab = _isOnHomeTab();
+      return;
+    }
+    isAppInBackground.value = false;
+    isNavigating.value = false;
+    setReelsTabVisible(true);
+    resumeAfterAppForegroundIfAllowed();
+  }
+
   /// Immediate silence before a route push (no depth change). Pair with
   /// [pauseReelsForRouteOverlay] on the pushed screen's [initState].
   void silenceHomeReelsForTransition() {

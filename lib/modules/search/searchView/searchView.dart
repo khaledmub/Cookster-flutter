@@ -1354,17 +1354,23 @@ class _SearchViewState extends State<SearchView>
                             if (selectedId != null) {
                               searchControllerNew.currentCountryId.value =
                                   selectedId.toString();
+                              searchControllerNew.currentCountry.value =
+                                  selectedCountryName.value;
+                              // New country → drop stale city so filters don't
+                              // mix Riyadh with Egypt, etc.
+                              searchControllerNew.currentCityId.value = '';
+                              searchControllerNew.currentCity.value = '';
                               Get.back(); // Close the country dialog
 
                               searchControllerNew.isCityLoading.value = true;
-                              searchControllerNew.currentCountry.value =
-                                  selectedCountryName.value;
                               controller.selectLocation(
                                 selectedCountryName.value,
                                 selectedId,
                               );
                               homeController.currentCountry.value =
                                   selectedCountryName.value;
+                              homeController.currentCity.value = '';
+                              homeController.currentCityId.value = '';
                               await cityController.fetchCities(selectedId);
                               searchControllerNew.isCityLoading.value = false;
 
@@ -1623,14 +1629,16 @@ class _SearchViewState extends State<SearchView>
                                           "Selected City: $selectedName (ID: $selectedId)",
                                         );
 
+                                        // homeController here is UserSearchController
+                                        // (misnamed) — keep search filter IDs in sync.
                                         homeController.currentCityId.value =
                                             selectedId.toString();
+                                        homeController.currentCity.value =
+                                            selectedName;
 
                                         homeUpdateController
                                             .currentCityId
                                             .value = selectedId.toString();
-                                        homeController.currentCity.value =
-                                            selectedName;
                                         homeUpdateController.currentCity.value =
                                             selectedName;
                                         controller.selectedCity.value =
