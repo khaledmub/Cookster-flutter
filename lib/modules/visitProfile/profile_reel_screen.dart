@@ -106,6 +106,8 @@ class _ProfileReelScreenState extends State<ProfileReelScreen>
     } else {
       _homeController.reinforceReelsPausedForOverlay();
     }
+    // Home unmute is blocked during prep; re-enable for this profile session.
+    MediaKitPlayerPool.instance.setFeedUnmuteEnabled(true);
 
     var startIndex = 0;
     final seeds = widget.seedVideos;
@@ -238,6 +240,7 @@ class _ProfileReelScreenState extends State<ProfileReelScreen>
 
   Future<void> _teardownPoolAndResumeHome() async {
     try {
+      MediaKitPlayerPool.instance.setFeedUnmuteEnabled(false);
       await MediaKitPlayerPool.instance.awaitOperationsIdle();
       await MediaKitPlayerPool.instance.disposeAll();
     } finally {

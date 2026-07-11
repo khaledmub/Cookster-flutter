@@ -823,6 +823,15 @@ class HomeController extends GetxController with WidgetsBindingObserver {
         if (backgroundRefresh && (parsed.videos?.isEmpty ?? true)) {
           return;
         }
+        // Stale response from a previous tab — keep cache only, don't overwrite live feed.
+        if (tab != selectedType.value) {
+          if (parsed.videos?.isNotEmpty ?? false) {
+            _tabFeedCache[tab] = parsed;
+          } else {
+            _tabFeedCache.remove(tab);
+          }
+          return;
+        }
         videoFeed.value = parsed;
         reelListLength.value = parsed.videos?.length ?? 0;
         if (parsed.videos?.isNotEmpty ?? false) {
@@ -1171,11 +1180,14 @@ class HomeController extends GetxController with WidgetsBindingObserver {
     unawaited(pauseAllVideosAwait());
   }
 
-  /// Pause + silence when leaving Home via bottom nav — keeps decoder warm.
+  /// Pause + silence when leaving Home via bottom nav.
+  /// Unmounts the feed [ReelVideoPlayer] so it cannot re-unmute under Profile.
   Future<void> enterBottomNavMute() async {
     _bottomNavMuteDepth++;
     isNavigating.value = true;
     isVideoPlaying.value = false;
+    setReelsTabVisible(false);
+    MediaKitPlayerPool.instance.setFeedUnmuteEnabled(false);
     final tab = selectedType.value;
     final videos = videoFeed.value.videos;
     if (videos != null && videos.isNotEmpty) {
@@ -1316,7 +1328,9 @@ class HomeController extends GetxController with WidgetsBindingObserver {
   /// Immediate silence before a route push (no depth change). Pair with
   /// [pauseReelsForRouteOverlay] on the pushed screen's [initState].
   void silenceHomeReelsForTransition() {
+    MediaKitPlayerPool.instance.setFeedUnmuteEnabled(false);
     MediaKitPlayerPool.instance.silenceAllSync();
+    MediaKitPlayerPool.instance.pauseAllImmediate();
   }
 
   /// Stops reel audio/video immediately when pushing another route (e.g. profile).
@@ -1408,6 +1422,7 @@ class HomeController extends GetxController with WidgetsBindingObserver {
     _feedResumePendingWhenHomeTab = false;
     isNavigating.value = false;
     isVideoPlaying.value = true;
+    MediaKitPlayerPool.instance.setFeedUnmuteEnabled(true);
     setReelsTabVisible(true);
 
     final videos = videoFeed.value.videos;

@@ -19,6 +19,13 @@ Future<void> prepareForFullscreenVideoPlayback() async {
 /// feed [ReelVideoPlayer] unmounts before a profile reel route mounts its own
 /// surface (Honor/MTK cannot sustain overlapping ImageReaders).
 Future<void> prepareForProfileReelRoute() async {
+  // Sync mute first — do not wait for idle while home can still unmute.
+  MediaKitPlayerPool.instance.setFeedUnmuteEnabled(false);
+  MediaKitPlayerPool.instance.silenceAllSync();
+  MediaKitPlayerPool.instance.pauseAllImmediate();
+  if (Get.isRegistered<HomeController>()) {
+    Get.find<HomeController>().setReelsTabVisible(false);
+  }
   await MediaKitPlayerPool.instance.awaitOperationsIdle();
   if (Get.isRegistered<HomeController>()) {
     final home = Get.find<HomeController>();

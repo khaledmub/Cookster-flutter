@@ -192,6 +192,15 @@ class MediaKitPlayerPool {
   int _suspendEpoch = 0;
   int _audibleRetryToken = 0;
 
+  /// When false, [forceFeedAudibleAtPosterUnmask] is a no-op (off-Home / prep).
+  bool _feedUnmuteEnabled = true;
+
+  /// Blocks or allows feed/profile poster-unmask unmute. Disable when leaving
+  /// Home; re-enable on Home restore or when a profile reel session starts.
+  void setFeedUnmuteEnabled(bool enabled) {
+    _feedUnmuteEnabled = enabled;
+  }
+
   bool _isStaleFeedOpen(int openToken) => openToken < _feedOpenToken;
 
   /// Chains only priority (visible / active) operations.
@@ -864,10 +873,13 @@ class MediaKitPlayerPool {
     return _runPriority(() => _pingPong.startMutedFeedDecode());
   }
 
-  /// Primary audio entry at poster_unmask — bypasses suspend-epoch and pool-map gates.
+  /// Primary audio entry at poster_unmask — bypasses suspend-epoch and pool-map gates
+  /// while [setFeedUnmuteEnabled] remains true. Navigation mute / profile prep
+  /// must disable unmute so a late home unmask cannot leak under Profile.
   Future<void> forceFeedAudibleAtPosterUnmask(String key) {
     return _runPriority(() async {
-      if (key.isEmpty ||
+      if (!_feedUnmuteEnabled ||
+          key.isEmpty ||
           _feedVisibleKey != key ||
           _userPausedKeys.contains(key)) {
         return;

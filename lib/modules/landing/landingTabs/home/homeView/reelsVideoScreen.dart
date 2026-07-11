@@ -456,6 +456,12 @@ class _VideoReelScreenState extends State<VideoReelScreen>
       }
       // Apply scroll + visiblePageIndex before showing the tab — otherwise
       // FocusDetector jumps using the previous tab's index (wrong reel poster).
+      // Clear shared feed before activating Following/Near Me with no cache so
+      // the previous tab's videos never flash under the new tab label.
+      if (!hasCache) {
+        controller.videoFeed.value = VideoFeed(status: true, videos: []);
+        controller.reelListLength.value = 0;
+      }
       controller.setSelectedType(newTabType);
       _syncActiveTabScrollListener(previousTab, newTabType);
       if (hasCache) {
