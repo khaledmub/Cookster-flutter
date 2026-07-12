@@ -82,7 +82,7 @@ class VideoPreloadManager {
   /// so [openVisibleReel] can open from local bytes when prefetch wins the race.
   Future<void> prefetchVisibleReel(
     int visibleIndex, {
-    int maxWaitMs = 280,
+    int maxWaitMs = 700,
   }) async {
     if (!await _canPreload()) {
       return;

@@ -96,24 +96,27 @@ void main() {
       expect(resolver.mp4Tier(ordered[1].url), '1080');
     });
 
-    test('adjacent indices prefetch 1080 when available', () {
+    test('adjacent indices prefetch 720 then 1080 when available', () {
       final ordered = resolver.prioritizeForPreload(
         [mp4('1080'), mp4('360'), mp4('720')],
         offsetFromVisible: 1,
         dualTier: true,
       );
-      expect(ordered.length, 1);
-      expect(resolver.mp4Tier(ordered.first.url), '1080');
+      expect(ordered.length, 3);
+      expect(resolver.mp4Tier(ordered[0].url), '720');
+      expect(resolver.mp4Tier(ordered[1].url), '1080');
+      expect(resolver.mp4Tier(ordered[2].url), '360');
     });
 
-    test('offset 2 still prefetches 1080 when available', () {
+    test('offset 2 still prefetches 720 then 1080 when available', () {
       final ordered = resolver.prioritizeForPreload(
         [mp4('1080'), mp4('360'), mp4('720')],
         offsetFromVisible: 2,
         dualTier: true,
       );
-      expect(ordered.length, 1);
-      expect(resolver.mp4Tier(ordered.first.url), '1080');
+      expect(ordered.length, 3);
+      expect(resolver.mp4Tier(ordered[0].url), '720');
+      expect(resolver.mp4Tier(ordered[1].url), '1080');
     });
 
     test('deep offset returns 720 when 1080 exists', () {

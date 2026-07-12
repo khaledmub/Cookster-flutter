@@ -1823,8 +1823,9 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
     await _maybeUpgradeToCachedHd(generation: generation);
   }
 
-  /// After the poster drops, step up to the best **cached** HD tier on Wi-Fi.
-  /// Honor/MTK upgrades one rung at a time (360→720→1080) to avoid surface churn.
+  /// After the poster drops, step up to the best **cached** HD tier.
+  /// Wi-Fi: 720→1080 on capable devices. Cellular: 360→720 only.
+  /// Honor/MTK stays on the open rung after 720 (720→1080 reconfig kills playback).
   Future<void> _maybeUpgradeToCachedHd({required int generation}) async {
     if (_upgradeInFlight ||
         !_usesFeedVisibleChannel ||
@@ -1834,7 +1835,7 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
       return;
     }
     final network = await _networkPolicy.currentNetworkClass();
-    if (network != NetworkClass.wifi) {
+    if (network == NetworkClass.offline) {
       return;
     }
     final poolKey = _pooledKey;
@@ -1843,14 +1844,20 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
     }
     final currentUrl = _pool.sourceUrlForKey(poolKey);
     final currentTier = _resolver.mp4Tier(currentUrl ?? '') ?? '360';
-    // Honor/MTK: Wi-Fi ladder already opens 720; mid-play 720→1080 reconfigures
+    // Honor/MTK: ladder already opens 720; mid-play 720→1080 reconfigures
     // MediaCodec and kills audio/playback after ~1s.
     if (_needsConstrainedStartGate && currentTier != '360') {
       return;
     }
-    final targetTier = _needsConstrainedStartGate
-        ? '720'
-        : (currentTier == '1080' ? null : '1080');
+    final String? targetTier;
+    if (_needsConstrainedStartGate) {
+      targetTier = currentTier == '360' ? '720' : null;
+    } else if (network == NetworkClass.wifi) {
+      targetTier = currentTier == '1080' ? null : '1080';
+    } else {
+      // Cellular: sharpen 360 → cached 720 without jumping to 1080 mid-play.
+      targetTier = currentTier == '360' ? '720' : null;
+    }
     if (targetTier == null) {
       return;
     }
@@ -2382,32 +2389,14 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
     final raw = _resolvedCandidates();
     await DeviceConstraints.instance.ensureInitialized();
 
-    // Quality follows the network. On a good (Wi-Fi) connection start in high
-    // quality regardless of device — Honor/MTK decode 720/1080 fine, the only
-    // quirk is a surface-reconfigure stall handled by the start gate, not a lack
-    // of decode power. On mobile keep the 360-first fast start (lower latency +
-    // data use).
-    final preferHighQuality = network == NetworkClass.wifi;
-
-    if (preferHighQuality) {
-      if (_needsConstrainedStartGate) {
-        // Surface-sensitive decoder class: prefer a cached HD tier for an
-        // instant, buffer-free HD start; otherwise 720-first (sharp + a lighter
-        // surface than 1080, which magnifies the reconfigure stall).
-        return _wifiQualityConstrainedOrder(raw, cache);
-      }
-      // Fully capable device on Wi-Fi: 1080 → 720 → 360, highest cached first.
-      return _resolver.prioritizeForPlaybackFastStart(
-        candidates: raw,
-        network: network,
-        cacheManager: cache,
-        isTablet: isTablet,
-        fastStartUncached: false,
-        hlsWifiEnabled: rc.reelsHlsWifiEnabled,
-      );
+    // Align open tier with prefetch: Wi-Fi always tries 720 first (ready cache
+    // wins), then upgrades to cached 1080 after first frame on capable devices.
+    // Opening uncached 1080 while prefetch warmed 720 caused slow/inconsistent
+    // starts. Mobile stays 360-first for TTFB, then upgrades to cached 720.
+    if (network == NetworkClass.wifi) {
+      return _wifiQualityConstrainedOrder(raw, cache);
     }
 
-    // Mobile / offline: fast start (data-conscious, lower start latency).
     return _resolver.prioritizeForPlaybackFastStart(
       candidates: raw,
       network: network,
@@ -2444,18 +2433,28 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
       }
     }
 
-    // Prefer a cached HD tier for an instant, smooth high-quality start.
-    if (pick720 != null &&
-        await isPlaybackUrlCached(pick720.url, cacheManager: cache)) {
+    // Prefer ready bytes: on Honor/MTK stay on 720 even if 1080 is cached
+    // (1080 surfaces drop frames / stall). Capable devices take ready 1080.
+    Future<bool> ready(VideoSourceCandidate c) async =>
+        await isPlaybackUrlCached(c.url, cacheManager: cache) ||
+        await isPlaybackUrlPartiallyCached(c.url, cacheManager: cache);
+    final constrained = DeviceConstraints.instance.needsConstrainedSurfaceRecovery;
+    if (!constrained && pick1080 != null && await ready(pick1080)) {
+      add(pick1080);
+    } else if (pick720 != null && await ready(pick720)) {
       add(pick720);
-    } else if (pick1080 != null &&
-        await isPlaybackUrlCached(pick1080.url, cacheManager: cache)) {
+    } else if (pick360 != null && await ready(pick360)) {
+      add(pick360);
+    }
+    // Uncached ladder: 720 first (fast + sharp), then 1080, then 360.
+    add(pick720);
+    if (!constrained) {
       add(pick1080);
     }
-    // Quality-first ladder for the rest.
-    add(pick720);
-    add(pick1080);
     add(pick360);
+    if (constrained) {
+      add(pick1080);
+    }
     for (final candidate in raw) {
       add(candidate);
     }

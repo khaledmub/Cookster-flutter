@@ -118,10 +118,9 @@ void main() async {
         RemoteConfigService.instance.initialize(),
         SettingsService.instance.load(),
       ]);
-      if (!SettingsService.instance.dataSaverEnabled.value &&
-          RemoteConfigService.instance.dataSaverDefault) {
-        await SettingsService.instance.setDataSaver(true);
-      }
+      // Do not latch data-saver from Remote Config into SharedPreferences.
+      // That one-way write permanently collapses preload depth to 0 and forces
+      // tier C on Play/TestFlight installs even after RC is turned off.
 
       // Defer FCM permission prompts until after first frame.
       WidgetsBinding.instance.addPostFrameCallback((_) {

@@ -64,11 +64,10 @@ class MediaKitPlayerPool {
   //     actively buffer ahead — concurrent active 720p decode stays at 2
   //     (visible + 1 ahead), which is what the MediaTek codec sustains without
   //     starving (4 *actively* warming slots was what caused discardFps spikes).
-  //   * [maxPoolSizePhone] (4) keeps a couple of *recently played* decoders
-  //     resident but paused, so swiping back to the last 1-2 reels resumes
-  //     instantly instead of cold-reloading. Paused instances don't decode, so
-  //     they don't compete for the codec.
-  static const int maxPoolSizePhone = 2;
+  //   * [maxPoolSizePhone] keeps recently played decoders resident but paused
+  //     so swipe-back resumes without a cold reload. Paused instances don't
+  //     decode, so they don't compete for the codec.
+  static const int maxPoolSizePhone = 3;
   static const int maxPoolSizeTablet = 5;
   static const double tabletBreakpoint = 600;
 

@@ -83,15 +83,18 @@ class MediaUrlResolver {
     return _firstResolved([thumbnailBlur]);
   }
 
-  /// CDN feed sometimes puts a low-res file under `/videos/thumbnail/…`.
+  /// CDN feed sometimes puts a low-res file under `/videos/thumbnail/…`
+  /// or names the still `thumb.webp` (grid/LQIP, not full photo).
   static bool isCdnThumbnailPath(String? url) {
     if (url == null || url.trim().isEmpty) {
       return false;
     }
-    return url.toLowerCase().contains('/videos/thumbnail/');
+    final lower = url.toLowerCase();
+    return lower.contains('/videos/thumbnail/') || lower.contains('thumb.webp');
   }
 
   /// `…/videos/thumbnail/123.jpg` → `…/videos/123.jpg`
+  /// `…/videos/123/thumb.webp` → left unchanged (caller should prefer another field).
   static String upgradePhotoUrlToFullResolution(String url) {
     final lower = url.toLowerCase();
     const marker = '/videos/thumbnail/';
@@ -105,8 +108,8 @@ class MediaUrlResolver {
   /// Best full-screen URL for photo posts (`is_image: 1`).
   ///
   /// Backend contract: [videoUrl] / [video] = full JPG; [thumbnailUrl] = LQIP
-  /// only. Legacy rows may still put `/videos/thumbnail/…` in [videoUrl] — we
-  /// upgrade that path as a fallback.
+  /// only. Legacy rows may still put `/videos/thumbnail/…` or `thumb.webp` in
+  /// [videoUrl] — skip / upgrade those so full-screen photos are not pixelated.
   static String? photoDisplayUrl({
     String? videoUrl,
     String? video,
@@ -114,6 +117,7 @@ class MediaUrlResolver {
     String? image,
     String? thumbnailUrl,
   }) {
+    String? fallbackThumb;
     for (final raw in [videoUrl, video, imageUrl, image]) {
       final resolved = _resolveMediaPath(raw);
       if (resolved == null || resolved.isEmpty) {
@@ -123,7 +127,12 @@ class MediaUrlResolver {
         continue;
       }
       if (isCdnThumbnailPath(resolved)) {
-        return upgradePhotoUrlToFullResolution(resolved);
+        final upgraded = upgradePhotoUrlToFullResolution(resolved);
+        if (upgraded != resolved && !isCdnThumbnailPath(upgraded)) {
+          return upgraded;
+        }
+        fallbackThumb ??= resolved;
+        continue;
       }
       return resolved;
     }
@@ -133,9 +142,13 @@ class MediaUrlResolver {
     if (legacyThumb != null &&
         legacyThumb.isNotEmpty &&
         _isStaticImagePath(legacyThumb)) {
-      return upgradePhotoUrlToFullResolution(legacyThumb);
+      final upgraded = upgradePhotoUrlToFullResolution(legacyThumb);
+      if (upgraded != legacyThumb && !isCdnThumbnailPath(upgraded)) {
+        return upgraded;
+      }
+      return fallbackThumb ?? legacyThumb;
     }
-    return null;
+    return fallbackThumb;
   }
 
   /// Low-res placeholder while [photoDisplayUrl] loads — uses [thumbnailUrl].

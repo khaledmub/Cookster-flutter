@@ -8,26 +8,59 @@ Backend returns a consistent video payload on reels, profile, hashtag/list feeds
 |-------|-----|
 | `transcode_status` | `"ready"` = HLS + MP4 ladder available |
 | `processing_status` | `"processing"` = show poster only; don't guess HLS |
-| `hls_playlist_url` or `hls_url` | Primary playback (master `.m3u8`) |
-| `video_sources.url_360` | Fast-start MP4 fallback |
-| `video_sources.url_720` / `url_1080` | Higher quality fallbacks |
-| `video_url` | Legacy full MP4 |
-| `thumbnail_url` / `thumbnail` | Poster while buffering |
+| `playback_ready` | Optional explicit gate; prefer over inferring from status alone |
+| `hls_playlist_url` or `hls_url` | Adaptive playback (master `.m3u8`, ~2s segments) |
+| `video_sources.url_360` | Fast-start MP4 (always present when ready) |
+| `video_sources.url_720` | Default sharp MP4 — **required before ready** |
+| `video_sources.url_1080` | When source ≥ ~918p; optional |
+| `video_url` | Legacy full MP4 (avoid when ladder exists) |
+| `thumbnail_url` / `thumbnail` | Sharp frame poster (`thumb.webp`, ~720 long-edge) |
 | `thumbnail_blur` | Tiny blur placeholder |
 | `image_url` / `image` | Cover/fallback while processing |
 | `id` | Player pool + preload key |
 
-## Playback priority (when `transcode_status == "ready"`)
+## Playback priority (client — when `transcode_status == "ready"`)
 
-`hls_playlist_url` → `url_360` → `url_720` → `url_1080` → `video_url` → `video`
+**MP4 ladder (current app default):** ready cache → **720** → 1080 → 360 → `video_url`.  
+Wi‑Fi opens 720 (or ready 1080); cellular opens 360 then upgrades to cached 720.
 
-When **not** ready: use `thumbnail_url` / `image_url` as poster; only fall back to `video_url` / `video` if you must (slow).
+**HLS (Remote Config `reels_hls_wifi_enabled`):** master playlist first on Wi‑Fi when enabled; MP4 remains fallback. Segments are ~2s — no extra backend pass needed to flip the flag.
+
+When **not** ready: poster only (`thumbnail_url` / `image_url`); do not invent ladder URLs.
+
+## Encoding guarantees (transcoder — Jul 2026)
+
+| Requirement | Implementation |
+|-------------|----------------|
+| Fast-start | `-movflags +faststart` on every ladder MP4 (`moov` before `mdat`) |
+| Even dimensions | Shared filter `scale=-2:H:flags=lanczos,setsar=1,format=yuv420p` + `-pix_fmt yuv420p` (MP4 + HLS). Avoids odd axes (e.g. 721) that stall Honor/MediaTek surfaces |
+| Ladder completeness | Always encode **360 + 720** when ready (mild upscale OK). **1080** when source ≥ ~918p. Verifier **requires `url_720` before ready** |
+| CDN cache | Ladder MP4s + posters: `Cache-Control: public, max-age=31536000, immutable`. HLS playlists: `max-age=60`. Range requests enabled |
+| Sharp poster | Transcode overwrites `thumb.webp` from a real frame (~720 long-edge, q88, even dims) |
+
+Mobile partial-cache playback needs ≥256 KiB on disk **and** moov-at-front — both are now guaranteed on new encodes; backfill remuxes older files.
+
+## Backfill (existing catalog)
+
+```bash
+# Fill missing 720/1080 without flipping ready → pending
+php artisan videos:backfill-media --upgrade-ladder --limit=500
+
+# Remux ladder MP4s still missing moov-at-front
+php artisan videos:backfill-media --reencode-faststart --heights=360,720,1080 --limit=500
+
+# Spot-check Range / fast-start / even dims / url_720
+php artisan videos:validate-media --sample=20 --api-check
+```
+
+New uploads pick up the pipeline automatically.
 
 ## After upload
 
 - `POST /api/videos/create` returns `video_id` + decorated video immediately (`transcode_status: pending`, `processing_status: processing`).
 - Poll `GET /api/videos/processing_status?video_id={id}` until both are `"ready"`, or refresh profile/reels.
 - Poll response includes full media fields: `hls_playlist_url`, `video_sources`, `thumbnail_url`, etc. — same shape as feed items.
+- Until ready, client must not treat raw upload dimensions as playback (odd axes caused Honor surface stalls when `url_720` was missing).
 
 ## Profile avatars
 
@@ -35,31 +68,18 @@ When **not** ready: use `thumbnail_url` / `image_url` as poster; only fall back 
 - Correct CDN path: `https://cdn.cookster.org/storage/front_users/{filename}.jpg`
 - Don't fix 404s client-side by swapping `/storage/front_users/` vs `/front_users/` — backend normalizes; if 404, show default avatar.
 
-## Encoding requirements (smooth playback)
-
-For Instagram/Snapchat-level reel smoothness, encode all ladder MP4s with:
-
-| Requirement | Target |
-|-------------|--------|
-| Fast-start layout | `moov` atom **before** `mdat` in 360.mp4 and 720.mp4 |
-| GOP / keyframe interval | 1–2 seconds |
-| CDN `Cache-Control` | `public, max-age=31536000, immutable` on versioned paths |
-| Range requests | Enabled on all MP4 and HLS segment responses |
-| `thumbnail_blur` | Required on every `transcode_status=ready` item |
-
-Mobile uses partial-cache playback when ≥256 KiB are on disk and `moov` is at the front.
-
 ## Preload behavior (mobile)
 
-- Preload next 2–4 reels when `transcode_status == "ready"` and URLs are non-null.
-- Keep poster visible until first frame.
+- Prefetch visible + next 2–4 reels when ready; prefer **720 then 1080** on disk.
+- Keep poster visible until first decoded frame.
 - Respect Remote Config (`reels_preload_enabled`, data saver).
 
 ## What not to do
 
-- Don't mark a reel playable from HLS until `transcode_status == "ready"`.
+- Don't mark a reel playable from HLS/ladder until `transcode_status == "ready"` (and `url_720` is present).
 - Don't construct CDN paths from raw DB filenames.
 - Don't double-prefix URLs with `media_base_url` when value already starts with `https://`.
+- Don't open the raw upload MP4 when ladder URLs exist — that path caused `406×721`-style surface churn.
 
 ## Example ready item
 
@@ -68,6 +88,7 @@ Mobile uses partial-cache playback when ≥256 KiB are on disk and `moov` is at 
   "id": "uuid",
   "transcode_status": "ready",
   "processing_status": "ready",
+  "playback_ready": true,
   "hls_playlist_url": "https://cdn.cookster.org/videos/{id}/hls/master.m3u8",
   "video_sources": {
     "url_360": "https://cdn.cookster.org/videos/{id}/360.mp4",
@@ -90,4 +111,4 @@ Mobile uses partial-cache playback when ≥256 KiB are on disk and `moov` is at 
 
 ## Mobile one-liner
 
-Use absolute CDN URLs from the API; play HLS when `transcode_status=ready`, else poster + MP4 fallback; poll `processing_status` after upload; never build video/avatar URLs yourself.
+Use absolute CDN URLs from the API; when ready prefer **cached/partial `url_720`** (upgrade to 1080 on Wi‑Fi when cached); show sharp `thumbnail_url` until first frame; never play raw upload axes once the ladder exists; flip `reels_hls_wifi_enabled` later for adaptive HLS without another transcoder change.

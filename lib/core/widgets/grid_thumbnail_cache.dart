@@ -20,9 +20,11 @@ int avatarMemCacheSize(double logicalDiameter) =>
 (int, int) fullScreenPosterMemCacheSize(BuildContext context) {
   final size = MediaQuery.sizeOf(context);
   final ratio = MediaQuery.devicePixelRatioOf(context);
-  final w = (size.width * ratio).round().clamp(360, 1080);
+  // Decode near physical width so full-screen photos/posters are not soft on
+  // high-DPR phones (previous 1080 cap looked pixelated on Play/iOS builds).
+  final w = (size.width * ratio).round().clamp(360, 2160);
   // Height hint only for callers that still need a pair; decode uses width.
-  final h = (size.height * ratio).round().clamp(640, 1920);
+  final h = (size.height * ratio).round().clamp(640, 3840);
   return (w, h);
 }
 

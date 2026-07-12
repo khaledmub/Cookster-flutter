@@ -187,13 +187,10 @@ class VideoSourceResolver {
       }
     }
 
-    // Honor/MTK (tier B): N+1/N+2 prefetch 720 first — sharp enough, lighter
-    // surface than 1080, matches Wi-Fi playback ladder.
-    final honorHdPreload =
-        DeviceConstraints.instance.needsConstrainedSurfaceRecovery &&
-        !DeviceConstraints.instance.prefer360ColdOpen;
+    // N+1/N+2: warm 720 first (fast partial), then 1080. Matches Wi-Fi open
+    // promoting any ready tier so the next swipe is not stuck waiting on 1080.
     if (offsetFromVisible <= 2) {
-      if (honorHdPreload && pick720 != null) {
+      if (pick720 != null) {
         final result = <VideoSourceCandidate>[pick720];
         if (pick1080 != null && pick1080 != pick720) {
           result.add(pick1080);
@@ -259,8 +256,8 @@ class VideoSourceResolver {
     );
   }
 
-  /// Prefer the highest cached MP4 tier when bytes are already on disk — instant
-  /// local open without waiting for network (e.g. cached 1080 on phone).
+  /// Prefer the best *ready* MP4 on disk (full or fast-start partial) so open
+  /// does not wait on a higher uncached tier while a lower tier is already warm.
   Future<List<VideoSourceCandidate>> prioritizeForPlayback({
     required List<VideoSourceCandidate> candidates,
     required NetworkClass network,
@@ -278,43 +275,36 @@ class VideoSourceResolver {
       return ordered;
     }
     final cache = cacheManager ?? ReelsVideoCacheManager.instance.manager;
-    VideoSourceCandidate? bestCached;
+    VideoSourceCandidate? bestReady;
     var bestTierRank = -1;
     for (final candidate in ordered) {
       if (candidate.type != 'mp4_quality' ||
           candidate.url.toLowerCase().contains('.m3u8')) {
         continue;
       }
-      if (!await isPlaybackUrlCached(candidate.url, cacheManager: cache)) {
+      final ready = await isPlaybackUrlCached(
+            candidate.url,
+            cacheManager: cache,
+          ) ||
+          await isPlaybackUrlPartiallyCached(
+            candidate.url,
+            cacheManager: cache,
+          );
+      if (!ready) {
         continue;
       }
       final rank = _tierRank(mp4Tier(candidate.url));
       if (rank > bestTierRank) {
         bestTierRank = rank;
-        bestCached = candidate;
+        bestReady = candidate;
       }
     }
-    if (bestCached == null) {
-      return ordered;
-    }
-    var maxAvailableRank = -1;
-    for (final candidate in ordered) {
-      if (candidate.type != 'mp4_quality' ||
-          candidate.url.toLowerCase().contains('.m3u8')) {
-        continue;
-      }
-      final rank = _tierRank(mp4Tier(candidate.url));
-      if (rank > maxAvailableRank) {
-        maxAvailableRank = rank;
-      }
-    }
-    // Do not open a cached 360/720 when a higher tier is available on the ladder.
-    if (bestTierRank < maxAvailableRank) {
+    if (bestReady == null) {
       return ordered;
     }
     final result = List<VideoSourceCandidate>.from(ordered);
-    result.remove(bestCached);
-    result.insert(0, bestCached);
+    result.remove(bestReady);
+    result.insert(0, bestReady);
     return result;
   }
 

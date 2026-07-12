@@ -247,7 +247,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
         if (!mounted || !controller.canPlayHomeReels) {
           return;
         }
-        return _warmVisibleBeforePlayback(index, maxWaitMs: 360);
+        return _warmVisibleBeforePlayback(index, maxWaitMs: 700);
       }).then((_) async {
         if (!mounted || !controller.canPlayHomeReels) {
           return;
@@ -289,7 +289,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
 
   Future<void> _warmVisibleBeforePlayback(
     int index, {
-    int maxWaitMs = 360,
+    int maxWaitMs = 700,
   }) async {
     if (!mounted) {
       return;
@@ -469,7 +469,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
         unawaited(
           _preloadManager.prefetchVisibleReel(
             targetIndex!,
-            maxWaitMs: 280,
+            maxWaitMs: 500,
           ),
         );
         unawaited(controller.fetchVideos(fromTabSwitch: true));
@@ -486,7 +486,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
           unawaited(
             _preloadManager.prefetchVisibleReel(
               resolved,
-              maxWaitMs: 280,
+              maxWaitMs: 500,
             ),
           );
           await _waitForTabSwitchFrame();
@@ -639,7 +639,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
       unawaited(
         _warmVisibleBeforePlayback(
           targetIndex,
-          maxWaitMs: fromTabSwitch ? 280 : 360,
+          maxWaitMs: fromTabSwitch ? 500 : 700,
         ).then((_) {
           if (!mounted || tab != _activeTabType) {
             return;
@@ -808,9 +808,9 @@ class _VideoReelScreenState extends State<VideoReelScreen>
   }
 
   Widget _buildPagePoster(WallVideos videoDetail, {required bool isActiveReel}) {
-    // Always paint a poster under the active reel — on Oppo/MediaTek, CDN
-    // thumb.webp often fails to decode; without a page poster the active slot
-    // is just black until the decoder catches up.
+    // Always paint a poster under the active reel — Oppo/MediaTek can show
+    // black until the decoder paints. Ready items use sharp CDN thumb.webp
+    // (~720 long-edge); pending uploads may still use grid cover.
     return ReelFeedPlayerKit.buildPagePoster(videoDetail);
   }
 
@@ -1447,7 +1447,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                 unawaited(
                   _preloadManager.prefetchVisibleReel(
                     actualIndex,
-                    maxWaitMs: 200,
+                    maxWaitMs: 450,
                   ),
                 );
                 _schedulePlayerForPage(tab, actualIndex);

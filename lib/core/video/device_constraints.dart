@@ -71,8 +71,10 @@ class DeviceConstraints {
     if (rc > 0) {
       return rc.clamp(0, 2);
     }
+    // S/A: warm one ahead so the next swipe is already demuxed.
+    // B/C: disk-only prefetch — concurrent decode stalls MediaTek surfaces.
     return switch (deviceTierSync) {
-      ReelsDeviceTier.s => 1,
+      ReelsDeviceTier.s => 2,
       ReelsDeviceTier.a => 1,
       ReelsDeviceTier.b => 0,
       ReelsDeviceTier.c => 0,

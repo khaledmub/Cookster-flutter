@@ -69,8 +69,10 @@ android {
             isMinifyEnabled = true
             // shrinkResources can strip assets referenced only from native/MediaKit code
             isShrinkResources = false
+            // Non-optimize rules: Play AAB R8 with optimize.txt has broken/stalled
+            // MediaKit paths on release while local debug/profile APKs looked fine.
             proguardFiles(
-                getDefaultProguardFile("proguard-android-optimize.txt"),
+                getDefaultProguardFile("proguard-android.txt"),
                 file("proguard-rules.pro")
             )
         }
