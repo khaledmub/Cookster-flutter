@@ -1622,6 +1622,7 @@ class MediaKitPlayerPool {
     return _runPriority(() async {
       _suspendPlayback();
       _disposeGeneration++;
+      _warmTaskEpoch++;
       _warmInFlight.clear();
       final keys = _players.keys.toList(growable: false);
       for (final key in keys) {
@@ -1640,6 +1641,8 @@ class MediaKitPlayerPool {
 
   static const int _warmPriorityWaitMs = 2500;
   int _activeWarmTasks = 0;
+  /// Epoch counter — incremented on [disposeAll] so in-flight warm tasks bail.
+  int _warmTaskEpoch = 0;
 
   Future<void> _waitForPriorityLane({required int maxMs}) async {
     var waited = 0;
@@ -1688,13 +1691,25 @@ class MediaKitPlayerPool {
   }) async {
     final generation = _disposeGeneration;
     final warmOpenToken = _feedOpenToken;
+    final warmEpoch = _warmTaskEpoch;
+    // Track whether we incremented so the finally only decrements if needed —
+    // early returns from the wait-loop before increment were causing undercount.
+    var didIncrement = false;
     try {
       while (_activeWarmTasks >= _maxWarmSlots) {
         await Future<void>.delayed(const Duration(milliseconds: 16));
+        // Bail immediately if pool was disposed while we waited.
+        if (warmEpoch != _warmTaskEpoch) {
+          return;
+        }
       }
       _activeWarmTasks++;
+      didIncrement = true;
 
       await _waitForPriorityLane(maxMs: _warmPriorityWaitMs);
+      if (warmEpoch != _warmTaskEpoch) {
+        return;
+      }
       if (_players.containsKey(key) || (_leaseCount[key] ?? 0) > 0) {
         return;
       }
@@ -1731,7 +1746,9 @@ class MediaKitPlayerPool {
     } catch (_) {
       await _disposeKey(key);
     } finally {
-      _activeWarmTasks--;
+      if (didIncrement) {
+        _activeWarmTasks--;
+      }
       _warmInFlight.remove(key);
     }
   }
@@ -1741,10 +1758,9 @@ class MediaKitPlayerPool {
     required int window,
     required String? Function(int index) keyResolver,
   }) {
-    _enqueueWarm(() async {
-      if (_priorityDepth > 0) {
-        return;
-      }
+    // Use _runPriority instead of _enqueueWarm so decoder cleanup is not
+    // blocked by the 2500ms priority-lane wait during fast scrolling.
+    return _runPriority(() async {
       final keepKeys = <String>{};
       for (var offset = -window; offset <= window; offset++) {
         final resolved = keyResolver(visibleIndex + offset);
@@ -1777,7 +1793,6 @@ class MediaKitPlayerPool {
         await _disposeKey(evict);
       }
     });
-    return Future<void>.value();
   }
 
   /// Marks a warmed slot demux-ready so the visible swap skips the cold

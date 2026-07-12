@@ -47,7 +47,6 @@ class VideoPreloadManager {
   final NetworkPolicy _networkPolicy;
   final DeviceConstraints _deviceConstraints;
   final BaseCacheManager _cacheManager;
-  int _lastPreloadIndex = -1;
   bool _diskBootstrapDone = false;
   bool _decoderBootstrapDone = false;
 
@@ -56,9 +55,9 @@ class VideoPreloadManager {
   void resetForTabSwitch() {
     _diskBootstrapDone = false;
     _decoderBootstrapDone = false;
-    _lastPreloadIndex = -1;
-    // Keep decoder warm enabled when switching tabs — Near Me / Following should
-    // prefetch ahead the same way General does after the first visible paint.
+    // Each tab must gate decoder warm on its own first visible paint —
+    // leaving this true leaks orphan warm tasks from the previous tab.
+    decoderWarmEnabled = false;
   }
 
   /// Tab switch / cold session — resets decoder warm pipeline.
@@ -99,7 +98,9 @@ class VideoPreloadManager {
     await _awaitPartialCacheForIndex(visibleIndex, maxWaitMs: maxWaitMs);
   }
 
-  /// Poll until any ladder MP4 for [index] is partially or fully on disk.
+  /// Await until any ladder MP4 for [index] is partially or fully on disk.
+  /// Uses the cache manager's completer-based await when an in-flight download
+  /// exists, falling back to polling only for tiers not yet started.
   Future<bool> _awaitPartialCacheForIndex(
     int index, {
     required int maxWaitMs,
@@ -117,6 +118,42 @@ class VideoPreloadManager {
     if (ordered.isEmpty) {
       return false;
     }
+
+    // First check if any tier is already on disk (instant return).
+    for (final chosen in ordered) {
+      if (await isPlaybackUrlCached(chosen.url, cacheManager: _cacheManager) ||
+          await isPlaybackUrlPartiallyCached(
+            chosen.url,
+            cacheManager: _cacheManager,
+          )) {
+        ReelsPerf.log(
+          'partial_ready index=$index tier=${resolver.mp4Tier(chosen.url)} '
+          'waitMs=0',
+        );
+        return true;
+      }
+    }
+
+    // Await any in-flight prefetch completers instead of blind polling.
+    final cacheManager = ReelsVideoCacheManager.instance;
+    for (final chosen in ordered) {
+      if (cacheManager.isInFlight(chosen.url)) {
+        await cacheManager.waitForUrl(chosen.url, maxWaitMs: maxWaitMs);
+        if (await isPlaybackUrlCached(chosen.url, cacheManager: _cacheManager) ||
+            await isPlaybackUrlPartiallyCached(
+              chosen.url,
+              cacheManager: _cacheManager,
+            )) {
+          ReelsPerf.log(
+            'partial_ready index=$index tier=${resolver.mp4Tier(chosen.url)} '
+            'waitMs=completer',
+          );
+          return true;
+        }
+      }
+    }
+
+    // Fallback: brief poll for stragglers not yet started.
     var waited = 0;
     while (waited < maxWaitMs) {
       for (final chosen in ordered) {
@@ -269,7 +306,6 @@ class VideoPreloadManager {
         : diskDepth.clamp(0, _mediaKitPool.maxWarmSlots);
 
     final throttleDecoder = _deviceConstraints.shouldThrottleDecoderWarm();
-    _lastPreloadIndex = currentIndex;
 
     final indices = buildSettledPrefetchIndices(
       visibleIndex: currentIndex,

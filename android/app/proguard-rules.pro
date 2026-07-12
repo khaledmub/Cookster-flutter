@@ -81,3 +81,18 @@
 }
 -keep class com.antonkarpenko.ffmpegkit.AbiDetect { *; }
 -keep class com.antonkarpenko.ffmpegkit.FFmpegKitConfig { *; }
+
+# MediaKit native event loop — R8 optimize inlines JNI callbacks that
+# media_kit_video expects to invoke reflectively for surface recovery.
+-keepclassmembers class com.alexmercerind.media_kit_video.** {
+    native <methods>;
+    void surfaceTextureAvailable(...);
+    void surfaceTextureDestroyed(...);
+    void surfaceTextureUpdated(...);
+}
+-keep class com.alexmercerind.media_kit_video.VideoOutput { *; }
+-keep class com.alexmercerind.media_kit_video.VideoOutputManager { *; }
+# Keep the native event loop that drives mpv → Flutter texture binding.
+-keep class com.alexmercerind.mediakitandroidhelper.MediaKitAndroidHelper {
+    *;
+}

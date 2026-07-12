@@ -8,6 +8,10 @@ import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 /// Default minimum bytes before attempting partial fast-start playback.
 const int kReelsMinFastStartBytes = 262144;
 
+/// Session-level cache for moov-position validation results.
+/// Avoids repeated disk I/O for the same URL within a single app session.
+final Map<String, bool> _moovCheckCache = <String, bool>{};
+
 /// True when [url] is already on disk (non-blocking cache lookup).
 Future<bool> isPlaybackUrlCached(
   String url, {
@@ -31,6 +35,7 @@ Future<bool> isPlaybackUrlCached(
 }
 
 /// True when a partial on-disk file may be playable (fast-start MP4 heuristic).
+/// Results are cached per URL for the session to avoid repeated disk I/O.
 Future<bool> isPlaybackUrlPartiallyCached(
   String url, {
   BaseCacheManager? cacheManager,
@@ -54,7 +59,14 @@ Future<bool> isPlaybackUrlPartiallyCached(
     if (len < minBytes) {
       return false;
     }
-    return looksLikeFastStartMp4(file);
+    // Return cached result if we've already probed this URL this session.
+    final cached = _moovCheckCache[url];
+    if (cached != null) {
+      return cached;
+    }
+    final result = await looksLikeFastStartMp4(file);
+    _moovCheckCache[url] = result;
+    return result;
   } catch (_) {
     return false;
   }

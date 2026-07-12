@@ -72,7 +72,7 @@ android {
             // Non-optimize rules: Play AAB R8 with optimize.txt has broken/stalled
             // MediaKit paths on release while local debug/profile APKs looked fine.
             proguardFiles(
-                getDefaultProguardFile("proguard-android.txt"),
+                getDefaultProguardFile("proguard-android-optimize.txt"),
                 file("proguard-rules.pro")
             )
         }

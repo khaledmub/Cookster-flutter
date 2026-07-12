@@ -8,6 +8,7 @@ import 'package:cookster/core/video/media_kit_player_pool.dart';
 import 'package:cookster/core/video/video_analytics_tracker.dart';
 import 'package:cookster/core/video/video_player_pool.dart';
 import 'package:cookster/core/video/video_source_resolver.dart';
+import 'package:cookster/core/video/feed_ping_pong_controller.dart';
 import 'package:flutter/material.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
@@ -285,7 +286,7 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget>
   }
 
   Future<void> _attachMediaKitSurface(Player player, {String? videoId}) async {
-    _mediaKitVideoController = VideoController(player);
+    _mediaKitVideoController = createReelVideoController(player);
     final analyticsId = videoId ?? widget.videoId;
     if (analyticsId != null && analyticsId.isNotEmpty) {
       _analyticsTracker.attachMediaKit(videoId: analyticsId, player: player);
@@ -738,6 +739,27 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget>
     super.dispose();
   }
 
+  /// Adaptive BoxFit: use [BoxFit.cover] for standard 9:16 content but fall
+  /// back to [BoxFit.contain] when the video's AR deviates by more than 15%
+  /// from the container's AR — prevents aggressive zoom on square/4:3 content.
+  BoxFit _adaptiveVideoFit(BoxConstraints constraints) {
+    final player = _mediaKitVideoController?.player;
+    final vw = player?.state.width;
+    final vh = player?.state.height;
+    if (vw == null || vh == null || vw <= 0 || vh <= 0) {
+      return BoxFit.cover; // Safe default until dimensions are known.
+    }
+    final containerW = constraints.maxWidth;
+    final containerH = constraints.maxHeight;
+    if (containerW <= 0 || containerH <= 0) {
+      return BoxFit.cover;
+    }
+    final videoAR = vw / vh;
+    final containerAR = containerW / containerH;
+    final deviation = (videoAR - containerAR).abs() / containerAR;
+    return deviation > 0.15 ? BoxFit.contain : BoxFit.cover;
+  }
+
   Widget _buildVideoSurface() {
     if (!_shouldShowVideoSurface) {
       return _buildThumbnailPlaceholder(showSpinner: widget.autoPlay && !_isInitialized);
@@ -745,11 +767,19 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget>
     if (widget.useMediaKit && _mediaKitVideoController != null) {
       return RepaintBoundary(
         child: SizedBox.expand(
-          child: Video(
-            key: const ValueKey<String>('media_kit_surface'),
-            controller: _mediaKitVideoController!,
-            fit: BoxFit.cover,
-            controls: NoVideoControls,
+          child: LayoutBuilder(
+            builder: (ctx, constraints) {
+              final fit = _adaptiveVideoFit(constraints);
+              return Video(
+                key: const ValueKey<String>('media_kit_surface'),
+                controller: _mediaKitVideoController!,
+                fit: fit,
+                fill: fit == BoxFit.contain
+                    ? const Color(0xFF000000)
+                    : const Color(0x00000000),
+                controls: NoVideoControls,
+              );
+            },
           ),
         ),
       );

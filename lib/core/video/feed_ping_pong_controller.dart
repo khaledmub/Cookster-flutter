@@ -101,7 +101,6 @@ class FeedPingPongController {
   int _activeIndex = 0;
   int _openToken = 0;
   int _prefetchToken = 0;
-  int _recycleDeferToken = 0;
   Future<void> _slotOpenChain = Future<void>.value();
 
   int get activeSlotIndex => _activeIndex;
@@ -476,9 +475,17 @@ class FeedPingPongController {
             fastReopen: fastReopen,
           ),
         );
-      } catch (e, st) {
+      } catch (e) {
+        // A failed player.open leaves boundKey set while the player has no
+        // media — the next swipe would skip the open ("same key, no need to
+        // open"). Reset the binding so the slot is clean for the next attempt.
+        slot.resetBinding();
+        ReelsPerf.log(
+          'pingpong open_error slot=${slot.index} key=$key '
+          'error=${e.runtimeType}',
+        );
         if (!completer.isCompleted) {
-          completer.completeError(e, st);
+          completer.complete(false);
         }
       }
     });
@@ -515,7 +522,8 @@ class FeedPingPongController {
             }
           }
         } else if (!_isLocalPlaybackUrl(sourceUrl) && !fastReopen) {
-          await Future<void>.delayed(const Duration(milliseconds: 64));
+          // 32ms is enough for the previous slot's audio to drain on Qualcomm.
+          await Future<void>.delayed(const Duration(milliseconds: 32));
         }
       }
       final honorActiveOpen = identical(slot, _active) &&
@@ -524,24 +532,29 @@ class FeedPingPongController {
       // so first frame arrives sooner (no extra startMutedFeedDecode round-trip).
       final honorDeferredDecode =
           honorActiveOpen && !_isLocalPlaybackUrl(sourceUrl);
-      await player.open(
-        Media(sourceUrl),
-        play: !honorDeferredDecode,
-      );
-      await stabilizeMpvSurfaceDimensions(player);
-      await player.setVolume(0);
-      if (honorDeferredDecode) {
-        await startMutedFeedDecode();
+      try {
+        await player.open(
+          Media(sourceUrl),
+          play: !honorDeferredDecode,
+        );
+        await stabilizeMpvSurfaceDimensions(player);
+        await player.setVolume(0);
+        if (honorDeferredDecode) {
+          await startMutedFeedDecode();
+        }
+        slot.boundKey = key;
+        slot.boundUrl = sourceUrl;
+        slot.openCount++;
+        slot.isPrimed = true;
+        openedMedia = true;
+        ReelsPerf.log(
+          'pingpong open slot=${slot.index} key=$key tier=${_tierFromUrl(sourceUrl)} '
+          'openCount=${slot.openCount} honorOpen=$honorActiveOpen',
+        );
+      } catch (e) {
+        slot.resetBinding();
+        rethrow;
       }
-      slot.boundKey = key;
-      slot.boundUrl = sourceUrl;
-      slot.openCount++;
-      slot.isPrimed = true;
-      openedMedia = true;
-      ReelsPerf.log(
-        'pingpong open slot=${slot.index} key=$key tier=${_tierFromUrl(sourceUrl)} '
-        'openCount=${slot.openCount} honorOpen=$honorActiveOpen',
-      );
       if (identical(slot, _active)) {
         await DeviceConstraints.instance.ensureInitialized();
         if (!DeviceConstraints.instance.needsConstrainedSurfaceRecovery) {
@@ -616,14 +629,6 @@ class FeedPingPongController {
     } catch (_) {}
   }
 
-  Future<void> _muteSlot(FeedDecodeSlot slot) async {
-    await _silenceSlot(slot);
-  }
-
-  Future<void> _unmuteSlot(FeedDecodeSlot slot) async {
-    await _enableSlotAudio(slot);
-  }
-
   Future<void> _disableSlotAudio(FeedDecodeSlot slot) async {
     final player = slot.player;
     if (player == null) {
@@ -648,23 +653,6 @@ class FeedPingPongController {
     try {
       await _unmutePlayingDecoder(player);
     } catch (_) {}
-  }
-
-  Future<void> _scheduleHiddenRecycle(int openToken) async {
-    if (!hiddenSlotRecycleEnabled) {
-      return;
-    }
-    final token = ++_recycleDeferToken;
-    await Future<void>.delayed(recycleDefer);
-    if (token != _recycleDeferToken || isStaleOpen(openToken)) {
-      return;
-    }
-    if (FeedPingPongLogic.shouldRecycleHidden(
-      hiddenOpenCount: _hidden.openCount,
-      recycleAfterOpens: hiddenRecycleAfterOpens,
-    )) {
-      await _recycleHiddenSlotNow();
-    }
   }
 
   /// Recycle the active decoder when the single-slot open count is high (Honor).
@@ -717,14 +705,6 @@ class FeedPingPongController {
       );
     }
   }
-
-  Future<void> _recycleHiddenSlotNow() async {
-    if (!hiddenSlotRecycleEnabled) {
-      return;
-    }
-    await _recycleSlotNow(_hidden);
-  }
-
   String _tierFromUrl(String url) {
     final lower = url.toLowerCase();
     if (lower.contains('/1080') || lower.contains('_1080')) {

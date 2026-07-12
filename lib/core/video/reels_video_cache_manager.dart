@@ -15,6 +15,9 @@ class ReelsVideoCacheManager {
   CacheManager? _manager;
   final Map<String, int> _priorities = <String, int>{};
   final Set<String> _inFlight = <String>{};
+  /// Completers for in-flight downloads so consumers can await a shared download
+  /// instead of polling. Eliminates the 700ms worst-case startup delay.
+  final Map<String, Completer<void>> _completers = <String, Completer<void>>{};
   bool? _configuredForTablet;
 
   /// Maps remote-config MB budget to object count (~4 MB per cached MP4).
@@ -67,15 +70,33 @@ class ReelsVideoCacheManager {
       return;
     }
     _inFlight.add(url);
+    _completers[url] = Completer<void>();
     unawaited(_runPrefetch(url, priority: priority));
   }
+
+  /// Await an in-flight prefetch for [url] instead of polling.
+  /// Returns immediately if no download is in flight.
+  Future<void> waitForUrl(String url, {int maxWaitMs = 700}) async {
+    final completer = _completers[url];
+    if (completer == null || completer.isCompleted) {
+      return;
+    }
+    await completer.future.timeout(
+      Duration(milliseconds: maxWaitMs),
+      onTimeout: () {},
+    );
+  }
+
+  /// True when [url] has an active download in progress.
+  bool isInFlight(String url) => _inFlight.contains(url);
 
   Future<void> _runPrefetch(
     String url, {
     required int priority,
   }) async {
     try {
-      if ((_priorities[url] ?? 0) < priority) {
+      // Bail if a higher-priority task superseded this one while we waited.
+      if ((_priorities[url] ?? 0) > priority) {
         return;
       }
       await manager.downloadFile(url);
@@ -84,6 +105,10 @@ class ReelsVideoCacheManager {
       _inFlight.remove(url);
       if (_priorities[url] == priority) {
         _priorities.remove(url);
+      }
+      final completer = _completers.remove(url);
+      if (completer != null && !completer.isCompleted) {
+        completer.complete();
       }
     }
   }

@@ -411,6 +411,33 @@ class VideoSourceResolver {
   }
 
   String? _normalizeLegacy(String? value) => _normalize(value);
+
+  /// Probes all [candidates] in parallel and returns a map of URL → cached status.
+  /// Used by both `_wifiQualityConstrainedOrder` and `prioritizeForPlayback`
+  /// to avoid redundant sequential disk I/O.
+  Future<Map<String, bool>> parallelCacheProbe(
+    List<VideoSourceCandidate> candidates, {
+    BaseCacheManager? cacheManager,
+  }) async {
+    final cache = cacheManager ?? ReelsVideoCacheManager.instance.manager;
+    final urls = candidates
+        .where((c) => c.type == 'mp4_quality')
+        .map((c) => c.url)
+        .toList(growable: false);
+    if (urls.isEmpty) {
+      return const {};
+    }
+    final results = await Future.wait(
+      urls.map((url) async =>
+          await isPlaybackUrlCached(url, cacheManager: cache) ||
+          await isPlaybackUrlPartiallyCached(url, cacheManager: cache)),
+    );
+    final map = <String, bool>{};
+    for (var i = 0; i < urls.length; i++) {
+      map[urls[i]] = results[i];
+    }
+    return map;
+  }
 }
 
 extension WallVideosPlayback on WallVideos {

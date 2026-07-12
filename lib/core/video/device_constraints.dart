@@ -99,11 +99,14 @@ class DeviceConstraints {
   /// Before [ensureInitialized] completes, default Android to software decode
   /// so the first [VideoController] is not created with MediaCodec on Honor.
   bool get preferSoftwareVideoDecode {
+    if (!Platform.isAndroid) {
+      return false;
+    }
     if (_tier != null) {
       return deviceTierSync == ReelsDeviceTier.b ||
           deviceTierSync == ReelsDeviceTier.c;
     }
-    return Platform.isAndroid;
+    return true;
   }
 
   /// libmpv `hwdec` value for this device. `no` forces software decode on
@@ -185,7 +188,7 @@ class DeviceConstraints {
     if (SettingsService.instance.dataSaverEnabled.value) {
       _tier = ReelsDeviceTier.c;
     } else if (!Platform.isAndroid) {
-      _tier = ReelsDeviceTier.s;
+      _tier = _brandFloor;
     } else {
       final profile = ReelsDeviceCapabilityStore.instance.profile;
       if (!profile.hasCompletedFirstMeasuredOpen) {
@@ -216,7 +219,7 @@ class DeviceConstraints {
       return ReelsDeviceTier.c;
     }
     if (!Platform.isAndroid) {
-      return ReelsDeviceTier.s;
+      return _brandFloor;
     }
     final profile = ReelsDeviceCapabilityStore.instance.profile;
     if (!profile.hasCompletedFirstMeasuredOpen) {
@@ -225,9 +228,27 @@ class DeviceConstraints {
     return _clampToFloor(profile.measuredTier);
   }
 
-  /// One-time cold-start prior before any measured open exists.
   Future<ReelsDeviceTier> _brandPriorTier() async {
     try {
+      if (Platform.isIOS) {
+        final info = await DeviceInfoPlugin().iosInfo;
+        final machine = info.utsname.machine.toLowerCase();
+        
+        // A-series constrained (iPhone 8, SE 2nd/3rd, older iPads)
+        const tierAModels = [
+          'iphone10,1', 'iphone10,4', // iPhone 8
+          'iphone10,2', 'iphone10,5', // iPhone 8 Plus
+          'iphone12,8', // SE 2nd Gen
+          'iphone14,6', // SE 3rd Gen
+          'ipad11,1', 'ipad11,2', // iPad mini 5
+        ];
+        
+        if (tierAModels.contains(machine)) {
+          return ReelsDeviceTier.a;
+        }
+        return ReelsDeviceTier.s;
+      }
+
       final info = await DeviceInfoPlugin().androidInfo;
       final hardware = info.hardware.toLowerCase();
       final manufacturer = info.manufacturer.toLowerCase();
@@ -272,7 +293,7 @@ class DeviceConstraints {
 
       return ReelsDeviceTier.a;
     } catch (_) {
-      return ReelsDeviceTier.b;
+      return Platform.isIOS ? ReelsDeviceTier.s : ReelsDeviceTier.b;
     }
   }
 
