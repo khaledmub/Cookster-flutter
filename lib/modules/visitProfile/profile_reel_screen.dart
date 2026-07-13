@@ -205,7 +205,7 @@ class _ProfileReelScreenState extends State<ProfileReelScreen>
     if (hadSeeds) {
       final idx = _visibleIndexNotifier.value.clamp(0, _videos.length - 1);
       unawaited(
-        _preloadManager.prefetchVisibleReel(idx, maxWaitMs: 360),
+        _preloadManager.prefetchVisibleReel(idx, maxWaitMs: 700),
       );
       unawaited(_preloadManager.bootstrapFromVisible(idx));
     }

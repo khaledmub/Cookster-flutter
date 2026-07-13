@@ -68,6 +68,18 @@ class HomeController extends GetxController with WidgetsBindingObserver {
   /// the reels UI reattaches the visible player — same lifecycle as General.
   final feedPlaybackEpoch = 0.obs;
 
+  /// Home icon re-tap: next [_finishFeedTabPlayback] must land on index 0 and
+  /// autoplay — ignore the previous pin / page index.
+  bool _preferNewestAttach = false;
+
+  bool consumePreferNewestAttach() {
+    final v = _preferNewestAttach;
+    _preferNewestAttach = false;
+    return v;
+  }
+
+  bool get prefersNewestAttach => _preferNewestAttach;
+
   /// Last successful feed per tab — instant UI when switching عام / بالقرب / المتابعة.
   final Map<String, VideoFeed> _tabFeedCache = {};
 
@@ -205,6 +217,10 @@ class HomeController extends GetxController with WidgetsBindingObserver {
         currentPage.value = parsed.meta!.page!;
       }
       reelListLength.value = videoFeed.value.videos!.length;
+      // Mirror the full paginated list into the tab cache so a sub-tab switch
+      // and back can restore the exact reel by id (the cache used to stay
+      // page-1 only, so paginated ids went missing and restore fell to index 0).
+      _tabFeedCache[selectedType.value] = videoFeed.value;
       // Warm the first reels of the freshly appended page so crossing the
       // pagination boundary doesn't stall waiting on a live CDN fetch.
       _prefetchNewPageHead(uniqueIncoming);
@@ -752,7 +768,9 @@ class HomeController extends GetxController with WidgetsBindingObserver {
       resetTabScrollRestore(tab);
       visiblePageIndex.value = 0;
       currentIndex.value = 0;
-      feedPlaybackEpoch.value++;
+      // Do not bump [feedPlaybackEpoch] here — the old list is still mounted and
+      // an early attach would resurrect the previous reel (silenced, not autoplaying
+      // the newest). The post-fetch epoch bump below drives the real attach.
     }
     final cached = _tabFeedCache[tab];
     final hasCachedFeed =
@@ -1437,11 +1455,10 @@ class HomeController extends GetxController with WidgetsBindingObserver {
     // After upload / profile reel the shared pool was disposeAll'd — always
     // force a full epoch remount instead of a warm resume shortcut.
     restoreHomeFeedPlayback();
-    // Pull fresh is_image / poster fields so photo posts aren't stuck as videos
-    // from a pre-fix tab cache.
-    if (_tabFeedCache.isNotEmpty) {
-      unawaited(fetchVideos(forceNetwork: true));
-    }
+    // Do NOT force a network refresh here — fetchVideos(forceNetwork) replaces
+    // the (paginated) list with page 1 only, so the saved video id goes missing
+    // and the user lands on a different reel than the one they were watching.
+    // Fresh content is pulled by the re-tap refresh path instead.
   }
 
   /// Called from [ReelsPlaybackRouteObserver] after the navigator stack changes.
@@ -1757,29 +1774,57 @@ class HomeController extends GetxController with WidgetsBindingObserver {
 
   /// TikTok-style refresh: reload the current feed from the network and jump
   /// back to the first reel. Triggered by re-tapping the Home tab.
+  ///
+  /// Also owns the full resume (visibility / epoch / unmute) so the re-tap path
+  /// does NOT first call [onReturnedToHomeTab] (which would restore the saved
+  /// scroll index ~N and lose the race against this reset to 0).
   Future<void> refreshHomeFeed() async {
     if (isLoading.value) {
       return;
     }
     final tab = selectedType.value;
+    // Stop the reel that was playing before the re-tap — otherwise its audio
+    // keeps running under the refresh (the kept-alive player isn't disposed
+    // when the list is swapped) and overlaps the new first reel.
+    MediaKitPlayerPool.instance.pauseAllImmediate();
+    MediaKitPlayerPool.instance.silenceAllSync();
+    unawaited(MediaKitPlayerPool.instance.clearFeedVisibleReel());
+    // Clear mute depths / navigating so canPlayHomeReels is true after refresh.
+    _routeOverlayPauseDepth = 0;
+    _playbackMuteDepth = 0;
+    _bottomNavMuteDepth = 0;
+    _mediaCaptureDepth = 0;
+    _feedResumePendingWhenHomeTab = false;
+    isNavigating.value = false;
+    isVideoPlaying.value = true;
+    MediaKitPlayerPool.instance.setFeedUnmuteEnabled(true);
+    setReelsTabVisible(true);
     saveTabScrollIndex(tab, 0);
     _tabVideoId.remove(tab);
     _tabFeedCache.remove(tab);
     visiblePageIndex.value = 0;
     currentIndex.value = 0;
-    await fetchVideos(forceNetwork: true);
+    // Tell the reels view to ignore the previous pin/page and attach+autoplay #0.
+    _preferNewestAttach = true;
+    // Drop the old list immediately so any accidental attach cannot resurrect
+    // the previous reel while the network refresh is in flight.
+    videoFeed.value = VideoFeed(status: true, videos: []);
+    reelListLength.value = 0;
+    // Do NOT bump the playback epoch before the fetch: that would re-attach the
+    // player to index 0 of the *old* (pre-refresh) list and resurrect the very
+    // reel we just paused. The post-fetch epoch bump inside fetchVideos drives
+    // the attach onto the freshly fetched first reel.
+    await fetchVideos(forceNetwork: true, resetScrollPosition: true);
   }
 
   /// Pause feed playback when switching عام / بالقرب / المتابعة. Keeps the
   /// decoder pool warm so returning to a tab resumes without a full reload.
   Future<void> prepareForFeedTabSwitch() async {
-    final tab = selectedType.value;
-    final index = visiblePageIndex.value;
-    saveTabScrollIndex(tab, index);
-    final videos = videoFeed.value.videos;
-    if (videos != null && index >= 0 && index < videos.length) {
-      saveTabVideoId(tab, videos[index].id);
-    }
+    // The view's _persistLeavingTabPlayback already saved the leaving tab's
+    // scroll index + video id from the per-tab PageView truth (visibleIndexNotifier).
+    // Do NOT overwrite here with visiblePageIndex — it can diverge from the
+    // PageView after _finishFeedTabPlayback, which saved the wrong reel and made
+    // the next return land on a different video.
     MediaKitPlayerPool.instance.pauseAllImmediate();
     await VideoPlayerPool.instance.pauseAll();
   }

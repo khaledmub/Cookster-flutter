@@ -211,14 +211,14 @@ class _CollectionReelScreenState extends State<CollectionReelScreen>
     if (_videos.isNotEmpty) {
       final start = _visibleIndexNotifier.value;
       unawaited(
-        _preloadManager.prefetchVisibleReel(start, maxWaitMs: 360),
+        _preloadManager.prefetchVisibleReel(start, maxWaitMs: 700),
       );
       unawaited(_preloadManager.bootstrapFromVisible(start));
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) {
           return;
         }
-        unawaited(_attachPlaybackForIndex(start, warmMaxWaitMs: 360));
+        unawaited(_attachPlaybackForIndex(start, warmMaxWaitMs: 700));
       });
       unawaited(_preloadAllPages());
     }

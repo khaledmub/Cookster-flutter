@@ -3018,8 +3018,8 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
     }
     final network = await _networkPolicy.currentNetworkClass();
     final maxWaitMs = switch (network) {
-      NetworkClass.wifi => 700,
-      NetworkClass.mobile => 1000,
+      NetworkClass.wifi => 500,
+      NetworkClass.mobile => 800,
       NetworkClass.offline => 400,
     };
     final started = DateTime.now().millisecondsSinceEpoch;

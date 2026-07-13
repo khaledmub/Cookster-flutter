@@ -590,7 +590,9 @@ class _LandingState extends State<Landing> {
         home.setReelsTabVisible(false);
         MediaKitPlayerPool.instance.silenceAllSync();
       } else if (wasOnHome) {
-        home.onReturnedToHomeTab();
+        // Re-tap on Home = TikTok-style refresh to the newest reel (index 0).
+        // Do NOT call onReturnedToHomeTab first — it restores the saved scroll
+        // index (~N) and wins the race before refreshHomeFeed resets to 0.
         unawaited(home.refreshHomeFeed());
       } else {
         home.onReturnedToHomeTab();

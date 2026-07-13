@@ -235,7 +235,15 @@ class _VideoReelScreenState extends State<VideoReelScreen>
       return;
     }
     final layer = _activeLayer;
-    final index = layer.visibleIndexNotifier.value.clamp(0, videos.length - 1);
+    // onReturnedToHomeTab resolves the exact saved video id into
+    // visiblePageIndex; sync the per-tab layer + PageView to it so we resume
+    // the same reel the user was watching (not a stale layer notifier value).
+    final index = controller.visiblePageIndex.value.clamp(0, videos.length - 1);
+    layer.visibleIndexNotifier.value = index;
+    if (layer.pageController.hasClients &&
+        (layer.pageController.page?.round() ?? index) != index) {
+      layer.pageController.jumpToPage(index);
+    }
     final video = videos[index];
     layer.activePlayerVideo = video;
     final key = video.id;
@@ -657,14 +665,19 @@ class _VideoReelScreenState extends State<VideoReelScreen>
     }
     _pendingFeedTabPlayback = false;
     final layer = _layerFor(tab);
+    final preferNewest = controller.consumePreferNewestAttach();
     // While the user is on a reel, trust the live PageView index — not the saved
     // tab scroll id (fetchVideos + epoch replay was jumping to another video).
-    var targetIndex = fromTabSwitch
-        ? controller.resolveScrollIndexForTab(tab, videos)
-        : layer.visibleIndexNotifier.value.clamp(0, videos.length - 1);
+    // Icon re-tap (preferNewest) always lands on index 0 and autoplays.
+    var targetIndex = preferNewest
+        ? 0
+        : fromTabSwitch
+            ? controller.resolveScrollIndexForTab(tab, videos)
+            : layer.visibleIndexNotifier.value.clamp(0, videos.length - 1);
     // When the feed grows (fetch-more), keep the reel that is already playing
-    // even if its index shifted in the list.
-    if (!fromTabSwitch) {
+    // even if its index shifted in the list. Never pin after an icon re-tap —
+    // that resurrected the previous reel (muted) instead of the newest.
+    if (!fromTabSwitch && !preferNewest) {
       final pinnedId = layer.activePlayerVideo?.id;
       if (pinnedId != null && pinnedId.isNotEmpty) {
         final pinnedIndex = videos.indexWhere((v) => v.id == pinnedId);
@@ -673,12 +686,19 @@ class _VideoReelScreenState extends State<VideoReelScreen>
         }
       }
     }
+    if (preferNewest) {
+      layer.activePlayerVideo = null;
+      layer.visibleIndexNotifier.value = 0;
+      controller.visiblePageIndex.value = 0;
+      controller.currentIndex.value = 0;
+    }
     final targetVideo = videos[targetIndex];
     final targetId = targetVideo.id;
     final currentPage = layer.pageController.hasClients
         ? (layer.pageController.page?.round() ?? -1) % videos.length
         : -1;
-    final alreadyOnTarget = layer.visibleIndexNotifier.value == targetIndex &&
+    final alreadyOnTarget = !preferNewest &&
+        layer.visibleIndexNotifier.value == targetIndex &&
         currentPage == targetIndex &&
         layer.activePlayerVideo?.id == targetId &&
         targetId != null &&
@@ -705,7 +725,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
       return;
     }
     layer.activePlayerVideo = targetVideo;
-    if (!fromTabSwitch) {
+    if (!fromTabSwitch || preferNewest) {
       _preloadManager.prepareForSessionStart();
     }
     layer.visibleIndexNotifier.value = targetIndex;
@@ -728,12 +748,25 @@ class _VideoReelScreenState extends State<VideoReelScreen>
           if (!mounted || tab != _activeTabType) {
             return;
           }
-          _schedulePlayerForPage(tab, targetIndex);
+          _schedulePlayerForPage(
+            tab,
+            targetIndex,
+            forceReattach: preferNewest,
+          );
           MediaKitPlayerPool.instance.setScreenWidth(
             MediaQuery.sizeOf(context).width,
           );
           _playbackCoordinator.onPageSettled(targetIndex, context: context);
           _resumeFeedAudibleOnce();
+          if (preferNewest) {
+            // Icon re-tap: silence cleared the previous player; nudge audible
+            // again after the first frame so autoplay isn't stuck muted.
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted) {
+                _resumeFeedAudibleOnce();
+              }
+            });
+          }
         }),
       );
     });
@@ -1091,6 +1124,13 @@ class _VideoReelScreenState extends State<VideoReelScreen>
       return;
     }
     if (!controller.canPlayHomeReels) {
+      return;
+    }
+    // Icon re-tap: the previous reel is still pool-live after silenceAll — do
+    // not warm-resume it; force [_finishFeedTabPlayback] at index 0 + autoplay.
+    if (controller.prefersNewestAttach) {
+      _lastHandledPlaybackEpoch = -1;
+      _scheduleFinishPlaybackIfReady();
       return;
     }
     final key = _activeLayer.activePlayerVideo?.id;

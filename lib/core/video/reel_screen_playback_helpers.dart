@@ -42,7 +42,7 @@ class ReelScreenPlaybackHelpers {
     required ReelsPlaybackCoordinator coordinator,
     required BuildContext context,
     required int index,
-    int maxWaitMs = 200,
+    int maxWaitMs = 700,
   }) async {
     coordinator.precacheVisiblePoster(context, index);
     await preloadManager.prefetchVisibleReel(index, maxWaitMs: maxWaitMs);
@@ -55,7 +55,7 @@ class ReelScreenPlaybackHelpers {
     required int index,
     GlobalKey<ReelVideoPlayerState>? playerKey,
     bool forcePlayerReattach = false,
-    int warmMaxWaitMs = 200,
+    int warmMaxWaitMs = 700,
   }) async {
     await warmVisibleIndex(
       preloadManager: preloadManager,

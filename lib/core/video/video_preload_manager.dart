@@ -86,17 +86,42 @@ class VideoPreloadManager {
     if (!await _canPreload()) {
       return;
     }
-    // Near window: visible + next — never leave N+1 starved behind visible 1080.
+    // Near window: visible + the next *video*. Warming a wide [+1..+3] window
+    // here diluted download bandwidth during fast swipe bursts (N+1 kept
+    // missing cache), so keep the window at two targets — but skip photo
+    // posts (no candidates) when picking "next" so a run of photos doesn't
+    // leave the following video un-prefetched.
+    final nextVideoIndex = _nextVideoIndexAfter(visibleIndex);
     await _warmIndices(
-      [visibleIndex, visibleIndex + 1],
+      [
+        visibleIndex,
+        if (nextVideoIndex != null) nextVideoIndex,
+      ],
       reason: 'visible_now',
       decoderWarmLimit: 0,
       visibleIndex: visibleIndex,
+      // The first video after a photo run must keep N+1 priority even when
+      // its raw index delta is +2/+3, or scroll-start cancels its download.
+      priorityOverrides: nextVideoIndex == null
+          ? null
+          : {nextVideoIndex: 100},
     );
     if (maxWaitMs <= 0) {
       return;
     }
     await _awaitPartialCacheForIndex(visibleIndex, maxWaitMs: maxWaitMs);
+  }
+
+  /// First index after [visibleIndex] with real video candidates, scanning a
+  /// few slots ahead so photo posts (no candidates) are skipped.
+  int? _nextVideoIndexAfter(int visibleIndex) {
+    for (var i = visibleIndex + 1; i <= visibleIndex + 4; i++) {
+      final target = _sourceBuilder(i);
+      if (target != null && target.candidates.isNotEmpty && target.key.isNotEmpty) {
+        return i;
+      }
+    }
+    return null;
   }
 
   /// Await until the preferred ladder URL for [index] is on disk.
@@ -431,6 +456,7 @@ class VideoPreloadManager {
     required String reason,
     int? decoderWarmLimit,
     required int visibleIndex,
+    Map<int, int>? priorityOverrides,
   }) async {
     const resolver = VideoSourceResolver();
     final networkClass = await _networkPolicy.currentNetworkClass();
@@ -448,13 +474,17 @@ class VideoPreloadManager {
       if (!seenKeys.add(target.key)) {
         continue;
       }
-      final offset = (index - visibleIndex).abs();
+      final hasOverride = priorityOverrides?.containsKey(index) ?? false;
+      // Overridden "next video" (photo run bridged) behaves like a normal N+1
+      // for tier selection too, not like a far +2/+3 slot.
+      final offset = hasOverride ? 1 : (index - visibleIndex).abs();
       final preloadOrdered = resolver.prioritizeForPreload(
         target.candidates,
         offsetFromVisible: offset,
         dualTier: dualTier,
       );
-      final priority = _priorityForIndex(index, visibleIndex);
+      final priority =
+          priorityOverrides?[index] ?? _priorityForIndex(index, visibleIndex);
       for (var i = 0; i < preloadOrdered.length; i++) {
         final chosen = preloadOrdered[i];
         final isHls = chosen.url.toLowerCase().contains('.m3u8');
