@@ -127,6 +127,8 @@ class _VideoReelScreenState extends State<VideoReelScreen>
   bool _suppressFocusPlayback = false;
   Timer? _playbackAttachDebounce;
   int _lastHandledPlaybackEpoch = -1;
+  /// Serializes async player schedule after awaits (photo clear / tab race).
+  int _playerScheduleEpoch = 0;
   final Map<String, int> _commentCounts = {};
 
   /// One shared player key across tabs — per-tab keys remounted [ReelVideoPlayer]
@@ -303,6 +305,21 @@ class _VideoReelScreenState extends State<VideoReelScreen>
     int pageIndex, {
     bool forceReattach = false,
   }) {
+    unawaited(
+      _schedulePlayerForPageAsync(
+        tab,
+        pageIndex,
+        forceReattach: forceReattach,
+      ),
+    );
+  }
+
+  Future<void> _schedulePlayerForPageAsync(
+    String tab,
+    int pageIndex, {
+    bool forceReattach = false,
+  }) async {
+    final epoch = ++_playerScheduleEpoch;
     final isActiveTab = tab == _activeTabType;
     final layer = _layerFor(tab);
     if (!controller.canMountHomeReelPlayer) {
@@ -316,12 +333,26 @@ class _VideoReelScreenState extends State<VideoReelScreen>
       return;
     }
     final actualIndex = pageIndex % videos.length;
-    final video = videos[actualIndex];
+    var video = videos[actualIndex];
     final leavingPhoto = layer.activePlayerVideo?.isPhotoPost == true;
 
     if (video.isPhotoPost) {
       MediaKitPlayerPool.instance.pauseAllImmediate();
-      unawaited(MediaKitPlayerPool.instance.clearFeedVisibleReel());
+      await MediaKitPlayerPool.instance.clearFeedVisibleReel();
+      if (epoch != _playerScheduleEpoch ||
+          !mounted ||
+          tab != _activeTabType) {
+        return;
+      }
+      // Page may have moved during clear — re-check.
+      final still = _videosForTab(tab, isActiveTab: true);
+      if (still == null || still.isEmpty) {
+        return;
+      }
+      final idx = pageIndex % still.length;
+      if (still[idx].id != video.id) {
+        return;
+      }
       layer.activePlayerVideo = video;
       if (mounted) {
         setState(() {});
@@ -331,6 +362,32 @@ class _VideoReelScreenState extends State<VideoReelScreen>
 
     if (video.id == null || video.id!.isEmpty) {
       return;
+    }
+    // Serialize photo→video so clearFeedVisibleReel can't bump the open token
+    // after the new player already synced its generation.
+    if (leavingPhoto) {
+      await MediaKitPlayerPool.instance.clearFeedVisibleReel();
+      if (epoch != _playerScheduleEpoch ||
+          !mounted ||
+          tab != _activeTabType) {
+        return;
+      }
+      final still = _videosForTab(tab, isActiveTab: true);
+      if (still == null || still.isEmpty) {
+        return;
+      }
+      final idx = pageIndex % still.length;
+      video = still[idx];
+      if (video.isPhotoPost) {
+        layer.activePlayerVideo = video;
+        if (mounted) {
+          setState(() {});
+        }
+        return;
+      }
+      if (video.id == null || video.id!.isEmpty) {
+        return;
+      }
     }
     final needsReattach = forceReattach || leavingPhoto;
     if (!needsReattach && layer.activePlayerVideo?.id == video.id) {
@@ -351,7 +408,9 @@ class _VideoReelScreenState extends State<VideoReelScreen>
       setState(() {});
     }
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || !controller.canPlayHomeReels) {
+      if (epoch != _playerScheduleEpoch ||
+          !mounted ||
+          !controller.canPlayHomeReels) {
         return;
       }
       final key = video.id;
@@ -370,7 +429,9 @@ class _VideoReelScreenState extends State<VideoReelScreen>
       // Defer one more frame so didUpdateWidget/_switchVideo can claim the
       // target first — avoid queuing a redundant pending restart.
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted || !controller.canPlayHomeReels) {
+        if (epoch != _playerScheduleEpoch ||
+            !mounted ||
+            !controller.canPlayHomeReels) {
           return;
         }
         if (!MediaKitPlayerPool.instance.isFeedVisibleKey(key) &&

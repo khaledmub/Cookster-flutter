@@ -120,6 +120,16 @@ class ReelsVideoCacheManager {
 
   void _pump() {
     while (_activeCount < _maxConcurrent && _pendingOrder.isNotEmpty) {
+      // Keep one slot free when a near-window URL (≥100) is waiting so a
+      // far dual-tier job cannot occupy both lanes before visible/N+1 start.
+      final hasNearPending =
+          _pendingByUrl.values.any((r) => r.priority >= 100);
+      if (hasNearPending && _activeCount >= _maxConcurrent - 1) {
+        final peek = _pendingByUrl[_pendingOrder.first];
+        if (peek != null && peek.priority < 100) {
+          break;
+        }
+      }
       final url = _pendingOrder.removeFirst();
       final req = _pendingByUrl.remove(url);
       if (req == null) {
@@ -164,8 +174,18 @@ class ReelsVideoCacheManager {
     required int priority,
     required bool isTablet,
   }) async {
+    var completedOk = true;
     try {
-      if ((_priorities[url] ?? 0) > priority) {
+      final current = _priorities[url] ?? 0;
+      if (current > priority) {
+        // Stale start after a priority bump — requeue; do not complete waiters.
+        completedOk = false;
+        _pendingByUrl[url] = _PrefetchRequest(
+          url: url,
+          priority: current,
+          isTablet: isTablet,
+        );
+        _requeuePendingHighestFirst();
         return;
       }
       // Ensure manager matches tablet budget for this job.
@@ -174,12 +194,14 @@ class ReelsVideoCacheManager {
     } catch (_) {
     } finally {
       _inFlight.remove(url);
-      if (_priorities[url] == priority) {
+      if (completedOk && _priorities[url] == priority) {
         _priorities.remove(url);
       }
-      final completer = _completers.remove(url);
-      if (completer != null && !completer.isCompleted) {
-        completer.complete();
+      if (completedOk) {
+        final completer = _completers.remove(url);
+        if (completer != null && !completer.isCompleted) {
+          completer.complete();
+        }
       }
       _activeCount = (_activeCount - 1).clamp(0, _maxConcurrent);
       _pump();

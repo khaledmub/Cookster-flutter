@@ -139,7 +139,8 @@ Future<String> resolveCachedPlaybackUrl(
   return url;
 }
 
-/// Prefer local file when fully cached or partially cached with fast-start layout.
+/// Prefer local file when fully cached. For in-progress downloads, only use
+/// disk when the file looks fast-start (moov before mdat) and is large enough.
 Future<String> resolveBestPlaybackUrl(
   String url, {
   BaseCacheManager? cacheManager,
@@ -158,13 +159,19 @@ Future<String> resolveBestPlaybackUrl(
     final file = info?.file;
     if (file != null && await file.exists()) {
       final len = await file.length();
-      if (len > 0) {
-        // Only play from disk when moov is ahead of mdat (partial prefetch safe).
-        // Incomplete cache files stall mid-decode on Honor after the first frame.
-        if (len >= minFastStartBytes &&
-            await looksLikeFastStartMp4(file)) {
-          return Uri.file(file.path).toString();
-        }
+      if (len <= 0) {
+        return url;
+      }
+      // flutter_cache_manager only surfaces completed downloads via
+      // getFileFromCache — always prefer file:// (mpv seeks fine without
+      // fast-start). Keep the moov heuristic only as a belt-and-suspenders
+      // check for unusually short objects.
+      if (len >= minFastStartBytes) {
+        _moovCheckCache.remove(url);
+        return Uri.file(file.path).toString();
+      }
+      if (await looksLikeFastStartMp4(file)) {
+        return Uri.file(file.path).toString();
       }
     }
   } catch (_) {}

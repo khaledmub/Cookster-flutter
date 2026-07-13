@@ -163,9 +163,19 @@ class FeedPingPongController {
     if (singleSlotMode) {
       _activeIndex = 0;
       await DeviceConstraints.instance.ensureInitialized();
+      // Hard-recycle rebuilds Player + VideoOutput (dispose+create). Pair it
+      // only with a FAST (file://) open so the fresh surface paints in ~66ms.
+      // Recycling on a cold HTTPS open left the new ImageReader painting
+      // slowly → black flash on this reel and a paint_stall (black-with-audio)
+      // on the next. Force a recycle past 2x the threshold as a safety valve
+      // so a slow-network session can't run a stale decoder forever.
+      final threshold = _recycleAfterOpensSync();
+      final incomingFast = _isLocalPlaybackUrl(sourceUrl) || fastReopen;
+      final overHardLimit = _active.openCount >= threshold * 2;
       if (_active.boundKey != key &&
-          _active.openCount >= _recycleAfterOpensSync() &&
-          !DeviceConstraints.instance.shouldDeferDecoderRecycle) {
+          _active.openCount >= threshold &&
+          !DeviceConstraints.instance.shouldDeferDecoderRecycle &&
+          (incomingFast || overHardLimit)) {
         await _recycleSlotNow(_active);
       }
       var openedMedia = false;

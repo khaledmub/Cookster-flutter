@@ -2996,20 +2996,44 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
     );
   }
 
-  /// Brief await when prefetch is already mid-download for [url] so opens can
-  /// promote to `file://` / partial cache instead of cold CDN.
-  Future<void> _awaitInFlightPlaybackBytes(String url) async {
+  /// Wait for the preferred URL to finish downloading (CacheManager only
+  /// exposes files after a full download). Network-aware budget so first
+  /// settle can win `file://` instead of cold HTTPS.
+  ///
+  /// Budget is intentionally short: blocking longer than ~700ms on a download
+  /// that hasn't finished just delays the cold HTTPS open that follows anyway.
+  /// file:// opens in ~66ms vs HTTPS ~460ms, so a sub-second catch window is
+  /// enough to win the race without making uncached starts late.
+  Future<bool> _awaitInFlightPlaybackBytes(String url) async {
     if (url.isEmpty || !url.toLowerCase().startsWith('http')) {
-      return;
+      return false;
+    }
+    final disk = ReelsVideoCacheManager.instance.manager;
+    if (await isPlaybackUrlCached(url, cacheManager: disk)) {
+      return true;
     }
     final cache = ReelsVideoCacheManager.instance;
     if (!cache.isQueuedOrInFlight(url)) {
       cache.prefetch(url, priority: 120, isTablet: false);
     }
-    if (!cache.isQueuedOrInFlight(url) && !cache.isInFlight(url)) {
-      return;
+    final network = await _networkPolicy.currentNetworkClass();
+    final maxWaitMs = switch (network) {
+      NetworkClass.wifi => 700,
+      NetworkClass.mobile => 1000,
+      NetworkClass.offline => 400,
+    };
+    final started = DateTime.now().millisecondsSinceEpoch;
+    await cache.waitForUrl(url, maxWaitMs: maxWaitMs);
+    final ready = await isPlaybackUrlCached(url, cacheManager: disk);
+    if (!kReleaseMode) {
+      debugPrint(
+        '[ReelsPoster] cache_wait '
+        'ready=$ready waitedMs=${DateTime.now().millisecondsSinceEpoch - started} '
+        'budgetMs=$maxWaitMs '
+        'url=${url.length > 56 ? '${url.substring(0, 56)}…' : url}',
+      );
     }
-    await cache.waitForUrl(url, maxWaitMs: 420);
+    return ready;
   }
 
   Future<void> _openWithCandidates({
@@ -3027,6 +3051,19 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
     }
 
     _abortQualityCascade = false;
+    // If any tier is already on disk, the cached candidate opens in ~66ms —
+    // don't block behind a cache_wait for a higher uncached tier (that made
+    // uncached-adjacent reels start ~1.8s late). Only wait when nothing is
+    // cached, and even then the budget is short. Probe in parallel so this
+    // gate adds negligible latency before the open.
+    final cacheProbes = await Future.wait(
+      candidates.map(
+        (c) async => !c.url.toLowerCase().contains('.m3u8') &&
+            await isPlaybackUrlCached(c.url, cacheManager: cache),
+      ),
+    );
+    final anyCached = cacheProbes.any((v) => v);
+    var waitedForCache = false;
     for (final source in candidates) {
       if (_failedSourceUrls.contains(source.url)) {
         continue;
@@ -3035,12 +3072,17 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
           (_usesFeedVisibleChannel && _pool.isStaleFeedOpen(generation))) {
         return;
       }
-      // If this URL is already downloading (prefetch race), wait briefly so
-      // open can hit file:// instead of cold HTTPS (Issue A).
-      await _awaitInFlightPlaybackBytes(source.url);
-      if (!mounted || _isDisposed || generation != _playbackGeneration ||
-          (_usesFeedVisibleChannel && _pool.isStaleFeedOpen(generation))) {
-        return;
+      // Long wait only on the first preferred URL — don't stack budgets.
+      // Skip entirely when a cached tier exists (it'll open instantly).
+      if (!waitedForCache && !anyCached) {
+        waitedForCache = true;
+        await _awaitInFlightPlaybackBytes(source.url);
+        if (!mounted || _isDisposed || generation != _playbackGeneration ||
+            (_usesFeedVisibleChannel && _pool.isStaleFeedOpen(generation))) {
+          return;
+        }
+      } else {
+        waitedForCache = true;
       }
       final opened = await _tryOpenCandidate(
         source: source,
@@ -3301,13 +3343,54 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
       _activeFeedSlotIndex = _pool.activeFeedSlotIndex;
       _videoController = _pool.feedSlotVideoController(_activeFeedSlotIndex);
 
-      final player = _activePlayer;
+      var player = _activePlayer;
       if (player == null) {
         _abortQualityCascade = true;
         return false;
       }
 
-      // Continue waiting on the same surface — no paint_stall_reopen / cold rebuild.
+      // If prefetch finished during the stall, promote HTTPS → file:// once
+      // without a hard recycle (same open token).
+      var openUrl = playbackUrl;
+      if (playbackUrl.toLowerCase().startsWith('http')) {
+        final local = await resolveBestPlaybackUrl(playbackUrl);
+        if (local.toLowerCase().startsWith('file://') &&
+            local != playbackUrl) {
+          _logPoster(
+            'paint_stall_promote_file',
+            detail: 'gen=$generation fromHttps=true',
+          );
+          final recovered = await _pool.openVisibleReel(
+            key: poolKey,
+            sourceUrl: local,
+            openToken: generation,
+          );
+          if (recovered != null &&
+              mounted &&
+              !_isDisposed &&
+              generation == _playbackGeneration &&
+              !_pool.isStaleFeedOpen(generation)) {
+            openUrl = local;
+            _lastOpenWasCold = recovered.feedOpenedMedia;
+            _pooledKey = poolKey;
+            _attachGeneration = generation;
+            _activeFeedSlotIndex =
+                recovered.feedActiveSlotIndex ?? _pool.activeFeedSlotIndex;
+            _videoController =
+                _pool.feedSlotVideoController(_activeFeedSlotIndex);
+            player = recovered.player;
+            await _attachPlayer(
+              recovered.player,
+              generation: generation,
+              afterFlip: !recovered.feedOpenedMedia,
+              skipFrameWait: true,
+            );
+            await _registerRenderSlot(recovered.player);
+          }
+        }
+      }
+
+      // Continue waiting on the same surface — no hard rebuild.
       final waitResult = await _waitForFrameReadyWithRecovery(
         player: player,
         generation: generation,
@@ -3324,7 +3407,9 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
             name: 'open_complete',
             openMs: openMs,
             tier: tier,
-            cacheHit: cacheHit || partialCache,
+            cacheHit: cacheHit ||
+                partialCache ||
+                openUrl.toLowerCase().startsWith('file://'),
             partialCache: partialCache,
             flip: false,
             coldOpen: _lastOpenWasCold,
@@ -3332,6 +3417,7 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
               'reel': widget.videoId,
               'paint_stall_soft_recovery': true,
               'action': action,
+              'promoted_file': openUrl != playbackUrl,
             },
           ),
         );

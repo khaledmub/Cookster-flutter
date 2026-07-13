@@ -157,8 +157,8 @@ class VideoSourceResolver {
       pick1080 ??= tier == '1080' ? candidate : null;
     }
 
-    // Visible reel: 360-first only on tier C (data saver class). Honor/MTK tier B
-    // prefetches 720+1080 so Wi-Fi opens hit HD bytes on disk.
+    // Visible: 720 only. Dual 720+1080 occupied both download slots and
+    // starved N+1 — first opens stayed on HTTPS ~3s.
     if (offsetFromVisible == 0) {
       final visible = <VideoSourceCandidate>[];
       final smallFirst = DeviceConstraints.instance.prefer360ColdOpen;
@@ -169,18 +169,12 @@ class VideoSourceResolver {
         if (pick720 != null && pick720 != pick360) {
           visible.add(pick720);
         }
-        if (pick1080 != null &&
-            pick1080 != pick720 &&
-            pick1080 != pick360) {
-          visible.add(pick1080);
-        }
       } else {
         if (pick720 != null) {
           visible.add(pick720);
         }
-        if (pick1080 != null && pick1080 != pick720) {
-          visible.add(pick1080);
-        }
+        // Never enqueue visible 1080 here — with max 2 download slots it
+        // races N+1's 720 and forces first opens onto cold HTTPS.
       }
       if (visible.isNotEmpty) {
         return visible;

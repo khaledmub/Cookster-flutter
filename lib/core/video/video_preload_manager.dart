@@ -64,6 +64,8 @@ class VideoPreloadManager {
   void prepareForSessionStart() {
     decoderWarmEnabled = false;
     _decoderBootstrapDone = false;
+    // Allow a fresh near-window disk warm after tab/overlay return.
+    _diskBootstrapDone = false;
   }
 
   /// Normal page settle — keeps decoder warm once the visible reel has painted.
@@ -74,11 +76,9 @@ class VideoPreloadManager {
   /// @deprecated Use [prepareForSessionStart] for tab/overlay; [onVisiblePageSettled] for swipes.
   void prepareForVisibleAttach() => prepareForSessionStart();
 
-  /// Disk-prefetch the visible reel immediately (720+1080 on Honor Wi-Fi, else
-  /// tier-appropriate ladder) so the first open can hit partial/full cache.
+  /// Disk-prefetch the visible reel (+ N+1) so the open can hit local bytes.
   ///
-  /// Waits up to [maxWaitMs] for a fast-start partial on disk before returning
-  /// so [openVisibleReel] can open from local bytes when prefetch wins the race.
+  /// Waits up to [maxWaitMs] for the preferred tier to land on disk.
   Future<void> prefetchVisibleReel(
     int visibleIndex, {
     int maxWaitMs = 700,
@@ -86,8 +86,9 @@ class VideoPreloadManager {
     if (!await _canPreload()) {
       return;
     }
+    // Near window: visible + next — never leave N+1 starved behind visible 1080.
     await _warmIndices(
-      [visibleIndex],
+      [visibleIndex, visibleIndex + 1],
       reason: 'visible_now',
       decoderWarmLimit: 0,
       visibleIndex: visibleIndex,
@@ -98,9 +99,11 @@ class VideoPreloadManager {
     await _awaitPartialCacheForIndex(visibleIndex, maxWaitMs: maxWaitMs);
   }
 
-  /// Await until any ladder MP4 for [index] is partially or fully on disk.
-  /// Uses the cache manager's completer-based await when an in-flight download
-  /// exists, falling back to polling only for tiers not yet started.
+  /// Await until the preferred ladder URL for [index] is on disk.
+  ///
+  /// flutter_cache_manager only exposes the file after a **full** download, so
+  /// we await the in-flight completer (capped) rather than polling for a
+  /// partial that never appears mid-flight.
   Future<bool> _awaitPartialCacheForIndex(
     int index, {
     required int maxWaitMs,
@@ -119,13 +122,8 @@ class VideoPreloadManager {
       return false;
     }
 
-    // First check if any tier is already on disk (instant return).
     for (final chosen in ordered) {
-      if (await isPlaybackUrlCached(chosen.url, cacheManager: _cacheManager) ||
-          await isPlaybackUrlPartiallyCached(
-            chosen.url,
-            cacheManager: _cacheManager,
-          )) {
+      if (await isPlaybackUrlCached(chosen.url, cacheManager: _cacheManager)) {
         ReelsPerf.log(
           'partial_ready index=$index tier=${resolver.mp4Tier(chosen.url)} '
           'waitMs=0',
@@ -134,43 +132,32 @@ class VideoPreloadManager {
       }
     }
 
-    // Await any in-flight prefetch completers instead of blind polling.
     final cacheManager = ReelsVideoCacheManager.instance;
-    for (final chosen in ordered) {
-      if (cacheManager.isInFlight(chosen.url)) {
-        await cacheManager.waitForUrl(chosen.url, maxWaitMs: maxWaitMs);
-        if (await isPlaybackUrlCached(chosen.url, cacheManager: _cacheManager) ||
-            await isPlaybackUrlPartiallyCached(
-              chosen.url,
-              cacheManager: _cacheManager,
-            )) {
-          ReelsPerf.log(
-            'partial_ready index=$index tier=${resolver.mp4Tier(chosen.url)} '
-            'waitMs=completer',
-          );
-          return true;
-        }
-      }
+    final preferred = ordered.first;
+    if (!cacheManager.isQueuedOrInFlight(preferred.url)) {
+      prefetchPlaybackUrl(
+        preferred.url,
+        cacheManager: _cacheManager,
+        priority: 120,
+      );
     }
-
-    // Fallback: brief poll for stragglers not yet started.
-    var waited = 0;
-    while (waited < maxWaitMs) {
-      for (final chosen in ordered) {
-        if (await isPlaybackUrlCached(chosen.url, cacheManager: _cacheManager) ||
-            await isPlaybackUrlPartiallyCached(
-              chosen.url,
-              cacheManager: _cacheManager,
-            )) {
-          ReelsPerf.log(
-            'partial_ready index=$index tier=${resolver.mp4Tier(chosen.url)} '
-            'waitMs=$waited',
-          );
-          return true;
-        }
+    final started = DateTime.now().millisecondsSinceEpoch;
+    await cacheManager.waitForUrl(preferred.url, maxWaitMs: maxWaitMs);
+    if (await isPlaybackUrlCached(
+      preferred.url,
+      cacheManager: _cacheManager,
+    )) {
+      ReelsPerf.log(
+        'partial_ready index=$index tier=${resolver.mp4Tier(preferred.url)} '
+        'waitMs=${DateTime.now().millisecondsSinceEpoch - started}',
+      );
+      return true;
+    }
+    // Brief poll in case another tier finished first.
+    for (final chosen in ordered) {
+      if (await isPlaybackUrlCached(chosen.url, cacheManager: _cacheManager)) {
+        return true;
       }
-      await Future<void>.delayed(const Duration(milliseconds: 16));
-      waited += 16;
     }
     return false;
   }
@@ -257,7 +244,15 @@ class VideoPreloadManager {
     }
     await _deviceConstraints.ensureInitialized();
     _deviceConstraints.recordSwipe();
-    final depth = await _resolvePreloadDepth();
+    // Starve far downloads so bandwidth feeds the reel you're swiping to
+    // (same idea as TikTok/IG near-window reservation).
+    ReelsVideoCacheManager.instance.cancelBelowPriority(90);
+    var depth = await _resolvePreloadDepth();
+    if (_deviceConstraints.needsConstrainedSurfaceRecovery) {
+      // Near-only: toward + at most +1/+2 — not a deep fan-out mid-fling.
+      depth = depth.clamp(1, 2);
+      extraDepth = 0;
+    }
     final indices = buildDirectionalPrefetchIndices(
       fromIndex: fromIndex,
       towardIndex: towardIndex,
@@ -268,7 +263,7 @@ class VideoPreloadManager {
       indices,
       reason: 'scroll_start',
       decoderWarmLimit: 0,
-      visibleIndex: fromIndex,
+      visibleIndex: towardIndex,
     );
   }
 
@@ -411,7 +406,7 @@ class VideoPreloadManager {
   int _priorityForIndex(int index, int visibleIndex) {
     final delta = index - visibleIndex;
     if (delta == 0) {
-      return 110;
+      return 120;
     }
     if (delta == 1) {
       return 100;
@@ -460,16 +455,21 @@ class VideoPreloadManager {
         dualTier: dualTier,
       );
       final priority = _priorityForIndex(index, visibleIndex);
-      for (final chosen in preloadOrdered) {
+      for (var i = 0; i < preloadOrdered.length; i++) {
+        final chosen = preloadOrdered[i];
         final isHls = chosen.url.toLowerCase().contains('.m3u8');
-        if (!isHls) {
-          prefetchPlaybackUrl(
-            chosen.url,
-            cacheManager: _cacheManager,
-            priority: priority,
-            isTablet: isTablet,
-          );
+        if (isHls) {
+          continue;
         }
+        // Secondary tiers (e.g. 1080) must lose to N+1's primary (≥100).
+        final tierPriority =
+            i == 0 ? priority : (priority - 30).clamp(10, 85);
+        prefetchPlaybackUrl(
+          chosen.url,
+          cacheManager: _cacheManager,
+          priority: tierPriority,
+          isTablet: isTablet,
+        );
       }
       final chosen = preloadOrdered.first;
       final canWarmDecoder =
