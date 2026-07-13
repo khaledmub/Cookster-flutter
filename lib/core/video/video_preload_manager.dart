@@ -295,7 +295,9 @@ class VideoPreloadManager {
       return;
     }
 
-    ReelsVideoCacheManager.instance.cancelBelowPriority(40);
+    // Keep only the near window queued — priorities: visible 110, +1 100, -1 95,
+    // +2 90. Drop anything farther so concurrency slots fill N+1 720 first.
+    ReelsVideoCacheManager.instance.cancelBelowPriority(90);
 
     final diskDepth = await _resolvePreloadDepth();
     if (diskDepth <= 0) {
@@ -512,7 +514,12 @@ class VideoPreloadManager {
     switch (networkClass) {
       case NetworkClass.wifi:
         // Deeper window on Wi-Fi so fast swipes don't outrun the disk cache.
-        return RemoteConfigService.instance.preloadLimitWifi.clamp(3, 7);
+        // Honor/MTK: keep near window small — depth 7 × dual-tier starved N+1.
+        final wifi = RemoteConfigService.instance.preloadLimitWifi.clamp(3, 7);
+        if (_deviceConstraints.needsConstrainedSurfaceRecovery) {
+          return wifi.clamp(3, 4);
+        }
+        return wifi;
       case NetworkClass.mobile:
         return RemoteConfigService.instance.preloadLimitMobile.clamp(3, 5);
       case NetworkClass.offline:

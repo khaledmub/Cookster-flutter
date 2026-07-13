@@ -187,12 +187,18 @@ class VideoSourceResolver {
       }
     }
 
-    // N+1/N+2: warm 720 first (fast partial), then 1080. Matches Wi-Fi open
-    // promoting any ready tier so the next swipe is not stuck waiting on 1080.
+    // N+1/N+2: warm 720 first (fast partial). On Honor/MTK skip dual-tier 1080
+    // in the near window — concurrent 720+1080 across many indices starved
+    // N+1 completion and forced visible HTTPS opens.
     if (offsetFromVisible <= 2) {
+      final constrained =
+          DeviceConstraints.instance.needsConstrainedSurfaceRecovery;
       if (pick720 != null) {
         final result = <VideoSourceCandidate>[pick720];
-        if (pick1080 != null && pick1080 != pick720) {
+        if (!constrained &&
+            dualTier &&
+            pick1080 != null &&
+            pick1080 != pick720) {
           result.add(pick1080);
         }
         if (pick360 != null && pick360 != pick720) {

@@ -7,6 +7,7 @@ import 'package:cookster/core/video/cached_playback_url.dart';
 import 'package:cookster/core/video/device_constraints.dart';
 import 'package:cookster/core/video/feed_ping_pong_controller.dart';
 import 'package:cookster/core/video/media_kit_player_pool.dart';
+import 'package:cookster/core/video/mpv_surface_stability.dart';
 import 'package:cookster/core/video/network_policy.dart';
 import 'package:cookster/core/video/reels_perf.dart';
 import 'package:cookster/core/video/reels_video_cache_manager.dart';
@@ -110,7 +111,16 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
   int _watchdogLastPositionMs = -1;
   int _watchdogStuckTicks = 0;
   int _watchdogNearZeroTicks = 0;
-  bool _renderDeathRecoveryInFlight = false;
+  /// Max position observed after poster_unmask (detects "never left start").
+  int _watchdogMaxPositionSinceUnmaskMs = 0;
+  /// Intentional rewind-to-0 before unmask needs a long grace — Honor often
+  /// sits at pos=0 for 2–4s after that seek while the surface is already live.
+  int _watchdogNearZeroGraceUntilMs = 0;
+  /// Shared in-flight reason for paint-stall / render-stall / render-death recovery.
+  String? _surfaceRecoveryInFlightReason;
+  int? _surfaceRecoveryBudgetGen;
+  int _surfaceRecoveryAttemptsForGen = 0;
+  static const int _maxSurfaceRecoveriesPerGeneration = 1;
   /// Composited frames counted after [_videoSurfaceVisible] — pre-visible ticks
   /// do not render on MTK (Rendered 0/s while opacity 0).
   int _visibleSurfacePaintFrames = 0;
@@ -149,6 +159,9 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
   StreamSubscription<bool>? _completedSub;
 
   final Set<String> _failedSourceUrls = <String>{};
+  /// Set when a successful open still fails paint after surface recovery —
+  /// stops [_openWithCandidates] from cascading to the next quality tier.
+  bool _abortQualityCascade = false;
   bool _upgradeInFlight = false;
   bool _lastOpenCacheHit = false;
   bool _lastOpenPartialCache = false;
@@ -426,15 +439,28 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
     if (!mounted || _isDisposed || !_usesFeedVisibleChannel) {
       return;
     }
-    if (_registeredPlayerHandle != 0) {
-      unawaited(
-        ReelRenderTelemetry.instance.notifySurfaceCleanup(_registeredPlayerHandle),
-      );
+    final oldHandle = _registeredPlayerHandle;
+    if (oldHandle != 0) {
+      _registeredPlayerHandle = 0;
+      unawaited(() async {
+        // Unregister first so notifySurfaceCleanup cannot emit stall into a live watch.
+        await ReelRenderTelemetry.instance.unregisterSlot(oldHandle);
+        await ReelRenderTelemetry.instance.notifySurfaceCleanup(oldHandle);
+      }());
     }
     _surfacePaintFrames = 0;
+    _visibleSurfacePaintFrames = 0;
+    _frameReady = false;
+    _videoSurfaceVisible = false;
+    _postRecycleUnmask = true;
+    _fastFeedReveal = false;
+    _feedPosterUnmaskedAtMs = 0;
     _resetDimensionStability();
     _activeFeedSlotIndex = _pool.activeFeedSlotIndex;
     _videoController = _pool.feedSlotVideoController(_activeFeedSlotIndex);
+    // Remask again after handle swap — awaiting-recycle can race setState and
+    // leave Opacity-1 SurfaceView black under a dropped poster.
+    widget.onFeedAwaitingPaint?.call();
     _logPoster(
       'slot_recycled',
       detail: 'openCount=${_pool.feedOpenCount} gen=$_playbackGeneration',
@@ -520,6 +546,36 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
 
   bool _feedVisibleKeyMatches(String key) =>
       _pool.isFeedVisibleKey(key) && _pool.feedVisibleKey == key;
+
+  /// At most one surface recovery per generation; only one recovery in-flight.
+  bool _tryBeginSurfaceRecovery(String reason, int generation) {
+    if (_surfaceRecoveryInFlightReason != null) {
+      _logPoster(
+        'recovery_concurrent_blocked',
+        detail: 'gen=$generation already_in_progress=$_surfaceRecoveryInFlightReason',
+      );
+      return false;
+    }
+    if (_surfaceRecoveryBudgetGen != generation) {
+      _surfaceRecoveryBudgetGen = generation;
+      _surfaceRecoveryAttemptsForGen = 0;
+    }
+    if (_surfaceRecoveryAttemptsForGen >= _maxSurfaceRecoveriesPerGeneration) {
+      _logPoster(
+        'recovery_budget_exceeded',
+        detail: 'gen=$generation attempts=$_surfaceRecoveryAttemptsForGen '
+            'fallback=retry_overlay',
+      );
+      return false;
+    }
+    _surfaceRecoveryAttemptsForGen++;
+    _surfaceRecoveryInFlightReason = reason;
+    return true;
+  }
+
+  void _endSurfaceRecovery() {
+    _surfaceRecoveryInFlightReason = null;
+  }
 
   /// Hide video surface when a reel switch is committed — not during partial scroll.
   void deferSurfaceForSwipe() {
@@ -1625,10 +1681,12 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
       _pool.markFrameReadyFromSurface(key);
     }
 
+    var rewoundForUnmask = false;
     if (_usesFeedVisibleChannel && player.state.position.inMilliseconds > 200) {
       // The video has been playing muted to pump frames and verify surface health.
       // If it advanced significantly, rewind to the beginning BEFORE dropping the poster
       // so the user doesn't see a visual jump ("shake") when the frame resets.
+      rewoundForUnmask = true;
       await player.seek(Duration.zero);
       var polled = 0;
       while (polled < 200) {
@@ -1638,6 +1696,9 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
         polled += 16;
         _onPlayerStateTick(player);
       }
+      // Seek alone can leave Honor sitting at 0 with playing=true until play()
+      // restarts the clock — without this the render-death watchdog fires.
+      await player.play();
     }
 
     _logPoster(
@@ -1649,7 +1710,12 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
     _feedPosterUnmaskedAtMs = DateTime.now().millisecondsSinceEpoch;
     
     if (key != null && key.isNotEmpty) {
-      _startRenderDeathWatchdog(player: player, generation: generation, key: key);
+      _startRenderDeathWatchdog(
+        player: player,
+        generation: generation,
+        key: key,
+        rewoundForUnmask: rewoundForUnmask,
+      );
     }
     
     if (_usesFeedVisibleChannel) {
@@ -1724,6 +1790,7 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
     required Player player,
     required int generation,
     required String key,
+    bool rewoundForUnmask = false,
   }) {
     if (!_needsConstrainedStartGate || key.isEmpty) {
       return;
@@ -1732,28 +1799,43 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
     _watchdogLastPositionMs = player.state.position.inMilliseconds;
     _watchdogStuckTicks = 0;
     _watchdogNearZeroTicks = 0;
+    _watchdogMaxPositionSinceUnmaskMs =
+        player.state.position.inMilliseconds.clamp(0, 1 << 30);
+    // After an intentional rewind-to-0 for a clean unmask, Honor often needs
+    // several seconds before position advances again — do not treat that as
+    // render death (that path hard-recycles a already-confirmed surface).
+    _watchdogNearZeroGraceUntilMs = rewoundForUnmask
+        ? DateTime.now().millisecondsSinceEpoch + 5000
+        : DateTime.now().millisecondsSinceEpoch + 1500;
     _renderDeathWatchdog = Timer.periodic(const Duration(milliseconds: 500), (
       timer,
     ) {
       if (!_isCurrentAttach(generation) ||
           !mounted ||
           _isDisposed ||
-          _renderDeathRecoveryInFlight) {
+          _surfaceRecoveryInFlightReason != null) {
         timer.cancel();
         return;
       }
+      final nowMs = DateTime.now().millisecondsSinceEpoch;
       final posMs = player.state.position.inMilliseconds;
-      final sinceUnmaskMs =
-          DateTime.now().millisecondsSinceEpoch - _feedPosterUnmaskedAtMs;
+      if (posMs > _watchdogMaxPositionSinceUnmaskMs) {
+        _watchdogMaxPositionSinceUnmaskMs = posMs;
+      }
+      final sinceUnmaskMs = nowMs - _feedPosterUnmaskedAtMs;
+      final pastGrace = nowMs >= _watchdogNearZeroGraceUntilMs;
       if (player.state.playing && !player.state.completed) {
         if (posMs - _watchdogLastPositionMs < 120) {
           _watchdogStuckTicks++;
         } else {
           _watchdogStuckTicks = 0;
         }
-        // media_kit seeks to 0 on every 721↔720 surface twitch — position
-        // stays near the start while audio may still play.
-        if (sinceUnmaskMs > 1500 && posMs < 280) {
+        // Only count near-zero after grace, and only while we've *never*
+        // left the start zone. A successful paint + rewind-to-0 must not
+        // trip hard recycle just because the clock is slow to restart.
+        if (pastGrace &&
+            posMs < 280 &&
+            _watchdogMaxPositionSinceUnmaskMs < 400) {
           _watchdogNearZeroTicks++;
         } else {
           _watchdogNearZeroTicks = 0;
@@ -1766,14 +1848,17 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
       // Only recover when decode never advances after unmask (Rendered 0/s /
       // seek-on-resize loop). Mid-playback micro-stalls must not trigger a full
       // slot recycle — that disposes VideoOutput and adds multi-second delay.
-      if (_watchdogNearZeroTicks >= 3 &&
-          sinceUnmaskMs > 1500 &&
-          posMs < 280) {
+      if (_watchdogNearZeroTicks >= 5 &&
+          pastGrace &&
+          posMs < 280 &&
+          _watchdogMaxPositionSinceUnmaskMs < 400) {
         timer.cancel();
         _logPoster(
           'render_death_detected',
           detail: 'pos=${posMs}ms stuck=$_watchdogStuckTicks '
-              'nearZero=$_watchdogNearZeroTicks key=$key',
+              'nearZero=$_watchdogNearZeroTicks '
+              'maxPos=${_watchdogMaxPositionSinceUnmaskMs}ms '
+              'sinceUnmask=${sinceUnmaskMs}ms key=$key',
         );
         unawaited(_recoverFromRenderDeath(key));
       }
@@ -1786,6 +1871,8 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
     _watchdogStuckTicks = 0;
     _watchdogNearZeroTicks = 0;
     _watchdogLastPositionMs = -1;
+    _watchdogMaxPositionSinceUnmaskMs = 0;
+    _watchdogNearZeroGraceUntilMs = 0;
   }
 
   /// Resolve the 360 MP4 playback URL for this reel, if the ladder has one.
@@ -1805,12 +1892,14 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
   /// before the first frame), and soft play/seek recovery does not restore a
   /// broken render pipe — only a brand new Player/texture does.
   Future<void> _recoverFromRenderDeath(String key) async {
-    if (_renderDeathRecoveryInFlight || _isDisposed || !mounted) {
+    if (_isDisposed || !mounted) {
       return;
     }
-    _renderDeathRecoveryInFlight = true;
-    _stopRenderDeathWatchdog();
     final generation = _nextPlaybackGeneration();
+    if (!_tryBeginSurfaceRecovery('render_death', generation)) {
+      return;
+    }
+    _stopRenderDeathWatchdog();
     _logPoster('render_death_recovery', detail: 'key=$key gen=$generation');
     try {
       // Render death on Honor is a surface/dimension failure, not a decode-
@@ -1861,7 +1950,7 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
       _isInitializing = false;
       unawaited(_loadVideo());
     } finally {
-      _renderDeathRecoveryInFlight = false;
+      _endSurfaceRecovery();
     }
   }
 
@@ -1883,55 +1972,58 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
     if (key == null || key.isEmpty) {
       return;
     }
+    if (!_tryBeginSurfaceRecovery('render_stall', generation)) {
+      return;
+    }
     debugPrint(
       '[ReelRender] reel_render_failure sig=$signature reel=$key '
       'gen=$generation tier=${DeviceConstraints.instance.deviceTierSync.name}',
     );
-    final fromTier = DeviceConstraints.instance.deviceTierSync;
-    final toTier =
-        await ReelsDeviceCapabilityStore.instance.recordFailure(signature);
-    DeviceConstraints.instance.refreshFromMeasuredProfile();
-    unawaited(
-      reelsTierAnalytics.logTierDemoted(
-        fromTier: fromTier,
-        toTier: toTier,
-        signature: signature,
-      ),
-    );
-    unawaited(
-      reelsTierAnalytics.logRenderFailure(
-        ReelRenderStallEvent(
-          slotIndex: _activeFeedSlotIndex,
-          playerHandle: _registeredPlayerHandle,
-          signature: signature,
-          tsMs: DateTime.now().millisecondsSinceEpoch,
-        ),
-      ),
-    );
-    if (!_isCurrentAttach(generation)) {
-      return;
-    }
-    _frameReady = false;
-    _videoSurfaceVisible = false;
-    _showThumbnail = true;
-    if (mounted && !_isDisposed) {
-      setState(() {});
-    }
-    await _pool.recoverFeedVisibleSurfaceAfterStall(
-      key,
-      openToken: generation,
-    );
-    if (!_isCurrentAttach(generation) || !mounted || _isDisposed) {
-      return;
-    }
-    _activeFeedSlotIndex = _pool.activeFeedSlotIndex;
-    _videoController = _pool.feedSlotVideoController(_activeFeedSlotIndex);
-    final player = _activePlayer;
-    if (player != null) {
-      await _registerRenderSlot(player);
-      _postRecycleUnmask = true;
+    try {
+      final fromTier = DeviceConstraints.instance.deviceTierSync;
+      final toTier =
+          await ReelsDeviceCapabilityStore.instance.recordFailure(signature);
+      DeviceConstraints.instance.refreshFromMeasuredProfile();
       unawaited(
-        _openWithCandidates(
+        reelsTierAnalytics.logTierDemoted(
+          fromTier: fromTier,
+          toTier: toTier,
+          signature: signature,
+        ),
+      );
+      unawaited(
+        reelsTierAnalytics.logRenderFailure(
+          ReelRenderStallEvent(
+            slotIndex: _activeFeedSlotIndex,
+            playerHandle: _registeredPlayerHandle,
+            signature: signature,
+            tsMs: DateTime.now().millisecondsSinceEpoch,
+          ),
+        ),
+      );
+      if (!_isCurrentAttach(generation)) {
+        return;
+      }
+      _frameReady = false;
+      _videoSurfaceVisible = false;
+      _showThumbnail = true;
+      if (mounted && !_isDisposed) {
+        setState(() {});
+      }
+      await _pool.recoverFeedVisibleSurfaceAfterStall(
+        key,
+        openToken: generation,
+      );
+      if (!_isCurrentAttach(generation) || !mounted || _isDisposed) {
+        return;
+      }
+      _activeFeedSlotIndex = _pool.activeFeedSlotIndex;
+      _videoController = _pool.feedSlotVideoController(_activeFeedSlotIndex);
+      final player = _activePlayer;
+      if (player != null) {
+        await _registerRenderSlot(player);
+        _postRecycleUnmask = true;
+        await _openWithCandidates(
           generation: generation,
           poolKey: key,
           onFailure: () {
@@ -1939,8 +2031,10 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
               setState(() => _showRetry = true);
             }
           },
-        ),
-      );
+        );
+      }
+    } finally {
+      _endSurfaceRecovery();
     }
   }
 
@@ -1961,6 +2055,7 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
     _frameTimeout?.cancel();
 
     widget.onPlaybackReady?.call();
+    FeedSurfaceParityLock.recordPainted(player.state.width, player.state.height);
     _logPoster(
       'frame_ready',
       detail: 'key=$key ${player.state.width}x${player.state.height} '
@@ -2502,11 +2597,26 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
     required int timeoutMs,
   }) async {
     var waited = 0;
+    var parityLogged = false;
     while (waited < timeoutMs &&
         mounted &&
         !_isDisposed &&
         _isCurrentAttach(generation)) {
       _trackDimensionStability(player);
+      final parityAction = await ensureEvenMpvCropIfNeeded(player);
+      if (!parityLogged && parityAction != MpvStabilizeAction.none) {
+        parityLogged = true;
+        final w = player.state.width;
+        final h = player.state.height;
+        final prevW = FeedSurfaceParityLock.evenWidth;
+        final prevH = FeedSurfaceParityLock.evenHeight;
+        // Post-hoc mpv crop only; native gate logs dimension_parity_benign_skip.
+        _logPoster(
+          'dimension_parity_mpv_crop',
+          detail: 'prevSize=${prevW}x$prevH newSize=${w}x$h '
+              'action=${parityAction.name}',
+        );
+      }
       if (_canShowVideo(player)) {
         await _onFrameReady(player, generation: generation);
         return true;
@@ -2518,50 +2628,106 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
     return _isCurrentAttach(generation) && _canShowVideo(player);
   }
 
-  Future<bool> _waitForFrameReadyWithRecovery({
+  /// Warm Honor paths usually paint under ~300ms; cold decode often advances
+  /// without paint by ~1–1.5s when ImageReader is churning — soft-recover then.
+  static const int _earlyPaintStallMs = 1200;
+
+  bool _decodeProgressingWithoutPaint(Player player) {
+    if (_canShowVideo(player)) {
+      return false;
+    }
+    if (player.state.playing) {
+      return true;
+    }
+    final posMs = player.state.position.inMilliseconds;
+    return posMs >= _minPositionMsForFrame() ||
+        (player.state.width != null &&
+            player.state.height != null &&
+            posMs > 0);
+  }
+
+  /// [enableEarlyPaintStall]: after [_earlyPaintStallMs], if decode is moving
+  /// but paint is not, return early so callers can soft-recover instead of
+  /// burning the full [_frameWaitTimeoutMs] ceiling.
+  Future<({bool ready, bool earlyPaintStall})> _waitForFrameReadyWithRecovery({
     required Player player,
     required int generation,
     required String poolKey,
+    bool enableEarlyPaintStall = false,
   }) async {
+    final ceilingMs = _frameWaitTimeoutMs();
+    final useEarly = enableEarlyPaintStall &&
+        _usesFeedVisibleChannel &&
+        _needsConstrainedStartGate &&
+        ceilingMs > _earlyPaintStallMs;
+
+    if (useEarly) {
+      var frameReady = await _waitForFrameReady(
+        player: player,
+        generation: generation,
+        timeoutMs: _earlyPaintStallMs,
+      );
+      if (frameReady) {
+        return (ready: true, earlyPaintStall: false);
+      }
+      if (_isCurrentAttach(generation) &&
+          _decodeProgressingWithoutPaint(player)) {
+        _logPoster(
+          'paint_stall_early_trigger',
+          detail: 'waitedMs=$_earlyPaintStallMs',
+        );
+        return (ready: false, earlyPaintStall: true);
+      }
+      final remaining = ceilingMs - _earlyPaintStallMs;
+      if (remaining > 0) {
+        frameReady = await _waitForFrameReady(
+          player: player,
+          generation: generation,
+          timeoutMs: remaining,
+        );
+      }
+      if (frameReady) {
+        return (ready: true, earlyPaintStall: false);
+      }
+      return (ready: false, earlyPaintStall: false);
+    }
+
     var frameReady = await _waitForFrameReady(
       player: player,
       generation: generation,
-      timeoutMs: _frameWaitTimeoutMs(),
+      timeoutMs: ceilingMs,
     );
-    if (frameReady || !_needsConstrainedStartGate) {
-      if (!frameReady &&
-          _isCurrentAttach(generation) &&
-          _isDecodeLikelyActive(player)) {
-        await _onFrameReady(player, generation: generation);
-        return true;
-      }
-      return frameReady;
+    if (frameReady) {
+      return (ready: true, earlyPaintStall: false);
+    }
+    if (!_needsConstrainedStartGate) {
+      return (ready: false, earlyPaintStall: false);
     }
     final fastScrollPath = _fastFeedReveal || _scrollBackCacheEligible(poolKey);
-    // Honor: flush-based recovery loops permanently break the surface — recycle once.
-    if (!fastScrollPath && _surfaceRecoveryAttempts == 0) {
+    // Soft nudge only — mid-wait threshold recycle rebuilds VideoOutput (same
+    // as hard recycle) and is reserved for presentReel idle/proactive opens.
+    if (!fastScrollPath &&
+        _surfaceRecoveryAttempts == 0 &&
+        _isCurrentAttach(generation)) {
       _surfaceRecoveryAttempts++;
-      await _pool.recycleFeedDecoderIfStale();
-      final freshPlayer = _activePlayer;
-      if (freshPlayer != null &&
-          freshPlayer != player &&
-          _isCurrentAttach(generation) &&
-          mounted &&
-          !_isDisposed) {
-        frameReady = await _waitForFrameReady(
-          player: freshPlayer,
-          generation: generation,
-          timeoutMs: 3600,
-        );
-      }
+      try {
+        await player.setVolume(0);
+      } catch (_) {}
+      try {
+        if (!player.state.playing) {
+          await player.play();
+        }
+      } catch (_) {}
+      frameReady = await _waitForFrameReady(
+        player: player,
+        generation: generation,
+        timeoutMs: 3600,
+      );
     }
-    if (!frameReady &&
-        _isCurrentAttach(generation) &&
-        _isDecodeLikelyActive(player)) {
-      await _onFrameReady(player, generation: generation);
-      return true;
+    if (!frameReady) {
+      return (ready: false, earlyPaintStall: false);
     }
-    return frameReady;
+    return (ready: true, earlyPaintStall: false);
   }
 
   /// Profile overlays: mount [Video] before decode/play (Honor Rendered 0/s).
@@ -2640,25 +2806,24 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
       }
     }
 
-    // Probe all tiers in parallel instead of sequential await — saves 50-150ms
-    // on cache miss where each probe was doing independent disk I/O.
-    final constrained = DeviceConstraints.instance.needsConstrainedSurfaceRecovery;
-    // Cached anything wins for TTFB (360 included). Uncached ladder stays
-    // 720-first so we don't open half-res when nothing is warm yet.
-    final candidates = <VideoSourceCandidate?>[
+    final constrained =
+        DeviceConstraints.instance.needsConstrainedSurfaceRecovery;
+    // Probe HD tiers only for TTFB preference. Never elevate a ready 360 over an
+    // uncached 720 — that produced clean but soft first-opens after stall clusters
+    // when only 360 had finished downloading.
+    final hdCandidates = <VideoSourceCandidate?>[
       if (!constrained) pick1080,
       pick720,
-      pick360,
     ].whereType<VideoSourceCandidate>().toList();
     final readyResults = await Future.wait(
-      candidates.map((c) async =>
+      hdCandidates.map((c) async =>
           await isPlaybackUrlCached(c.url, cacheManager: cache) ||
           await isPlaybackUrlPartiallyCached(c.url, cacheManager: cache)),
     );
-    for (var i = 0; i < candidates.length; i++) {
+    for (var i = 0; i < hdCandidates.length; i++) {
       if (readyResults[i]) {
-        add(candidates[i]);
-        break; // Take the first (highest quality) cached tier.
+        add(hdCandidates[i]);
+        break; // Highest-quality ready HD tier first.
       }
     }
     // Uncached ladder: 720 first (fast + sharp), then 1080, then 360.
@@ -2831,6 +2996,22 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
     );
   }
 
+  /// Brief await when prefetch is already mid-download for [url] so opens can
+  /// promote to `file://` / partial cache instead of cold CDN.
+  Future<void> _awaitInFlightPlaybackBytes(String url) async {
+    if (url.isEmpty || !url.toLowerCase().startsWith('http')) {
+      return;
+    }
+    final cache = ReelsVideoCacheManager.instance;
+    if (!cache.isQueuedOrInFlight(url)) {
+      cache.prefetch(url, priority: 120, isTablet: false);
+    }
+    if (!cache.isQueuedOrInFlight(url) && !cache.isInFlight(url)) {
+      return;
+    }
+    await cache.waitForUrl(url, maxWaitMs: 420);
+  }
+
   Future<void> _openWithCandidates({
     required int generation,
     required String poolKey,
@@ -2845,10 +3026,18 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
       return;
     }
 
+    _abortQualityCascade = false;
     for (final source in candidates) {
       if (_failedSourceUrls.contains(source.url)) {
         continue;
       }
+      if (!mounted || _isDisposed || generation != _playbackGeneration ||
+          (_usesFeedVisibleChannel && _pool.isStaleFeedOpen(generation))) {
+        return;
+      }
+      // If this URL is already downloading (prefetch race), wait briefly so
+      // open can hit file:// instead of cold HTTPS (Issue A).
+      await _awaitInFlightPlaybackBytes(source.url);
       if (!mounted || _isDisposed || generation != _playbackGeneration ||
           (_usesFeedVisibleChannel && _pool.isStaleFeedOpen(generation))) {
         return;
@@ -2862,6 +3051,12 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
       );
       if (opened) {
         return;
+      }
+      // Paint stall after a successful open is a surface failure — do not walk
+      // the quality ladder (720→360→1080) on the same wedged ImageReader.
+      if (_abortQualityCascade) {
+        _abortQualityCascade = false;
+        break;
       }
     }
     if (_isCurrentAttach(generation) && mounted && !_isDisposed &&
@@ -2959,6 +3154,20 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
       if (_usesFeedVisibleChannel) {
         await _registerRenderSlot(pooled.player);
       }
+      if (_usesFeedVisibleChannel && _needsConstrainedStartGate) {
+        final prevW = FeedSurfaceParityLock.evenWidth;
+        final prevH = FeedSurfaceParityLock.evenHeight;
+        final parity = await ensureEvenMpvCropIfNeeded(pooled.player);
+        if (parity != MpvStabilizeAction.none) {
+          // Post-hoc mpv crop only; native gate logs dimension_parity_benign_skip.
+          _logPoster(
+            'dimension_parity_mpv_crop',
+            detail: 'prevSize=${prevW}x$prevH '
+                'newSize=${pooled.player.state.width}x${pooled.player.state.height} '
+                'action=${parity.name}',
+          );
+        }
+      }
       if (!_usesFeedVisibleChannel) {
         await _startStrictPlaybackAfterSurface(
           player: pooled.player,
@@ -2969,20 +3178,24 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
       final fastPrimedOpen = _usesFeedVisibleChannel &&
           _fastFeedReveal &&
           _poolProvenSurfacePaint(poolKey);
-      final frameReady = fastPrimedOpen
-          ? await _awaitFeedFrameOrAudioPrimed(
-              pooled.player,
-              generation: generation,
+      final waitResult = fastPrimedOpen
+          ? (
+              ready: await _awaitFeedFrameOrAudioPrimed(
+                pooled.player,
+                generation: generation,
+              ),
+              earlyPaintStall: false,
             )
           : await _waitForFrameReadyWithRecovery(
               player: pooled.player,
               generation: generation,
               poolKey: poolKey,
+              enableEarlyPaintStall: true,
             );
       final openMs = _openStartedAt == null
           ? 0
           : DateTime.now().difference(_openStartedAt!).inMilliseconds;
-      if (frameReady) {
+      if (waitResult.ready) {
         ReelsPerf.emit(
           ReelsPerfEvent(
             name: 'open_complete',
@@ -2997,7 +3210,12 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
         );
         return true;
       }
-      if (_isDecodeLikelyActive(pooled.player)) {
+      // Early paint stall: decode is moving but paint is not — soft-recover now.
+      // Do not short-circuit via decode_active (that skips soft recovery and
+      // can end the switch before a real frame paints).
+      if (!waitResult.earlyPaintStall &&
+          !_needsConstrainedStartGate &&
+          _isDecodeLikelyActive(pooled.player)) {
         await _onFrameReady(pooled.player, generation: generation);
         ReelsPerf.emit(
           ReelsPerfEvent(
@@ -3016,6 +3234,18 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
         );
         return true;
       }
+      // Successful open + paint timeout = surface stall, not a bad tier.
+      // Soft-recover on the same Player (no native rebuild).
+      if (_usesFeedVisibleChannel) {
+        return _recoverPaintStallSameCandidate(
+          playbackUrl: playbackUrl,
+          generation: generation,
+          poolKey: poolKey,
+          tier: tier,
+          cacheHit: cacheHit,
+          partialCache: partialCache,
+        );
+      }
       _failedSourceUrls.add(source.url);
       _logPoster('open_fallback', detail: 'tier=$tier timeout try_next');
       ReelsPerf.emit(
@@ -3033,6 +3263,100 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
       _logPoster('open_fallback', detail: 'err=$e try_next');
       debugPrint('ReelVideoPlayer source failed (${widget.videoId}): $e');
       return false;
+    }
+  }
+
+  /// Soft-recover the feed surface on the same Player (play nudge only).
+  /// Never rebuilds native surface — that is reserved for [_recoverFromRenderDeath].
+  /// Never marks the URL failed or walks the quality ladder.
+  Future<bool> _recoverPaintStallSameCandidate({
+    required String playbackUrl,
+    required int generation,
+    required String poolKey,
+    required String tier,
+    required bool cacheHit,
+    required bool partialCache,
+  }) async {
+    if (!_tryBeginSurfaceRecovery('paint_stall', generation)) {
+      _abortQualityCascade = true;
+      return false;
+    }
+    try {
+      final action = await _pool.softRecoverFeedVisibleSurfaceForPaintStall(
+        poolKey,
+        openToken: generation,
+      );
+      _logPoster(
+        'paint_stall_soft_recovery',
+        detail: 'gen=$generation action=$action candidate=$playbackUrl',
+      );
+      if (!mounted ||
+          _isDisposed ||
+          generation != _playbackGeneration ||
+          _pool.isStaleFeedOpen(generation)) {
+        _abortQualityCascade = true;
+        return false;
+      }
+
+      _activeFeedSlotIndex = _pool.activeFeedSlotIndex;
+      _videoController = _pool.feedSlotVideoController(_activeFeedSlotIndex);
+
+      final player = _activePlayer;
+      if (player == null) {
+        _abortQualityCascade = true;
+        return false;
+      }
+
+      // Continue waiting on the same surface — no paint_stall_reopen / cold rebuild.
+      final waitResult = await _waitForFrameReadyWithRecovery(
+        player: player,
+        generation: generation,
+        poolKey: poolKey,
+      );
+      final openMs = _openStartedAt == null
+          ? 0
+          : DateTime.now().difference(_openStartedAt!).inMilliseconds;
+      // Require a real frame_ready — decode-likely-active alone previously
+      // ended the switch before paint and left black/garbled windows.
+      if (waitResult.ready) {
+        ReelsPerf.emit(
+          ReelsPerfEvent(
+            name: 'open_complete',
+            openMs: openMs,
+            tier: tier,
+            cacheHit: cacheHit || partialCache,
+            partialCache: partialCache,
+            flip: false,
+            coldOpen: _lastOpenWasCold,
+            extra: {
+              'reel': widget.videoId,
+              'paint_stall_soft_recovery': true,
+              'action': action,
+            },
+          ),
+        );
+        return true;
+      }
+
+      // One soft attempt used — stop ladder; settle/Retry owns the next try.
+      _abortQualityCascade = true;
+      ReelsPerf.emit(
+        ReelsPerfEvent(
+          name: 'open_timeout',
+          openMs: openMs,
+          tier: tier,
+          stuck: true,
+          extra: {
+            'reel': widget.videoId,
+            'paint_stall': true,
+            'fallback': false,
+            'action': action,
+          },
+        ),
+      );
+      return false;
+    } finally {
+      _endSurfaceRecovery();
     }
   }
 

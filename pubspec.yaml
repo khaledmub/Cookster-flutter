@@ -96,6 +96,9 @@ dependency_overrides:
   # Vendored fork: no Rive (avoids rive_native iOS linker failures on CI).
   awesome_dialog:
     path: packages/awesome_dialog_fork
+  # Cookster: clamp odd/even surface sizes before SetSurfaceSize (Honor ImageReader churn).
+  media_kit_video:
+    path: packages/media_kit_video
 
 
 dev_dependencies:

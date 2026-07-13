@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' show max;
 import 'dart:ui' show VoidCallback;
 
 import 'package:cookster/core/video/device_constraints.dart';
@@ -77,7 +78,8 @@ class FeedPingPongController {
   });
 
   final VoidCallback? onSlotsChanged;
-  final void Function(String key)? onBeforeSlotRecycle;
+  /// Called with the reel key and the [Player] about to be disposed.
+  final void Function(String key, Player? retiring)? onBeforeSlotRecycle;
   final VoidCallback? onSlotRecycled;
 
   /// MTK/Oppo cannot sustain two live [Video] surfaces — one decoder, one
@@ -101,6 +103,8 @@ class FeedPingPongController {
   int _activeIndex = 0;
   int _openToken = 0;
   int _prefetchToken = 0;
+  int? _lastStaleUnbindToken;
+  int? _lastStaleUnbindSlot;
   Future<void> _slotOpenChain = Future<void>.value();
 
   int get activeSlotIndex => _activeIndex;
@@ -118,6 +122,11 @@ class FeedPingPongController {
   bool isStaleOpen(int token) => token < _openToken;
 
   bool isStalePrefetch(int token) => token < _prefetchToken;
+
+  /// Bump so in-flight [presentReel]/[_openOnSlot] bail without disposing players.
+  void invalidateOpenToken() {
+    _openToken++;
+  }
 
   Future<void> ensureInitialized() async {
     await _ensureSlotPlayer(slot0);
@@ -147,8 +156,9 @@ class FeedPingPongController {
     bool fastReopen = false,
   }) async {
     await ensureInitialized();
-    _openToken = openToken;
-    _prefetchToken = openToken;
+    // Never lower the watermark — invalidateOpenToken may have raced ahead.
+    _openToken = max(_openToken, openToken);
+    _prefetchToken = max(_prefetchToken, openToken);
 
     if (singleSlotMode) {
       _activeIndex = 0;
@@ -559,19 +569,69 @@ class FeedPingPongController {
       }
       final honorActiveOpen = identical(slot, _active) &&
           DeviceConstraints.instance.needsConstrainedSurfaceRecovery;
-      // Network-only deferred decode on Honor — cached file:// opens with play:true
-      // so first frame arrives sooner (no extra startMutedFeedDecode round-trip).
+      // Network-only deferred decode on Honor — cached file:// opens play after
+      // the post-open token check so abandoned opens never start demux/AudioTrack.
       final honorDeferredDecode =
           honorActiveOpen && !_isLocalPlaybackUrl(sourceUrl);
       try {
+        // Always open paused; start play only after token re-check passes.
+        // Stabilize *after* play — dims often stay null while paused, and the
+        // old wait blocked the open chain for ~2s on every abandoned open.
         await player.open(
           Media(sourceUrl),
-          play: !honorDeferredDecode,
+          play: false,
         );
-        await stabilizeMpvSurfaceDimensions(player);
         await player.setVolume(0);
+        if (openToken != null && _openToken > openToken) {
+          await _unbindStaleOpen(
+            slot: slot,
+            key: key,
+            openToken: openToken,
+            reason: 'stale_after_open',
+          );
+          return false;
+        }
         if (honorDeferredDecode) {
           await startMutedFeedDecode();
+        } else {
+          try {
+            await player.play();
+          } catch (_) {}
+        }
+        if (openToken != null && _openToken > openToken) {
+          await _unbindStaleOpen(
+            slot: slot,
+            key: key,
+            openToken: openToken,
+            reason: 'stale_after_open',
+          );
+          return false;
+        }
+        final stabilizeMs = fastScroll
+            ? 80
+            : (honorActiveOpen ? 320 : 160);
+        final stabilizeAction = await stabilizeMpvSurfaceDimensions(
+          player,
+          maxWaitMs: stabilizeMs,
+          shouldAbort: openToken == null
+              ? null
+              : () => _openToken > openToken,
+        );
+        if (stabilizeAction != MpvStabilizeAction.none) {
+          // Post-hoc mpv crop only; native gate logs dimension_parity_benign_skip.
+          ReelsPerf.log(
+            'dimension_parity_mpv_crop key=$key '
+            'stabilize=${stabilizeAction.name}',
+          );
+        }
+        if (openToken != null && _openToken > openToken) {
+          await _unbindStaleOpen(
+            slot: slot,
+            key: key,
+            openToken: openToken,
+            reason: 'stale_after_stabilize',
+          );
+          return false;
         }
         slot.boundKey = key;
         slot.boundUrl = sourceUrl;
@@ -660,6 +720,43 @@ class FeedPingPongController {
     } catch (_) {}
   }
 
+  Future<void> _stopSlotPlaybackIdle(FeedDecodeSlot slot) async {
+    final player = slot.player;
+    if (player == null) {
+      return;
+    }
+    try {
+      await player.setVolume(0);
+    } catch (_) {}
+    try {
+      if (player.state.playing) {
+        await player.pause();
+      }
+    } catch (_) {}
+  }
+
+  /// Stop decode and clear binding for an abandoned open. Never disposes Player.
+  /// Idempotent: a second call for the same token+slot skips duplicate logging.
+  Future<void> _unbindStaleOpen({
+    required FeedDecodeSlot slot,
+    required String key,
+    required int openToken,
+    String reason = 'stale_after_open',
+  }) async {
+    await _stopSlotPlaybackIdle(slot);
+    slot.resetBinding();
+    if (_lastStaleUnbindToken == openToken &&
+        _lastStaleUnbindSlot == slot.index) {
+      return;
+    }
+    _lastStaleUnbindToken = openToken;
+    _lastStaleUnbindSlot = slot.index;
+    ReelsPerf.log(
+      'stale_open_unbound reel=$key gen=$openToken slot=${slot.index} '
+      'reason=$reason',
+    );
+  }
+
   Future<void> _disableSlotAudio(FeedDecodeSlot slot) async {
     final player = slot.player;
     if (player == null) {
@@ -707,14 +804,30 @@ class FeedPingPongController {
 
   Future<void> _recycleSlotNow(FeedDecodeSlot slot) async {
     final retiringKey = slot.boundKey;
-    if (retiringKey != null && retiringKey.isNotEmpty) {
-      onBeforeSlotRecycle?.call(retiringKey);
-    }
     final retiring = slot.player;
+    if (retiringKey != null && retiringKey.isNotEmpty) {
+      onBeforeSlotRecycle?.call(retiringKey, retiring);
+    }
     await _disableSlotAudio(slot);
+    // Stop the retiring player synchronously before the new VideoController
+    // attaches a surface — otherwise deferred dispose races in-flight
+    // dequeueBuffer on the old BufferQueue (Adreno "abandoned" errors).
+    if (retiring != null) {
+      try {
+        if (retiring.state.playing) {
+          await retiring.pause();
+        }
+      } catch (_) {}
+      try {
+        await retiring.stop();
+      } catch (_) {}
+    }
     final player = Player(
       configuration: const PlayerConfiguration(muted: true),
     );
+    try {
+      await player.setVolume(0);
+    } catch (_) {}
     slot.player = player;
     slot.videoController = createReelVideoController(player);
     slot.openCount = 0;

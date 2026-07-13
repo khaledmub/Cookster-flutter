@@ -765,6 +765,56 @@ class MediaKitPlayerPool {
     });
   }
 
+  /// Soft recovery for pre-unmask paint stalls.
+  ///
+  /// Always `play_only` — never calls [recycleActiveDecoderIfStale]. Mid-stall
+  /// threshold recycle rebuilds Player/VideoOutput (same cost as hard recycle)
+  /// and caused ~8s cold opens, black gaps, and garbled first frames.
+  Future<String> softRecoverFeedVisibleSurfaceForPaintStall(
+    String key, {
+    required int openToken,
+  }) {
+    return _runPriority(() async {
+      if (key.isEmpty ||
+          _feedVisibleKey != key ||
+          isStaleFeedOpen(openToken)) {
+        return 'play_only';
+      }
+      if (!_feedPingPongConfigured) {
+        await ensureFeedPingPongInitialized();
+      }
+      await DeviceConstraints.instance.ensureInitialized();
+      final primedScrollBack = isFrameReady(key) ||
+          hadRecentPaint(key) ||
+          isBufferPrimed(key);
+      final player = _pingPong.activePlayer;
+      if (player != null) {
+        try {
+          await player.setVolume(0);
+        } catch (_) {}
+        try {
+          if (!player.state.playing) {
+            await player.play();
+          }
+        } catch (_) {}
+      }
+      const action = 'play_only';
+      ReelsPerf.emit(
+        ReelsPerfEvent(
+          name: 'surface_recovery',
+          feedMode: _pingPong.singleSlotMode ? 'single_slot' : 'dual_slot',
+          extra: {
+            'key': key,
+            'paint_stall_soft': true,
+            'action': action,
+            'primed': primedScrollBack,
+          },
+        ),
+      );
+      return action;
+    });
+  }
+
   Future<void> _recoverFeedVisibleSurfaceLocked(
     String key, {
     required bool bumpSurface,
@@ -780,16 +830,17 @@ class MediaKitPlayerPool {
     // Rendered 0/s + VideoOutput deleteGlobalObjectRef when we force-recycle
     // while the Flutter [Video] widget is still mounted (tab return, etc.).
     if (DeviceConstraints.instance.needsConstrainedSurfaceRecovery) {
+      // Soft only — never tear down ImageReader/Player mid-recovery.
       final player = _pingPong.activePlayer;
       if (player != null) {
+        try {
+          await player.setVolume(0);
+        } catch (_) {}
         try {
           if (!player.state.playing) {
             await player.play();
           }
         } catch (_) {}
-      }
-      if (!primedScrollBack) {
-        await _pingPong.recycleActiveDecoderIfStale();
       }
       ReelsPerf.emit(
         ReelsPerfEvent(

@@ -111,6 +111,11 @@ class ReelRenderTelemetry {
     if (!isSupported || playerHandle == 0) {
       return;
     }
+    // No-op if never registered or already unregistered — avoids emitting a
+    // native stall signature into Dart for a watch that is no longer live.
+    if (!_watchesByHandle.containsKey(playerHandle)) {
+      return;
+    }
     try {
       await _control.invokeMethod<void>('notifySurfaceCleanup', {
         'playerHandle': playerHandle,
