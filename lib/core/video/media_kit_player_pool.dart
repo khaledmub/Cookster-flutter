@@ -145,20 +145,30 @@ class MediaKitPlayerPool {
         onSlotsChanged: () {
           feedActiveSlotIndexNotifier.value = _pingPong.activeSlotIndex;
         },
-        onBeforeSlotRecycle: (key) {
+        onBeforeSlotRecycle: (key, retiring) {
           _clearFrameReady(key);
-          if (key.isNotEmpty) {
-            final mapped = _players[key];
-            if (mapped != null &&
-                !identical(mapped, _pingPong.slot0.player) &&
-                !identical(mapped, _pingPong.slot1.player)) {
-              _players.remove(key);
-            }
+          // Drop every map entry pointing at the player about to dispose —
+          // otherwise silenceAllSync hits "[Player] has been disposed".
+          if (retiring != null) {
+            _players.removeWhere((_, p) => identical(p, retiring));
+          } else if (key.isNotEmpty) {
+            _players.remove(key);
+          }
+          if (_feedVisibleKey == key) {
+            _feedVisibleKey = null;
           }
           _notifyFeedSlotAwaitingRecycle();
         },
         onSlotRecycled: () {
           feedActiveSlotIndexNotifier.value = _pingPong.activeSlotIndex;
+          // Do NOT remap _feedVisibleKey onto the fresh empty Player — that
+          // makes isFeedVisibleKey() lie and skips reopen → stuck poster.
+          final vk = _feedVisibleKey;
+          if (vk != null && vk.isNotEmpty) {
+            _players.remove(vk);
+            _clearFrameReady(vk);
+            _feedVisibleKey = null;
+          }
           _notifyFeedSlotRecycled();
         },
       );
@@ -200,10 +210,26 @@ class MediaKitPlayerPool {
     _feedUnmuteEnabled = enabled;
   }
 
-  bool _isStaleFeedOpen(int openToken) => openToken < _feedOpenToken;
+  bool isStaleFeedOpen(int openToken) => openToken < _feedOpenToken;
+
+  /// Monotonic feed-open watermark — widget gens must stay ≥ this after remount.
+  int get feedOpenToken => _feedOpenToken;
+
+  /// Bump the feed open token so in-flight [openVisibleReel]/presentReel] abort.
+  /// Used on page swipe cancel — does not dispose players or clear bindings.
+  void invalidateFeedOpenToken() {
+    _feedOpenToken++;
+    if (_feedPingPongConfigured) {
+      _pingPong.invalidateOpenToken();
+    }
+  }
 
   /// Chains only priority (visible / active) operations.
   Future<void> _priorityChain = Future<void>.value();
+
+  /// True while a [pauseAllImmediate] silence job is already on the priority lane.
+  /// Rapid onPageChanged must not pile silence ahead of the settle open.
+  bool _pauseSilenceQueued = false;
 
   /// Chains background warm-ups; never awaited by [acquire].
   Future<void> _warmChain = Future<void>.value();
@@ -571,41 +597,32 @@ class MediaKitPlayerPool {
         _unmapFeedVisibleKey(previousKey);
       }
       _feedOpenToken++;
+      if (_feedPingPongConfigured) {
+        _pingPong.invalidateOpenToken();
+      }
     });
   }
 
   /// Feed-only: ping-pong present — flip if prefetched, else open on active slot.
   /// [openToken] must be the widget's [_playbackGeneration]; stale calls are ignored.
   /// [preserveFrameReady] — quality-tier swaps while the poster is already down.
-  Future<PooledMediaKitPlayer> openVisibleReel({
+  Future<PooledMediaKitPlayer?> openVisibleReel({
     required String key,
     required String sourceUrl,
     required int openToken,
     bool preserveFrameReady = false,
   }) {
-    return _runPriority(() async {
+    if (openToken > _feedOpenToken) {
       _feedOpenToken = openToken;
+    }
+    return _runPriority(() async {
+      if (isStaleFeedOpen(openToken)) {
+        return null;
+      }
+
       await _disposeIdleWarmExcept(key);
 
       final previousKey = _feedVisibleKey;
-      if (previousKey != null &&
-          previousKey != key &&
-          previousKey.isNotEmpty) {
-        _unmapFeedVisibleKey(previousKey);
-      }
-
-      if (_isStaleFeedOpen(openToken)) {
-        final player = _pingPong.activePlayer;
-        if (player == null) {
-          throw StateError('Feed ping-pong player missing for stale open');
-        }
-        return PooledMediaKitPlayer(
-          key: _feedVisibleKey ?? key,
-          player: player,
-          feedActiveSlotIndex: _pingPong.activeSlotIndex,
-        );
-      }
-
       final suspendEpoch = _suspendEpoch;
       FeedPresentResult? result;
       final fastReopen = hadRecentPaint(key, sourceUrl: sourceUrl) ||
@@ -624,16 +641,16 @@ class MediaKitPlayerPool {
         rethrow;
       }
 
-      if (result == null || _isStaleFeedOpen(openToken)) {
-        final player = _pingPong.activePlayer;
-        if (player == null) {
-          throw StateError('Feed ping-pong player missing after stale present');
-        }
-        return PooledMediaKitPlayer(
-          key: _feedVisibleKey ?? key,
-          player: player,
-          feedActiveSlotIndex: _pingPong.activeSlotIndex,
-        );
+      if (result == null || isStaleFeedOpen(openToken)) {
+        return null;
+      }
+
+      // Unmap previous only after a successful present — avoids a gap where
+      // stale/null leaves the pool with no visible key during fast scroll.
+      if (previousKey != null &&
+          previousKey != key &&
+          previousKey.isNotEmpty) {
+        _unmapFeedVisibleKey(previousKey);
       }
 
       _feedVisibleKey = key;
@@ -725,14 +742,14 @@ class MediaKitPlayerPool {
     required int openToken,
   }) {
     return _runPriority(() async {
-      if (key.isEmpty || _feedVisibleKey != key || _isStaleFeedOpen(openToken)) {
+      if (key.isEmpty || _feedVisibleKey != key || isStaleFeedOpen(openToken)) {
         return;
       }
       if (!_feedPingPongConfigured) {
         await ensureFeedPingPongInitialized();
       }
       await _recoverFeedVisibleSurfaceLocked(key, bumpSurface: true);
-      if (_isStaleFeedOpen(openToken)) {
+      if (isStaleFeedOpen(openToken)) {
         return;
       }
       if (!DeviceConstraints.instance.needsConstrainedSurfaceRecovery) {
@@ -1079,28 +1096,21 @@ class MediaKitPlayerPool {
     } else {
       _activeKey = exceptKey;
     }
-    for (final entry in _players.entries) {
+    for (final entry in List<MapEntry<String, Player>>.from(_players.entries)) {
       if (exceptKey != null &&
           exceptKey.isNotEmpty &&
           entry.key == exceptKey) {
         continue;
       }
       final player = entry.value;
-      if (_isFeedPingPongPlayer(player) &&
-          exceptKey != null &&
-          exceptKey.isNotEmpty &&
-          entry.key == exceptKey) {
-        continue;
-      }
       if (_isFeedPingPongPlayer(player)) {
         continue;
       }
-      try {
-        unawaited(player.setVolume(0));
-        if (player.state.playing) {
-          unawaited(player.pause());
-        }
-      } on Object catch (_) {}
+      if (_isPlayerDisposed(player)) {
+        _players.remove(entry.key);
+        continue;
+      }
+      _safeMutePlayer(player);
     }
     if (exceptKey == null || exceptKey.isEmpty) {
       unawaited(_pingPong.silenceAllSlots());
@@ -1111,26 +1121,62 @@ class MediaKitPlayerPool {
     }
   }
 
+  /// media_kit asserts async on disposed players — never leave that as a zone error.
+  bool _isPlayerDisposed(Player player) {
+    try {
+      final platform = player.platform;
+      if (platform == null) {
+        return true;
+      }
+      return (platform as dynamic).disposed == true;
+    } on Object catch (_) {
+      return true;
+    }
+  }
+
+  void _safeMutePlayer(Player player) {
+    if (_isPlayerDisposed(player)) {
+      return;
+    }
+    try {
+      unawaited(player.setVolume(0).catchError((_) {}));
+    } on Object catch (_) {}
+    try {
+      if (!_isPlayerDisposed(player) && player.state.playing) {
+        unawaited(player.pause().catchError((_) {}));
+      }
+    } on Object catch (_) {}
+  }
+
   /// Mutes off-screen slots on swipe. When [exceptKey] is set, that slot is left
   /// alone so it can rewind/play without an extra pause→flush→stop cycle.
   void pauseAllImmediate({String? exceptKey}) {
     _suspendPlayback();
     silenceAllSync(exceptKey: exceptKey);
-    if (exceptKey != null && exceptKey.isNotEmpty) {
-      unawaited(_runPriority(() => _silenceOthersLocked(exceptKey)));
-    } else {
-      unawaited(_runPriority(_silenceAllLocked));
+    // Sync mute already applied; coalesce duplicate priority silences during fling.
+    if (_pauseSilenceQueued) {
+      return;
     }
+    _pauseSilenceQueued = true;
+    final capturedExcept = exceptKey;
+    unawaited(_runPriority(() async {
+      try {
+        if (capturedExcept != null && capturedExcept.isNotEmpty) {
+          await _silenceOthersLocked(capturedExcept);
+        } else {
+          await _silenceAllLocked();
+        }
+      } finally {
+        _pauseSilenceQueued = false;
+      }
+    }));
   }
 
   /// Awaitable full pause (tab leave, route overlay, app background).
   Future<void> pauseAllAwait({String? exceptKey}) async {
     pauseAllImmediate(exceptKey: exceptKey);
-    if (exceptKey != null && exceptKey.isNotEmpty) {
-      await _runPriority(() => _silenceOthersLocked(exceptKey));
-    } else {
-      await _runPriority(_silenceAllLocked);
-    }
+    // Drain priority so the coalesced silence (if any) has completed.
+    await _runPriority(() async {});
   }
 
   Future<void> _silenceAllLocked() async {
@@ -1140,11 +1186,15 @@ class MediaKitPlayerPool {
       if (player == null || _isFeedPingPongPlayer(player)) {
         continue;
       }
+      if (_isPlayerDisposed(player)) {
+        _players.remove(entry.key);
+        continue;
+      }
       try {
         if (player.state.playing) {
           await player.pause();
         }
-        if (_players[entry.key] == player) {
+        if (_players[entry.key] == player && !_isPlayerDisposed(player)) {
           await player.setVolume(0);
         }
       } catch (_) {}
@@ -1163,6 +1213,10 @@ class MediaKitPlayerPool {
       if (player == null || _isFeedPingPongPlayer(player)) {
         continue;
       }
+      if (_isPlayerDisposed(player)) {
+        _players.remove(entry.key);
+        continue;
+      }
       try {
         if (player.state.playing) {
           await player.pause();
@@ -1171,7 +1225,7 @@ class MediaKitPlayerPool {
         // rewind happens lazily via _quickStartLocked when the player
         // becomes visible again. Removing the eager seek saves ~30ms
         // per silenced player per swipe.
-        if (_players[entry.key] == player) {
+        if (_players[entry.key] == player && !_isPlayerDisposed(player)) {
           await player.setVolume(0);
         }
       } catch (_) {}
@@ -1215,7 +1269,7 @@ class MediaKitPlayerPool {
     required int suspendEpoch,
     int? openToken,
   }) async {
-    if (openToken != null && _isStaleFeedOpen(openToken)) {
+    if (openToken != null && isStaleFeedOpen(openToken)) {
       return;
     }
     // Only block feed ping-pong players competing for a different feed slot.
@@ -1274,7 +1328,7 @@ class MediaKitPlayerPool {
     required int suspendEpoch,
     int? openToken,
   }) async {
-    if (openToken != null && _isStaleFeedOpen(openToken)) {
+    if (openToken != null && isStaleFeedOpen(openToken)) {
       return false;
     }
     // Only block feed ping-pong players competing for a different feed slot.

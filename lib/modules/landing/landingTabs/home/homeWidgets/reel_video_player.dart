@@ -119,6 +119,18 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
   bool _showRetry = false;
   bool _isDisposed = false;
   bool _isInitializing = false;
+  /// Set when a switch/load is requested while [_isInitializing] — drained in finally.
+  bool _pendingSwitchAfterInit = false;
+  /// Pool key the in-flight [_loadVideo]/[_switchVideo] is targeting.
+  String? _initializingForKey;
+  /// Last key a switch/load was started for (survives past [_isInitializing]).
+  String? _lastSwitchTargetKey;
+  /// Epoch ms of the last switch/load start — same-key cooldown for rebuild noise.
+  int _lastSwitchAttemptMs = 0;
+  static const int _sameKeyRetryCooldownMs = 400;
+  /// Temporary storm diagnostics.
+  int _switchCallCount = 0;
+  int? _lastSwitchDiagAtMs;
   bool _completionNotified = false;
   bool _userPaused = false;
   bool _showPlayPauseIcon = false;
@@ -201,15 +213,95 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
     unawaited(_loadVideo());
   }
 
+  /// True when a switch/load is in-flight, pending, or within cooldown for [key].
+  bool _isTargetingOrCoolingKey(String key) {
+    if (key.isEmpty) {
+      return false;
+    }
+    if (_isInitializing && _initializingForKey == key) {
+      return true;
+    }
+    if (_pendingSwitchAfterInit &&
+        (_initializingForKey == key || _lastSwitchTargetKey == key)) {
+      return true;
+    }
+    if (_lastSwitchTargetKey == key) {
+      final now = DateTime.now().millisecondsSinceEpoch;
+      if (now - _lastSwitchAttemptMs < _sameKeyRetryCooldownMs) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  void _logSwitchDiag(
+    String event, {
+    required String reason,
+    String? key,
+    int? generation,
+    int? elapsedMs,
+    String? bail,
+  }) {
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final delta = _lastSwitchDiagAtMs == null ? 0 : now - _lastSwitchDiagAtMs!;
+    _lastSwitchDiagAtMs = now;
+    debugPrint(
+      '[ReelsPoster] $event reel=${widget.videoId} '
+      'reason=$reason call=#$_switchCallCount deltaMs=$delta '
+      'init=$_isInitializing initKey=$_initializingForKey '
+      'pending=$_pendingSwitchAfterInit lastTarget=$_lastSwitchTargetKey '
+      'pooled=$_pooledKey poolKey=${key ?? _poolKey} '
+      'gen=${generation ?? _playbackGeneration} '
+      '${elapsedMs != null ? 'elapsedMs=$elapsedMs ' : ''}'
+      '${bail != null ? 'bail=$bail ' : ''}'
+      'visibleKey=${_pool.feedVisibleKey}',
+    );
+  }
+
+  /// Force-open the current widget reel when the pool visible key drifted (fast scroll).
+  Future<void> ensureVisibleOpen() async {
+    if (_isDisposed || !_usesFeedVisibleChannel || !mounted) {
+      return;
+    }
+    final key = _poolKey;
+    if (key.isEmpty) {
+      return;
+    }
+    // Already opening this reel — do not queue a restart.
+    if (_isInitializing && _initializingForKey == key) {
+      return;
+    }
+    if (_pool.isFeedVisibleKey(key) &&
+        _pooledKey == key &&
+        (_frameReady || _pool.isFrameReady(key))) {
+      return;
+    }
+    if (_isInitializing) {
+      _pendingSwitchAfterInit = true;
+      return;
+    }
+    // Explicit settle may retry after a stale bail (bypasses rebuild cooldown).
+    if (_pooledKey == null) {
+      await _loadVideo(reason: 'ensureVisible');
+    } else {
+      await _switchVideo(reason: 'ensureVisible');
+    }
+  }
+
   /// Re-open feed playback after a route overlay silenced the pool (visit profile, etc.).
   Future<void> resumeAfterRouteOverlay() async {
     if (_isDisposed || !_usesFeedVisibleChannel || !mounted) {
       return;
     }
+    final key = _poolKey;
     if (_isInitializing) {
+      // Same target already opening — let it finish.
+      if (key.isNotEmpty && _initializingForKey == key) {
+        return;
+      }
+      _pendingSwitchAfterInit = true;
       return;
     }
-    final key = _poolKey;
     await _pool.ensureFeedPingPongInitialized();
     if (key.isNotEmpty &&
         _pooledKey == key &&
@@ -218,6 +310,7 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
       return;
     }
     // Pool was torn down (profile reels) — discard stale attach state and reopen.
+    _syncPlaybackGenerationWithPool();
     _playbackGeneration++;
     _revealGeneration++;
     _attachGeneration = _playbackGeneration;
@@ -349,6 +442,24 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
     setState(() {});
   }
 
+  /// Keep widget [_playbackGeneration] ahead of the singleton pool watermark.
+  /// Remount (photo→video) resets local gen to 0 while [_feedOpenToken] stays
+  /// high — without sync every open is instantly stale (bail=no_attach).
+  void _syncPlaybackGenerationWithPool() {
+    if (!_usesFeedVisibleChannel) {
+      return;
+    }
+    final poolToken = _pool.feedOpenToken;
+    if (_playbackGeneration < poolToken) {
+      _playbackGeneration = poolToken;
+    }
+  }
+
+  int _nextPlaybackGeneration() {
+    _syncPlaybackGenerationWithPool();
+    return ++_playbackGeneration;
+  }
+
   /// Cancel in-flight reveal/unmask when the user swipes to another reel.
   void cancelInFlightPlaybackForPageChange() {
     if (_isDisposed || !_usesFeedVisibleChannel) {
@@ -358,8 +469,11 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
     // bumps the epoch twice and aborts the unmute that should follow unmask.
     _stopRenderDeathWatchdog();
     _feedPosterUnmaskedAtMs = 0;
+    _syncPlaybackGenerationWithPool();
     _playbackGeneration++;
     _revealGeneration++;
+    // Invalidate in-flight pool presents so they abort before mapping the wrong key.
+    _pool.invalidateFeedOpenToken();
     _videoSurfaceVisible = false;
     _frameReady = false;
     _surfacePaintFrames = 0;
@@ -434,13 +548,25 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
   void didUpdateWidget(covariant ReelVideoPlayer oldWidget) {
     super.didUpdateWidget(oldWidget);
     final id = widget.videoId?.trim() ?? '';
+    final targetKey = _poolKey;
+    // Same reel: ignore URL/cache/tier settle AND "targeting but not attached"
+    // rebuild noise — that loop caused N switch_cold with no open_done.
     if (id.isNotEmpty &&
         id == oldWidget.videoId &&
-        _usesFeedVisibleChannel &&
-        _pool.isFeedVisibleKey(id) &&
-        (_pool.canInstantResume(id) ||
-            _pool.isFrameReady(id) ||
-            _pool.isBufferPrimed(id))) {
+        _usesFeedVisibleChannel) {
+      if (_pooledKey == id ||
+          _pool.isFeedVisibleKey(id) ||
+          _isTargetingOrCoolingKey(id) ||
+          _pool.canInstantResume(id) ||
+          _pool.isFrameReady(id) ||
+          _pool.isBufferPrimed(id)) {
+        return;
+      }
+    }
+    if (_usesFeedVisibleChannel &&
+        targetKey.isNotEmpty &&
+        _isTargetingOrCoolingKey(targetKey) &&
+        (id.isEmpty || id == oldWidget.videoId)) {
       return;
     }
     final videoChanged = widget.videoId != oldWidget.videoId ||
@@ -448,7 +574,7 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
         widget.hlsUrl != oldWidget.hlsUrl ||
         widget.playerPoolKey != oldWidget.playerPoolKey;
     if (videoChanged || _pooledKey != _poolKey) {
-      // URL/tier settle while open is in flight must not restart decode (double switch_cold).
+      // URL/tier settle while open is in flight must not restart decode.
       if (_isInitializing &&
           widget.videoId != null &&
           widget.videoId!.isNotEmpty &&
@@ -457,12 +583,11 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
       }
       _revealGeneration++;
       _failedSourceUrls.clear();
+      // Hide surface flags without setState — a rebuild here re-enters this
+      // method for the same unattached key and storms switch_cold.
       _videoSurfaceVisible = false;
       _frameReady = false;
-      if (mounted) {
-        setState(() {});
-      }
-      unawaited(_switchVideo());
+      unawaited(_switchVideo(reason: 'didUpdate'));
     }
   }
 
@@ -601,6 +726,14 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
     if (prevW == nextW && prevH == nextH) {
       return true;
     }
+    // Odd container heights (721) → even crop (720) must not restart reveal.
+    final evenPrevW = prevW.isOdd ? prevW - 1 : prevW;
+    final evenPrevH = prevH.isOdd ? prevH - 1 : prevH;
+    final evenNextW = nextW.isOdd ? nextW - 1 : nextW;
+    final evenNextH = nextH.isOdd ? nextH - 1 : nextH;
+    if (evenPrevW == evenNextW && evenPrevH == evenNextH) {
+      return true;
+    }
     final dw = (nextW - prevW).abs();
     final dh = (nextH - prevH).abs();
     if (dw == 0 && dh > 0 && dh <= 32) {
@@ -619,7 +752,7 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
     Player player, {
     required int generation,
     required int revealGen,
-    int stableMs = 200,
+    int stableMs = 64,
   }) async {
     if (!_needsConstrainedStartGate) {
       return true;
@@ -627,7 +760,8 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
     int? lastW = player.state.width;
     int? lastH = player.state.height;
     var settledSince = DateTime.now();
-    final deadline = DateTime.now().add(const Duration(milliseconds: 2400));
+    // Cap hard — odd↔even stride flicker must not add ~2s before unmask.
+    final deadline = DateTime.now().add(const Duration(milliseconds: 480));
     while (DateTime.now().isBefore(deadline)) {
       if (!_isCurrentAttach(generation) ||
           revealGen != _revealGeneration ||
@@ -635,7 +769,7 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
           _isDisposed) {
         return false;
       }
-      await Future<void>.delayed(const Duration(milliseconds: 24));
+      await Future<void>.delayed(const Duration(milliseconds: 16));
       final w = player.state.width;
       final h = player.state.height;
       if (w == null || h == null || w <= 0 || h <= 0) {
@@ -647,6 +781,14 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
       if (w == lastW && h == lastH) {
         if (DateTime.now().difference(settledSince).inMilliseconds >=
             stableMs) {
+          return true;
+        }
+      } else if (_isBenignCodecDimensionChange(lastW, lastH, w, h)) {
+        // Stride/odd-height tweaks (721↔720) — keep clock running.
+        lastW = w;
+        lastH = h;
+        if (DateTime.now().difference(settledSince).inMilliseconds >=
+            (stableMs ~/ 2).clamp(24, stableMs)) {
           return true;
         }
       } else {
@@ -1044,7 +1186,8 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
     if (!_needsConstrainedStartGate) {
       return 2;
     }
-    return _isWarmUnmaskPath() ? 2 : 4;
+    // Cold network opens used to wait 4 frames (~200ms+) after long flings.
+    return _isWarmUnmaskPath() ? 2 : 3;
   }
 
   /// Mount [Video] and wait for native ImageReader before [Player.open] on Honor.
@@ -1238,7 +1381,7 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
               _scrollBackCacheEligible(_pooledKey) ||
               _fastFeedReveal)
           ? 0
-          : 120;
+          : 48;
       if (gateMs > 0) {
         await Future<void>.delayed(Duration(milliseconds: gateMs));
       }
@@ -1249,7 +1392,7 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
         _logPoster('surface_reveal_aborted', detail: 'stale_after_delay');
         return;
       }
-      final frameWaits = warm ? 1 : 3;
+      final frameWaits = warm ? 1 : 2;
       for (var i = 0; i < frameWaits; i++) {
         await WidgetsBinding.instance.endOfFrame;
         if (!_isCurrentAttach(generation) ||
@@ -1263,7 +1406,7 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
       var polled = 0;
       final pollLimitMs = (_fastFeedReveal || _scrollBackCacheEligible(_pooledKey))
           ? 1200
-          : (warm ? 1600 : 2800);
+          : (warm ? 1200 : 2000);
       while (polled < pollLimitMs) {
         if (!_isCurrentAttach(generation) ||
             revealGen != _revealGeneration ||
@@ -1368,7 +1511,7 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
     final requiredFrames = _requiredOpaquePaintFrames();
     final wallStartMs = DateTime.now().millisecondsSinceEpoch;
     final minWallMs = _needsConstrainedStartGate
-        ? (_isWarmUnmaskPath() ? 32 : 120)
+        ? (_isWarmUnmaskPath() ? 24 : 64)
         : 0;
     final startPosMs = player.state.position.inMilliseconds;
 
@@ -1667,7 +1810,7 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
     }
     _renderDeathRecoveryInFlight = true;
     _stopRenderDeathWatchdog();
-    final generation = ++_playbackGeneration;
+    final generation = _nextPlaybackGeneration();
     _logPoster('render_death_recovery', detail: 'key=$key gen=$generation');
     try {
       // Render death on Honor is a surface/dimension failure, not a decode-
@@ -1705,7 +1848,7 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
         sourceUrl: sourceUrl,
         openToken: generation,
       );
-      if (!_isCurrentAttach(generation) || !mounted || _isDisposed) {
+      if (pooled == null || !_isCurrentAttach(generation) || !mounted || _isDisposed) {
         return;
       }
       _activeFeedSlotIndex =
@@ -1940,7 +2083,7 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
         openToken: generation,
         preserveFrameReady: posterAlreadyDown,
       );
-      if (!_isCurrentAttach(generation) || !mounted || _isDisposed) {
+      if (pooled == null || !_isCurrentAttach(generation) || !mounted || _isDisposed) {
         return;
       }
       _activeFeedSlotIndex = pooled.feedActiveSlotIndex ?? _pool.activeFeedSlotIndex;
@@ -2454,10 +2597,9 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
     final raw = _resolvedCandidates();
     await DeviceConstraints.instance.ensureInitialized();
 
-    // Align open tier with prefetch: Wi-Fi always tries 720 first (ready cache
-    // wins), then upgrades to cached 1080 after first frame on capable devices.
-    // Opening uncached 1080 while prefetch warmed 720 caused slow/inconsistent
-    // starts. Mobile stays 360-first for TTFB, then upgrades to cached 720.
+    // Align open tier with prefetch: Wi-Fi prefers cached HD then 720-first.
+    // Do NOT force this ladder on every network for Honor — skipping a warm
+    // cached 360 for an uncached 720 caused 2–4s dead starts on fast scroll.
     if (network == NetworkClass.wifi) {
       return _wifiQualityConstrainedOrder(raw, cache);
     }
@@ -2501,6 +2643,8 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
     // Probe all tiers in parallel instead of sequential await — saves 50-150ms
     // on cache miss where each probe was doing independent disk I/O.
     final constrained = DeviceConstraints.instance.needsConstrainedSurfaceRecovery;
+    // Cached anything wins for TTFB (360 included). Uncached ladder stays
+    // 720-first so we don't open half-res when nothing is warm yet.
     final candidates = <VideoSourceCandidate?>[
       if (!constrained) pick1080,
       pick720,
@@ -2552,9 +2696,9 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
       await _pool.startMutedFeedDecode();
     }
     var waited = 0;
-    // Qualcomm/Pixel produces a frame within 1.2s; constrained devices need the
-    // full 2s window for cold network opens.
-    final ceilingMs = _needsConstrainedStartGate ? 2000 : 1200;
+    // Qualcomm/Pixel produces a frame within 1s; constrained devices need
+    // a slightly larger window for cold network opens but not 2s.
+    final ceilingMs = _needsConstrainedStartGate ? 1600 : 1000;
     while (waited < ceilingMs &&
         mounted &&
         !_isDisposed &&
@@ -2579,13 +2723,24 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
     }
   }
 
-  Future<void> _loadVideo() async {
-    if (_isDisposed || _isInitializing) {
+  Future<void> _loadVideo({String reason = 'load'}) async {
+    if (_isDisposed) {
       return;
     }
-    final generation = ++_playbackGeneration;
+    if (_isInitializing) {
+      _pendingSwitchAfterInit = true;
+      return;
+    }
+    final generation = _nextPlaybackGeneration();
     _isInitializing = true;
     final poolKey = _poolKey;
+    _initializingForKey = poolKey;
+    _lastSwitchTargetKey = poolKey;
+    _lastSwitchAttemptMs = DateTime.now().millisecondsSinceEpoch;
+    _switchCallCount++;
+    _logSwitchDiag('switch_enter', reason: reason, key: poolKey, generation: generation);
+    final startedAt = _lastSwitchAttemptMs;
+    var bail = 'ok';
     if (_usesFeedVisibleChannel) {
       _prepareSwitchUiState(poolKey);
     } else {
@@ -2593,6 +2748,7 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
     }
     try {
       if (poolKey.isEmpty) {
+        bail = 'empty_key';
         return;
       }
       if (_usesFeedVisibleChannel) {
@@ -2618,10 +2774,12 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
               afterFlip: _pool.isFrameReady(poolKey),
             );
             if (!mounted || _isDisposed || generation != _playbackGeneration) {
+              bail = 'gen_mismatch';
               return;
             }
             if (_pool.isFrameReady(poolKey) && _canShowVideo(player)) {
               await _onFrameReady(player, generation: generation);
+              bail = 'instant_resume';
               return;
             }
           }
@@ -2637,8 +2795,26 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
           }
         },
       );
+      if (generation != _playbackGeneration) {
+        bail = 'stale_gen';
+      } else if (_pooledKey != poolKey) {
+        bail = 'no_attach';
+      } else {
+        bail = 'opened';
+      }
     } finally {
+      final attempted = _initializingForKey ?? _lastSwitchTargetKey;
       _isInitializing = false;
+      _initializingForKey = null;
+      _logSwitchDiag(
+        'switch_exit',
+        reason: reason,
+        key: poolKey,
+        generation: generation,
+        elapsedMs: DateTime.now().millisecondsSinceEpoch - startedAt,
+        bail: bail,
+      );
+      _drainPendingSwitchAfterInit(attemptedKey: attempted);
     }
   }
 
@@ -2673,7 +2849,8 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
       if (_failedSourceUrls.contains(source.url)) {
         continue;
       }
-      if (!mounted || _isDisposed || generation != _playbackGeneration) {
+      if (!mounted || _isDisposed || generation != _playbackGeneration ||
+          (_usesFeedVisibleChannel && _pool.isStaleFeedOpen(generation))) {
         return;
       }
       final opened = await _tryOpenCandidate(
@@ -2687,7 +2864,8 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
         return;
       }
     }
-    if (_isCurrentAttach(generation) && mounted && !_isDisposed) {
+    if (_isCurrentAttach(generation) && mounted && !_isDisposed &&
+        !(_usesFeedVisibleChannel && _pool.isStaleFeedOpen(generation))) {
       onFailure();
     }
   }
@@ -2743,6 +2921,9 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
               sourceUrl: playbackUrl,
               autoPlay: false,
             );
+      if (pooled == null) {
+        return false;
+      }
       _lastOpenWasCold =
           _usesFeedVisibleChannel ? pooled.feedOpenedMedia : true;
       if (_usesFeedVisibleChannel &&
@@ -2953,8 +3134,13 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
     _surfacePaintFrames = 0;
   }
 
-  Future<void> _switchVideo() async {
-    if (_isDisposed || _isInitializing) {
+  Future<void> _switchVideo({String reason = 'switch'}) async {
+    if (_isDisposed) {
+      return;
+    }
+    if (_isInitializing) {
+      _pendingSwitchAfterInit = true;
+      _logSwitchDiag('switch_pending', reason: reason, key: _poolKey);
       return;
     }
     final oldKey = _pooledKey;
@@ -2962,8 +3148,15 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
     if (newKey.isEmpty) {
       return;
     }
-    final generation = ++_playbackGeneration;
+    final generation = _nextPlaybackGeneration();
     _isInitializing = true;
+    _initializingForKey = newKey;
+    _lastSwitchTargetKey = newKey;
+    _lastSwitchAttemptMs = DateTime.now().millisecondsSinceEpoch;
+    _switchCallCount++;
+    _logSwitchDiag('switch_enter', reason: reason, key: newKey, generation: generation);
+    final startedAt = _lastSwitchAttemptMs;
+    var bail = 'ok';
     _prepareSwitchUiState(newKey);
     try {
       if (!_usesFeedVisibleChannel &&
@@ -2973,6 +3166,7 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
         await _pool.surrenderLease(oldKey);
       }
       if (!mounted || _isDisposed || generation != _playbackGeneration) {
+        bail = 'gen_mismatch';
         return;
       }
       _detachAnalyticsAndListeners();
@@ -2987,6 +3181,13 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
             }
           },
         );
+        if (generation != _playbackGeneration) {
+          bail = 'stale_gen';
+        } else if (_pooledKey != newKey) {
+          bail = 'no_attach';
+        } else {
+          bail = 'opened';
+        }
         return;
       }
 
@@ -2998,6 +3199,7 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
           autoPlay: false,
         );
         if (!mounted || _isDisposed || generation != _playbackGeneration) {
+          bail = 'gen_mismatch';
           return;
         }
         _pooledKey = newKey;
@@ -3008,6 +3210,7 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
           poolKey: newKey,
           generation: generation,
         );
+        bail = 'instant_resume';
         return;
       }
 
@@ -3020,8 +3223,57 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
           }
         },
       );
+      if (generation != _playbackGeneration) {
+        bail = 'stale_gen';
+      } else if (_pooledKey != newKey) {
+        bail = 'no_attach';
+      } else {
+        bail = 'opened';
+      }
     } finally {
+      final attempted = _initializingForKey ?? _lastSwitchTargetKey;
       _isInitializing = false;
+      _initializingForKey = null;
+      _logSwitchDiag(
+        'switch_exit',
+        reason: reason,
+        key: newKey,
+        generation: generation,
+        elapsedMs: DateTime.now().millisecondsSinceEpoch - startedAt,
+        bail: bail,
+      );
+      _drainPendingSwitchAfterInit(attemptedKey: attempted);
+    }
+  }
+
+  /// After a cancelled/superseded init, open the currently mounted reel.
+  void _drainPendingSwitchAfterInit({String? attemptedKey}) {
+    if (!_pendingSwitchAfterInit || _isDisposed || !mounted) {
+      return;
+    }
+    _pendingSwitchAfterInit = false;
+    final key = _poolKey;
+    // Same key just attempted (success, fail, or stale) — do not immediately
+    // re-schedule; rebuild noise must not storm switch_cold. A later
+    // onPageChanged / ensureVisibleOpen may retry if still mismatched.
+    if (key.isNotEmpty &&
+        attemptedKey != null &&
+        attemptedKey.isNotEmpty &&
+        key == attemptedKey) {
+      _logSwitchDiag('drain_skip_same_key', reason: 'drain', key: key);
+      return;
+    }
+    // Settled reel already attached — restarting remasks and loops the intro.
+    if (key.isNotEmpty &&
+        _pooledKey == key &&
+        _pool.isFeedVisibleKey(key) &&
+        (_frameReady || _pool.isFrameReady(key))) {
+      return;
+    }
+    if (_pooledKey == null && _usesFeedVisibleChannel) {
+      unawaited(_loadVideo(reason: 'drain'));
+    } else {
+      unawaited(_switchVideo(reason: 'drain'));
     }
   }
 

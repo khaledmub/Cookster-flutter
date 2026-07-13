@@ -337,12 +337,14 @@ class _VideoReelScreenState extends State<VideoReelScreen>
       final id = video.id;
       if (id != null &&
           id.isNotEmpty &&
-          MediaKitPlayerPool.instance.isFeedVisibleKey(id) &&
-          MediaKitPlayerPool.instance.isFrameReady(id) &&
-          !MediaKitPlayerPool.instance.isActiveAudible(id)) {
-        _resumeFeedAudibleOnce();
+          MediaKitPlayerPool.instance.isFeedVisibleKey(id)) {
+        if (MediaKitPlayerPool.instance.isFrameReady(id) &&
+            !MediaKitPlayerPool.instance.isActiveAudible(id)) {
+          _resumeFeedAudibleOnce();
+        }
+        return;
       }
-      return;
+      // Same page id but pool drifted (fast-scroll drop) — fall through to reopen.
     }
     layer.activePlayerVideo = video;
     if (mounted) {
@@ -352,16 +354,36 @@ class _VideoReelScreenState extends State<VideoReelScreen>
       if (!mounted || !controller.canPlayHomeReels) {
         return;
       }
-      if (needsReattach) {
-        final key = video.id;
-        if (key != null &&
-            key.isNotEmpty &&
+      final key = video.id;
+      if (key == null || key.isEmpty) {
+        return;
+      }
+      final poolMismatch =
+          !MediaKitPlayerPool.instance.isFeedVisibleKey(key);
+      if (!needsReattach && !poolMismatch) {
+        return;
+      }
+      final playerState = _feedReelPlayerKey.currentState;
+      if (playerState == null) {
+        return;
+      }
+      // Defer one more frame so didUpdateWidget/_switchVideo can claim the
+      // target first — avoid queuing a redundant pending restart.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || !controller.canPlayHomeReels) {
+          return;
+        }
+        if (!MediaKitPlayerPool.instance.isFeedVisibleKey(key) &&
             !MediaKitPlayerPool.instance.isFrameReady(key) &&
             !MediaKitPlayerPool.instance.hadRecentPaint(key)) {
           MediaKitPlayerPool.instance.invalidatePrimedFrame(key);
         }
-        unawaited(_feedReelPlayerKey.currentState?.resumeAfterRouteOverlay());
-      }
+        if (!MediaKitPlayerPool.instance.isFeedVisibleKey(key)) {
+          unawaited(playerState.ensureVisibleOpen());
+        } else if (needsReattach) {
+          unawaited(playerState.resumeAfterRouteOverlay());
+        }
+      });
     });
   }
 
@@ -1448,7 +1470,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                 unawaited(
                   _preloadManager.prefetchVisibleReel(
                     actualIndex,
-                    maxWaitMs: 450,
+                    maxWaitMs: 0,  // Never block page change; disk prefetch fires async.
                   ),
                 );
                 _schedulePlayerForPage(tab, actualIndex);

@@ -166,6 +166,7 @@ class FeedPingPongController {
           sourceUrl: sourceUrl,
           audible: false,
           fastReopen: fastReopen,
+          openToken: openToken,
         );
       } else {
         _syncSlotUrl(_active, sourceUrl);
@@ -203,6 +204,7 @@ class FeedPingPongController {
             sourceUrl: sourceUrl,
             audible: false,
             fastReopen: fastReopen,
+            openToken: openToken,
           );
         } else {
           _syncSlotUrl(_hidden, sourceUrl);
@@ -244,6 +246,7 @@ class FeedPingPongController {
           sourceUrl: sourceUrl,
           audible: false,
           fastReopen: fastReopen,
+          openToken: openToken,
         );
         if (isStaleOpen(openToken)) {
           return null;
@@ -461,11 +464,25 @@ class FeedPingPongController {
     required String sourceUrl,
     required bool audible,
     bool fastReopen = false,
+    int? openToken,
   }) {
+    final tokenAtEnqueue = openToken ?? _openToken;
     final completer = Completer<bool>();
     final previous = _slotOpenChain;
     _slotOpenChain = previous.then((_) async {
       try {
+        // Fast-scroll flush: a newer presentReel() already bumped _openToken.
+        // Skip the entire locked open so the chain drains immediately.
+        if (openToken != null && _openToken > tokenAtEnqueue) {
+          ReelsPerf.log(
+            'pingpong stale_skip slot=${slot.index} key=$key '
+            'token=$tokenAtEnqueue current=$_openToken',
+          );
+          if (!completer.isCompleted) {
+            completer.complete(false);
+          }
+          return;
+        }
         completer.complete(
           await _openOnSlotLocked(
             slot,
@@ -473,6 +490,7 @@ class FeedPingPongController {
             sourceUrl: sourceUrl,
             audible: audible,
             fastReopen: fastReopen,
+            openToken: tokenAtEnqueue,
           ),
         );
       } catch (e) {
@@ -498,17 +516,25 @@ class FeedPingPongController {
     required String sourceUrl,
     required bool audible,
     bool fastReopen = false,
+    int? openToken,
   }) async {
     final player = slot.player!;
     final sameMedia = slot.boundKey == key && key.isNotEmpty && slot.boundUrl == sourceUrl;
     var openedMedia = false;
     if (!sameMedia) {
+      // Fast-scroll bail: a newer presentReel() already bumped _openToken.
+      // Skip the expensive Player.open() so the chain drains immediately.
+      if (openToken != null && _openToken > openToken) {
+        slot.resetBinding();
+        return false;
+      }
       if (!identical(slot, _active)) {
         await _disableSlotAudio(slot);
       }
+      final fastScroll = DeviceConstraints.instance.shouldDeferDecoderRecycle;
       if (identical(slot, _active)) {
         await DeviceConstraints.instance.ensureInitialized();
-        if (DeviceConstraints.instance.needsConstrainedSurfaceRecovery) {
+        if (DeviceConstraints.instance.needsConstrainedSurfaceRecovery && !fastScroll) {
           if (!fastReopen) {
             final local = _isLocalPlaybackUrl(sourceUrl);
             final baseMs = local ? 16 : 80;
@@ -521,10 +547,15 @@ class FeedPingPongController {
               );
             }
           }
-        } else if (!_isLocalPlaybackUrl(sourceUrl) && !fastReopen) {
+        } else if (!_isLocalPlaybackUrl(sourceUrl) && !fastReopen && !fastScroll) {
           // 32ms is enough for the previous slot's audio to drain on Qualcomm.
           await Future<void>.delayed(const Duration(milliseconds: 32));
         }
+      }
+      // Re-check after delays — another swipe may have arrived.
+      if (openToken != null && _openToken > openToken) {
+        slot.resetBinding();
+        return false;
       }
       final honorActiveOpen = identical(slot, _active) &&
           DeviceConstraints.instance.needsConstrainedSurfaceRecovery;
