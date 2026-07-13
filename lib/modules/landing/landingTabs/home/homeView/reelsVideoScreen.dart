@@ -321,6 +321,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
 
     if (video.isPhotoPost) {
       MediaKitPlayerPool.instance.pauseAllImmediate();
+      unawaited(MediaKitPlayerPool.instance.clearFeedVisibleReel());
       layer.activePlayerVideo = video;
       if (mounted) {
         setState(() {});

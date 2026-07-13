@@ -810,15 +810,18 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
     if (vw == null || vh == null || vw <= 0 || vh <= 0) {
       return BoxFit.cover; // Safe default until dimensions are known.
     }
-    final containerW = constraints.maxWidth;
-    final containerH = constraints.maxHeight;
-    if (containerW <= 0 || containerH <= 0) {
+    
+    final videoAR = vw / vh;
+    
+    // Standard 9:16 video is ~0.5625. Modern phones are 9:19.5 (~0.46) to 9:21 (~0.42).
+    // The deviation can exceed 30%, which previously triggered BoxFit.contain (letterboxing).
+    // We want all "vertical" videos (up to ~3:4 = 0.75) to cover the screen.
+    // Only use contain for videos that are square (1.0) or landscape (>1.0).
+    if (videoAR <= 0.8) {
       return BoxFit.cover;
     }
-    final videoAR = vw / vh;
-    final containerAR = containerW / containerH;
-    final deviation = (videoAR - containerAR).abs() / containerAR;
-    return deviation > 0.15 ? BoxFit.contain : BoxFit.cover;
+    
+    return BoxFit.contain;
   }
 
   bool _canShowVideo(Player player, [Duration? position]) {
@@ -1479,6 +1482,21 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
       _pool.markFrameReadyFromSurface(key);
     }
 
+    if (_usesFeedVisibleChannel && player.state.position.inMilliseconds > 200) {
+      // The video has been playing muted to pump frames and verify surface health.
+      // If it advanced significantly, rewind to the beginning BEFORE dropping the poster
+      // so the user doesn't see a visual jump ("shake") when the frame resets.
+      await player.seek(Duration.zero);
+      var polled = 0;
+      while (polled < 200) {
+        if (!_isCurrentAttach(generation) || !mounted || _isDisposed) return;
+        if (player.state.position.inMilliseconds < 100) break;
+        await Future<void>.delayed(const Duration(milliseconds: 16));
+        polled += 16;
+        _onPlayerStateTick(player);
+      }
+    }
+
     _logPoster(
       'poster_unmask',
       detail: 'opaque=$_visibleSurfacePaintFrames/$requiredFrames '
@@ -1486,9 +1504,11 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
     );
     _postRecycleUnmask = false;
     _feedPosterUnmaskedAtMs = DateTime.now().millisecondsSinceEpoch;
+    
     if (key != null && key.isNotEmpty) {
       _startRenderDeathWatchdog(player: player, generation: generation, key: key);
     }
+    
     if (_usesFeedVisibleChannel) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted || _isDisposed) {

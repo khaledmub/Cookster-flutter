@@ -562,6 +562,18 @@ class MediaKitPlayerPool {
     }
   }
 
+  /// Explicitly clears the visible reel, used when swiping to an image/photo post
+  /// to prevent the previous video from unmuting in the background.
+  Future<void> clearFeedVisibleReel() {
+    return _runPriority(() async {
+      final previousKey = _feedVisibleKey;
+      if (previousKey != null && previousKey.isNotEmpty) {
+        _unmapFeedVisibleKey(previousKey);
+      }
+      _feedOpenToken++;
+    });
+  }
+
   /// Feed-only: ping-pong present — flip if prefetched, else open on active slot.
   /// [openToken] must be the widget's [_playbackGeneration]; stale calls are ignored.
   /// [preserveFrameReady] — quality-tier swaps while the poster is already down.

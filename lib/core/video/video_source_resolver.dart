@@ -275,6 +275,7 @@ class VideoSourceResolver {
       return ordered;
     }
     final cache = cacheManager ?? ReelsVideoCacheManager.instance.manager;
+    final probeResults = await parallelCacheProbe(ordered, cacheManager: cache);
     VideoSourceCandidate? bestReady;
     var bestTierRank = -1;
     for (final candidate in ordered) {
@@ -282,14 +283,7 @@ class VideoSourceResolver {
           candidate.url.toLowerCase().contains('.m3u8')) {
         continue;
       }
-      final ready = await isPlaybackUrlCached(
-            candidate.url,
-            cacheManager: cache,
-          ) ||
-          await isPlaybackUrlPartiallyCached(
-            candidate.url,
-            cacheManager: cache,
-          );
+      final ready = probeResults[candidate.url] ?? false;
       if (!ready) {
         continue;
       }
@@ -312,19 +306,8 @@ class VideoSourceResolver {
     List<VideoSourceCandidate> candidates,
     BaseCacheManager cache,
   ) async {
-    for (final candidate in candidates) {
-      if (candidate.type != 'mp4_quality') {
-        continue;
-      }
-      if (await isPlaybackUrlCached(candidate.url, cacheManager: cache) ||
-          await isPlaybackUrlPartiallyCached(
-            candidate.url,
-            cacheManager: cache,
-          )) {
-        return true;
-      }
-    }
-    return false;
+    final probeResults = await parallelCacheProbe(candidates, cacheManager: cache);
+    return probeResults.values.any((ready) => ready);
   }
 
   /// Cached MP4 at [tier] for adaptive upgrade after first frame, if on disk.
