@@ -39,6 +39,7 @@ import '../landingTabs/nearBusiness/nearBusinessController/nearBusinessControlle
 import '../landingTabs/nearBusiness/newBusinessView/nearBusinessView.dart';
 import '../landingTabs/professionalProfile/profileControlller/professionalProfileController.dart';
 import '../landingTabs/professionalProfile/profileView/professionalProfileView.dart';
+import '../../../loaders/pulseLoader.dart';
 
 class Landing extends StatefulWidget {
   final int initialIndex;
@@ -151,7 +152,17 @@ class _LandingState extends State<Landing> {
   UserSearchController get searchController => Get.find<UserSearchController>();
 
   Future<List<Widget>> _screens(BuildContext context) async {
-    int entity = await getEntity();
+    // Must never throw / hang — upload navigates to profile (index 3), and a
+    // null snapshot previously rendered blank SizedBox.shrink() (gray screen).
+    int entity = 0;
+    try {
+      entity = await getEntity().timeout(
+        const Duration(seconds: 2),
+        onTimeout: () => 0,
+      );
+    } catch (_) {
+      entity = 0;
+    }
     return [
       NearestBusinessScreen(),
       Notifications(),
@@ -424,6 +435,15 @@ class _LandingState extends State<Landing> {
             future: _screensFuture,
             builder: (context, snapshot) {
               final otherScreens = snapshot.data;
+              final tabLoadingPlaceholder = ColoredBox(
+                color: Colors.white,
+                child: Center(
+                  child: PulseLogoLoader(
+                    logoPath: 'assets/images/appIcon.png',
+                    size: 72,
+                  ),
+                ),
+              );
               return Obx(
                 () {
                   final selected = navBarController.selectedIndex.value;
@@ -440,9 +460,11 @@ class _LandingState extends State<Landing> {
                         otherScreens[1],
                         otherScreens[2],
                       ] else ...[
-                        const SizedBox.shrink(),
-                        const SizedBox.shrink(),
-                        const SizedBox.shrink(),
+                        // Never use empty shrink at profile/discover indexes —
+                        // post-upload lands on index 3 before this future finishes.
+                        tabLoadingPlaceholder,
+                        tabLoadingPlaceholder,
+                        tabLoadingPlaceholder,
                       ],
                     ],
                   );

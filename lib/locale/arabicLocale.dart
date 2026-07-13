@@ -25,8 +25,7 @@ const Map<String, String> ar = {
   "add your personal info": "أضف معلوماتك الشخصية",
   "select_your_account_type": "اختر نوع الحساب",
   "Others": "أخرى",
-  "password_limit":
-      "يجب أن تحتوي كلمة المرور على 6 أحرف على الأقل، بما في ذلك أرقام وحرف كبير واحد على الأقل",
+  "password_limit": "أدخل أي كلمة مرور",
   "or sign up with": "أو سجل باستخدام",
   "signUpSubtitle":
       "أنشئ ملفًا شخصيًا بسهولة، أنشئ محتواك الخاص، تابع الحسابات الأخرى والمزيد",
@@ -49,6 +48,8 @@ const Map<String, String> ar = {
   "General": "عام",
   "Change Location": "تغيير الموقع",
   "Discover": "اكتشف",
+  "search_results": "نتائج البحث",
+  "clear_location_filter": "إزالة فلتر الموقع",
   "Notification": "الإشعارات",
   "No notifications available": "لا توجد إشعارات متاحة",
   "Filter": "تصفية",

@@ -104,14 +104,8 @@ class ProfessionalProfileController extends GetxController {
   String? validatePassword(String? password) {
     if (password == null || password.isEmpty) {
       return 'password_required_error'.tr;
-    } else if (password.length < 8) {
-      return 'password_length_error'.tr;
-    } else if (!password.contains(RegExp(r'[A-Z]'))) {
-      return 'password_uppercase_error'.tr;
-    } else if (!password.contains(RegExp(r'[!@#$%^&*(),.?":{}|<>]'))) {
-      return 'password_special_char_error'.tr;
     }
-    return null; // Password is valid
+    return null;
   }
 
   String? validateWebsite(String? value) {

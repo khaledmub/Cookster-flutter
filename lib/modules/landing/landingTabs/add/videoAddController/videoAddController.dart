@@ -11,6 +11,7 @@ import 'package:cookster/modules/landing/landingTabs/home/homeController/homeCon
 import 'package:cookster/modules/landing/landingTabs/profile/profileControlller/profileController.dart';
 import 'package:cookster/modules/landing/landingTabs/professionalProfile/profileControlller/professionalProfileController.dart';
 import 'package:cookster/modules/landing/landingView/landingView.dart';
+import 'package:cookster/modules/landing/landingController/landingController.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:get/get.dart';
@@ -637,9 +638,25 @@ class VideoAddController extends GetxController {
 
   /// Drop stale decoders/posters from upload preview, refresh profile, open tab.
   Future<void> _finishUploadAndOpenProfile() async {
-    MediaKitPlayerPool.instance.pauseAllImmediate();
-    await MediaKitPlayerPool.instance.releaseAll();
-    await _refreshProfileAfterUpload();
+    try {
+      MediaKitPlayerPool.instance.pauseAllImmediate();
+      await MediaKitPlayerPool.instance.releaseAll().timeout(
+        const Duration(seconds: 5),
+        onTimeout: () {},
+      );
+    } catch (_) {}
+    try {
+      await _refreshProfileAfterUpload().timeout(
+        const Duration(seconds: 8),
+        onTimeout: () {},
+      );
+    } catch (_) {}
+
+    // Land on profile tab. Nav index must be set before offAll so the new Landing
+    // does not flash home, and Landing must not show a blank placeholder.
+    if (Get.isRegistered<NavBarController>()) {
+      Get.find<NavBarController>().selectedIndex.value = 3;
+    }
     await Get.offAll(
       () => Landing(initialIndex: 3),
       binding: LandingBinding(),

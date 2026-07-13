@@ -604,20 +604,8 @@ class _EditProfessionalProfileViewState
                           child: CustomTextField(
                             isPassword: true,
                             validator: (value) {
-                              if (value == null || value.trim().isEmpty) {
-                                return null;
-                              }
-                              if (value.length < 8) {
-                                return 'password_length_error'.tr;
-                              }
-                              if (!RegExp(r'[A-Z]').hasMatch(value)) {
-                                return 'password_uppercase_error'.tr;
-                              }
-                              if (!RegExp(
-                                r'[!@#$%^&*(),.?":{}|<>]',
-                              ).hasMatch(value)) {
-                                return 'password_special_char_error'.tr;
-                              }
+                              // Empty = keep current password; any non-empty
+                              // value is accepted (no complexity rules).
                               return null;
                             },
                             label: "Enter New Password".tr,

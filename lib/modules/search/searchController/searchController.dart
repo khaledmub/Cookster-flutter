@@ -1,11 +1,7 @@
 import 'dart:async';
-import 'dart:convert';
 import 'package:cookster/appUtils/apiEndPoints.dart';
 import 'package:cookster/core/parsing/feed_parsers.dart';
 import 'package:flutter/foundation.dart';
-import 'package:cookster/modules/landing/landingTabs/home/homeController/homeController.dart';
-import 'package:geocoding/geocoding.dart';
-import 'package:geolocator/geolocator.dart';
 import 'package:get/get.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -41,7 +37,10 @@ class UserSearchController extends GetxController {
 
   RxList<String> recentSearches = <String>[].obs;
 
-  final HomeController homeController = Get.find();
+  /// Only when the user applies the search filter sheet. Do NOT auto-apply
+  /// home GPS / Near Me prefs — that forced every keyword search into the
+  /// nearest city and made every query look like the same 1 local reel.
+  final locationFilterEnabled = false.obs;
 
   String? _lastKeywords;
   int? _lastIsGeneral;
@@ -64,40 +63,23 @@ class UserSearchController extends GetxController {
   void onInit() async {
     super.onInit();
     await loadRecentSearches();
+    // Load saved country/city names for the filter UI only — never auto-enable
+    // geo restriction on keyword search (see [locationFilterEnabled]).
     await _loadSavedLocationIds();
-    try {
-      // Only fill display names from GPS when the user has not already
-      // chosen a country/city (IDs from prefs / filter dialog).
-      if (currentCountryId.value.isNotEmpty || currentCityId.value.isNotEmpty) {
-        return;
-      }
-      Position position = await _getCurrentPosition();
-      Map<String, String?> locationData =
-          await _getCityAndCountryFromCoordinates(
-            position.latitude,
-            position.longitude,
-          );
-      String? city = locationData['city'];
-      String? country = locationData['country'];
-      if (city != null && city.isNotEmpty) {
-        currentCity.value = city;
-      } else {
-        currentCity.value = "Unknown";
-      }
-      if (country != null && country.isNotEmpty) {
-        currentCountry.value = country;
-      } else {
-        currentCountry.value = "Unknown";
-      }
-    } catch (e) {
-      print("Error setting initial location: $e");
-      if (currentCity.value.isEmpty) {
-        currentCity.value = "Unknown";
-      }
-      if (currentCountry.value.isEmpty) {
-        currentCountry.value = "Unknown";
-      }
-    }
+  }
+
+  /// Enable/disable geo restriction from the search filter sheet.
+  void applyLocationFilterFromSheet() {
+    locationFilterEnabled.value =
+        currentCountryId.value.isNotEmpty || currentCityId.value.isNotEmpty;
+  }
+
+  void clearLocationFilter() {
+    locationFilterEnabled.value = false;
+    currentCityId.value = '';
+    currentCountryId.value = '';
+    currentCity.value = '';
+    currentCountry.value = '';
   }
 
   Future<void> _loadSavedLocationIds() async {
@@ -247,18 +229,16 @@ class UserSearchController extends GetxController {
         requestBody['type'] = type.value;
         requestBody['keywords'] = keywords;
 
-        final lat = homeController.latitude.value.trim();
-        final lng = homeController.longitude.value.trim();
-        if (lat.isNotEmpty && lng.isNotEmpty) {
-          requestBody['latitude'] = lat;
-          requestBody['longitude'] = lng;
-        }
-
-        if (currentCityId.value.isNotEmpty) {
-          requestBody['city'] = currentCityId.value;
-        }
-        if (currentCountryId.value.isNotEmpty) {
-          requestBody['country'] = currentCountryId.value;
+        // Geo only when the user applied the search filter — never from home GPS.
+        // Sending lat/lng makes the backend call nearestCityId() and collapse
+        // every query to the same local reel.
+        if (locationFilterEnabled.value) {
+          if (currentCityId.value.isNotEmpty) {
+            requestBody['city'] = currentCityId.value;
+          }
+          if (currentCountryId.value.isNotEmpty) {
+            requestBody['country'] = currentCountryId.value;
+          }
         }
       }
 
@@ -517,53 +497,6 @@ class UserSearchController extends GetxController {
     }
   }
 
-  // Helper function to get current position
-  Future<Position> _getCurrentPosition() async {
-    bool serviceEnabled;
-    LocationPermission permission;
-
-    serviceEnabled = await Geolocator.isLocationServiceEnabled();
-    if (!serviceEnabled) {
-      throw Exception("Location services are disabled.");
-    }
-
-    permission = await Geolocator.checkPermission();
-    if (permission == LocationPermission.denied) {
-      permission = await Geolocator.requestPermission();
-      if (permission == LocationPermission.denied) {
-        throw Exception("Location permissions are denied.");
-      }
-    }
-
-    if (permission == LocationPermission.deniedForever) {
-      throw Exception("Location permissions are permanently denied.");
-    }
-
-    return await Geolocator.getCurrentPosition(
-      desiredAccuracy: LocationAccuracy.high,
-    );
-  }
-
-  // Helper function to get city and country from coordinates
-  Future<Map<String, String?>> _getCityAndCountryFromCoordinates(
-    double latitude,
-    double longitude,
-  ) async {
-    try {
-      List<Placemark> placemarks = await placemarkFromCoordinates(
-        latitude,
-        longitude,
-      );
-      if (placemarks.isNotEmpty) {
-        return {
-          'city': placemarks.first.locality,
-          'country': placemarks.first.country,
-        };
-      }
-      return {'city': null, 'country': null};
-    } catch (e) {
-      print("Error getting location data: $e");
-      return {'city': null, 'country': null};
-    }
-  }
+  // B2B users search helpers above — geo helpers removed; keyword search is
+  // global unless the user applies the search filter sheet.
 }

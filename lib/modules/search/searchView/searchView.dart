@@ -117,6 +117,8 @@ class _SearchViewState extends State<SearchView>
       searchController.recentSearches.clear();
       searchController.type.value = 6;
       searchController.selectedType.value = 0;
+      // Fresh search screen = global keyword search (no inherited Near Me city).
+      searchController.clearLocationFilter();
     });
   }
 
@@ -623,7 +625,7 @@ class _SearchViewState extends State<SearchView>
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
                 child: Text(
-                  "Discover".tr,
+                  "search_results".tr,
                   style: TextStyle(
                     fontSize: 16.sp,
                     fontWeight: FontWeight.w700,
@@ -1114,12 +1116,22 @@ class _SearchViewState extends State<SearchView>
                           if (searchController.isCityLoading.value) {
                             return;
                           }
+                          searchController.applyLocationFilterFromSheet();
                           await searchController.saveLocationData();
                           Navigator.pop(context);
                           await searchController.refetchWithCurrentFilters();
                         },
                       );
                     }),
+                    SizedBox(height: 8),
+                    TextButton(
+                      onPressed: () async {
+                        searchController.clearLocationFilter();
+                        Navigator.pop(context);
+                        await searchController.refetchWithCurrentFilters();
+                      },
+                      child: Text('clear_location_filter'.tr),
+                    ),
                   ],
                 ),
               );

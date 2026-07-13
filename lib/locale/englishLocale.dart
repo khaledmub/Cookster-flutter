@@ -25,8 +25,7 @@ const Map<String, String> en = {
   "add your personal info": "Add your personal info",
   "select_your_account_type": "Select your account type",
   "Others": "Others",
-  "password_limit":
-      "Your Password should contain at least 8 characters, including numbers or digits and 1 upper case letter",
+  "password_limit": "Enter any password",
   "or sign up with": "or sign up with",
   "signUpSubtitle":
       "Create a profile easily, create your own contents, follow other accounts and more",
@@ -49,6 +48,8 @@ const Map<String, String> en = {
   "General": "General",
   "Change Location": "Change Location",
   "Discover": "Discover",
+  "search_results": "Search Results",
+  "clear_location_filter": "Clear location filter",
   "Notification": "Notifications",
   "No notifications available": "No notifications available",
   "Filter": "Filter",
