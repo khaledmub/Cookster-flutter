@@ -427,6 +427,7 @@ class WallVideos {
       followersCount: ownerFollowers,
       allowComments: v.allowComments,
       isImage: v.isImage,
+      playbackReady: PlaybackMedia.parseOptionalFlag(v.playbackReady),
       createdAt: v.createdAt,
       likesCount: v.likeCount,
     );
@@ -460,6 +461,7 @@ class WallVideos {
       followersCount: ownerFollowers,
       allowComments: v.allowComments,
       isImage: v.isImage,
+      playbackReady: PlaybackMedia.parseOptionalFlag(v.playbackReady),
       createdAt: v.createdAt,
       likesCount: v.likeCount,
       userEmail: v.userEmail,

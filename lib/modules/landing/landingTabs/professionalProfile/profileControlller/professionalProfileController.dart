@@ -501,6 +501,8 @@ class ProfessionalProfileController extends GetxController {
           parseProfessionalProfileDetails,
           response.body,
         );
+        // Soft refresh must still nudge Obx listeners after upload.
+        userDetails.refresh();
         followersList.value = userDetails.value!.followers!;
         followingList.value = userDetails.value!.following!;
 

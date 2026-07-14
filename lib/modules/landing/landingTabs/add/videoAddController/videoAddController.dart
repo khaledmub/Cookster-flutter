@@ -136,7 +136,13 @@ class VideoAddController extends GetxController {
   final TextEditingController menuController = TextEditingController();
   var isUploadSuccessful = false.obs; // New variable to track success
   var uploadProgress = 0.0.obs;
+  /// After bytes finish uploading: keep dialog open until playback is ready.
+  var isPreparingPlayback = false.obs;
   int _lastUploadProgressPercent = -1;
+  /// Bumps whenever the user abandons the form / starts a new attempt so an
+  /// in-flight multipart + processing poll must not finish navigation.
+  int _uploadSession = 0;
+  http.Client? _uploadHttpClient;
   File? _cachedThumbnail;
   Future<File?>? _thumbnailInFlight;
   var selectedCountryId = 0.obs;
@@ -346,6 +352,12 @@ class VideoAddController extends GetxController {
   }
 
   Future<bool> onWillPop(BuildContext context) async {
+    // Leaving during upload/processing — always abandon that attempt.
+    if (isVideoUploading.value || isPreparingPlayback.value) {
+      resetController();
+      return true;
+    }
+
     if (hasUnsavedChanges()) {
       bool shouldPop = false;
 
@@ -428,6 +440,33 @@ class VideoAddController extends GetxController {
 
     resetController();
     return true;
+  }
+
+  /// Aborts multipart upload + processing poll so leaving the form cannot
+  /// still navigate to profile when a previous attempt finishes later.
+  void cancelPendingUpload() {
+    _uploadSession++;
+    isPreparingPlayback.value = false;
+    isVideoUploading.value = false;
+    isCompressing.value = false;
+    _closeUploadHttpClient();
+  }
+
+  void _closeUploadHttpClient() {
+    final client = _uploadHttpClient;
+    _uploadHttpClient = null;
+    try {
+      client?.close();
+    } catch (_) {}
+  }
+
+  bool _isUploadSessionActive(int session) => session == _uploadSession;
+
+  int _beginUploadSession() {
+    cancelPendingUpload();
+    final session = _uploadSession;
+    _uploadHttpClient = http.Client();
+    return session;
   }
 
   void selectLocation(String location, int stateId) {
@@ -622,6 +661,85 @@ class VideoAddController extends GetxController {
   void _resetUploadProgressTracking() {
     _lastUploadProgressPercent = -1;
     uploadProgress.value = 0;
+    isPreparingPlayback.value = false;
+  }
+
+  Widget _uploadProgressDialogBody() {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const CircularProgressIndicator(),
+        SizedBox(height: 16),
+        Obx(
+          () => Text(
+            isPreparingPlayback.value
+                ? 'processing_video'.tr
+                : '${'uploading_video_label'.tr}${(uploadProgress.value * 100).toInt()}%',
+            style: const TextStyle(fontSize: 16),
+            textAlign: TextAlign.center,
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Keeps the progress card up through upload + (for videos) server processing
+  /// until the reel is watchable, then opens profile.
+  Future<void> _completeSuccessfulUpload({
+    required AwesomeDialog dialog,
+    required String responseBody,
+    required bool isPhotoUpload,
+    required int uploadSession,
+  }) async {
+    if (!_isUploadSessionActive(uploadSession)) {
+      try {
+        dialog.dismiss();
+      } catch (_) {}
+      return;
+    }
+
+    isUploadSuccessful.value = true;
+    uploadProgress.value = 1.0;
+
+    final uploadedID =
+        VideoProcessingService.extractVideoIdFromUploadResponse(responseBody);
+
+    if (!isPhotoUpload &&
+        uploadedID != null &&
+        uploadedID.isNotEmpty) {
+      isPreparingPlayback.value = true;
+      try {
+        await VideoProcessingService.pollUntilSettled(
+          uploadedID,
+          waitForTranscode: true,
+          shouldContinue: () => _isUploadSessionActive(uploadSession),
+        );
+      } catch (_) {}
+    }
+
+    try {
+      dialog.dismiss();
+    } catch (_) {}
+
+    if (!_isUploadSessionActive(uploadSession)) {
+      isPreparingPlayback.value = false;
+      isVideoUploading.value = false;
+      return;
+    }
+
+    isPreparingPlayback.value = false;
+    isVideoUploading.value = false;
+
+    // Background refresh if cover finished later than watch-ready.
+    _scheduleThumbnailProcessingPoll(
+      responseBody,
+      waitForTranscode: !isPhotoUpload,
+    );
+    await _finishUploadAndOpenProfile(
+      uploadedVideoId: uploadedID,
+      waitForVideoTranscode: false,
+      uploadSession: uploadSession,
+    );
   }
 
   /// Reloads the active profile so the new upload appears on the profile tab.
@@ -636,15 +754,58 @@ class VideoAddController extends GetxController {
     }
   }
 
-  /// Drop stale decoders/posters from upload preview, refresh profile, open tab.
-  Future<void> _finishUploadAndOpenProfile() async {
+  /// Drop stale decoders/posters from upload preview, open profile tab, refresh.
+  Future<void> _finishUploadAndOpenProfile({
+    String? uploadedVideoId,
+    bool waitForVideoTranscode = false,
+    int? uploadSession,
+  }) async {
+    if (uploadSession != null && !_isUploadSessionActive(uploadSession)) {
+      return;
+    }
+
     try {
       MediaKitPlayerPool.instance.pauseAllImmediate();
-      await MediaKitPlayerPool.instance.releaseAll().timeout(
-        const Duration(seconds: 5),
-        onTimeout: () {},
+      await MediaKitPlayerPool.instance.disposeAllWithTimeout();
+      await MediaKitPlayerPool.instance.awaitOperationsIdle(
+        timeout: const Duration(milliseconds: 1500),
       );
     } catch (_) {}
+    // Camera / ExoPlayer still releasing after capture — opening a reel too
+    // early abandoned BufferQueues and left the first profile open stuck.
+    await Future<void>.delayed(const Duration(milliseconds: 500));
+
+    if (uploadSession != null && !_isUploadSessionActive(uploadSession)) {
+      return;
+    }
+
+    // Prefer ready mp4/hls before landing on profile so the first tile open
+    // is a real video, not a cover-only “photo” state.
+    if (waitForVideoTranscode &&
+        uploadedVideoId != null &&
+        uploadedVideoId.isNotEmpty) {
+      try {
+        await VideoProcessingService.pollUntilSettled(
+          uploadedVideoId,
+          waitForTranscode: true,
+          shouldContinue: uploadSession == null
+              ? null
+              : () => _isUploadSessionActive(uploadSession),
+        ).timeout(const Duration(seconds: 12), onTimeout: () => null);
+      } catch (_) {}
+    }
+
+    if (uploadSession != null && !_isUploadSessionActive(uploadSession)) {
+      return;
+    }
+
+    // Land on profile tab. Nav index must be set before offAll so the new Landing
+    // does not flash home, and Landing must not show a blank placeholder.
+    if (Get.isRegistered<NavBarController>()) {
+      Get.find<NavBarController>().selectedIndex.value = 3;
+    }
+    // Keep profile controllers across offAll (permanent) so this refresh sticks.
+    ensureLandingProfileControllers();
     try {
       await _refreshProfileAfterUpload().timeout(
         const Duration(seconds: 8),
@@ -652,22 +813,28 @@ class VideoAddController extends GetxController {
       );
     } catch (_) {}
 
-    // Land on profile tab. Nav index must be set before offAll so the new Landing
-    // does not flash home, and Landing must not show a blank placeholder.
-    if (Get.isRegistered<NavBarController>()) {
-      Get.find<NavBarController>().selectedIndex.value = 3;
-    }
     await Get.offAll(
       () => Landing(initialIndex: 3),
       binding: LandingBinding(),
     );
-    // Clear capture/overlay mute gates on the (possibly recreated) controller
-    // AFTER the stack reset. Ending capture before offAll left
-    // isReelsTabVisible=false with no pending resume when canPop was still true.
     if (Get.isRegistered<HomeController>()) {
       Get.find<HomeController>().clearMediaCaptureGatesAfterLandingReset();
     }
     resetController();
+    // Soft refresh again so Obx rebuilds on the mounted profile tab.
+    try {
+      await _refreshProfileAfterUpload().timeout(
+        const Duration(seconds: 8),
+        onTimeout: () {},
+      );
+    } catch (_) {}
+    unawaited(
+      Future<void>.delayed(const Duration(seconds: 3), () async {
+        try {
+          await _refreshProfileAfterUpload();
+        } catch (_) {}
+      }),
+    );
   }
 
   void previousStep() {
@@ -950,6 +1117,7 @@ class VideoAddController extends GetxController {
       }
 
       print("uploading_video_label".tr);
+      final uploadSession = _beginUploadSession();
       isVideoUploading.value = true;
       isUploadSuccessful.value = false;
 
@@ -1008,19 +1176,7 @@ class VideoAddController extends GetxController {
         context: context,
         dialogType: DialogType.noHeader,
         dismissOnTouchOutside: false,
-        body: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            CircularProgressIndicator(),
-            SizedBox(height: 16),
-            Obx(
-              () => Text(
-                '${'upload_complete_title'.tr} ${(uploadProgress.value * 100).toInt()}%',
-                style: TextStyle(fontSize: 16),
-              ),
-            ),
-          ],
-        ),
+        body: _uploadProgressDialogBody(),
       )..show();
 
       final videoStream = http.ByteStream(videoFile.openRead());
@@ -1056,37 +1212,42 @@ class VideoAddController extends GetxController {
       }
 
       try {
-        var response = await ApiClient.sendMultipartRequest(request);
+        if (!_isUploadSessionActive(uploadSession)) {
+          try {
+            dialog.dismiss();
+          } catch (_) {}
+          return;
+        }
 
-        dialog.dismiss();
+        var response = await ApiClient.sendMultipartRequest(
+          request,
+          client: _uploadHttpClient,
+          timeout: const Duration(minutes: 10),
+        );
+
+        if (!_isUploadSessionActive(uploadSession)) {
+          try {
+            dialog.dismiss();
+          } catch (_) {}
+          return;
+        }
 
         if (response.statusCode == 201 || response.statusCode == 200) {
           print("✅ Video uploaded successfully!");
           print("Response: ${response.body}");
-          isVideoUploading.value = false;
-          isUploadSuccessful.value = true;
-
-          _scheduleThumbnailProcessingPoll(
-            response.body,
-            waitForTranscode: imageUploadFlag != '1',
+          await _completeSuccessfulUpload(
+            dialog: dialog,
+            responseBody: response.body,
+            isPhotoUpload: imageUploadFlag == '1',
+            uploadSession: uploadSession,
           );
-          await _finishUploadAndOpenProfile();
           return;
-
-          // AwesomeDialog(
-          //   context: context,
-          //   dialogType: DialogType.success,
-          //   title: 'upload_complete_title'.tr,
-          //   desc: 'upload_success_message'.tr,
-          //   dismissOnTouchOutside: false,
-          //   autoDismiss: true,
-          //   onDismissCallback: (_) {
-          //
-          //   },
-          // )..show();
         } else {
           print("❌ Failed to upload video. Status: ${response.statusCode}");
           print("Response: ${response.body}");
+          try {
+            dialog.dismiss();
+          } catch (_) {}
           isVideoUploading.value = false;
           isUploadSuccessful.value = false;
 
@@ -1108,11 +1269,19 @@ class VideoAddController extends GetxController {
           )..show();
         }
       } catch (e) {
+        try {
+          dialog.dismiss();
+        } catch (_) {}
+        // Aborted by leaving the form / cancelPendingUpload — not a user error.
+        if (!_isUploadSessionActive(uploadSession)) {
+          isVideoUploading.value = false;
+          isPreparingPlayback.value = false;
+          return;
+        }
         print("❌ Error uploading video: $e");
         isVideoUploading.value = false;
         isUploadSuccessful.value = false;
-
-        dialog.dismiss();
+        isPreparingPlayback.value = false;
 
         String userMsg = 'upload_error_generic'.tr;
         final errStr = e.toString().toLowerCase();
@@ -1160,6 +1329,7 @@ class VideoAddController extends GetxController {
       }
 
       print("uploading_video_label".tr);
+      final uploadSession = _beginUploadSession();
       isVideoUploading.value = true;
       isUploadSuccessful.value = false;
 
@@ -1198,19 +1368,7 @@ class VideoAddController extends GetxController {
         context: context,
         dialogType: DialogType.noHeader,
         dismissOnTouchOutside: false,
-        body: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            CircularProgressIndicator(),
-            SizedBox(height: 16),
-            Obx(
-              () => Text(
-                '${'upload_complete_title'.tr} ${(uploadProgress.value * 100).toInt()}%',
-                style: TextStyle(fontSize: 16),
-              ),
-            ),
-          ],
-        ),
+        body: _uploadProgressDialogBody(),
       )..show();
 
       final videoStream = http.ByteStream(videoFile.openRead());
@@ -1246,50 +1404,75 @@ class VideoAddController extends GetxController {
       }
 
       try {
-        var response = await ApiClient.sendMultipartRequest(request);
+        if (!_isUploadSessionActive(uploadSession)) {
+          try {
+            dialog.dismiss();
+          } catch (_) {}
+          return;
+        }
 
-        dialog.dismiss();
+        var response = await ApiClient.sendMultipartRequest(
+          request,
+          client: _uploadHttpClient,
+          timeout: const Duration(minutes: 10),
+        );
+
+        if (!_isUploadSessionActive(uploadSession)) {
+          try {
+            dialog.dismiss();
+          } catch (_) {}
+          return;
+        }
 
         if (response.statusCode == 201 || response.statusCode == 200) {
           print("✅ Video uploaded successfully!");
           print("Response: ${response.body}");
-          isVideoUploading.value = false;
-          isUploadSuccessful.value = true;
-
-          _scheduleThumbnailProcessingPoll(
-            response.body,
-            waitForTranscode: imageUploadFlag != '1',
+          await _completeSuccessfulUpload(
+            dialog: dialog,
+            responseBody: response.body,
+            isPhotoUpload: imageUploadFlag == '1',
+            uploadSession: uploadSession,
           );
-          await _finishUploadAndOpenProfile();
         } else {
           print("❌ Failed to upload video. Status: ${response.statusCode}");
           print("Response: ${response.body}");
+          try {
+            dialog.dismiss();
+          } catch (_) {}
           isVideoUploading.value = false;
           isUploadSuccessful.value = false;
 
-          String errorMsg;
+          String userMsg;
           try {
             final responseData =
                 jsonDecode(response.body) as Map<String, dynamic>;
-            errorMsg = responseData['message'] ?? 'Upload failed (${response.statusCode})';
+            userMsg = responseData['message'] ?? 'Upload failed (${response.statusCode})';
           } catch (_) {
-            errorMsg = 'Server error (${response.statusCode}). Please try again later.';
+            userMsg = 'Server error (${response.statusCode}). Please try again later.';
           }
 
           AwesomeDialog(
             context: context,
             dialogType: DialogType.error,
             title: 'upload_failed_title'.tr,
-            desc: errorMsg,
+            desc: userMsg,
             btnOkOnPress: () {},
           )..show();
         }
       } catch (e) {
+        try {
+          dialog.dismiss();
+        } catch (_) {}
+        // Aborted by leaving the form / cancelPendingUpload — not a user error.
+        if (!_isUploadSessionActive(uploadSession)) {
+          isVideoUploading.value = false;
+          isPreparingPlayback.value = false;
+          return;
+        }
         print("❌ Error uploading video: $e");
         isVideoUploading.value = false;
         isUploadSuccessful.value = false;
-
-        dialog.dismiss();
+        isPreparingPlayback.value = false;
 
         String userMsg = 'upload_error_generic'.tr;
         final errStr = e.toString().toLowerCase();
@@ -1505,6 +1688,7 @@ class VideoAddController extends GetxController {
 
   void resetController() {
     print("Resetting controller...");
+    cancelPendingUpload();
     videoTitle.value = "";
     titleController.text = "";
     videoDescription.value = "";
@@ -1588,6 +1772,7 @@ class VideoAddController extends GetxController {
 
   @override
   void onClose() {
+    cancelPendingUpload();
     titleController.dispose();
     descriptionController.dispose();
     super.onClose();

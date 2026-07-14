@@ -97,12 +97,18 @@ void ensureReelOverlayDependencies() {
 }
 
 /// Registers profile controllers used across landing tabs and upload flow.
+///
+/// [permanent] so [Get.offAll] after upload does not wipe a just-refreshed
+/// profile (that left the grid looking like photos until a manual refresh).
 void ensureLandingProfileControllers() {
   if (!Get.isRegistered<ProfileController>()) {
-    Get.put<ProfileController>(ProfileController());
+    Get.put<ProfileController>(ProfileController(), permanent: true);
   }
   if (!Get.isRegistered<ProfessionalProfileController>()) {
-    Get.put<ProfessionalProfileController>(ProfessionalProfileController());
+    Get.put<ProfessionalProfileController>(
+      ProfessionalProfileController(),
+      permanent: true,
+    );
   }
 }
 

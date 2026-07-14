@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:cookster/appBindings/app_bindings.dart';
 import 'package:cookster/appUtils/apiEndPoints.dart';
+import 'package:cookster/core/media/playback_media.dart';
 import 'package:cookster/modules/landing/landingTabs/home/homeModel/videoFeedModel.dart';
 import 'package:cookster/modules/landing/landingTabs/professionalProfile/profileControlller/professionalProfileController.dart';
 import 'package:cookster/modules/landing/landingTabs/profile/profileControlller/profileController.dart';
@@ -29,6 +30,24 @@ class VideoProcessingStatusResult {
   bool get thumbnailReady => processingStatus == 'ready';
   bool get transcodeReady => transcodeStatus == 'ready';
   bool get transcodeFailed => transcodeStatus == 'failed';
+
+  /// True when playback can start (MP4/HLS ready), even if cover is still settling.
+  bool get isWatchReady {
+    if (transcodeReady) return true;
+    final nested = video;
+    if (nested != null) {
+      return PlaybackMedia.isPlaybackReady(
+        isPhotoPost: false,
+        playbackReady: nested.playbackReady,
+        transcodeStatus:
+            nested.transcodeStatus?.toString() ?? transcodeStatus,
+        playbackUrl: nested.videoUrl ?? nested.video,
+      );
+    }
+    final hls = (hlsPlaylistUrl ?? hlsUrl)?.trim() ?? '';
+    if (hls.contains('.m3u8') || hls.contains('/hls/')) return true;
+    return false;
+  }
 
   factory VideoProcessingStatusResult.fromJson(Map<String, dynamic> data) {
     WallVideos? parsedVideo;
@@ -73,9 +92,13 @@ class VideoProcessingService {
   static Future<VideoProcessingStatusResult?> pollUntilSettled(
     String videoId, {
     bool waitForTranscode = false,
+    bool Function()? shouldContinue,
   }) async {
     final deadline = DateTime.now().add(maxPollDuration);
     while (DateTime.now().isBefore(deadline)) {
+      if (shouldContinue != null && !shouldContinue()) {
+        return null;
+      }
       final result = await fetchStatus(videoId);
       if (result == null) {
         await Future<void>.delayed(pollInterval);
@@ -88,7 +111,9 @@ class VideoProcessingService {
           result.transcodeStatus == 'ready' ||
           result.transcodeStatus == 'failed';
       if (waitForTranscode) {
-        if (coverDone && transcodeDone) {
+        // Prefer watch-ready as soon as MP4/HLS is playable; otherwise wait
+        // until cover + transcode both settle (including failed).
+        if (result.isWatchReady || (coverDone && transcodeDone)) {
           return result;
         }
       } else if (coverDone) {

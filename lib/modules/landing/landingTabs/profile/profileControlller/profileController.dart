@@ -558,6 +558,9 @@ class ProfileController extends GetxController {
         print("Step 6: Successfully fetched user details. Parsing data.");
         final details = await compute(parseProfileDetails, response.body);
         simpleUserDetails.value = details;
+        // Soft refresh (isLoading stays false) must still nudge Obx listeners so
+        // grid badges/posters update after upload without a pull-to-refresh.
+        simpleUserDetails.refresh();
         print("Check Followers list fetched");
         followersList.value = simpleUserDetails.value!.followers ?? [];
         print("Check Following list fetched");

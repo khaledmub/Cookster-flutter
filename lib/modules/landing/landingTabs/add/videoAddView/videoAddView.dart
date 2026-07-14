@@ -75,6 +75,8 @@ class _VideoPreviewScreenState extends State<VideoPreviewScreen> {
   @override
   void dispose() {
     _stepWorker.dispose();
+    // Route disposed without publishing — never let a prior upload finish later.
+    videoAddController.cancelPendingUpload();
     super.dispose();
   }
 

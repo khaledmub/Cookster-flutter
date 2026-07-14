@@ -77,6 +77,7 @@ extension WallVideosMedia on WallVideos {
         isPhotoPost: isPhotoPost,
         playbackReady: playbackReady,
         transcodeStatus: transcodeStatus,
+        playbackUrl: resolvedPlaybackUrl,
       );
 }
 
@@ -108,17 +109,18 @@ bool isReelGridPhotoPost({
     return false;
   }
   if (playback.isNotEmpty && isStaticImagePlaybackUrl(playback)) {
-    // Fresh video uploads: backend puts cover JPG in video_url until transcode.
-    // Only keep that as "video" when the pipeline clearly says so — otherwise a
-    // mis-tagged photo (`is_image: 0` + JPG only) mounts the video player
-    // (progress bar, no Photo badge, odd zoom).
+    // Fresh video uploads put the cover JPG in video_url until transcode.
+    // Trust an explicit is_image=0 / false / "0" from the API as video so the
+    // profile grid doesn't show the Photo badge until pull-to-refresh.
     if (isImage != null && !isReelPhotoPostFlag(isImage)) {
-      if (_looksLikePendingVideoTranscode(
-        transcodeStatus: transcodeStatus,
-        processingStatus: processingStatus,
-      )) {
-        return false;
-      }
+      return false;
+    }
+    // No is_image flag: only treat as video when the pipeline says pending.
+    if (_looksLikePendingVideoTranscode(
+      transcodeStatus: transcodeStatus,
+      processingStatus: processingStatus,
+    )) {
+      return false;
     }
     return true;
   }

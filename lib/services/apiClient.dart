@@ -131,14 +131,20 @@ class ApiClient {
   }
 
   /// Sends a pre-built [MultipartRequest] with shared auth, language, and timeout.
+  ///
+  /// Pass a dedicated [client] when the caller may abort via [http.Client.close].
   static Future<http.Response> sendMultipartRequest(
-    http.MultipartRequest request,
-  ) async {
+    http.MultipartRequest request, {
+    http.Client? client,
+    Duration? timeout,
+  }) async {
     await initLanguage();
     for (final entry in _headers().entries) {
       request.headers.putIfAbsent(entry.key, () => entry.value);
     }
-    final streamed = await request.send().timeout(_defaultTimeout);
+    final httpClient = client ?? _client;
+    final streamed =
+        await httpClient.send(request).timeout(timeout ?? _defaultTimeout);
     final body = await streamed.stream.bytesToString();
     return http.Response(body, streamed.statusCode, headers: streamed.headers);
   }

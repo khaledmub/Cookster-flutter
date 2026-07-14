@@ -18,21 +18,30 @@ class CameraControllerX extends GetxController {
   RxInt remainingTime = 15.obs;
   Rx<File?> recordedVideoFile = Rx<File?>(null);
   Timer? _timer;
+  bool _cameraInitStarted = false;
+  bool _isStarting = false;
+  bool _isStopping = false;
 
   List<int> availableDurations = [10 * 60, 60, 15]; // 10m, 60s, 15s
 
   void initCamera(List<CameraDescription> cameras) {
-    if (cameras.isNotEmpty) {
-      cameraCtrl = CameraController(
-        cameras[selectedCameraIndex.value],
-        ResolutionPreset.high,
-        enableAudio: true,
-      );
+    // build() calls this every frame — never recreate an open camera.
+    if (_cameraInitStarted || cameras.isEmpty) return;
+    _cameraInitStarted = true;
+    final index = selectedCameraIndex.value.clamp(0, cameras.length - 1);
+    cameraCtrl = CameraController(
+      cameras[index],
+      ResolutionPreset.high,
+      enableAudio: true,
+    );
 
-      cameraCtrl!.initialize().then((_) {
-        update();
-      });
-    }
+    cameraCtrl!.initialize().then((_) {
+      update();
+    }).catchError((Object e) {
+      debugPrint('Camera init failed: $e');
+      _cameraInitStarted = false;
+      cameraCtrl = null;
+    });
   }
 
   void toggleFlash() {
@@ -42,66 +51,131 @@ class CameraControllerX extends GetxController {
   }
 
   void switchCamera(List<CameraDescription> cameras) {
+    if (cameras.length < 2 ||
+        isRecording.value ||
+        _isStarting ||
+        _isStopping) {
+      return;
+    }
     selectedCameraIndex.value = selectedCameraIndex.value == 0 ? 1 : 0;
 
-    if (cameraCtrl != null) {
-      cameraCtrl!.dispose();
-    }
+    final previous = cameraCtrl;
+    cameraCtrl = null;
+    previous?.dispose();
 
+    final index = selectedCameraIndex.value.clamp(0, cameras.length - 1);
     cameraCtrl = CameraController(
-      cameras[selectedCameraIndex.value],
+      cameras[index],
       ResolutionPreset.high,
       enableAudio: true,
     );
+    _cameraInitStarted = true;
 
     cameraCtrl!.initialize().then((_) {
       update();
+    }).catchError((Object e) {
+      debugPrint('Camera switch failed: $e');
+      cameraCtrl = null;
+      _cameraInitStarted = false;
     });
   }
 
   void selectDuration(int duration) {
+    if (isRecording.value) return;
     selectedDuration.value = duration;
     remainingTime.value = duration;
     update();
   }
 
-  void startRecording() {
-    if (cameraCtrl != null && !isRecording.value) {
-      cameraCtrl!.startVideoRecording();
-      isRecording.value = true;
+  Future<void> startRecording() async {
+    final ctrl = cameraCtrl;
+    if (ctrl == null ||
+        !ctrl.value.isInitialized ||
+        isRecording.value ||
+        _isStarting ||
+        _isStopping ||
+        ctrl.value.isRecordingVideo) {
+      return;
+    }
 
-      // Start timer
-      remainingTime.value = selectedDuration.value; // Reset remaining time
-      const oneSecond = Duration(seconds: 1);
-      _timer = Timer.periodic(oneSecond, (timer) {
+    _isStarting = true;
+    try {
+      await ctrl.startVideoRecording();
+      isRecording.value = true;
+      remainingTime.value = selectedDuration.value;
+      _timer?.cancel();
+      _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
         if (remainingTime.value > 0) {
           remainingTime.value--;
-          update(); // Update UI with new remaining time
+          update();
         } else {
           timer.cancel();
-          stopRecording();
+          unawaited(stopRecording());
         }
       });
+      update();
+    } catch (e) {
+      debugPrint('startRecording failed: $e');
+      isRecording.value = false;
+      _timer?.cancel();
+      _timer = null;
+      remainingTime.value = selectedDuration.value;
+      update();
+    } finally {
+      _isStarting = false;
     }
   }
 
-  void stopRecording() async {
-    if (cameraCtrl != null && isRecording.value) {
-      final file = await cameraCtrl!.stopVideoRecording();
-      isRecording.value = false;
-      recordedVideoFile.value = File(file.path);
-      _timer?.cancel(); // Cancel the timer if recording is stopped manually
-      remainingTime.value = selectedDuration.value; // Reset remaining time
-      update();
-      Get.to(() => VideoTextEditor(videoFile: File(file.path)));
+  /// [navigateToEditor] false when discarding (close / leave) so an abandoned
+  /// take never continues into the editor / upload form.
+  Future<void> stopRecording({bool navigateToEditor = true}) async {
+    final ctrl = cameraCtrl;
+    if (ctrl == null || _isStopping) return;
 
-      // Navigate to playback screen
-      // Get.to(() => VideoPlaybackScreen(videoPath: file.path));
+    final uiSaysRecording = isRecording.value;
+    final nativeRecording =
+        ctrl.value.isInitialized && ctrl.value.isRecordingVideo;
+    if (!uiSaysRecording && !nativeRecording) return;
+
+    _isStopping = true;
+    _timer?.cancel();
+    _timer = null;
+    // Clear UI immediately so taps / max-duration timer cannot re-enter stop.
+    isRecording.value = false;
+    update();
+
+    XFile? file;
+    try {
+      if (ctrl.value.isInitialized && ctrl.value.isRecordingVideo) {
+        file = await ctrl.stopVideoRecording();
+      }
+    } on CameraException catch (e) {
+      debugPrint('stopRecording ignored: ${e.code} ${e.description}');
+    } catch (e) {
+      debugPrint('stopRecording failed: $e');
+    } finally {
+      remainingTime.value = selectedDuration.value;
+      _isStopping = false;
+      isRecording.value = false;
+      update();
+    }
+
+    if (file == null || !navigateToEditor) return;
+    recordedVideoFile.value = File(file.path);
+    Get.to(() => VideoTextEditor(videoFile: File(file!.path)));
+  }
+
+  Future<void> discardAndClose(BuildContext context) async {
+    await stopRecording(navigateToEditor: false);
+    recordedVideoFile.value = null;
+    if (context.mounted) {
+      Navigator.of(context).pop();
     }
   }
 
   // Function to pick a video from the gallery
   Future<void> pickVideoFromGallery() async {
+    if (isRecording.value || _isStarting || _isStopping) return;
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
       allowedExtensions: const [
@@ -126,7 +200,21 @@ class CameraControllerX extends GetxController {
   @override
   void onClose() {
     _timer?.cancel();
-    cameraCtrl?.dispose();
+    _timer = null;
+    final ctrl = cameraCtrl;
+    cameraCtrl = null;
+    if (ctrl != null) {
+      () async {
+        try {
+          if (ctrl.value.isInitialized && ctrl.value.isRecordingVideo) {
+            await ctrl.stopVideoRecording();
+          }
+        } catch (_) {}
+        try {
+          await ctrl.dispose();
+        } catch (_) {}
+      }();
+    }
     super.onClose();
   }
 }
@@ -181,7 +269,8 @@ class CameraScreen extends StatelessWidget {
                                   color: Colors.white,
                                   size: 28,
                                 ),
-                                onPressed: () => Navigator.of(context).pop(),
+                                onPressed: () =>
+                                    unawaited(controller.discardAndClose(context)),
                               ),
 
                               // Flashlight button
@@ -287,9 +376,9 @@ class CameraScreen extends StatelessWidget {
                           child: GestureDetector(
                             onTap: () {
                               if (controller.isRecording.value) {
-                                controller.stopRecording();
+                                unawaited(controller.stopRecording());
                               } else {
-                                controller.startRecording();
+                                unawaited(controller.startRecording());
                               }
                             },
                             child: Container(

@@ -38,10 +38,15 @@ class PlaybackMedia {
 
   /// Backend contract: photo posts are always playable; videos use
   /// `playback_ready` when present, else `transcode_status == ready`.
+  ///
+  /// [playbackUrl] fallback: profile payloads often omit `playback_ready` /
+  /// `transcode_status` right after upload even when `video_url` is already
+  /// a playable MP4 — treat that as ready so the first open isn't stuck.
   static bool isPlaybackReady({
     required bool isPhotoPost,
     bool? playbackReady,
     String? transcodeStatus,
+    String? playbackUrl,
   }) {
     if (isPhotoPost) {
       return true;
@@ -49,7 +54,14 @@ class PlaybackMedia {
     if (playbackReady != null) {
       return playbackReady;
     }
-    return isReady(transcodeStatus);
+    if (isReady(transcodeStatus)) {
+      return true;
+    }
+    final p = playbackUrl?.trim().toLowerCase() ?? '';
+    if (p.contains('.m3u8') || p.contains('.mp4') || p.contains('/hls/')) {
+      return true;
+    }
+    return false;
   }
 
   /// Master `.m3u8` (absolute CDN URL) only when transcode is ready.
