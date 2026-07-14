@@ -1420,6 +1420,19 @@ class HomeController extends GetxController with WidgetsBindingObserver {
     _tryRestoreHomeFeedPlayback();
   }
 
+  /// Release this overlay's pause ref WITHOUT triggering a home feed restore.
+  /// Used by reel-screen teardown when a newer reel screen already claimed the
+  /// pool session: we must keep the depth balanced, but must NOT let
+  /// _tryRestoreHomeFeedPlayback → restoreHomeFeedPlayback dispose the pool out
+  /// from under the newly opened reel screen (the "3rd tap stuck" race).
+  void releaseRouteOverlayPauseSilent() {
+    if (_routeOverlayPauseDepth <= 0) {
+      return;
+    }
+    _routeOverlayPauseDepth--;
+    exitMutedPlaybackContext();
+  }
+
   bool _isOnHomeTab() {
     if (!Get.isRegistered<NavBarController>()) {
       return true;
@@ -1582,7 +1595,9 @@ class HomeController extends GetxController with WidgetsBindingObserver {
       return;
     }
     try {
-      await MediaKitPlayerPool.instance.awaitOperationsIdle();
+      await MediaKitPlayerPool.instance.awaitOperationsIdle(
+        timeout: const Duration(milliseconds: 1500),
+      );
       if (!isReelPoolSessionCurrent(token)) {
         return;
       }
@@ -1638,7 +1653,7 @@ class HomeController extends GetxController with WidgetsBindingObserver {
     MediaKitPlayerPool.instance.pauseAllImmediate();
     await MediaKitPlayerPool.instance.pauseAllAwait();
     await VideoPlayerPool.instance.pauseAll();
-    await MediaKitPlayerPool.instance.disposeAll();
+    await MediaKitPlayerPool.instance.disposeAllWithTimeout();
     await VideoPlayerPool.instance.clear();
     isVideoPlaying.value = false;
   }

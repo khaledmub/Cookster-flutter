@@ -195,13 +195,13 @@ class _VisitProfileViewState extends State<VisitProfileView>
       if (!mounted) {
         return;
       }
-      _openProfileReel(tapped, activeTab);
+      await _openProfileReel(tapped, activeTab);
     } finally {
       _openingProfileReel = false;
     }
   }
 
-  void _openProfileReel(Videos tapped, VideoTypes activeTab) {
+  Future<void> _openProfileReel(Videos tapped, VideoTypes activeTab) async {
     final profile = visitProfileController.visitProfile.value;
     final owner = profile?.user;
     if (widget.userId.isEmpty) {
@@ -229,7 +229,10 @@ class _VisitProfileViewState extends State<VisitProfileView>
       transcodeStatus: tapped.transcodeStatus,
       videoSources: tapped.videoSources,
     );
-    Get.to(
+    // Fire-and-forget: awaiting Get.to holds the open-guard for the whole
+    // screen lifetime, which left the grid permanently dead if the pop was
+    // interrupted. Teardown serialization is handled by awaitPendingReelTeardown.
+    unawaited(Get.to(
       () => ProfileReelScreen(
         userId: widget.userId,
         videoTypeId: activeTab.id?.toString(),
@@ -248,7 +251,7 @@ class _VisitProfileViewState extends State<VisitProfileView>
         ),
       ),
       preventDuplicates: false,
-    );
+    ));
   }
 
   List<VideoTypes> _buildDisplayVideoTypes(List<VideoTypes>? sourceTypes) {

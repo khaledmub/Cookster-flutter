@@ -78,8 +78,29 @@ class _CollectionReelScreenState extends State<CollectionReelScreen>
   SaveController? _saveController;
   LikedVideosController? _likedController;
   bool _ownsRouteOverlayPause = false;
-  bool _openingReel = false;
   late final int _poolSessionToken;
+  /// Bumped on every scheduled attach so a superseded page-change bails.
+  int _attachGeneration = 0;
+  /// Index before the latest [onPageChanged] — used to detect photo→video.
+  int? _previousVisibleIndex;
+
+  WallVideos? get _activeVideo {
+    final i = _visibleIndexNotifier.value;
+    if (i < 0 || i >= _videos.length) {
+      return null;
+    }
+    return _videos[i];
+  }
+
+  /// Sticky player lives outside [PageView] so photo↔video never races
+  /// GlobalKey mount/unmount inside keep-alive pages (the stuck-poster bug).
+  bool get _shouldShowStickyPlayer {
+    final v = _activeVideo;
+    return _poolSessionReady &&
+        v != null &&
+        !v.isPhotoPost &&
+        v.isPlaybackReady;
+  }
 
   String get _screenTitle {
     if (widget.title != null && widget.title!.trim().isNotEmpty) {
@@ -94,7 +115,14 @@ class _CollectionReelScreenState extends State<CollectionReelScreen>
     if (widget.kind == CollectionReelKind.saved) {
       return _saveController?.hasMore ?? false;
     }
-    return _likedController?.hasMore ?? false;
+    final liked = _likedController;
+    if (liked == null) {
+      return false;
+    }
+    // Some liked-list responses can temporarily report hasMore=false while
+    // Firestore already says there are more ids (e.g. photo rows missing from
+    // first page). Keep paginating until count catches up.
+    return liked.hasMore || liked.totalLikes.value > _videos.length;
   }
 
   @override
@@ -217,6 +245,24 @@ class _CollectionReelScreenState extends State<CollectionReelScreen>
     }
     _preloadManager.prepareForSessionStart();
     _syncVideosFromController(preserveVisible: false);
+    // Liked list can be transiently empty during a Firestore-driven reset even
+    // after _ensureControllerLoaded — re-sync a few times before giving up so we
+    // never show a bogus "No videos" on a tap that should have opened.
+    if (_videos.isEmpty && widget.kind == CollectionReelKind.liked) {
+      final ctrl = _likedController;
+      var tries = 0;
+      while (mounted &&
+          _videos.isEmpty &&
+          tries < 12 &&
+          (ctrl?.commaSeparatedIds.value.isNotEmpty ?? false)) {
+        await Future<void>.delayed(const Duration(milliseconds: 150));
+        if (!mounted) {
+          return;
+        }
+        _syncVideosFromController(preserveVisible: false);
+        tries++;
+      }
+    }
     setState(() {
       _isLoading = false;
       _poolSessionReady = true;
@@ -225,14 +271,14 @@ class _CollectionReelScreenState extends State<CollectionReelScreen>
     if (_videos.isNotEmpty) {
       final start = _visibleIndexNotifier.value;
       unawaited(
-        _preloadManager.prefetchVisibleReel(start, maxWaitMs: 700),
+        _preloadManager.prefetchVisibleReel(start, maxWaitMs: 1200),
       );
       unawaited(_preloadManager.bootstrapFromVisible(start));
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) {
           return;
         }
-        unawaited(_attachPlaybackForIndex(start, warmMaxWaitMs: 700));
+        unawaited(_schedulePlaybackForPage(start));
       });
       unawaited(_preloadAllPages());
     }
@@ -241,6 +287,7 @@ class _CollectionReelScreenState extends State<CollectionReelScreen>
   /// Load remaining saved/liked pages so the reel can scroll the full list.
   Future<void> _preloadAllPages() async {
     while (mounted && _hasMore) {
+      final before = _videos.length;
       if (widget.kind == CollectionReelKind.saved) {
         await _saveController!.fetchMoreSavedVideos();
       } else {
@@ -250,6 +297,10 @@ class _CollectionReelScreenState extends State<CollectionReelScreen>
         return;
       }
       _syncVideosFromController();
+      // Stop if backend/meta says "more" but no rows actually arrived.
+      if (_videos.length <= before) {
+        break;
+      }
     }
   }
 
@@ -265,8 +316,42 @@ class _CollectionReelScreenState extends State<CollectionReelScreen>
       return;
     }
     final ctrl = _likedController!;
-    while (ctrl.isLoading.value) {
+    // The liked list is driven by a Firestore snapshot that assignAll()s /
+    // clears likedVideos on every emit. On (re)open it can be mid-reset or
+    // transiently empty — that made the reel open empty and feel like "the tap
+    // did nothing" until a second tap. Wait for real data before continuing.
+    var waited = 0;
+    // 1) Let any in-flight reset finish.
+    while (ctrl.isLoading.value && waited < 3000) {
       await Future<void>.delayed(const Duration(milliseconds: 50));
+      waited += 50;
+    }
+    // 2) If the Firestore stream hasn't delivered ids yet but there are likes,
+    //    give it a brief window.
+    while (ctrl.likedVideos.isEmpty &&
+        ctrl.commaSeparatedIds.value.isEmpty &&
+        ctrl.totalLikes.value > 0 &&
+        waited < 3000) {
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      waited += 50;
+    }
+    // 3) Force a fetch if we have ids but no rows.
+    if (ctrl.likedVideos.isEmpty &&
+        !ctrl.isLoading.value &&
+        ctrl.commaSeparatedIds.value.isNotEmpty) {
+      await ctrl.sendVideoIdsToApi(ctrl.commaSeparatedIds.value, reset: true);
+    }
+    while (ctrl.isLoading.value && waited < 6000) {
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      waited += 50;
+    }
+    // 4) Last resort: a reset returned empty transiently — try once more.
+    if (ctrl.likedVideos.isEmpty && ctrl.commaSeparatedIds.value.isNotEmpty) {
+      await ctrl.sendVideoIdsToApi(ctrl.commaSeparatedIds.value, reset: true);
+      while (ctrl.isLoading.value && waited < 8000) {
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+        waited += 50;
+      }
     }
   }
 
@@ -287,19 +372,29 @@ class _CollectionReelScreenState extends State<CollectionReelScreen>
     final completer = Completer<void>();
     final future = completer.future;
     _homeController.registerReelTeardown(future);
+    var stillOwnsSession = true;
     try {
-      await MediaKitPlayerPool.instance.awaitOperationsIdle();
-      // Feed restore claims a new session token — skip disposeAll so we don't
-      // wipe the feed's freshly remounted players (dead-feed-until-kill bug).
+      await MediaKitPlayerPool.instance.awaitOperationsIdle(
+        timeout: const Duration(milliseconds: 1500),
+      );
       if (!_homeController.isReelPoolSessionCurrent(_poolSessionToken)) {
+        stillOwnsSession = false;
         return;
       }
       MediaKitPlayerPool.instance.setFeedUnmuteEnabled(false);
-      await MediaKitPlayerPool.instance.disposeAll();
+      await MediaKitPlayerPool.instance.disposeAllWithTimeout();
     } finally {
-      // Always release the pause pair so Home isn't left with a dead feed.
+      // Only release the pause pair AND trigger home restore if WE still own
+      // the session. A newer reel screen already claimed the pool; calling
+      // resumeReelsAfterRouteOverlay here would restoreHomeFeedPlayback →
+      // disposeAll and wipe the new screen's players (3rd-tap-stuck race).
+      // We still drop our pause ref (silently) so the depth stays balanced.
       if (_ownsRouteOverlayPause) {
-        _homeController.resumeReelsAfterRouteOverlay();
+        if (stillOwnsSession) {
+          _homeController.resumeReelsAfterRouteOverlay();
+        } else {
+          _homeController.releaseRouteOverlayPauseSilent();
+        }
         _ownsRouteOverlayPause = false;
       }
       completer.complete();
@@ -331,6 +426,13 @@ class _CollectionReelScreenState extends State<CollectionReelScreen>
       return;
     }
     setState(() => _maskActiveVideoWithPoster = false);
+  }
+
+  void _onFeedAwaitingPaint() {
+    if (!mounted || _maskActiveVideoWithPoster) {
+      return;
+    }
+    setState(() => _maskActiveVideoWithPoster = true);
   }
 
   void _resetPosterMaskForPageChange({String? videoId}) {
@@ -387,34 +489,183 @@ class _CollectionReelScreenState extends State<CollectionReelScreen>
       MediaKitPlayerPool.instance.pauseAllImmediate();
       return;
     }
-    if (_openingReel) {
+    final token = ++_attachGeneration;
+    await ReelScreenPlaybackHelpers.attachVisibleIndex(
+      preloadManager: _preloadManager,
+      coordinator: _playbackCoordinator,
+      context: context,
+      index: index,
+      playerKey: _reelPlayerKey,
+      forcePlayerReattach: forceReattach,
+      warmMaxWaitMs: warmMaxWaitMs,
+    );
+    if (!mounted || token != _attachGeneration) {
       return;
     }
-    _openingReel = true;
-    try {
+  }
+
+  /// Photo↔video schedule — sticky player is outside the PageView, so after
+  /// clear we only need a post-frame [ensureVisibleOpen] (player already mounted).
+  Future<void> _schedulePlaybackForPage(int index) async {
+    final token = ++_attachGeneration;
+    if (index < 0 || index >= _videos.length) {
+      return;
+    }
+    var video = _videos[index];
+    final prev = _previousVisibleIndex;
+    final leavingPhoto = prev != null &&
+        prev >= 0 &&
+        prev < _videos.length &&
+        _videos[prev].isPhotoPost;
+
+    if (video.isPhotoPost) {
+      MediaKitPlayerPool.instance.pauseAllImmediate();
+      await MediaKitPlayerPool.instance.clearFeedVisibleReel();
+      if (!_scheduleStillCurrent(token, index)) {
+        return;
+      }
+      if (!_maskActiveVideoWithPoster && mounted) {
+        setState(() => _maskActiveVideoWithPoster = true);
+      }
+      return;
+    }
+
+    if (leavingPhoto) {
+      await MediaKitPlayerPool.instance.clearFeedVisibleReel();
+      if (!_scheduleStillCurrent(token, index)) {
+        return;
+      }
+      video = _videos[index];
+      if (video.isPhotoPost) {
+        if (!_maskActiveVideoWithPoster && mounted) {
+          setState(() => _maskActiveVideoWithPoster = true);
+        }
+        return;
+      }
+    }
+
+    if (mounted && !_maskActiveVideoWithPoster) {
+      setState(() => _maskActiveVideoWithPoster = true);
+    }
+
+    // Sticky player mounts with the visibleIndex rebuild; open after paint.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!_scheduleStillCurrent(token, index)) {
+        return;
+      }
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!_scheduleStillCurrent(token, index)) {
+          return;
+        }
+        unawaited(_openStickyPlayer(index: index, token: token));
+      });
+    });
+  }
+
+  bool _scheduleStillCurrent(int token, int index) {
+    return mounted &&
+        token == _attachGeneration &&
+        index == _visibleIndexNotifier.value &&
+        index >= 0 &&
+        index < _videos.length;
+  }
+
+  bool _playbackLiveForId(String? videoId) {
+    if (videoId == null || videoId.isEmpty) {
+      return false;
+    }
+    final pool = MediaKitPlayerPool.instance;
+    return pool.isFeedVisibleKey(videoId) &&
+        (pool.isFrameReady(videoId) ||
+            pool.isBufferPrimed(videoId) ||
+            pool.hadRecentPaint(videoId));
+  }
+
+  Future<void> _openStickyPlayer({
+    required int index,
+    required int token,
+  }) async {
+    if (!_scheduleStillCurrent(token, index)) {
+      return;
+    }
+    final video = _videos[index];
+    if (video.isPhotoPost) {
+      return;
+    }
+    final key = video.id;
+    if (key == null || key.isEmpty) {
+      return;
+    }
+
+    await ReelScreenPlaybackHelpers.warmVisibleIndex(
+      preloadManager: _preloadManager,
+      coordinator: _playbackCoordinator,
+      context: context,
+      index: index,
+      maxWaitMs: 700,
+    );
+    if (!_scheduleStillCurrent(token, index) || !context.mounted) {
+      return;
+    }
+    MediaKitPlayerPool.instance.setScreenWidth(
+      MediaQuery.sizeOf(context).width,
+    );
+    _preloadManager.onVisiblePageSettled();
+    _playbackCoordinator.onPageSettled(index, context: context);
+
+    // Sticky player can take one more frame after photo→video; wait briefly.
+    var state = _reelPlayerKey.currentState;
+    for (var i = 0; i < 6 && state == null && mounted; i++) {
+      await SchedulerBinding.instance.endOfFrame;
+      if (!_scheduleStillCurrent(token, index)) {
+        return;
+      }
+      state = _reelPlayerKey.currentState;
+    }
+    if (state == null) {
+      if (!context.mounted) {
+        return;
+      }
       await ReelScreenPlaybackHelpers.attachVisibleIndex(
         preloadManager: _preloadManager,
         coordinator: _playbackCoordinator,
         context: context,
         index: index,
         playerKey: _reelPlayerKey,
-        forcePlayerReattach: forceReattach,
-        warmMaxWaitMs: warmMaxWaitMs,
+        forcePlayerReattach: false,
+        warmMaxWaitMs: 400,
       );
-    } finally {
-      _openingReel = false;
+      return;
+    }
+    // Reopen race: a previous screen's late teardown may have disposed the
+    // pool right after our first open. Retry ensureVisibleOpen (idempotent,
+    // never recycles the decoder) until playback is live.
+    for (var attempt = 0; attempt < 4; attempt++) {
+      if (!_scheduleStillCurrent(token, index)) {
+        return;
+      }
+      await state.ensureVisibleOpen();
+      if (!_scheduleStillCurrent(token, index)) {
+        return;
+      }
+      if (_playbackLiveForId(key)) {
+        return;
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 350));
     }
   }
 
-  Widget _buildInlineReelPlayer(WallVideos video, int index) {
+  Widget _buildStickyReelPlayer(WallVideos video, int index) {
     return ReelFeedPlayerKit.buildInlinePlayer(
       video: video,
       playerKey: _reelPlayerKey,
       showProgressBar: !video.isPhotoPost,
+      wrapPositioned: false,
       onPlaybackReady: () {
         _onVisibleReelReady(index);
       },
       onFeedVideoPainted: _onFeedVideoPainted,
+      onFeedAwaitingPaint: _onFeedAwaitingPaint,
       onVideoCompleted: () {},
     );
   }
@@ -491,6 +742,7 @@ class _CollectionReelScreenState extends State<CollectionReelScreen>
 
     _isLoadingMore = true;
     try {
+      final before = _videos.length;
       if (widget.kind == CollectionReelKind.saved) {
         await _saveController!.fetchMoreSavedVideos();
       } else {
@@ -500,6 +752,9 @@ class _CollectionReelScreenState extends State<CollectionReelScreen>
         return;
       }
       _syncVideosFromController();
+      if (_videos.length <= before) {
+        return;
+      }
     } finally {
       if (mounted) {
         setState(() => _isLoadingMore = false);
@@ -533,22 +788,26 @@ class _CollectionReelScreenState extends State<CollectionReelScreen>
 
   void _onPageChanged(int index) {
     MediaKitPlayerPool.instance.pauseAllImmediate();
-    _reelPlayerKey.currentState?.cancelInFlightPlaybackForPageChange();
+    final playerState = _reelPlayerKey.currentState;
+    if (playerState != null) {
+      playerState.cancelInFlightPlaybackForPageChange();
+    }
+    _previousVisibleIndex = _visibleIndexNotifier.value;
     _visibleIndexNotifier.value = index;
     _resetPosterMaskForPageChange(
       videoId: index < _videos.length ? _videos[index].id : null,
     );
     _scrollTowardIndex = null;
-    final video = _videos[index];
-    if (video.isPhotoPost) {
-      MediaKitPlayerPool.instance.pauseAllImmediate();
-      _scheduleViewTrack(video);
+    if (index < 0 || index >= _videos.length) {
       return;
     }
+    final video = _videos[index];
     _scheduleViewTrack(video);
-    unawaited(_attachPlaybackForIndex(index));
+    // Home-feed style: serialize clear + attach on the async path so
+    // clearFeedVisibleReel cannot bump the open token under a live attach.
+    unawaited(_schedulePlaybackForPage(index));
 
-    if (_hasMore && index >= _videos.length - 3) {
+    if (!video.isPhotoPost && _hasMore && index >= _videos.length - 3) {
       unawaited(_fetchMoreVideos());
     }
   }
@@ -677,81 +936,87 @@ class _CollectionReelScreenState extends State<CollectionReelScreen>
         canPop: true,
         child: Scaffold(
           backgroundColor: Colors.black,
-          body: Stack(
-            fit: StackFit.expand,
-            children: [
-              PageView.builder(
-                controller: _pageController,
-                scrollDirection: Axis.vertical,
-                clipBehavior: Clip.hardEdge,
-                dragStartBehavior: DragStartBehavior.down,
-                allowImplicitScrolling: true,
-                pageSnapping: true,
-                physics: const ClampingScrollPhysics(),
-                itemCount: _videos.length,
-                onPageChanged: _onPageChanged,
-                itemBuilder: (context, index) {
-                  final video = _videos[index];
-                  return ReelPageKeepAlive(
-                    key: ValueKey<String>('collection_${video.id ?? 'video'}'),
-                    child: ValueListenableBuilder<int>(
-                    valueListenable: _visibleIndexNotifier,
-                    builder: (context, visibleIndex, _) {
+          body: ValueListenableBuilder<int>(
+            valueListenable: _visibleIndexNotifier,
+            builder: (context, visibleIndex, _) {
+              final active = _activeVideo;
+              final showStickyPlayer = _shouldShowStickyPlayer;
+              final maskPoster =
+                  showStickyPlayer && _maskActiveVideoWithPoster;
+              return Stack(
+                fit: StackFit.expand,
+                children: [
+                  // Sticky player — outside PageView so photo→video never
+                  // loses the GlobalKey mount inside keep-alive pages.
+                  if (showStickyPlayer && active != null)
+                    Positioned.fill(
+                      child: _buildStickyReelPlayer(active, visibleIndex),
+                    ),
+                  PageView.builder(
+                    controller: _pageController,
+                    scrollDirection: Axis.vertical,
+                    clipBehavior: Clip.hardEdge,
+                    dragStartBehavior: DragStartBehavior.down,
+                    allowImplicitScrolling: true,
+                    pageSnapping: true,
+                    physics: const ClampingScrollPhysics(),
+                    itemCount: _videos.length,
+                    onPageChanged: _onPageChanged,
+                    itemBuilder: (context, index) {
+                      final video = _videos[index];
                       final isActivePage = index == visibleIndex;
                       final isActiveVideo = isActivePage &&
                           !video.isPhotoPost &&
                           video.isPlaybackReady;
-                      final maskPoster =
-                          isActiveVideo && _maskActiveVideoWithPoster;
-                      return Stack(
-                        clipBehavior: Clip.none,
-                        alignment: Alignment.bottomLeft,
-                        fit: StackFit.expand,
-                        children: [
-                          ReelFeedPageMediaChrome(
-                            video: video,
-                            isActivePage: isActivePage,
-                            child: Stack(
-                              fit: StackFit.expand,
-                              children: [
-                                if (isActiveVideo && _poolSessionReady)
-                                  _buildInlineReelPlayer(video, index),
-                                IgnorePointer(
+                      // Pages never own the player — only posters + chrome.
+                      final showPagePoster =
+                          !isActiveVideo || maskPoster || video.isPhotoPost;
+                      return ReelPageKeepAlive(
+                        key: ValueKey<String>(
+                          'collection_${video.id ?? 'video'}',
+                        ),
+                        child: Stack(
+                          clipBehavior: Clip.none,
+                          alignment: Alignment.bottomLeft,
+                          fit: StackFit.expand,
+                          children: [
+                            ReelFeedPageMediaChrome(
+                              video: video,
+                              isActivePage: isActivePage,
+                              child: RepaintBoundary(
+                                child: IgnorePointer(
                                   ignoring: isActiveVideo && !maskPoster,
                                   child: Opacity(
-                                    opacity: maskPoster || !isActiveVideo
-                                        ? 1.0
-                                        : 0.0,
+                                    opacity: showPagePoster ? 1.0 : 0.0,
                                     child: ReelFeedPlayerKit.buildPagePoster(
                                       video,
                                     ),
                                   ),
                                 ),
-                              ],
+                              ),
                             ),
-                          ),
-                          if (isActivePage) ...[
-                            VideoDescriptionWidget(
-                              title: video.title,
-                              description: video.description,
-                              tags: video.tags,
-                              controller: _homeController,
-                              bottomBarClearance: 8,
-                            ),
-                            ReelOverlayColumn(
-                              video: video,
-                              isAuthenticated: _isAuthenticated,
-                            ),
+                            if (isActivePage) ...[
+                              VideoDescriptionWidget(
+                                title: video.title,
+                                description: video.description,
+                                tags: video.tags,
+                                controller: _homeController,
+                                bottomBarClearance: 8,
+                              ),
+                              ReelOverlayColumn(
+                                video: video,
+                                isAuthenticated: _isAuthenticated,
+                              ),
+                            ],
                           ],
-                        ],
+                        ),
                       );
                     },
                   ),
-                  );
-                },
-              ),
-              _buildTopBar(),
-            ],
+                  _buildTopBar(),
+                ],
+              );
+            },
           ),
         ),
       ),

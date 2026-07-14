@@ -1260,16 +1260,16 @@ class _ProfessionalProfileViewState extends State<ProfessionalProfileView>
       if (!mounted) {
         return;
       }
-      _openProfileReel(tapped, activeTab);
+      await _openProfileReel(tapped, activeTab);
     } finally {
       _openingProfileReel = false;
     }
   }
 
-  void _openProfileReel(
+  Future<void> _openProfileReel(
     ProfessionalVideos tapped,
     VideoTypes activeTab,
-  ) {
+  ) async {
     final user = profileController.userDetails.value?.user;
     final userId = user?.id?.toString();
     if (userId == null || userId.isEmpty) {
@@ -1297,7 +1297,10 @@ class _ProfessionalProfileViewState extends State<ProfessionalProfileView>
       transcodeStatus: tapped.transcodeStatus,
       videoSources: tapped.videoSources,
     );
-    Get.to(
+    // Fire-and-forget: awaiting Get.to holds the open-guard for the whole
+    // screen lifetime, which left the grid permanently dead if the pop was
+    // interrupted. Teardown serialization is handled by awaitPendingReelTeardown.
+    unawaited(Get.to(
       () => ProfileReelScreen(
         userId: userId,
         videoTypeId: activeTab.id?.toString(),
@@ -1316,7 +1319,7 @@ class _ProfessionalProfileViewState extends State<ProfessionalProfileView>
         ),
       ),
       preventDuplicates: false,
-    );
+    ));
   }
 
   List<VideoTypes> _buildDisplayVideoTypes(List<VideoTypes>? sourceTypes) {

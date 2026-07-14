@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
@@ -94,7 +96,7 @@ class _LikedVideosScreenState extends State<LikedVideosScreen>
           if (!context.mounted) {
             return;
           }
-          Get.to(
+          unawaited(Get.to(
             () => CollectionReelScreen(
               kind: CollectionReelKind.liked,
               anchorId: video.id?.toString(),
@@ -107,7 +109,7 @@ class _LikedVideosScreenState extends State<LikedVideosScreen>
               ),
             ),
             preventDuplicates: false,
-          );
+          ));
         } finally {
           _openingReel = false;
         }

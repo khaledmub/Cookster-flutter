@@ -77,6 +77,8 @@ class _ProfileReelScreenState extends State<ProfileReelScreen>
   /// True when this screen pushed [pauseReelsForRouteOverlay] (own profile path).
   bool _ownsRouteOverlayPause = false;
   late final int _poolSessionToken;
+  int _pageScheduleGeneration = 0;
+  int? _previousVisibleIndex;
 
   final List<WallVideos> _videos = [];
   FeedMeta? _meta;
@@ -166,7 +168,7 @@ class _ProfileReelScreenState extends State<ProfileReelScreen>
     return widget.initialIndex.clamp(0, videos.length - 1);
   }
 
-  void _startPlaybackAt(int index, {int warmMaxWaitMs = 200}) {
+  void _startPlaybackAt(int index, {int warmMaxWaitMs = 700}) {
     if (index < 0 || index >= _videos.length) {
       return;
     }
@@ -209,7 +211,7 @@ class _ProfileReelScreenState extends State<ProfileReelScreen>
     if (hadSeeds) {
       final idx = _visibleIndexNotifier.value.clamp(0, _videos.length - 1);
       unawaited(
-        _preloadManager.prefetchVisibleReel(idx, maxWaitMs: 700),
+        _preloadManager.prefetchVisibleReel(idx, maxWaitMs: 1200),
       );
       unawaited(_preloadManager.bootstrapFromVisible(idx));
     }
@@ -225,7 +227,7 @@ class _ProfileReelScreenState extends State<ProfileReelScreen>
         ? -1
         : _visibleIndexNotifier.value.clamp(0, _videos.length - 1);
     if (idx >= 0 && !_playbackLiveForId(_videos[idx].id)) {
-      _startPlaybackAt(idx, warmMaxWaitMs: 360);
+      _startPlaybackAt(idx, warmMaxWaitMs: 700);
     }
   }
 
@@ -246,20 +248,24 @@ class _ProfileReelScreenState extends State<ProfileReelScreen>
     final completer = Completer<void>();
     final future = completer.future;
     _homeController.registerReelTeardown(future);
+    var stillOwnsSession = true;
     try {
-      await MediaKitPlayerPool.instance.awaitOperationsIdle();
-      // Feed restore claims a new session token — skip disposeAll so we don't
-      // wipe the feed's freshly remounted players (dead-feed-until-kill bug).
+      await MediaKitPlayerPool.instance.awaitOperationsIdle(
+        timeout: const Duration(milliseconds: 1500),
+      );
       if (!_homeController.isReelPoolSessionCurrent(_poolSessionToken)) {
+        stillOwnsSession = false;
         return;
       }
       MediaKitPlayerPool.instance.setFeedUnmuteEnabled(false);
-      await MediaKitPlayerPool.instance.disposeAll();
+      await MediaKitPlayerPool.instance.disposeAllWithTimeout();
     } finally {
-      // Always release the pause pair (even if disposeAll throws) so Home is
-      // not left with routeOverlayPauseDepth > 0 and a dead feed.
       if (_ownsRouteOverlayPause) {
-        _homeController.resumeReelsAfterRouteOverlay();
+        if (stillOwnsSession) {
+          _homeController.resumeReelsAfterRouteOverlay();
+        } else {
+          _homeController.releaseRouteOverlayPauseSilent();
+        }
         _ownsRouteOverlayPause = false;
       }
       completer.complete();
@@ -488,10 +494,147 @@ class _ProfileReelScreenState extends State<ProfileReelScreen>
     );
   }
 
+  /// Mirrors [ReelsVideoScreen._schedulePlayerForPageAsync] for photo↔video.
+  Future<void> _schedulePlaybackForPage(int index) async {
+    final token = ++_pageScheduleGeneration;
+    if (index < 0 || index >= _videos.length) {
+      return;
+    }
+    var video = _videos[index];
+    final prev = _previousVisibleIndex;
+    final leavingPhoto = prev != null &&
+        prev >= 0 &&
+        prev < _videos.length &&
+        _videos[prev].isPhotoPost;
+
+    if (video.isPhotoPost) {
+      MediaKitPlayerPool.instance.pauseAllImmediate();
+      await MediaKitPlayerPool.instance.clearFeedVisibleReel();
+      if (!mounted ||
+          token != _pageScheduleGeneration ||
+          index != _visibleIndexNotifier.value) {
+        return;
+      }
+      if (!_maskActiveVideoWithPoster) {
+        setState(() => _maskActiveVideoWithPoster = true);
+      }
+      return;
+    }
+
+    if (leavingPhoto) {
+      await MediaKitPlayerPool.instance.clearFeedVisibleReel();
+      if (!mounted ||
+          token != _pageScheduleGeneration ||
+          index != _visibleIndexNotifier.value) {
+        return;
+      }
+      video = _videos[index];
+      if (video.isPhotoPost) {
+        if (!_maskActiveVideoWithPoster) {
+          setState(() => _maskActiveVideoWithPoster = true);
+        }
+        return;
+      }
+    }
+
+    if (mounted) {
+      setState(() {
+        if (!_maskActiveVideoWithPoster) {
+          _maskActiveVideoWithPoster = true;
+        }
+      });
+    }
+
+    final needsReattach = leavingPhoto;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted ||
+          token != _pageScheduleGeneration ||
+          index != _visibleIndexNotifier.value) {
+        return;
+      }
+      void open() {
+        if (!mounted ||
+            token != _pageScheduleGeneration ||
+            index != _visibleIndexNotifier.value) {
+          return;
+        }
+        final key = _videos[index].id;
+        final state = _reelPlayerKey.currentState;
+        if (state == null || key == null || key.isEmpty) {
+          unawaited(
+            _attachPlaybackForIndex(
+              index,
+              forceReattach: false,
+              warmMaxWaitMs: 700,
+            ),
+          );
+          return;
+        }
+        unawaited(() async {
+          await ReelScreenPlaybackHelpers.warmVisibleIndex(
+            preloadManager: _preloadManager,
+            coordinator: _playbackCoordinator,
+            context: context,
+            index: index,
+            maxWaitMs: 700,
+          );
+          if (!mounted ||
+              token != _pageScheduleGeneration ||
+              index != _visibleIndexNotifier.value) {
+            return;
+          }
+          final s = _reelPlayerKey.currentState;
+          if (s == null) {
+            return;
+          }
+          final isLive = _playbackLiveForId(key);
+          if (isLive && !needsReattach) {
+            return;
+          }
+          if (!MediaKitPlayerPool.instance.isFeedVisibleKey(key)) {
+            await s.ensureVisibleOpen();
+          } else if (needsReattach) {
+            await s.resumeAfterRouteOverlay();
+          } else {
+            await s.ensureVisibleOpen();
+          }
+          // Reopen race: a previous screen's late teardown may have disposed
+          // the pool right after our first open. Retry ensureVisibleOpen
+          // (idempotent, never recycles the decoder) until playback is live.
+          for (var attempt = 0; attempt < 4; attempt++) {
+            if (!mounted ||
+                token != _pageScheduleGeneration ||
+                index != _visibleIndexNotifier.value) {
+              return;
+            }
+            if (_playbackLiveForId(key)) {
+              return;
+            }
+            await Future<void>.delayed(
+              const Duration(milliseconds: 350),
+            );
+            if (!mounted ||
+                token != _pageScheduleGeneration ||
+                index != _visibleIndexNotifier.value) {
+              return;
+            }
+            await s.ensureVisibleOpen();
+          }
+        }());
+      }
+
+      if (_reelPlayerKey.currentState == null) {
+        WidgetsBinding.instance.addPostFrameCallback((_) => open());
+      } else {
+        WidgetsBinding.instance.addPostFrameCallback((_) => open());
+      }
+    });
+  }
+
   Future<void> _attachPlaybackForIndex(
     int index, {
     bool forceReattach = false,
-    int warmMaxWaitMs = 200,
+    int warmMaxWaitMs = 700,
   }) async {
     if (index < 0 || index >= _videos.length) {
       return;
@@ -672,22 +815,26 @@ class _ProfileReelScreenState extends State<ProfileReelScreen>
 
   void _onPageChanged(int index) {
     MediaKitPlayerPool.instance.pauseAllImmediate();
-    _reelPlayerKey.currentState?.cancelInFlightPlaybackForPageChange();
+    final playerState = _reelPlayerKey.currentState;
+    if (playerState != null) {
+      playerState.cancelInFlightPlaybackForPageChange();
+    }
+    _previousVisibleIndex = _visibleIndexNotifier.value;
     _visibleIndexNotifier.value = index;
     _resetPosterMaskForPageChange(
       videoId: index < _videos.length ? _videos[index].id : null,
     );
     _scrollTowardIndex = null;
-    final video = _videos[index];
-    if (video.isPhotoPost) {
-      MediaKitPlayerPool.instance.pauseAllImmediate();
-      _scheduleViewTrack(video);
+    if (index < 0 || index >= _videos.length) {
       return;
     }
+    final video = _videos[index];
     _scheduleViewTrack(video);
-    unawaited(_attachPlaybackForIndex(index));
+    unawaited(_schedulePlaybackForPage(index));
 
-    if (_meta?.hasMore != false && index >= _videos.length - 3) {
+    if (!video.isPhotoPost &&
+        _meta?.hasMore != false &&
+        index >= _videos.length - 3) {
       unawaited(_fetchMoreVideos());
     }
   }

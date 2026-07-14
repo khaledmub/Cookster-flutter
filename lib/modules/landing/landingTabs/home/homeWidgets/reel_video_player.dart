@@ -2637,7 +2637,7 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
 
   /// Warm Honor paths usually paint under ~300ms; cold decode often advances
   /// without paint by ~1–1.5s when ImageReader is churning — soft-recover then.
-  static const int _earlyPaintStallMs = 1200;
+  static const int _earlyPaintStallMs = 850;
 
   bool _decodeProgressingWithoutPaint(Player player) {
     if (_canShowVideo(player)) {
@@ -3030,14 +3030,16 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
     final sessionCold = _pool.feedOpenCount == 0;
     final maxWaitMs = sessionCold
         ? switch (network) {
-            NetworkClass.wifi => 2500,
-            NetworkClass.mobile => 3500,
+            NetworkClass.wifi => 2200,
+            NetworkClass.mobile => 3000,
             NetworkClass.offline => 800,
           }
         : switch (network) {
-            NetworkClass.wifi => 500,
-            NetworkClass.mobile => 800,
-            NetworkClass.offline => 400,
+            // Warm session: don't stall behind a cache that isn't landing.
+            // Open HTTPS quickly instead of burning ~1.2s waiting.
+            NetworkClass.wifi => 450,
+            NetworkClass.mobile => 700,
+            NetworkClass.offline => 350,
           };
     final started = DateTime.now().millisecondsSinceEpoch;
     // Chunked wait so swipe-away / generation bump can bail early.

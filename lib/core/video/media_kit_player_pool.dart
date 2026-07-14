@@ -178,9 +178,23 @@ class MediaKitPlayerPool {
   }
 
   /// Wait for in-flight priority / warm work (e.g. profile dispose before re-open).
-  Future<void> awaitOperationsIdle() async {
-    await _priorityChain;
-    await _warmChain;
+  Future<void> awaitOperationsIdle({Duration? timeout}) async {
+    if (timeout == null) {
+      await _priorityChain;
+      await _warmChain;
+      return;
+    }
+    try {
+      await Future.wait([_priorityChain, _warmChain]).timeout(
+        timeout,
+        onTimeout: () {
+          breakStuckPriorityChain();
+          return <void>[];
+        },
+      );
+    } catch (_) {
+      breakStuckPriorityChain();
+    }
   }
 
   bool _isFeedPingPongPlayer(Player? player) {
@@ -1764,6 +1778,28 @@ class MediaKitPlayerPool {
       // Fresh warm lane after a full teardown so feed restore isn't gated by
       // stale warm tasks from the overlay session.
       _warmChain = Future<void>.value();
+    });
+  }
+
+  /// Force-break a stuck priority/warm chain. Used only as a last resort when a
+  /// pool operation (typically a native `player.dispose()` on a bad surface
+  /// left behind by a photo→video transition) never resolves and would
+  /// otherwise permanently freeze reel reopening. The hung op keeps running in
+  /// the background but new ops (disposeAll / ensureFeedPingPongInitialized /
+  /// openVisibleReel) proceed immediately on a fresh chain.
+  void breakStuckPriorityChain() {
+    _priorityChain = Future<void>.value();
+    _warmChain = Future<void>.value();
+    _priorityDepth = 0;
+  }
+
+  /// `disposeAll` with a hard timeout. On timeout we force-break the chain so a
+  /// hung native dispose can never permanently block reel reopening.
+  Future<void> disposeAllWithTimeout({
+    Duration timeout = const Duration(milliseconds: 1500),
+  }) {
+    return disposeAll().timeout(timeout, onTimeout: () {
+      breakStuckPriorityChain();
     });
   }
 

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cookster/core/navigation/route_back.dart';
 import 'package:cookster/loaders/pulseLoader.dart';
 import 'package:flutter/cupertino.dart';
@@ -86,7 +88,10 @@ class _SavedVideosViewState extends State<SavedVideosView>
           if (!context.mounted) {
             return;
           }
-          Get.to(
+          // Fire-and-forget: awaiting Get.to holds the open-guard for the whole
+          // screen lifetime, so any interrupted pop left the grid permanently
+          // dead. Teardown serialization is handled by awaitPendingReelTeardown.
+          unawaited(Get.to(
             () => CollectionReelScreen(
               kind: CollectionReelKind.saved,
               anchorId: video.id?.toString(),
@@ -99,7 +104,7 @@ class _SavedVideosViewState extends State<SavedVideosView>
               ),
             ),
             preventDuplicates: false,
-          );
+          ));
         } finally {
           _openingReel = false;
         }

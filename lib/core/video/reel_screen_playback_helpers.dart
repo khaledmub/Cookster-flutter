@@ -5,6 +5,7 @@ import 'package:cookster/core/video/reels_playback_coordinator.dart';
 import 'package:cookster/core/video/video_preload_manager.dart';
 import 'package:cookster/modules/landing/landingTabs/home/homeWidgets/reel_video_player.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 
 /// Shared warm / attach / resume behavior for home, profile, collection, hashtag reels.
 class ReelScreenPlaybackHelpers {
@@ -57,6 +58,14 @@ class ReelScreenPlaybackHelpers {
     bool forcePlayerReattach = false,
     int warmMaxWaitMs = 700,
   }) async {
+    // Photo→video: the player only mounts on the next frame after visibleIndex
+    // flips. Wait for [currentState] FIRST — warming before the mount made us
+    // finish attach while state was still null and silently no-op.
+    var state = await _waitForPlayerState(playerKey, context);
+    if (!context.mounted) {
+      return;
+    }
+
     await warmVisibleIndex(
       preloadManager: preloadManager,
       coordinator: coordinator,
@@ -72,8 +81,11 @@ class ReelScreenPlaybackHelpers {
     );
     preloadManager.onVisiblePageSettled();
     coordinator.onPageSettled(index, context: context);
-    final state = playerKey?.currentState;
-    if (state == null) {
+
+    // Re-resolve after warm — GlobalKey can move during the await.
+    state = playerKey?.currentState ??
+        await _waitForPlayerState(playerKey, context);
+    if (state == null || !context.mounted) {
       return;
     }
     if (forcePlayerReattach) {
@@ -83,6 +95,30 @@ class ReelScreenPlaybackHelpers {
       // warm can finish first — open here after prefetch.
       await state.ensureVisibleOpen();
     }
+  }
+
+  static Future<ReelVideoPlayerState?> _waitForPlayerState(
+    GlobalKey<ReelVideoPlayerState>? playerKey,
+    BuildContext context,
+  ) async {
+    if (playerKey == null) {
+      return null;
+    }
+    var state = playerKey.currentState;
+    if (state != null) {
+      return state;
+    }
+    for (var i = 0; i < 12 && context.mounted; i++) {
+      await SchedulerBinding.instance.endOfFrame;
+      if (!context.mounted) {
+        return null;
+      }
+      state = playerKey.currentState;
+      if (state != null) {
+        return state;
+      }
+    }
+    return playerKey.currentState;
   }
 
   static Future<void> resumeAfterAppForeground({

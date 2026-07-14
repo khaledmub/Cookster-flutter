@@ -34,7 +34,11 @@ Future<void> prepareForProfileReelRoute({bool forPhotoPost = false}) async {
     await SchedulerBinding.instance.endOfFrame;
     return;
   }
-  await MediaKitPlayerPool.instance.awaitOperationsIdle();
+  // Bounded idle wait — a hung native player.dispose() (e.g. left behind by a
+  // photo→video transition) must never permanently freeze reel reopening.
+  await MediaKitPlayerPool.instance.awaitOperationsIdle(
+    timeout: const Duration(milliseconds: 1200),
+  );
   if (Get.isRegistered<HomeController>()) {
     final home = Get.find<HomeController>();
     // Do not bump [routeOverlayPauseDepth] here — the pushed reel screen (or
@@ -44,7 +48,7 @@ Future<void> prepareForProfileReelRoute({bool forPhotoPost = false}) async {
     await SchedulerBinding.instance.endOfFrame;
     await home.releaseAllVideoResources();
   } else {
-    await MediaKitPlayerPool.instance.disposeAll();
+    await MediaKitPlayerPool.instance.disposeAllWithTimeout();
     await VideoPlayerPool.instance.clear();
   }
   await SchedulerBinding.instance.endOfFrame;
