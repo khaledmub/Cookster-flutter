@@ -11,6 +11,7 @@ import 'package:cookster/core/widgets/profile_user_title.dart';
 import 'package:cookster/core/media/wall_video_media.dart';
 import 'package:cookster/core/video/media_kit_player_pool.dart';
 import 'package:cookster/core/video/reels_feed_client.dart';
+import 'package:cookster/core/video/fullscreen_video_playback.dart';
 import 'package:cookster/core/video/reels_playback_coordinator.dart';
 import 'package:cookster/core/video/reel_screen_playback_helpers.dart';
 import 'package:cookster/core/video/video_preload_manager.dart';
@@ -192,11 +193,15 @@ class _ProfileReelScreenState extends State<ProfileReelScreen>
       anchorId: widget.anchorId,
     );
     final hadSeeds = _videos.isNotEmpty;
-    await _loadAuth();
+    // The grid tap now only silences (instant) — do the full pool dispose here
+    // so the shared pool is clean before we init our own ping-pong slots.
+    await Future.wait<void>([
+      prepareForFullscreenVideoPlayback(),
+      _loadAuth(),
+    ]);
     if (!mounted) {
       return;
     }
-    // [prepareForProfileReelRoute] already tore down the pool from the grid tap.
     await SchedulerBinding.instance.endOfFrame;
     await SchedulerBinding.instance.endOfFrame;
     if (!mounted) {

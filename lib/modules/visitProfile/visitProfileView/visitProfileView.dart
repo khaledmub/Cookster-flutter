@@ -180,18 +180,7 @@ class _VisitProfileViewState extends State<VisitProfileView>
     }
     _openingProfileReel = true;
     try {
-      await homeController.awaitPendingReelTeardown();
-      final isPhoto = isReelGridPhotoPost(
-        isImage: tapped.isImage,
-        videoUrl: tapped.videoUrl,
-        video: tapped.video,
-        thumbnailUrl: tapped.thumbnailUrl,
-        imageUrl: tapped.imageUrl,
-        image: tapped.image,
-        transcodeStatus: tapped.transcodeStatus,
-        processingStatus: tapped.processingStatus,
-      );
-      await prepareForProfileReelRoute(forPhotoPost: isPhoto);
+      silenceHomeForReelRoute();
       if (!mounted) {
         return;
       }

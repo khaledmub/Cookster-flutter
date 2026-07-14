@@ -54,3 +54,26 @@ Future<void> prepareForProfileReelRoute({bool forPhotoPost = false}) async {
   await SchedulerBinding.instance.endOfFrame;
   await SchedulerBinding.instance.endOfFrame;
 }
+
+/// Synchronous-only prep for opening a reel route from a grid tap. Does the
+/// instant parts of [prepareForProfileReelRoute] — silence audio, hide the
+/// home feed, and claim the shared pool session — with NO awaits, so the grid
+/// tap navigates immediately instead of blocking for up to ~2s (which made
+/// users tap repeatedly because extra taps were dropped by the open guard).
+///
+/// The full pool dispose is handled by the pushed screen's bootstrap
+/// [prepareForFullscreenVideoPlayback]; the session claim here ensures any
+/// in-flight previous reel-screen teardown skips its own disposeAll so it
+/// cannot wipe the new screen's freshly mounted players.
+void silenceHomeForReelRoute() {
+  MediaKitPlayerPool.instance.setFeedUnmuteEnabled(false);
+  MediaKitPlayerPool.instance.silenceAllSync();
+  MediaKitPlayerPool.instance.pauseAllImmediate();
+  if (Get.isRegistered<HomeController>()) {
+    final home = Get.find<HomeController>();
+    home.setReelsTabVisible(false);
+    // Claim synchronously — supersedes any previous reel screen's in-flight
+    // teardown so it skips disposeAll over this new session.
+    home.claimReelPoolSession();
+  }
+}

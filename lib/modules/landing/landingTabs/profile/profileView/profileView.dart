@@ -761,20 +761,10 @@ class _ProfileViewState extends State<ProfileView>
     }
     _openingProfileReel = true;
     try {
-      if (Get.isRegistered<HomeController>()) {
-        await Get.find<HomeController>().awaitPendingReelTeardown();
-      }
-      final isPhoto = isReelGridPhotoPost(
-        isImage: tapped.isImage,
-        videoUrl: tapped.videoUrl,
-        video: tapped.video,
-        thumbnailUrl: tapped.thumbnailUrl,
-        imageUrl: tapped.imageUrl,
-        image: tapped.image,
-        transcodeStatus: tapped.transcodeStatus,
-        processingStatus: tapped.processingStatus,
-      );
-      await prepareForProfileReelRoute(forPhotoPost: isPhoto);
+      // Sync silence + session claim only — no awaits. The pushed screen's
+      // bootstrap does the full pool dispose. Keeps the tap instant (no ~2s
+      // wait that made users tap repeatedly).
+      silenceHomeForReelRoute();
       if (!mounted) {
         return;
       }

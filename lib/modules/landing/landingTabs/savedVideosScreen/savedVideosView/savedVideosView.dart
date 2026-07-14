@@ -13,7 +13,6 @@ import 'package:cookster/core/widgets/reel_content_chrome.dart';
 import 'package:cookster/core/video/fullscreen_video_playback.dart';
 import 'package:cookster/core/video/profile_reel_prefetch.dart';
 import 'package:cookster/modules/collection_reel/collection_reel_screen.dart';
-import 'package:cookster/modules/landing/landingTabs/home/homeController/homeController.dart';
 import 'package:cookster/modules/landing/landingTabs/home/homeModel/userSaveUnsave.dart';
 
 import '../../../../../core/widgets/paginated_scroll_mixin.dart';
@@ -57,15 +56,12 @@ class _SavedVideosViewState extends State<SavedVideosView>
 
   Widget _buildVideoTile(SavedVideos video, int thumbCache) {
     return GestureDetector(
-      onTap: () async {
+      onTap: () {
         if (_openingReel) {
           return;
         }
         _openingReel = true;
         try {
-          if (Get.isRegistered<HomeController>()) {
-            await Get.find<HomeController>().awaitPendingReelTeardown();
-          }
           final isPhoto = isReelGridPhotoPost(
             isImage: video.isImage,
             videoUrl: video.videoUrl,
@@ -84,13 +80,12 @@ class _SavedVideosViewState extends State<SavedVideosView>
             transcodeStatus: video.transcodeStatus,
             videoSources: video.videoSources,
           );
-          await prepareForProfileReelRoute(forPhotoPost: isPhoto);
+          // Sync silence + session claim only — no awaits. The pushed screen's
+          // bootstrap does the full pool dispose. Keeps the tap instant.
+          silenceHomeForReelRoute();
           if (!context.mounted) {
             return;
           }
-          // Fire-and-forget: awaiting Get.to holds the open-guard for the whole
-          // screen lifetime, so any interrupted pop left the grid permanently
-          // dead. Teardown serialization is handled by awaitPendingReelTeardown.
           unawaited(Get.to(
             () => CollectionReelScreen(
               kind: CollectionReelKind.saved,

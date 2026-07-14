@@ -1243,20 +1243,7 @@ class _ProfessionalProfileViewState extends State<ProfessionalProfileView>
     }
     _openingProfileReel = true;
     try {
-      if (Get.isRegistered<HomeController>()) {
-        await Get.find<HomeController>().awaitPendingReelTeardown();
-      }
-      final isPhoto = isReelGridPhotoPost(
-        isImage: tapped.isImage,
-        videoUrl: tapped.videoUrl,
-        video: tapped.video,
-        thumbnailUrl: tapped.thumbnailUrl,
-        imageUrl: tapped.imageUrl,
-        image: tapped.image,
-        transcodeStatus: tapped.transcodeStatus,
-        processingStatus: tapped.processingStatus,
-      );
-      await prepareForProfileReelRoute(forPhotoPost: isPhoto);
+      silenceHomeForReelRoute();
       if (!mounted) {
         return;
       }

@@ -11,7 +11,6 @@ import 'package:cookster/core/widgets/reel_content_chrome.dart';
 import 'package:cookster/core/video/fullscreen_video_playback.dart';
 import 'package:cookster/core/video/profile_reel_prefetch.dart';
 import 'package:cookster/modules/collection_reel/collection_reel_screen.dart';
-import 'package:cookster/modules/landing/landingTabs/home/homeController/homeController.dart';
 
 import '../../appUtils/colorUtils.dart';
 import '../../core/widgets/paginated_scroll_mixin.dart';
@@ -65,15 +64,12 @@ class _LikedVideosScreenState extends State<LikedVideosScreen>
 
   Widget _buildVideoTile(LikedVideos video, int thumbCache) {
     return GestureDetector(
-      onTap: () async {
+      onTap: () {
         if (_openingReel) {
           return;
         }
         _openingReel = true;
         try {
-          if (Get.isRegistered<HomeController>()) {
-            await Get.find<HomeController>().awaitPendingReelTeardown();
-          }
           final isPhoto = isReelGridPhotoPost(
             isImage: video.isImage,
             videoUrl: video.videoUrl,
@@ -92,7 +88,10 @@ class _LikedVideosScreenState extends State<LikedVideosScreen>
             transcodeStatus: video.transcodeStatus,
             videoSources: video.videoSources,
           );
-          await prepareForProfileReelRoute(forPhotoPost: isPhoto);
+          // Sync silence + session claim only — no awaits. The pushed screen's
+          // bootstrap does the full pool dispose. This keeps the tap instant
+          // (no ~2s wait that made users tap repeatedly).
+          silenceHomeForReelRoute();
           if (!context.mounted) {
             return;
           }
