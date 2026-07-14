@@ -34,6 +34,24 @@ subprojects {
     val newSubprojectBuildDir = newBuildDir.dir(project.name)
     project.layout.buildDirectory.value(newSubprojectBuildDir)
 
+    // Flutter plugins still pin ancient kotlin_version (e.g. wakelock 1.7.22) via
+    // classic classpath. Force KGP 2.3.21 so they can read kotlin-stdlib 2.3
+    // metadata (otherwise: "metadata is 2.3.0, expected version is 2.0.0").
+    buildscript {
+        configurations.configureEach {
+            resolutionStrategy.eachDependency {
+                if (requested.group == "org.jetbrains.kotlin" &&
+                    requested.name.startsWith("kotlin-gradle-plugin")
+                ) {
+                    useVersion("2.3.21")
+                }
+            }
+        }
+    }
+
+    // Override any leftover ext.kotlin_version from plugin templates.
+    project.extra.set("kotlin_version", "2.3.21")
+
     afterEvaluate {
         if (extensions.findByName("android") != null) {
             val android = extensions.getByName("android") as com.android.build.gradle.BaseExtension
@@ -50,11 +68,9 @@ subprojects {
         }
 
         // Align every Flutter plugin module onto the same Kotlin compiler.
-        extensions.findByName("kotlin")?.let {
-            tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile::class.java).configureEach {
-                compilerOptions {
-                    jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_11)
-                }
+        tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile::class.java).configureEach {
+            compilerOptions {
+                jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_11)
             }
         }
     }

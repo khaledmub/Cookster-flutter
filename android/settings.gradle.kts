@@ -21,7 +21,9 @@ pluginManagement {
                 "org.jetbrains.kotlin.android",
                 "kotlin-android",
                 "org.jetbrains.kotlin.jvm",
-                "kotlin" -> useVersion("2.3.21")
+                "kotlin",
+                "org.jetbrains.kotlin.kapt",
+                "kotlin-kapt" -> useVersion("2.3.21")
             }
         }
     }
