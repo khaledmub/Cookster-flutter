@@ -31,7 +31,10 @@ class VideoPreviewScreen extends StatefulWidget {
 }
 
 class _VideoPreviewScreenState extends State<VideoPreviewScreen> {
-  final VideoAddController videoAddController = Get.find();
+  late final VideoAddController videoAddController =
+      Get.isRegistered<VideoAddController>()
+          ? Get.find<VideoAddController>()
+          : Get.put(VideoAddController());
   static const double _navBarHeight = 56;
 
   String _language = 'en';
@@ -51,7 +54,10 @@ class _VideoPreviewScreenState extends State<VideoPreviewScreen> {
     if (Get.isRegistered<HomeController>()) {
       Get.find<HomeController>().reinforceMediaCaptureSilence();
     }
-    _currentStep = videoAddController.currentStep.value;
+    // Fresh upload session — leftover step/form from a previous attempt left
+    // the UI on step 2/3 or stale tags under a stuck overlay.
+    videoAddController.resetController();
+    _currentStep = 1;
     _stepWorker = ever(videoAddController.currentStep, (step) {
       final next = step is int ? step : (step as num).toInt();
       if (mounted && _currentStep != next) {
