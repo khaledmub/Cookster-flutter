@@ -77,6 +77,9 @@ class _CollectionReelScreenState extends State<CollectionReelScreen>
 
   SaveController? _saveController;
   LikedVideosController? _likedController;
+  bool _ownsRouteOverlayPause = false;
+  bool _openingReel = false;
+  late final int _poolSessionToken;
 
   String get _screenTitle {
     if (widget.title != null && widget.title!.trim().isNotEmpty) {
@@ -99,7 +102,18 @@ class _CollectionReelScreenState extends State<CollectionReelScreen>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _homeController = Get.find<HomeController>();
-    _homeController.pauseReelsForRouteOverlay();
+    // Claim the shared pool — supersedes any previous reel screen's in-flight
+    // teardown so it cannot disposeAll() over this screen's players.
+    _poolSessionToken = _homeController.claimReelPoolSession();
+    if (_homeController.routeOverlayPauseDepth == 0) {
+      _homeController.pauseReelsForRouteOverlay();
+      _ownsRouteOverlayPause = true;
+    } else {
+      _homeController.reinforceReelsPausedForOverlay();
+    }
+    // Grid prep disabled home unmute; re-enable for this collection session so
+    // forceFeedAudibleAtPosterUnmask can actually unmute the visible reel.
+    MediaKitPlayerPool.instance.setFeedUnmuteEnabled(true);
 
     if (widget.kind == CollectionReelKind.saved) {
       _saveController = Get.find<SaveController>();
@@ -270,8 +284,27 @@ class _CollectionReelScreenState extends State<CollectionReelScreen>
   }
 
   Future<void> _teardownPoolAndResumeHome() async {
-    await MediaKitPlayerPool.instance.disposeAll();
-    _homeController.resumeReelsAfterRouteOverlay();
+    final completer = Completer<void>();
+    final future = completer.future;
+    _homeController.registerReelTeardown(future);
+    try {
+      await MediaKitPlayerPool.instance.awaitOperationsIdle();
+      // Feed restore claims a new session token — skip disposeAll so we don't
+      // wipe the feed's freshly remounted players (dead-feed-until-kill bug).
+      if (!_homeController.isReelPoolSessionCurrent(_poolSessionToken)) {
+        return;
+      }
+      MediaKitPlayerPool.instance.setFeedUnmuteEnabled(false);
+      await MediaKitPlayerPool.instance.disposeAll();
+    } finally {
+      // Always release the pause pair so Home isn't left with a dead feed.
+      if (_ownsRouteOverlayPause) {
+        _homeController.resumeReelsAfterRouteOverlay();
+        _ownsRouteOverlayPause = false;
+      }
+      completer.complete();
+      _homeController.clearReelTeardown(future);
+    }
   }
 
   Future<void> _loadAuth() async {
@@ -345,7 +378,7 @@ class _CollectionReelScreenState extends State<CollectionReelScreen>
   Future<void> _attachPlaybackForIndex(
     int index, {
     bool forceReattach = false,
-    int warmMaxWaitMs = 200,
+    int warmMaxWaitMs = 700,
   }) async {
     if (index < 0 || index >= _videos.length) {
       return;
@@ -354,15 +387,23 @@ class _CollectionReelScreenState extends State<CollectionReelScreen>
       MediaKitPlayerPool.instance.pauseAllImmediate();
       return;
     }
-    await ReelScreenPlaybackHelpers.attachVisibleIndex(
-      preloadManager: _preloadManager,
-      coordinator: _playbackCoordinator,
-      context: context,
-      index: index,
-      playerKey: _reelPlayerKey,
-      forcePlayerReattach: forceReattach,
-      warmMaxWaitMs: warmMaxWaitMs,
-    );
+    if (_openingReel) {
+      return;
+    }
+    _openingReel = true;
+    try {
+      await ReelScreenPlaybackHelpers.attachVisibleIndex(
+        preloadManager: _preloadManager,
+        coordinator: _playbackCoordinator,
+        context: context,
+        index: index,
+        playerKey: _reelPlayerKey,
+        forcePlayerReattach: forceReattach,
+        warmMaxWaitMs: warmMaxWaitMs,
+      );
+    } finally {
+      _openingReel = false;
+    }
   }
 
   Widget _buildInlineReelPlayer(WallVideos video, int index) {

@@ -63,6 +63,7 @@ class _ProfessionalProfileViewState extends State<ProfessionalProfileView>
   TabController? _tabController;
   int currentTabIndex = 0;
   Worker? _videoTypesWorker;
+  bool _openingProfileReel = false;
 
   void _applySystemUiStyle() {
     SystemChrome.setSystemUIOverlayStyle(
@@ -1237,11 +1238,32 @@ class _ProfessionalProfileViewState extends State<ProfessionalProfileView>
     ProfessionalVideos tapped,
     VideoTypes activeTab,
   ) async {
-    await prepareForProfileReelRoute();
-    if (!mounted) {
+    if (_openingProfileReel) {
       return;
     }
-    _openProfileReel(tapped, activeTab);
+    _openingProfileReel = true;
+    try {
+      if (Get.isRegistered<HomeController>()) {
+        await Get.find<HomeController>().awaitPendingReelTeardown();
+      }
+      final isPhoto = isReelGridPhotoPost(
+        isImage: tapped.isImage,
+        videoUrl: tapped.videoUrl,
+        video: tapped.video,
+        thumbnailUrl: tapped.thumbnailUrl,
+        imageUrl: tapped.imageUrl,
+        image: tapped.image,
+        transcodeStatus: tapped.transcodeStatus,
+        processingStatus: tapped.processingStatus,
+      );
+      await prepareForProfileReelRoute(forPhotoPost: isPhoto);
+      if (!mounted) {
+        return;
+      }
+      _openProfileReel(tapped, activeTab);
+    } finally {
+      _openingProfileReel = false;
+    }
   }
 
   void _openProfileReel(
@@ -1293,6 +1315,7 @@ class _ProfessionalProfileViewState extends State<ProfessionalProfileView>
           image: tapped.image,
         ),
       ),
+      preventDuplicates: false,
     );
   }
 

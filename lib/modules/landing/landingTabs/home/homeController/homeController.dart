@@ -69,8 +69,50 @@ class HomeController extends GetxController with WidgetsBindingObserver {
   final feedPlaybackEpoch = 0.obs;
 
   /// Home icon re-tap: next [_finishFeedTabPlayback] must land on index 0 and
-  /// autoplay — ignore the previous pin / page index.
+  /// autoplay — ignore any previous pin / page index.
   bool _preferNewestAttach = false;
+
+  /// In-flight reel-screen teardown (profile/collection dispose+resume).
+  /// Grid taps await this before opening a new reel screen so the previous
+  /// screen's late [resumeReelsAfterRouteOverlay] doesn't clobber the new one.
+  /// Monotonic token identifying which reel screen currently owns the shared
+  /// player pool. A reel screen claims it in initState; its dispose-time
+  /// teardown only runs disposeAll if it is still the owner, so a rapid
+  /// close→reopen can never have the old screen's teardown destroy the new
+  /// screen's freshly created players (black screen / disposed-player crash).
+  int _reelPoolSessionToken = 0;
+  int claimReelPoolSession() => ++_reelPoolSessionToken;
+  bool isReelPoolSessionCurrent(int token) => token == _reelPoolSessionToken;
+
+  Future<void>? _pendingReelTeardown;
+  Future<void> awaitPendingReelTeardown() async {
+    // Claim pool ownership FIRST so any in-flight previous teardown skips
+    // disposeAll — otherwise the old screen's late disposeAll runs after we
+    // await it (token not yet claimed by the new screen) and wipes players
+    // that the new screen is about to mount → dead/stuck screen on reopen.
+    claimReelPoolSession();
+    final f = _pendingReelTeardown;
+    if (f != null) {
+      // Defensive timeout: a hung pool teardown must never permanently block
+      // reopening a collection/profile reel (the "tap does nothing" bug).
+      await f.timeout(
+        const Duration(milliseconds: 1200),
+        onTimeout: () {},
+      );
+    }
+  }
+
+  /// Register an in-flight reel-screen teardown future. Cleared by
+  /// [clearReelTeardown] once it completes (only if still the current one).
+  void registerReelTeardown(Future<void> future) {
+    _pendingReelTeardown = future;
+  }
+
+  void clearReelTeardown(Future<void> future) {
+    if (identical(_pendingReelTeardown, future)) {
+      _pendingReelTeardown = null;
+    }
+  }
 
   bool consumePreferNewestAttach() {
     final v = _preferNewestAttach;
@@ -1263,7 +1305,8 @@ class HomeController extends GetxController with WidgetsBindingObserver {
         _flushPendingFeedResume();
       }
     });
-    for (final ms in const <int>[50, 150, 400, 800]) {
+    // Overlay disposeAll can take well over 800ms on MTK — keep probing.
+    for (final ms in const <int>[50, 150, 400, 800, 1500, 2500, 4000]) {
       Future<void>.delayed(Duration(milliseconds: ms), () {
         if (isClosed || !_feedResumePendingWhenHomeTab) {
           return;
@@ -1285,12 +1328,6 @@ class HomeController extends GetxController with WidgetsBindingObserver {
     }
     // Overlay routes are gone — any leftover pause depth is orphaned from an
     // async profile-reel teardown that lost the race with tab navigation.
-    if (_routeOverlayPauseDepth > 0) {
-      _routeOverlayPauseDepth = 0;
-    }
-    if (_playbackMuteDepth > 0) {
-      _playbackMuteDepth = 0;
-    }
     if (!_isOnHomeTab()) {
       return;
     }
@@ -1427,16 +1464,19 @@ class HomeController extends GetxController with WidgetsBindingObserver {
   /// Called after bottom-nav lands on Home — fast resume when decoder stayed warm.
   void onReturnedToHomeTab() {
     if (_hasOverlayRoute()) {
+      // Coming from another tab (e.g. Profile after upload) with an overlay
+      // still on top: clear the gates now so a post-upload disposed pool can
+      // cold-attach once the overlay pops, instead of staying silenced forever.
+      _clearAllHomePlaybackGates();
+      isNavigating.value = false;
+      MediaKitPlayerPool.instance.setFeedUnmuteEnabled(true);
       _feedResumePendingWhenHomeTab = true;
       _scheduleFeedResumeRetries();
       return;
     }
     // Profile-reel disposeAll is async; pause depth can still be >0 here even
     // though the overlay route is already gone. Treat that as orphaned.
-    _routeOverlayPauseDepth = 0;
-    _playbackMuteDepth = 0;
-    _bottomNavMuteDepth = 0;
-    _mediaCaptureDepth = 0;
+    _clearAllHomePlaybackGates();
     _feedResumePendingWhenHomeTab = false;
     isNavigating.value = false;
     isVideoPlaying.value = true;
@@ -1445,6 +1485,11 @@ class HomeController extends GetxController with WidgetsBindingObserver {
 
     final videos = videoFeed.value.videos;
     if (videos == null || videos.isEmpty) {
+      // Post-upload: list may be empty until fetchVideos runs. Re-enable
+      // unmute so the cold attach (kicked by the feed worker once data
+      // arrives) can actually go audible.
+      MediaKitPlayerPool.instance.setFeedUnmuteEnabled(true);
+      unawaited(fetchVideos());
       return;
     }
     final tab = selectedType.value;
@@ -1477,41 +1522,85 @@ class HomeController extends GetxController with WidgetsBindingObserver {
       return;
     }
 
-    // Navigator is at root. Clear orphan overlay mute left by async teardown.
-    if (_routeOverlayPauseDepth > 0) {
-      _routeOverlayPauseDepth = 0;
-    }
-    if (_playbackMuteDepth > 0) {
-      _playbackMuteDepth = 0;
-    }
-
     if (_isOnHomeTab()) {
-      // Profile/collection disposeAll + mid-pop resume can leave the feed
-      // invisible with a pending flag and no player — always restore here.
-      if (_feedResumePendingWhenHomeTab || !isReelsTabVisible.value) {
-        restoreHomeFeedPlayback();
-      } else {
-        _tryRestoreHomeFeedPlayback();
-      }
+      // Any pop back to the feed root — search, visit-profile, liked/saved,
+      // upload — must hard-restore. Soft tryRestore left mute gates / a dead
+      // pool after late disposeAll and the feed never recovered.
+      restoreHomeFeedPlayback();
     } else if (!isReelsTabVisible.value) {
       // Upload lands on profile tab with feed still silenced — resume on Home.
       _feedResumePendingWhenHomeTab = true;
     }
   }
 
-  /// Re-attaches the home feed after profile/collection overlays tore down the pool.
+  /// Re-attaches the home feed after profile/collection/search overlays tore
+  /// down (or paused) the shared player pool.
+  ///
+  /// Critical race: overlay `dispose()` starts async `disposeAll` then the
+  /// route observer restores the feed — if teardown still "owns" the pool it
+  /// will wipe the freshly remounted players and the feed stays dead until
+  /// process kill. We claim pool ownership first so late teardown skips
+  /// disposeAll, then re-bump [feedPlaybackEpoch] after teardown settles.
   void restoreHomeFeedPlayback() {
     if (isAppInBackground.value) {
       return;
     }
+    final token = claimReelPoolSession();
+    _clearAllHomePlaybackGates();
     _feedResumePendingWhenHomeTab = false;
     isNavigating.value = false;
+    MediaKitPlayerPool.instance.setFeedUnmuteEnabled(true);
     setReelsTabVisible(true);
-    // Always bump epoch after a route overlay so the feed re-attaches even when
-    // only pause/surrender ran (visit profile without full pool dispose).
-    feedPlaybackEpoch.value++;
     isVideoPlaying.value = true;
-    unawaited(resumeVisibleVideo(visiblePageIndex.value));
+    feedPlaybackEpoch.value++;
+    unawaited(_completeHomeFeedRestore(token));
+  }
+
+  /// Zero every mute / overlay / capture gate so [canMountHomeReelPlayer] and
+  /// [canPlayHomeReels] can pass after returning to Home.
+  void _clearAllHomePlaybackGates() {
+    _routeOverlayPauseDepth = 0;
+    _playbackMuteDepth = 0;
+    _bottomNavMuteDepth = 0;
+    _mediaCaptureDepth = 0;
+  }
+
+  Future<void> _completeHomeFeedRestore(int token) async {
+    // Let overlay teardown finish (it will skip disposeAll once we claimed).
+    final pending = _pendingReelTeardown;
+    if (pending != null) {
+      await pending.timeout(
+        const Duration(milliseconds: 3000),
+        onTimeout: () {},
+      );
+    }
+    if (isClosed || !isReelPoolSessionCurrent(token)) {
+      return;
+    }
+    if (isAppInBackground.value || !_isOnHomeTab()) {
+      _feedResumePendingWhenHomeTab = true;
+      return;
+    }
+    try {
+      await MediaKitPlayerPool.instance.awaitOperationsIdle();
+      if (!isReelPoolSessionCurrent(token)) {
+        return;
+      }
+      await MediaKitPlayerPool.instance.ensureFeedPingPongInitialized();
+    } catch (_) {}
+    if (isClosed || !isReelPoolSessionCurrent(token)) {
+      return;
+    }
+    // Late teardown may have flipped unmute/visibility again — re-assert.
+    _clearAllHomePlaybackGates();
+    isNavigating.value = false;
+    MediaKitPlayerPool.instance.setFeedUnmuteEnabled(true);
+    setReelsTabVisible(true);
+    isVideoPlaying.value = true;
+    // Second epoch bump: forces ReelVideoPlayer remount after the pool is
+    // stable (first bump may have raced teardown).
+    feedPlaybackEpoch.value++;
+    await resumeVisibleVideo(visiblePageIndex.value);
   }
 
   /// Drop stale tab rows (old is_image / poster URLs) then remount the feed.

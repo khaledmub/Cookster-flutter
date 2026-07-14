@@ -469,6 +469,8 @@ class FeedPingPongController {
     _activeIndex = 0;
     _openToken = 0;
     _prefetchToken = 0;
+    // Break any stuck open chain so the next feed session can open immediately.
+    _slotOpenChain = Future<void>.value();
   }
 
   Player? playerForSlot(int index) => slotAt(index).player;
@@ -522,6 +524,26 @@ class FeedPingPongController {
           'pingpong open_error slot=${slot.index} key=$key '
           'error=${e.runtimeType}',
         );
+        if (!completer.isCompleted) {
+          completer.complete(false);
+        }
+      }
+    }, onError: (_) async {
+      // Prior open failed the chain Future — still attempt this open so the
+      // feed can recover after overlay teardown.
+      try {
+        completer.complete(
+          await _openOnSlotLocked(
+            slot,
+            key: key,
+            sourceUrl: sourceUrl,
+            audible: audible,
+            fastReopen: fastReopen,
+            openToken: tokenAtEnqueue,
+          ),
+        );
+      } catch (_) {
+        slot.resetBinding();
         if (!completer.isCompleted) {
           completer.complete(false);
         }

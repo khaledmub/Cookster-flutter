@@ -499,7 +499,19 @@ class MediaKitPlayerPool {
     _priorityDepth++;
     final completer = Completer<T>();
     final previous = _priorityChain;
+    // onError keeps the lane alive after a failed prior op — without it a
+    // single dispose error permanently stalls every open/present forever.
     _priorityChain = previous.then((_) async {
+      try {
+        completer.complete(await action());
+      } catch (e, st) {
+        if (!completer.isCompleted) {
+          completer.completeError(e, st);
+        }
+      } finally {
+        _priorityDepth--;
+      }
+    }, onError: (_) async {
       try {
         completer.complete(await action());
       } catch (e, st) {
@@ -1749,6 +1761,9 @@ class MediaKitPlayerPool {
       _activeKey = null;
       _audibleTargetKey = null;
       feedSurfaceGeneration.value++;
+      // Fresh warm lane after a full teardown so feed restore isn't gated by
+      // stale warm tasks from the overlay session.
+      _warmChain = Future<void>.value();
     });
   }
 

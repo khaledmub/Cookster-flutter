@@ -172,13 +172,33 @@ class _VisitProfileViewState extends State<VisitProfileView>
   }
 
   bool _followerChanged = false; // Track if follow status changed
+  bool _openingProfileReel = false;
 
   Future<void> _openProfileReelFromGrid(Videos tapped, VideoTypes activeTab) async {
-    await prepareForProfileReelRoute();
-    if (!mounted) {
+    if (_openingProfileReel) {
       return;
     }
-    _openProfileReel(tapped, activeTab);
+    _openingProfileReel = true;
+    try {
+      await homeController.awaitPendingReelTeardown();
+      final isPhoto = isReelGridPhotoPost(
+        isImage: tapped.isImage,
+        videoUrl: tapped.videoUrl,
+        video: tapped.video,
+        thumbnailUrl: tapped.thumbnailUrl,
+        imageUrl: tapped.imageUrl,
+        image: tapped.image,
+        transcodeStatus: tapped.transcodeStatus,
+        processingStatus: tapped.processingStatus,
+      );
+      await prepareForProfileReelRoute(forPhotoPost: isPhoto);
+      if (!mounted) {
+        return;
+      }
+      _openProfileReel(tapped, activeTab);
+    } finally {
+      _openingProfileReel = false;
+    }
   }
 
   void _openProfileReel(Videos tapped, VideoTypes activeTab) {
@@ -227,6 +247,7 @@ class _VisitProfileViewState extends State<VisitProfileView>
           image: tapped.image,
         ),
       ),
+      preventDuplicates: false,
     );
   }
 

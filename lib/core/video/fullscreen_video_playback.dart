@@ -18,13 +18,21 @@ Future<void> prepareForFullscreenVideoPlayback() async {
 /// Silences home reels, tears down the pool, and waits one frame so the home
 /// feed [ReelVideoPlayer] unmounts before a profile reel route mounts its own
 /// surface (Honor/MTK cannot sustain overlapping ImageReaders).
-Future<void> prepareForProfileReelRoute() async {
+///
+/// Set [forPhotoPost] to skip pool dispose — photo screens don't need a
+/// decoder and disposing mid-tap made multi-tap open feel broken.
+Future<void> prepareForProfileReelRoute({bool forPhotoPost = false}) async {
   // Sync mute first — do not wait for idle while home can still unmute.
   MediaKitPlayerPool.instance.setFeedUnmuteEnabled(false);
   MediaKitPlayerPool.instance.silenceAllSync();
   MediaKitPlayerPool.instance.pauseAllImmediate();
   if (Get.isRegistered<HomeController>()) {
     Get.find<HomeController>().setReelsTabVisible(false);
+  }
+  if (forPhotoPost) {
+    // Photo viewer has no MediaKit surface — silence is enough.
+    await SchedulerBinding.instance.endOfFrame;
+    return;
   }
   await MediaKitPlayerPool.instance.awaitOperationsIdle();
   if (Get.isRegistered<HomeController>()) {

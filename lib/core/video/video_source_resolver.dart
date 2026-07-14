@@ -99,9 +99,12 @@ class VideoSourceResolver {
         .where((c) => c.type != 'mp4_quality' && c.type != 'hls')
         .toList(growable: false);
 
-    if (hlsWifiFirst &&
-        network == NetworkClass.wifi &&
-        hls.isNotEmpty) {
+    // Mobile is treated as a high-bandwidth path (same ladder as Wi-Fi) so
+    // quality / ordering / HLS-first don't downgrade on cellular.
+    final highBandwidth = network == NetworkClass.wifi ||
+        network == NetworkClass.mobile;
+
+    if (hlsWifiFirst && highBandwidth && hls.isNotEmpty) {
       final tiers = isTablet
           ? const ['1080', '720', '360']
           : (fastStartUncached
@@ -114,9 +117,7 @@ class VideoSourceResolver {
     final tiers = isTablet
         ? switch (network) {
             NetworkClass.wifi => const ['1080', '720', '360'],
-            NetworkClass.mobile => fastStartUncached
-                ? const ['360', '720', '1080']
-                : const ['1080', '720', '360'],
+            NetworkClass.mobile => const ['1080', '720', '360'],
             NetworkClass.offline => fastStartUncached
                 ? const ['720', '360', '1080']
                 : const ['1080', '720', '360'],

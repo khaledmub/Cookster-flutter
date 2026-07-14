@@ -543,15 +543,14 @@ class VideoPreloadManager {
     final networkClass = await _networkPolicy.currentNetworkClass();
     switch (networkClass) {
       case NetworkClass.wifi:
-        // Deeper window on Wi-Fi so fast swipes don't outrun the disk cache.
-        // Honor/MTK: keep near window small — depth 7 × dual-tier starved N+1.
+      case NetworkClass.mobile:
+        // Mobile uses the same deep window as Wi-Fi so fast swipes don't
+        // outrun the disk cache on cellular either.
         final wifi = RemoteConfigService.instance.preloadLimitWifi.clamp(3, 7);
         if (_deviceConstraints.needsConstrainedSurfaceRecovery) {
           return wifi.clamp(3, 4);
         }
         return wifi;
-      case NetworkClass.mobile:
-        return RemoteConfigService.instance.preloadLimitMobile.clamp(3, 5);
       case NetworkClass.offline:
         return 0;
     }

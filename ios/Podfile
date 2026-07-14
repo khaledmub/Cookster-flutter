@@ -86,6 +86,17 @@ post_install do |installer|
 
       # Xcode 16+ Archive: this as -Werror breaks Pod frameworks (e.g. device_info_plus vers.c).
       config.build_settings['CLANG_WARN_NON_MODULAR_INCLUDE_IN_FRAMEWORK_MODULE'] = 'NO'
+
+      # Mirror Android non-optimize / MediaKit keep rules: Release stripping of
+      # media_kit / mpv / FFmpeg symbols causes video-open stalls that Profile
+      # (usb develop) never hits. Keep Release identical to Profile for video pods.
+      config.build_settings['ENABLE_BITCODE'] = 'NO'
+      if target.name =~ /media_kit|mpv|ffmpeg|FFmpeg/i
+        config.build_settings['DEAD_CODE_STRIPPING'] = 'NO'
+        config.build_settings['STRIP_INSTALLED_PRODUCT'] = 'NO'
+        config.build_settings['STRIP_STYLE'] = 'non-global'
+        config.build_settings['GCC_SYMBOLS_PRIVATE_EXTERN'] = 'NO'
+      end
     end
   end
 end

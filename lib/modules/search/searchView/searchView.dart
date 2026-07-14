@@ -658,7 +658,9 @@ class _SearchViewState extends State<SearchView>
                             qualityMp4Urls: video.qualityMp4Urls,
                             thumbnailUrl: video.resolvedThumbnailUrl,
                             title: video.title,
-                            image: video.image,
+                            // Prefer absolute image_url so photo mode can load.
+                            image: video.imageUrl?.toString() ??
+                                video.image?.toString(),
                             allowComments: video.allowComments,
                             description: video.description,
                             tags: video.tags,
@@ -670,7 +672,7 @@ class _SearchViewState extends State<SearchView>
                             longitude: video.longitude,
                             takeOrder: video.takeOrder.toString(),
                             website: video.website,
-                            isImage: video.isImage.toString(),
+                            isImage: video.isImage?.toString(),
                           ),
                         );
                       },

@@ -67,6 +67,7 @@ class LikedVideos {
   dynamic followersCount;
   dynamic followingCount;
   dynamic isImage;
+  dynamic playbackReady;
 
   LikedVideos(
       {this.id,
@@ -93,7 +94,8 @@ class LikedVideos {
         this.userImage,
         this.followersCount,
         this.followingCount,
-        this.isImage});
+        this.isImage,
+        this.playbackReady});
 
   LikedVideos.fromJson(Map<String, dynamic> json) {
     id = json['id'];
@@ -111,7 +113,7 @@ class LikedVideos {
     image = json['image'];
     video = json['video'];
     videoUrl = json['video_url'];
-    thumbnailUrl = json['thumbnail_url'];
+    thumbnailUrl = json['thumbnail_url'] ?? json['thumbnail'];
     thumbnailBlur = json['thumbnail_blur'];
     imageUrl = json['image_url'];
     hlsUrl = json['hls_url'];
@@ -129,6 +131,7 @@ class LikedVideos {
     followersCount = json['followers_count'];
     followingCount = json['following_count'];
     isImage = json['is_image'];
+    playbackReady = PlaybackMedia.parseOptionalFlag(json['playback_ready']);
   }
 
   Map<String, dynamic> toJson() {

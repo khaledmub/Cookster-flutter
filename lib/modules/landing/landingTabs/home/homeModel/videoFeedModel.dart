@@ -355,6 +355,7 @@ class WallVideos {
       image: v.image,
       imageUrl: v.imageUrl,
       thumbnailUrl: v.thumbnailUrl,
+      thumbnailBlur: v.thumbnailBlur,
       hlsUrl: v.hlsUrl,
       hlsPlaylistUrl: v.hlsPlaylistUrl,
       transcodeStatus: v.transcodeStatus,
@@ -366,6 +367,7 @@ class WallVideos {
       allowComments: v.allowComments,
       createdAt: v.createdAt,
       isImage: v.isImage,
+      playbackReady: PlaybackMedia.parseOptionalFlag(v.playbackReady),
     );
   }
 
@@ -381,6 +383,7 @@ class WallVideos {
       image: v.image,
       imageUrl: v.imageUrl,
       thumbnailUrl: v.thumbnailUrl,
+      thumbnailBlur: v.thumbnailBlur,
       hlsUrl: v.hlsUrl,
       hlsPlaylistUrl: v.hlsPlaylistUrl,
       transcodeStatus: v.transcodeStatus,
@@ -392,6 +395,7 @@ class WallVideos {
       allowComments: v.allowComments,
       createdAt: v.createdAt,
       isImage: v.isImage,
+      playbackReady: PlaybackMedia.parseOptionalFlag(v.playbackReady),
     );
   }
 
@@ -473,6 +477,7 @@ class WallVideos {
     dynamic image,
     dynamic imageUrl,
     dynamic thumbnailUrl,
+    dynamic thumbnailBlur,
     dynamic hlsUrl,
     dynamic hlsPlaylistUrl,
     dynamic transcodeStatus,
@@ -499,6 +504,7 @@ class WallVideos {
     w.image = image?.toString();
     w.imageUrl = imageUrl?.toString();
     w.thumbnailUrl = thumbnailUrl?.toString();
+    w.thumbnailBlur = thumbnailBlur?.toString();
     w.hlsUrl = hlsUrl?.toString();
     w.hlsPlaylistUrl = hlsPlaylistUrl?.toString();
     w.transcodeStatus = transcodeStatus?.toString();

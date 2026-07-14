@@ -607,7 +607,8 @@ class _LandingState extends State<Landing> {
     if (Get.isRegistered<HomeController>()) {
       final home = Get.find<HomeController>();
       final hasRouteOverlay = Get.key.currentState?.canPop() ?? false;
-      if (hasRouteOverlay) {
+      if (hasRouteOverlay && wasOnHome) {
+        // Already on Home with an overlay (e.g. comment sheet) — stay silenced.
         home.isNavigating.value = true;
         home.setReelsTabVisible(false);
         MediaKitPlayerPool.instance.silenceAllSync();
@@ -617,6 +618,9 @@ class _LandingState extends State<Landing> {
         // index (~N) and wins the race before refreshHomeFeed resets to 0.
         unawaited(home.refreshHomeFeed());
       } else {
+        // Coming from another tab (e.g. Profile after upload) — always restore.
+        // Even with an overlay, clear gates + mark pending so the feed can
+        // cold-attach once the overlay pops (post-upload pool is disposed).
         home.onReturnedToHomeTab();
       }
     }

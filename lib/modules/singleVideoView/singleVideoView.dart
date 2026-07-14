@@ -12,6 +12,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cookster/appUtils/apiEndPoints.dart';
 import 'package:cookster/core/firestore/video_view_tracker.dart';
 import 'package:cookster/core/media/media_url_resolver.dart';
+import 'package:cookster/core/media/wall_video_media.dart';
 import 'package:cookster/appUtils/colorUtils.dart';
 import 'package:cookster/modules/landing/landingTabs/home/homeView/hashtagReelScreen.dart';
 import 'package:device_info_plus/device_info_plus.dart';
@@ -258,7 +259,16 @@ class _SingleVideoScreenState extends State<SingleVideoScreen>
   }
 
   Future<void> _resolvePlayback() async {
-    if (widget.isImage == "1") {
+    // Search/API may send is_image as 1, "1", true, or "true" — not only "1".
+    // Also treat static-image URLs as photos when the flag is wrong/missing.
+    final isPhoto = isReelGridPhotoPost(
+      isImage: widget.isImage,
+      videoUrl: widget.videoUrl,
+      thumbnailUrl: widget.thumbnailUrl,
+      imageUrl: widget.image,
+      image: widget.image,
+    );
+    if (isPhoto) {
       if (mounted) {
         setState(() {
           _isImageMode = true;
@@ -325,6 +335,17 @@ class _SingleVideoScreenState extends State<SingleVideoScreen>
       }
     }
   }
+
+  /// Full-res photo URL for image posts (prefer cover/image_url over CDN thumb).
+  String? get _photoDisplayUrl => MediaUrlResolver.photoDisplayUrl(
+        videoUrl: widget.videoUrl,
+        video: null,
+        imageUrl: widget.image,
+        image: widget.image,
+        thumbnailUrl: widget.thumbnailUrl,
+      ) ??
+      _resolveMediaUrl(primary: widget.image, fallback: widget.thumbnailUrl) ??
+      _resolveMediaUrl(primary: widget.thumbnailUrl, fallback: widget.videoUrl);
 
   void _pauseVideo() {
     final key = _playerKey;
@@ -443,12 +464,7 @@ class _SingleVideoScreenState extends State<SingleVideoScreen>
                   onDoubleTap: _isImageMode ? null : _toggleMute,
                   child: _isImageMode
                       ? (() {
-                          final imageUrl = _resolveMediaUrl(
-                            // For image posts, API may still send videoUrl;
-                            // always prefer dedicated image field first.
-                            primary: widget.image,
-                            fallback: widget.videoUrl,
-                          );
+                          final imageUrl = _photoDisplayUrl;
                           if (imageUrl == null) {
                             return Center(
                               child: Text(

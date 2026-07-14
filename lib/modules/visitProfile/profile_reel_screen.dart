@@ -76,6 +76,7 @@ class _ProfileReelScreenState extends State<ProfileReelScreen>
   bool _poolSessionReady = false;
   /// True when this screen pushed [pauseReelsForRouteOverlay] (own profile path).
   bool _ownsRouteOverlayPause = false;
+  late final int _poolSessionToken;
 
   final List<WallVideos> _videos = [];
   FeedMeta? _meta;
@@ -98,6 +99,9 @@ class _ProfileReelScreenState extends State<ProfileReelScreen>
     WidgetsBinding.instance.addObserver(this);
     ensureVisitProfileDependencies();
     _homeController = Get.find<HomeController>();
+    // Claim the shared pool — supersedes any previous reel screen's in-flight
+    // teardown so it cannot disposeAll() over this screen's players.
+    _poolSessionToken = _homeController.claimReelPoolSession();
     // Visit-profile shell already paused home; own-profile grid opens this
     // screen directly and must own the pause/resume pair.
     if (_homeController.routeOverlayPauseDepth == 0) {
@@ -239,9 +243,17 @@ class _ProfileReelScreenState extends State<ProfileReelScreen>
   }
 
   Future<void> _teardownPoolAndResumeHome() async {
+    final completer = Completer<void>();
+    final future = completer.future;
+    _homeController.registerReelTeardown(future);
     try {
-      MediaKitPlayerPool.instance.setFeedUnmuteEnabled(false);
       await MediaKitPlayerPool.instance.awaitOperationsIdle();
+      // Feed restore claims a new session token — skip disposeAll so we don't
+      // wipe the feed's freshly remounted players (dead-feed-until-kill bug).
+      if (!_homeController.isReelPoolSessionCurrent(_poolSessionToken)) {
+        return;
+      }
+      MediaKitPlayerPool.instance.setFeedUnmuteEnabled(false);
       await MediaKitPlayerPool.instance.disposeAll();
     } finally {
       // Always release the pause pair (even if disposeAll throws) so Home is
@@ -250,6 +262,8 @@ class _ProfileReelScreenState extends State<ProfileReelScreen>
         _homeController.resumeReelsAfterRouteOverlay();
         _ownsRouteOverlayPause = false;
       }
+      completer.complete();
+      _homeController.clearReelTeardown(future);
     }
   }
 

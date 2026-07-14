@@ -471,8 +471,13 @@ class ProfessionalProfileController extends GetxController {
     try {
       print("Step 1: Starting getUserDetails method.");
 
-      isLoading.value = true;
-      print("Step 2: isLoading set to true.");
+      // Soft refresh: keep the grid mounted when we already have profile data.
+      // Flipping isLoading=true after upload unmounted tiles mid-tap.
+      final hasCachedProfile = userDetails.value != null;
+      if (!hasCachedProfile) {
+        isLoading.value = true;
+      }
+      print("Step 2: isLoading set to ${isLoading.value} (soft=$hasCachedProfile).");
 
       print("Step 3: Sending GET request to fetch user details.");
       var response = await ApiClient.getRequest(

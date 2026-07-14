@@ -72,8 +72,16 @@ class ReelScreenPlaybackHelpers {
     );
     preloadManager.onVisiblePageSettled();
     coordinator.onPageSettled(index, context: context);
-    if (forcePlayerReattach && playerKey != null) {
-      await playerKey.currentState?.resumeAfterRouteOverlay();
+    final state = playerKey?.currentState;
+    if (state == null) {
+      return;
+    }
+    if (forcePlayerReattach) {
+      await state.resumeAfterRouteOverlay();
+    } else {
+      // Session-cold mounts skip initState auto-open when openCount==0 so
+      // warm can finish first — open here after prefetch.
+      await state.ensureVisibleOpen();
     }
   }
 

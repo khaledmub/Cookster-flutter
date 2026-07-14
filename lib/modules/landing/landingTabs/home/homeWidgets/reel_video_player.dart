@@ -219,6 +219,12 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
         if (!mounted || _isDisposed) {
           return;
         }
+        // Session-cold (no pool opens yet): do not race a cold HTTPS open
+        // ahead of the host's warm-gated ensureVisibleOpen / resume path.
+        // Prefetch needs those milliseconds to land file:// bytes first.
+        if (_pool.feedOpenCount == 0) {
+          return;
+        }
         unawaited(_loadVideo());
       });
       return;
@@ -2152,10 +2158,11 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
     final String? targetTier;
     if (_needsConstrainedStartGate) {
       targetTier = currentTier == '360' ? '720' : null;
-    } else if (network == NetworkClass.wifi) {
+    } else if (network == NetworkClass.wifi ||
+        network == NetworkClass.mobile) {
+      // Mobile upgrades to 1080 like Wi-Fi — same quality on cellular.
       targetTier = currentTier == '1080' ? null : '1080';
     } else {
-      // Cellular: sharpen 360 → cached 720 without jumping to 1080 mid-play.
       targetTier = currentTier == '360' ? '720' : null;
     }
     if (targetTier == null) {
@@ -2763,10 +2770,10 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
     final raw = _resolvedCandidates();
     await DeviceConstraints.instance.ensureInitialized();
 
-    // Align open tier with prefetch: Wi-Fi prefers cached HD then 720-first.
-    // Do NOT force this ladder on every network for Honor — skipping a warm
-    // cached 360 for an uncached 720 caused 2–4s dead starts on fast scroll.
-    if (network == NetworkClass.wifi) {
+    // Align open tier with prefetch: Wi-Fi / mobile prefer cached HD then
+    // 720-first. Do NOT force this ladder on offline for Honor — skipping a
+    // warm cached 360 for an uncached 720 caused 2–4s dead starts on fast scroll.
+    if (network == NetworkClass.wifi || network == NetworkClass.mobile) {
       return _wifiQualityConstrainedOrder(raw, cache);
     }
 
@@ -3000,11 +3007,14 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
   /// exposes files after a full download). Network-aware budget so first
   /// settle can win `file://` instead of cold HTTPS.
   ///
-  /// Budget is intentionally short: blocking longer than ~700ms on a download
-  /// that hasn't finished just delays the cold HTTPS open that follows anyway.
-  /// file:// opens in ~66ms vs HTTPS ~460ms, so a sub-second catch window is
-  /// enough to win the race without making uncached starts late.
-  Future<bool> _awaitInFlightPlaybackBytes(String url) async {
+  /// Normal swipe budget is short (~500–800ms): blocking longer just delays
+  /// the HTTPS fallback. Session-cold first open (empty cache, openCount==0)
+  /// uses a longer budget so the parallel prefetch can land and avoid a cold
+  /// HTTPS demux on first install.
+  Future<bool> _awaitInFlightPlaybackBytes(
+    String url, {
+    required int generation,
+  }) async {
     if (url.isEmpty || !url.toLowerCase().startsWith('http')) {
       return false;
     }
@@ -3017,19 +3027,48 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
       cache.prefetch(url, priority: 120, isTablet: false);
     }
     final network = await _networkPolicy.currentNetworkClass();
-    final maxWaitMs = switch (network) {
-      NetworkClass.wifi => 500,
-      NetworkClass.mobile => 800,
-      NetworkClass.offline => 400,
-    };
+    final sessionCold = _pool.feedOpenCount == 0;
+    final maxWaitMs = sessionCold
+        ? switch (network) {
+            NetworkClass.wifi => 2500,
+            NetworkClass.mobile => 3500,
+            NetworkClass.offline => 800,
+          }
+        : switch (network) {
+            NetworkClass.wifi => 500,
+            NetworkClass.mobile => 800,
+            NetworkClass.offline => 400,
+          };
     final started = DateTime.now().millisecondsSinceEpoch;
-    await cache.waitForUrl(url, maxWaitMs: maxWaitMs);
+    // Chunked wait so swipe-away / generation bump can bail early.
+    const sliceMs = 200;
+    var waited = 0;
+    while (waited < maxWaitMs) {
+      if (!mounted ||
+          _isDisposed ||
+          generation != _playbackGeneration ||
+          (_usesFeedVisibleChannel && _pool.isStaleFeedOpen(generation))) {
+        return false;
+      }
+      if (await isPlaybackUrlCached(url, cacheManager: disk)) {
+        break;
+      }
+      final slice = (maxWaitMs - waited).clamp(1, sliceMs);
+      await cache.waitForUrl(url, maxWaitMs: slice);
+      waited = DateTime.now().millisecondsSinceEpoch - started;
+    }
+    if (!mounted ||
+        _isDisposed ||
+        generation != _playbackGeneration ||
+        (_usesFeedVisibleChannel && _pool.isStaleFeedOpen(generation))) {
+      return false;
+    }
     final ready = await isPlaybackUrlCached(url, cacheManager: disk);
     if (!kReleaseMode) {
       debugPrint(
         '[ReelsPoster] cache_wait '
         'ready=$ready waitedMs=${DateTime.now().millisecondsSinceEpoch - started} '
-        'budgetMs=$maxWaitMs '
+        'budgetMs=$maxWaitMs sessionCold=$sessionCold '
         'url=${url.length > 56 ? '${url.substring(0, 56)}…' : url}',
       );
     }
@@ -3076,7 +3115,10 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
       // Skip entirely when a cached tier exists (it'll open instantly).
       if (!waitedForCache && !anyCached) {
         waitedForCache = true;
-        await _awaitInFlightPlaybackBytes(source.url);
+        await _awaitInFlightPlaybackBytes(
+          source.url,
+          generation: generation,
+        );
         if (!mounted || _isDisposed || generation != _playbackGeneration ||
             (_usesFeedVisibleChannel && _pool.isStaleFeedOpen(generation))) {
           return;

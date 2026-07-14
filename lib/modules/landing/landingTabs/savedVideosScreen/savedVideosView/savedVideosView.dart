@@ -11,6 +11,7 @@ import 'package:cookster/core/widgets/reel_content_chrome.dart';
 import 'package:cookster/core/video/fullscreen_video_playback.dart';
 import 'package:cookster/core/video/profile_reel_prefetch.dart';
 import 'package:cookster/modules/collection_reel/collection_reel_screen.dart';
+import 'package:cookster/modules/landing/landingTabs/home/homeController/homeController.dart';
 import 'package:cookster/modules/landing/landingTabs/home/homeModel/userSaveUnsave.dart';
 
 import '../../../../../core/widgets/paginated_scroll_mixin.dart';
@@ -27,6 +28,7 @@ class SavedVideosView extends StatefulWidget {
 class _SavedVideosViewState extends State<SavedVideosView>
     with PaginatedScrollMixin {
   final SaveController saveController = Get.find();
+  bool _openingReel = false;
 
   @override
   void initState() {
@@ -54,31 +56,53 @@ class _SavedVideosViewState extends State<SavedVideosView>
   Widget _buildVideoTile(SavedVideos video, int thumbCache) {
     return GestureDetector(
       onTap: () async {
-        warmProfileReelTap(
-          videoUrl: video.videoUrl,
-          video: video.video,
-          hlsUrl: video.hlsUrl,
-          hlsPlaylistUrl: video.hlsPlaylistUrl,
-          transcodeStatus: video.transcodeStatus,
-          videoSources: video.videoSources,
-        );
-        await prepareForProfileReelRoute();
-        if (!context.mounted) {
+        if (_openingReel) {
           return;
         }
-        Get.to(
-          () => CollectionReelScreen(
-            kind: CollectionReelKind.saved,
-            anchorId: video.id?.toString(),
-            initialPosterUrl: profileReelPosterFromGrid(
-              processingStatus: video.processingStatus,
-              transcodeStatus: video.transcodeStatus,
-              thumbnailUrl: video.thumbnailUrl,
-              imageUrl: video.imageUrl,
-              image: video.image,
+        _openingReel = true;
+        try {
+          if (Get.isRegistered<HomeController>()) {
+            await Get.find<HomeController>().awaitPendingReelTeardown();
+          }
+          final isPhoto = isReelGridPhotoPost(
+            isImage: video.isImage,
+            videoUrl: video.videoUrl,
+            video: video.video,
+            thumbnailUrl: video.thumbnailUrl,
+            imageUrl: video.imageUrl,
+            image: video.image,
+            transcodeStatus: video.transcodeStatus,
+            processingStatus: video.processingStatus,
+          );
+          warmProfileReelTap(
+            videoUrl: video.videoUrl,
+            video: video.video,
+            hlsUrl: video.hlsUrl,
+            hlsPlaylistUrl: video.hlsPlaylistUrl,
+            transcodeStatus: video.transcodeStatus,
+            videoSources: video.videoSources,
+          );
+          await prepareForProfileReelRoute(forPhotoPost: isPhoto);
+          if (!context.mounted) {
+            return;
+          }
+          Get.to(
+            () => CollectionReelScreen(
+              kind: CollectionReelKind.saved,
+              anchorId: video.id?.toString(),
+              initialPosterUrl: profileReelPosterFromGrid(
+                processingStatus: video.processingStatus,
+                transcodeStatus: video.transcodeStatus,
+                thumbnailUrl: video.thumbnailUrl,
+                imageUrl: video.imageUrl,
+                image: video.image,
+              ),
             ),
-          ),
-        );
+            preventDuplicates: false,
+          );
+        } finally {
+          _openingReel = false;
+        }
       },
       child: Stack(
         children: [
