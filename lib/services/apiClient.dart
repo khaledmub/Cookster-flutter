@@ -41,10 +41,13 @@ class ApiClient {
     await prefs.setString('language', languageCode);
   }
 
-  static Map<String, String> _headers({bool jsonBody = false}) {
+  static Map<String, String> _headers({
+    bool jsonBody = false,
+    String? acceptLanguage,
+  }) {
     return {
       'Accept': 'application/json',
-      'Accept-Language': _language,
+      'Accept-Language': acceptLanguage ?? _language,
       if (jsonBody) 'Content-Type': 'application/json',
       if (_authToken != null && _authToken!.isNotEmpty)
         'Authorization': 'Bearer $_authToken',
@@ -80,7 +83,10 @@ class ApiClient {
     return Uri.parse('$baseUrl$endpoint');
   }
 
-  static Future<http.Response> getRequest(String endpoint) async {
+  static Future<http.Response> getRequest(
+    String endpoint, {
+    String? acceptLanguage,
+  }) async {
     final uri = _resolveUri(endpoint);
     if (kDebugMode) {
       debugPrint('GET $uri');
@@ -88,7 +94,7 @@ class ApiClient {
     return _send(
       () => _client.get(
         uri,
-        headers: _headers(),
+        headers: _headers(acceptLanguage: acceptLanguage),
       ),
       allowRetry: true,
     );

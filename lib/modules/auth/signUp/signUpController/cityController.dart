@@ -21,7 +21,10 @@ class CityController extends GetxController {
 
   /// Fetches cities for [countryId], ignoring stale responses when the user
   /// switches country mid-flight (race that caused lag / wrong city lists).
-  Future<void> fetchCities(int countryId) async {
+  Future<void> fetchCities(
+    int countryId, {
+    String? acceptLanguage,
+  }) async {
     final generation = ++_fetchGeneration;
     try {
       isLoading(true);
@@ -30,7 +33,10 @@ class CityController extends GetxController {
       }
 
       final endpoint = '${EndPoints.getCity}?country_id=$countryId';
-      final http.Response response = await ApiClient.getRequest(endpoint);
+      final http.Response response = await ApiClient.getRequest(
+        endpoint,
+        acceptLanguage: acceptLanguage,
+      );
 
       if (generation != _fetchGeneration) {
         return;
@@ -44,18 +50,15 @@ class CityController extends GetxController {
         } else {
           cityList.clear();
           _loadedCountryId = null;
-          Get.snackbar('Error', 'No cities found for this country');
         }
       } else {
         cityList.clear();
         _loadedCountryId = null;
-        Get.snackbar('Error', 'Failed to fetch cities: ${response.statusCode}');
       }
     } catch (e) {
       if (generation == _fetchGeneration) {
         cityList.clear();
         _loadedCountryId = null;
-        Get.snackbar('Error', 'An error occurred: $e');
       }
     } finally {
       if (generation == _fetchGeneration) {

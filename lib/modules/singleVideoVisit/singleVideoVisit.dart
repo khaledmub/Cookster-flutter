@@ -137,8 +137,7 @@ class _SingleVideoVisitState extends State<SingleVisitVideo>
     });
   }
 
-  static final GlobalKey<ScaffoldState> _scaffoldKey =
-      GlobalKey<ScaffoldState>();
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   final VideoCommentsController videoCommentsController = Get.put(
     VideoCommentsController(),
   );

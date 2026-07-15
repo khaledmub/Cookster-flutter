@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:cookster/core/navigation/route_back.dart';
+import 'package:cookster/core/navigation/upload_form_route.dart';
 import 'package:cookster/appUtils/appCenterIcon.dart';
 import 'package:cookster/appUtils/form_snackbar.dart';
 import 'package:cookster/modules/landing/landingTabs/add/videoAddController/videoAddController.dart';
@@ -20,11 +21,13 @@ import '../uploadVideoWidgets/uploadVideoStep3.dart';
 class VideoPreviewScreen extends StatefulWidget {
   final String? isImage;
   final File videoFile;
+  final UploadFormPopGuard? popGuard;
 
   const VideoPreviewScreen({
     super.key,
     required this.videoFile,
     this.isImage,
+    this.popGuard,
   });
 
   @override
@@ -42,6 +45,21 @@ class _VideoPreviewScreenState extends State<VideoPreviewScreen> {
   int _currentStep = 1;
   late final Worker _stepWorker;
   late final bool _uploadAsImage;
+  /// Local absorb when opened without [UploadFormPopGuard] (e.g. video editor).
+  bool _localAbsorb = true;
+  Timer? _absorbPopsTimer;
+
+  bool get _absorbExternalPops =>
+      widget.popGuard?.absorbing.value ?? _localAbsorb;
+
+  void _setAbsorbing(bool value) {
+    if (widget.popGuard != null) {
+      widget.popGuard!.absorbing.value = value;
+    } else {
+      _localAbsorb = value;
+    }
+    if (mounted) setState(() {});
+  }
 
   final List<String> _stepTitles = [
     "video_information_label".tr,
@@ -68,13 +86,26 @@ class _VideoPreviewScreenState extends State<VideoPreviewScreen> {
     unawaited(_loadLanguage());
     _uploadAsImage = widget.isImage == '1';
     videoAddController.isImage.value = _uploadAsImage ? '1' : '0';
-    videoAddController.loadLocationData();
-    unawaited(VideoSettingsService.instance.load());
+    unawaited(() async {
+      await VideoSettingsService.instance.load();
+      await videoAddController.loadLocationData();
+    }());
     unawaited(videoAddController.prepareThumbnail(widget.videoFile));
+    // Keep refusing forced Navigator.pop for several seconds — first-install
+    // stale pop arrived ~170ms after open even after a 1.2s settle.
+    _absorbPopsTimer = Timer(const Duration(milliseconds: 5000), () {
+      if (!mounted) return;
+      _setAbsorbing(false);
+    });
   }
 
   @override
   void dispose() {
+    _absorbPopsTimer?.cancel();
+    if (_absorbExternalPops &&
+        !videoAddController.isVideoUploading.value) {
+      widget.popGuard?.closedByStalePop = true;
+    }
     _stepWorker.dispose();
     // Route disposed without publishing — never let a prior upload finish later.
     videoAddController.cancelPendingUpload();
@@ -87,6 +118,16 @@ class _VideoPreviewScreenState extends State<VideoPreviewScreen> {
     setState(() {
       _language = prefs.getString('language') ?? 'en';
     });
+  }
+
+  Future<void> _handleUserBack() async {
+    if (!await videoAddController.onWillPop(context)) {
+      return;
+    }
+    if (!mounted) return;
+    _setAbsorbing(false);
+    widget.popGuard?.closedByStalePop = false;
+    navigateBack();
   }
 
   /// Only mount the active step so video player / heavy widgets are disposed off-step.
@@ -109,8 +150,16 @@ class _VideoPreviewScreenState extends State<VideoPreviewScreen> {
   Widget build(BuildContext context) {
     final isRtl = _language == 'ar';
 
-    return WillPopScope(
-      onWillPop: () => videoAddController.onWillPop(context),
+    return PopScope(
+      canPop: !_absorbExternalPops,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        if (_absorbExternalPops) {
+          // Stale pop from ProImageEditor teardown — keep form open.
+          return;
+        }
+        unawaited(_handleUserBack());
+      },
       child: Scaffold(
         // Form keeps full height; scroll padding + nav lift handle the keyboard.
         resizeToAvoidBottomInset: false,
@@ -134,13 +183,7 @@ class _VideoPreviewScreenState extends State<VideoPreviewScreen> {
                           left: isRtl ? null : 16,
                           right: isRtl ? 16 : null,
                           child: InkWell(
-                            onTap: () async {
-                              if (await videoAddController.onWillPop(
-                                Get.context!,
-                              )) {
-                                navigateBack();
-                              }
-                            },
+                            onTap: () => unawaited(_handleUserBack()),
                             child: Container(
                               height: 40,
                               width: 40,
@@ -469,13 +512,13 @@ class _UploadNavBar extends StatelessWidget {
 
   void _onPrimaryTap(BuildContext buildContext) {
     if (controller.currentStep.value == 1) {
-      if (controller.step1key.currentState!.validate()) {
+      if (controller.validateStep1Form?.call() ?? false) {
         controller.nextStep();
       } else {
         _showError(buildContext, "step1_invalid_form_error".tr);
       }
     } else if (controller.currentStep.value == 2) {
-      if (controller.step2key.currentState!.validate()) {
+      if (controller.validateStep2Form?.call() ?? false) {
         controller.nextStep();
       } else {
         _showError(buildContext, "step2_invalid_form_error".tr);

@@ -487,8 +487,9 @@ class ProfessionalProfileController extends GetxController {
       ).timeout(
         const Duration(seconds: 10),
         onTimeout: () {
-          print("Step 4: Request timed out. Navigating to noInternet screen.");
-          Get.offAllNamed('/noInternet');
+          print("Step 4: Request timed out — soft fail (do not wipe navigator).");
+          // Never Get.offAllNamed(noInternet) here — flaky first-install DNS
+          // was nuking the open upload/camera stack.
           throw TimeoutException("The connection has timed out!");
         },
       );

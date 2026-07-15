@@ -6,6 +6,7 @@ import 'package:awesome_dialog/awesome_dialog.dart';
 import 'package:cookster/appUtils/apiEndPoints.dart';
 import 'package:cookster/appUtils/colorUtils.dart';
 import 'package:cookster/appUtils/form_snackbar.dart';
+import 'package:cookster/core/navigation/upload_form_route.dart';
 import 'package:cookster/modules/auth/signUp/signUpController/cityController.dart';
 import 'package:cookster/core/video/media_kit_player_pool.dart';
 import 'package:cookster/modules/landing/landingTabs/home/homeController/homeController.dart';
@@ -193,70 +194,239 @@ class VideoAddController extends GetxController {
 
   Future<void> loadLocationData() async {
     final prefs = await SharedPreferences.getInstance();
-    final ProfileController profileController = Get.find<ProfileController>();
-    final CityController cityController = Get.find<CityController>();
+    if (!Get.isRegistered<CityController>()) {
+      Get.put(CityController());
+    }
 
     // Load stored country and city from SharedPreferences
     String storedCountry = prefs.getString('currentCountry') ?? 'Unknown';
     String storedCity = prefs.getString('currentCity') ?? 'Unknown';
+    final storedState = prefs.getString('currentState') ?? '';
+    final storedCountryId =
+        int.tryParse(prefs.getString('currentCountryId') ?? '') ?? 0;
+    final storedCityId =
+        int.tryParse(prefs.getString('currentCityId') ?? '') ?? 0;
 
     // Update the controller with the stored values
     selectedCountry.value = storedCountry;
     selectedCity.value = storedCity;
 
-    // If a valid country is stored (not 'Unknown'), fetch its ID and cities
-    if (storedCountry != 'Unknown') {
-      // On first app open the settings fetch may not have completed yet, which
-      // previously left country/city ids unresolved and triggered a false
-      // "select city" error. Load them now before resolving.
-      if (profileController.videoUploadSettings.value?.countries == null) {
-        await VideoSettingsService.instance.load();
-      }
-      final countries = profileController.videoUploadSettings.value?.countries;
-      if (countries != null) {
-        // Find the country ID for the stored country
-        int? countryId;
-        for (var country in countries) {
-          if (country.name == storedCountry) {
-            countryId = country.id;
-            break;
-          }
-        }
+    if (storedCountryId > 0) {
+      selectedLocationId.value = storedCountryId;
+      selectedCountryId.value = storedCountryId;
+    }
+    if (storedCityId > 0) {
+      selectedCityId.value = storedCityId;
+    }
 
-        // If country ID is found, fetch cities for that country
-        if (countryId != null) {
-          selectedLocationId.value = countryId;
-          selectedCountryId.value = countryId;
-          await cityController.fetchCities(countryId);
-          final cities = cityController.cityList;
-          int? cityId;
-          for (final c in cities) {
-            if (c.name == storedCity && c.id != null) {
-              cityId = c.id;
-              break;
-            }
-          }
-          if (cityId != null) {
-            selectedCityId.value = cityId;
-          } else if (!cities.any((c) => c.name == storedCity)) {
-            selectedCity.value = 'Unknown';
-            selectedCityId.value = -1;
-            await prefs.setString('currentCity', 'Unknown');
-          }
-        } else {
-          // If country ID is not found, reset country and city
-          selectedCountry.value = 'Unknown';
-          selectedCity.value = 'Unknown';
-          await prefs.setString('currentCountry', 'Unknown');
-          await prefs.setString('currentCity', 'Unknown');
-        }
+    if (storedCountry == 'Unknown' || storedCountry.trim().isEmpty) {
+      return;
+    }
+
+    final ready = await ensureLocationIdsReady(
+      alternateCityName: storedState,
+    );
+    if (!ready) {
+      // Keep displayed GPS names — never wipe them to Unknown on a cold
+      // settings/city race (that caused "select city" after first install).
+      return;
+    }
+    await _persistResolvedLocationIds(prefs);
+  }
+
+  String _normalizeLocationName(String raw) {
+    return raw
+        .trim()
+        .toLowerCase()
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .replaceAll(RegExp(r'[^\w\s\u0600-\u06FF]'), '');
+  }
+
+  bool _locationNamesMatch(String? a, String? b) {
+    if (a == null || b == null) return false;
+    final left = _normalizeLocationName(a);
+    final right = _normalizeLocationName(b);
+    if (left.isEmpty || right.isEmpty) return false;
+    if (left == right) return true;
+    // GPS sometimes returns longer labels than the API catalog.
+    if (left.length >= 3 && right.length >= 3) {
+      return left.contains(right) || right.contains(left);
+    }
+    return false;
+  }
+
+  Future<void> _persistResolvedLocationIds(SharedPreferences prefs) async {
+    if (selectedLocationId.value > 0) {
+      await prefs.setString(
+        'currentCountryId',
+        selectedLocationId.value.toString(),
+      );
+    }
+    if (selectedCityId.value > 0) {
+      await prefs.setString('currentCityId', selectedCityId.value.toString());
+      if (Get.isRegistered<HomeController>()) {
+        Get.find<HomeController>().currentCityId.value =
+            selectedCityId.value.toString();
       }
     }
   }
 
-  final step1key = GlobalKey<FormState>();
-  final step2key = GlobalKey<FormState>();
-  final step3key = GlobalKey<FormState>();
+  /// Resolves country/city display names to API ids (required for upload).
+  ///
+  /// GPS prefs are always English (`en_US` placemarks). The app UI language may
+  /// be Arabic, so we retry against an English settings/city list when needed.
+  Future<bool> ensureLocationIdsReady({String? alternateCityName}) async {
+    final profileController = Get.find<ProfileController>();
+    final cityController = Get.isRegistered<CityController>()
+        ? Get.find<CityController>()
+        : Get.put(CityController());
+    final prefs = await SharedPreferences.getInstance();
+
+    alternateCityName ??= prefs.getString('currentState');
+
+    // Seed from prefs if the form was reset before loadLocationData finished.
+    if (selectedCountry.value.trim().isEmpty ||
+        selectedCountry.value == 'Unknown') {
+      final stored = prefs.getString('currentCountry');
+      if (stored != null && stored.trim().isNotEmpty) {
+        selectedCountry.value = stored;
+      }
+    }
+    if (selectedCity.value.trim().isEmpty || selectedCity.value == 'Unknown') {
+      final stored = prefs.getString('currentCity');
+      if (stored != null && stored.trim().isNotEmpty) {
+        selectedCity.value = stored;
+      }
+    }
+    final storedCountryId =
+        int.tryParse(prefs.getString('currentCountryId') ?? '') ?? 0;
+    final storedCityId =
+        int.tryParse(prefs.getString('currentCityId') ?? '') ?? 0;
+    if (selectedLocationId.value <= 0 && storedCountryId > 0) {
+      selectedLocationId.value = storedCountryId;
+      selectedCountryId.value = storedCountryId;
+    }
+    if (selectedCityId.value <= 0 && storedCityId > 0) {
+      selectedCityId.value = storedCityId;
+    }
+
+    if (selectedLocationId.value > 0 &&
+        selectedCountryId.value > 0 &&
+        selectedCityId.value > 0) {
+      final country = selectedCountry.value.trim();
+      final city = selectedCity.value.trim();
+      if (country.isNotEmpty &&
+          city.isNotEmpty &&
+          country != 'Unknown' &&
+          city != 'Unknown') {
+        await _persistResolvedLocationIds(prefs);
+        return true;
+      }
+    }
+
+    Future<bool> resolveOnce({String? acceptLanguage}) async {
+      await VideoSettingsService.instance.load(
+        forceRefresh: acceptLanguage != null,
+        acceptLanguage: acceptLanguage,
+      );
+      final countries = profileController.videoUploadSettings.value?.countries;
+      if (countries == null || countries.isEmpty) return false;
+
+      final country = selectedCountry.value.trim();
+      final city = selectedCity.value.trim();
+      if (country.isEmpty ||
+          city.isEmpty ||
+          country == 'Unknown' ||
+          city == 'Unknown') {
+        return false;
+      }
+
+      int? countryId = selectedLocationId.value > 0
+          ? selectedLocationId.value
+          : null;
+      if (countryId == null || countryId <= 0) {
+        for (final c in countries) {
+          if (_locationNamesMatch(c.name, country) && c.id != null) {
+            countryId = c.id;
+            break;
+          }
+        }
+      }
+      if (countryId == null || countryId <= 0) return false;
+
+      selectedLocationId.value = countryId;
+      selectedCountryId.value = countryId;
+
+      final needsCities = cityController.loadedCountryId != countryId ||
+          cityController.cityList.isEmpty;
+      if (needsCities) {
+        await cityController.fetchCities(
+          countryId,
+          acceptLanguage: acceptLanguage,
+        );
+      }
+      // First-install races: city endpoint can return empty once — retry.
+      if (cityController.cityList.isEmpty) {
+        await Future<void>.delayed(const Duration(milliseconds: 350));
+        await cityController.fetchCities(
+          countryId,
+          acceptLanguage: acceptLanguage,
+        );
+      }
+      if (cityController.cityList.isEmpty) return false;
+
+      if (selectedCityId.value > 0 &&
+          cityController.cityList.any(
+            (c) =>
+                c.id == selectedCityId.value &&
+                (_locationNamesMatch(c.name, city) ||
+                    _locationNamesMatch(c.name, alternateCityName)),
+          )) {
+        return true;
+      }
+
+      for (final candidate in <String?>[city, alternateCityName]) {
+        if (candidate == null ||
+            candidate.trim().isEmpty ||
+            candidate == 'Unknown') {
+          continue;
+        }
+        for (final c in cityController.cityList) {
+          if (_locationNamesMatch(c.name, candidate) && c.id != null) {
+            selectedCityId.value = c.id!;
+            if (!_locationNamesMatch(selectedCity.value, c.name) &&
+                c.name != null &&
+                c.name!.trim().isNotEmpty) {
+              // Keep GPS label in UI; id is what upload needs.
+            }
+            return true;
+          }
+        }
+      }
+      return false;
+    }
+
+    if (await resolveOnce()) {
+      await _persistResolvedLocationIds(prefs);
+      return true;
+    }
+    // GPS placemarks are English — retry API catalog in English when the
+    // active UI language did not match (common on Arabic first install).
+    if (await resolveOnce(acceptLanguage: 'en')) {
+      await _persistResolvedLocationIds(prefs);
+      return true;
+    }
+    return false;
+  }
+
+  void validateSelectedCountry() {
+    unawaited(ensureLocationIdsReady());
+  }
+
+  // Not GlobalKeys — those lived on this persistent GetX controller and
+  // reactivated disposed Form elements across upload sessions.
+  bool Function()? validateStep1Form;
+  bool Function()? validateStep2Form;
 
   void initializeTags(List<String> tags) {
     tagsList.clear();
@@ -484,6 +654,10 @@ class VideoAddController extends GetxController {
     selectedCityId.value = -1;
     update([idUploadLocation]);
     print("Selected Location: ${selectedCountry.value} (ID: $stateId)");
+    unawaited(SharedPreferences.getInstance().then((prefs) async {
+      await prefs.setString('currentCountryId', stateId.toString());
+      await prefs.remove('currentCityId');
+    }));
   }
 
   void selectCity(String location, int cityIdValue) {
@@ -491,84 +665,7 @@ class VideoAddController extends GetxController {
     selectedCityId.value = cityIdValue;
     update([idUploadLocation]);
     print("Selected City: ${selectedCity.value} (ID: $cityIdValue)");
-  }
-
-  /// Resolves country/city display names to API ids (required for upload).
-  Future<bool> ensureLocationIdsReady() async {
-    final profileController = Get.find<ProfileController>();
-    final cityController = Get.find<CityController>();
-
-    // Already resolved from a prior picker selection — skip name rematch races.
-    if (selectedLocationId.value > 0 &&
-        selectedCountryId.value > 0 &&
-        selectedCityId.value > 0) {
-      final country = selectedCountry.value.trim();
-      final city = selectedCity.value.trim();
-      if (country.isNotEmpty &&
-          city.isNotEmpty &&
-          country != 'Unknown' &&
-          city != 'Unknown') {
-        return true;
-      }
-    }
-
-    if (profileController.videoUploadSettings.value?.countries == null) {
-      await VideoSettingsService.instance.load();
-    }
-
-    final countries = profileController.videoUploadSettings.value?.countries;
-    if (countries == null || countries.isEmpty) return false;
-
-    final country = selectedCountry.value.trim();
-    final city = selectedCity.value.trim();
-    if (country.isEmpty ||
-        city.isEmpty ||
-        country == 'Unknown' ||
-        city == 'Unknown') {
-      return false;
-    }
-
-    int? countryId = selectedLocationId.value > 0
-        ? selectedLocationId.value
-        : null;
-    if (countryId == null || countryId <= 0) {
-      for (final c in countries) {
-        if (c.name == country && c.id != null) {
-          countryId = c.id;
-          break;
-        }
-      }
-    }
-    if (countryId == null || countryId <= 0) return false;
-
-    selectedLocationId.value = countryId;
-    selectedCountryId.value = countryId;
-
-    final needsCities = cityController.loadedCountryId != countryId ||
-        cityController.cityList.isEmpty ||
-        !cityController.cityList.any((c) => c.name == city);
-    if (needsCities) {
-      await cityController.fetchCities(countryId);
-    }
-
-    if (selectedCityId.value > 0 &&
-        cityController.cityList.any(
-          (c) => c.id == selectedCityId.value && c.name == city,
-        )) {
-      return true;
-    }
-
-    for (final c in cityController.cityList) {
-      if (c.name == city && c.id != null) {
-        selectedCityId.value = c.id!;
-        return true;
-      }
-    }
-    return false;
-  }
-
-  void validateSelectedCountry() {
-    unawaited(ensureLocationIdsReady());
+    unawaited(SharedPreferences.getInstance().then(_persistResolvedLocationIds));
   }
 
   void setVisibility(VisibilityOption option) {
@@ -804,6 +901,8 @@ class VideoAddController extends GetxController {
     }
     // Keep profile controllers across offAll (permanent) so this refresh sticks.
     ensureLandingProfileControllers();
+    // Allow the upload form route to leave (absorb window may still be on).
+    UploadFormPopGuard.active?.allowUserPop();
     try {
       await _refreshProfileAfterUpload().timeout(
         const Duration(seconds: 8),
@@ -1634,6 +1733,8 @@ class VideoAddController extends GetxController {
   void resetController() {
     print("Resetting controller...");
     cancelPendingUpload();
+    validateStep1Form = null;
+    validateStep2Form = null;
     videoTitle.value = "";
     titleController.text = "";
     videoDescription.value = "";
@@ -1669,11 +1770,9 @@ class VideoAddController extends GetxController {
         );
       } else {
         print("Failed to fetch site settings: ${response.statusCode}");
-        showFormSnackBar(Get.context!, "fetch_site_settings_error".tr);
       }
     } catch (e) {
       print("Error fetching site settings: $e");
-      showFormSnackBar(Get.context!, "fetch_site_settings_error_message".tr);
     }
   }
 
@@ -1733,6 +1832,8 @@ void showWaitingDialog() {
 }
 
 void showSuccessDialog() {
+  // Dead path — do not Get.offAll on a timer. A 3s delayed offAll here used to
+  // nuke the upload/editor stack if this helper was ever invoked.
   AwesomeDialog(
     context: Get.context!,
     dialogType: DialogType.success,
@@ -1740,19 +1841,8 @@ void showSuccessDialog() {
     title: "success_title".tr,
     desc: "upload_success_message".tr,
     autoDismiss: true,
-    // Automatically dismiss the dialog
-    onDismissCallback: (type) {
-      // Navigate to Landing screen after dialog is dismissed
-    },
+    btnOkOnPress: () {},
   )..show();
-
-  // Optional: Add a delay before navigation if you want the dialog to be visible briefly
-  Future.delayed(Duration(seconds: 3), () {
-    Get.offAll(
-      () => Landing(),
-      binding: LandingBinding(),
-    );
-  });
 }
 
 void showErrorDialog() {

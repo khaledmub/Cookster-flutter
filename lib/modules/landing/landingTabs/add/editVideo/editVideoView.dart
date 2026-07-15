@@ -30,6 +30,11 @@ class _EditVideoViewState extends State<EditVideoView> {
   final CityController cityController = Get.isRegistered<CityController>()
       ? Get.find<CityController>()
       : Get.put(CityController());
+  // Edit opens from profile without an upload session — ensure controller exists.
+  late final VideoAddController videoAddController =
+      Get.isRegistered<VideoAddController>()
+          ? Get.find<VideoAddController>()
+          : Get.put(VideoAddController());
   final GlobalKey<FormFieldState> tagKey = GlobalKey<FormFieldState>();
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>(); // Add form key
   final FocusNode tagFocusNode = FocusNode();
@@ -59,7 +64,7 @@ class _EditVideoViewState extends State<EditVideoView> {
   void initState() {
     super.initState();
     _loadLanguage();
-    final VideoAddController controller = Get.find();
+    final VideoAddController controller = videoAddController;
 
     if (widget.videos!.isNotEmpty) {
       final videoData = widget.videos!.first;
@@ -117,7 +122,7 @@ class _EditVideoViewState extends State<EditVideoView> {
   // Method to validate all form fields
   bool _validateForm() {
     bool isValid = true;
-    final VideoAddController controller = Get.find();
+    final VideoAddController controller = videoAddController;
 
     // Debug logging
     print('Form key state: ${_formKey.currentState}');
@@ -161,7 +166,7 @@ class _EditVideoViewState extends State<EditVideoView> {
 
   // Method to check if any values have changed
   bool hasChanges() {
-    final VideoAddController controller = Get.find();
+    final VideoAddController controller = videoAddController;
 
     // Get current values
     String currentTitle = titleController.text.trim();
@@ -219,7 +224,7 @@ class _EditVideoViewState extends State<EditVideoView> {
   }
 
   Future<void> initializeCountryAndCity(dynamic videoData) async {
-    final VideoAddController controller = Get.find();
+    final VideoAddController controller = videoAddController;
     final ProfileController profileController = Get.find();
 
     // Populate countryMap
@@ -277,7 +282,7 @@ class _EditVideoViewState extends State<EditVideoView> {
     print(
       'Building EditVideoView, scaffoldMessengerKey: $_scaffoldMessengerKey',
     );
-    final VideoAddController controller = Get.find();
+    final VideoAddController controller = videoAddController;
     final ProfileController profileController = Get.find();
     final videoData = widget.videos!.first;
 
@@ -1151,7 +1156,7 @@ class _EditVideoViewState extends State<EditVideoView> {
     required Function() onCountryTap,
     required Function() onCityTap,
   }) {
-    final VideoAddController controller = Get.find();
+    final VideoAddController controller = videoAddController;
     return Column(
       children: [
         InkWell(
@@ -1254,7 +1259,7 @@ class _EditVideoViewState extends State<EditVideoView> {
   }
 
   void showLocationDialog(BuildContext context, {int? initialCountryId}) {
-    final VideoAddController controller = Get.find();
+    final VideoAddController controller = videoAddController;
     final ProfileController profileController = Get.find();
     final CityController cityController = Get.find<CityController>();
 
@@ -1475,7 +1480,7 @@ class _EditVideoViewState extends State<EditVideoView> {
   }
 
   void showCityDialog(BuildContext context, {int? initialCityId}) {
-    final VideoAddController controller = Get.find();
+    final VideoAddController controller = videoAddController;
     final CityController cityController = Get.find<CityController>();
 
     print("Initial City ID: $initialCityId");

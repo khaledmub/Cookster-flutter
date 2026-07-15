@@ -46,6 +46,7 @@ class ReelVideoPlayer extends StatefulWidget {
     this.onFeedVideoPainted,
     this.onFeedAwaitingPaint,
     this.onVideoCompleted,
+    this.onStateChanged,
     this.showProgressBar = false,
   });
 
@@ -68,6 +69,9 @@ class ReelVideoPlayer extends StatefulWidget {
   /// Fired before slot recycle / awaiting paint — parent should force poster mask.
   final VoidCallback? onFeedAwaitingPaint;
   final VoidCallback? onVideoCompleted;
+  /// Prefer this over [GlobalKey] for parents that mount/unmount the player
+  /// (home feed after camera) — avoids StatefulElement.activate null crashes.
+  final ValueChanged<ReelVideoPlayerState?>? onStateChanged;
   /// Thin gold progress line at the bottom of feed reels.
   final bool showProgressBar;
 
@@ -203,6 +207,7 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
   void initState() {
     super.initState();
     _liveInstances++;
+    widget.onStateChanged?.call(this);
     debugPrint(
       '[ReelVideoPlayer] init hash=$hashCode live=$_liveInstances '
       'key=$_poolKey feedChannel=$_usesFeedVisibleChannel',
@@ -609,6 +614,10 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
   @override
   void didUpdateWidget(covariant ReelVideoPlayer oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.onStateChanged != widget.onStateChanged) {
+      oldWidget.onStateChanged?.call(null);
+      widget.onStateChanged?.call(this);
+    }
     final id = widget.videoId?.trim() ?? '';
     final targetKey = _poolKey;
     // Same reel: ignore URL/cache/tier settle AND "targeting but not attached"
@@ -660,6 +669,7 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
       '[ReelVideoPlayer] dispose hash=$hashCode live=$_liveInstances '
       'key=${_pooledKey ?? _poolKey}',
     );
+    widget.onStateChanged?.call(null);
     _isDisposed = true;
     if (_usesFeedVisibleChannel) {
       _pool.feedActiveSlotIndexNotifier.removeListener(_onFeedActiveSlotChanged);

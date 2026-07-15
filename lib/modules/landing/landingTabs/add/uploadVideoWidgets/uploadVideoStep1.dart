@@ -23,14 +23,26 @@ class UploadVideoStep1 extends StatefulWidget {
 class _UploadVideoStep1State extends State<UploadVideoStep1> {
   final VideoAddController videoAddController = Get.find();
 
+  final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   final GlobalKey<FormFieldState> _titleKey = GlobalKey<FormFieldState>();
   final GlobalKey<FormFieldState> _descriptionKey = GlobalKey<FormFieldState>();
 
   @override
   void initState() {
     super.initState();
+    videoAddController.validateStep1Form = _validateStep1;
     unawaited(videoAddController.prepareThumbnail(widget.videoFile));
   }
+
+  @override
+  void dispose() {
+    if (identical(videoAddController.validateStep1Form, _validateStep1)) {
+      videoAddController.validateStep1Form = null;
+    }
+    super.dispose();
+  }
+
+  bool _validateStep1() => _formKey.currentState?.validate() ?? false;
 
   @override
   Widget build(BuildContext context) {
@@ -42,7 +54,7 @@ class _UploadVideoStep1State extends State<UploadVideoStep1> {
           borderRadius: BorderRadius.circular(20.r),
         ),
         child: Form(
-          key: videoAddController.step1key,
+          key: _formKey,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             spacing: 2,
@@ -162,53 +174,60 @@ class _Step1PreviewRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return _KeyboardOpenBuilder(
       builder: (context, keyboardOpen) {
-        if (keyboardOpen) return const SizedBox.shrink();
-        return Row(
-          children: [
-            _UploadVideoPreview(videoFile: videoFile),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  ValueListenableBuilder<TextEditingValue>(
-                    valueListenable: titleController,
-                    builder: (context, value, _) {
-                      final text = value.text;
-                      return Text(
-                        maxLines: 3,
-                        overflow: TextOverflow.ellipsis,
-                        text.isEmpty ? "video_title_here".tr : text,
-                        style: TextStyle(
-                          color: Colors.black,
-                          fontWeight: FontWeight.w700,
-                          fontSize: 14.sp,
-                        ),
-                      );
-                    },
-                  ),
-                  const SizedBox(height: 8),
-                  ValueListenableBuilder<TextEditingValue>(
-                    valueListenable: descriptionController,
-                    builder: (context, value, _) {
-                      final text = value.text;
-                      return Text(
-                        text.isEmpty
-                            ? "video_description_placeholder".tr
-                            : text,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: ColorUtils.greyTextFieldBorderColor,
-                          fontSize: 10.sp,
-                          fontWeight: FontWeight.w400,
-                        ),
-                      );
-                    },
-                  ),
-                ],
+        // Keep [VideoPlayer] State alive across keyboard open/close — removing
+        // the preview with SizedBox.shrink remounted ExoPlayer under the form
+        // and could corrupt the element tree on first-session installs.
+        return Visibility(
+          visible: !keyboardOpen,
+          maintainState: true,
+          maintainAnimation: true,
+          child: Row(
+            children: [
+              _UploadVideoPreview(videoFile: videoFile),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    ValueListenableBuilder<TextEditingValue>(
+                      valueListenable: titleController,
+                      builder: (context, value, _) {
+                        final text = value.text;
+                        return Text(
+                          maxLines: 3,
+                          overflow: TextOverflow.ellipsis,
+                          text.isEmpty ? "video_title_here".tr : text,
+                          style: TextStyle(
+                            color: Colors.black,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 14.sp,
+                          ),
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 8),
+                    ValueListenableBuilder<TextEditingValue>(
+                      valueListenable: descriptionController,
+                      builder: (context, value, _) {
+                        final text = value.text;
+                        return Text(
+                          text.isEmpty
+                              ? "video_description_placeholder".tr
+                              : text,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: ColorUtils.greyTextFieldBorderColor,
+                            fontSize: 10.sp,
+                            fontWeight: FontWeight.w400,
+                          ),
+                        );
+                      },
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         );
       },
     );

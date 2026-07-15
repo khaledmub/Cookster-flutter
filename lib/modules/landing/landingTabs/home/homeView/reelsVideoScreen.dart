@@ -131,10 +131,14 @@ class _VideoReelScreenState extends State<VideoReelScreen>
   int _playerScheduleEpoch = 0;
   final Map<String, int> _commentCounts = {};
 
-  /// One shared player key across tabs — per-tab keys remounted [ReelVideoPlayer]
-  /// on every tab switch and tore down the MTK [ImageReader] surface.
-  final GlobalKey<ReelVideoPlayerState> _feedReelPlayerKey =
-      GlobalKey<ReelVideoPlayerState>();
+  /// Soft handle for the mounted feed player — never [GlobalKey]. Capture /
+  /// upload unmounts the player; GlobalKey reactivation of a disposed State
+  /// crashed with StatefulElement.activate null-check.
+  ReelVideoPlayerState? _feedPlayerState;
+
+  void _onFeedPlayerStateChanged(ReelVideoPlayerState? state) {
+    _feedPlayerState = state;
+  }
 
   /// Page poster stays above the video surface until the first composited frame.
   bool _maskActiveVideoWithPoster = true;
@@ -267,7 +271,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
           coordinator: _playbackCoordinator,
           context: context,
           index: index,
-          playerKey: _feedReelPlayerKey,
+          resolveState: () => _feedPlayerState,
           forcePlayerReattach: true,
           warmMaxWaitMs: 0,
         );
@@ -334,9 +338,14 @@ class _VideoReelScreenState extends State<VideoReelScreen>
       debugPrint('[FeedRestore] schedulePlayer BAIL !canMount page=$pageIndex '
           'reason=${controller.canMountBlockReason}');
       layer.activePlayerVideo = null;
-      // Any mount block while the Home feed is on-screen must self-heal —
-      // stuck capture/mute after camera previously left posters-only forever.
-      controller.healHomeFeedIfStuckInvisible();
+      // Only heal leaked mute/visible gates when Home is clear. Never while
+      // capture/upload/camera is open (reason=captureDepth) — that wiped the
+      // gate and remounted the feed under the form.
+      if (!controller.isInMediaCaptureFlow &&
+          !controller.canMountBlockReason.startsWith('capture') &&
+          !controller.canMountBlockReason.startsWith('overlay')) {
+        controller.healHomeFeedIfStuckInvisible();
+      }
       return;
     }
     // Post-upload silence must not stick once Home is actively scheduling.
@@ -438,7 +447,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
       if (!needsReattach && !poolMismatch) {
         return;
       }
-      final playerState = _feedReelPlayerKey.currentState;
+      final playerState = _feedPlayerState;
       if (playerState == null) {
         return;
       }
@@ -876,7 +885,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
         return;
       }
       _schedulePlayerForPage(_activeTabType, index, forceReattach: true);
-      unawaited(_feedReelPlayerKey.currentState?.resumeAfterAppBackground());
+      unawaited(_feedPlayerState?.resumeAfterAppBackground());
       _resumeFeedAudibleOnce();
     });
   }
@@ -930,7 +939,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
   Widget _buildInlineReelPlayer(WallVideos video, {required String tab}) {
     return ReelFeedPlayerKit.buildInlinePlayer(
       video: video,
-      playerKey: _feedReelPlayerKey,
+      onStateChanged: _onFeedPlayerStateChanged,
       // Photos must never show the scrubber — only real video posts.
       showProgressBar: !video.isPhotoPost,
       onPlaybackReady: () {
@@ -1584,8 +1593,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                 }
                 final actualIndex = index % length;
                 MediaKitPlayerPool.instance.pauseAllImmediate();
-                _feedReelPlayerKey.currentState
-                    ?.cancelInFlightPlaybackForPageChange();
+                _feedPlayerState?.cancelInFlightPlaybackForPageChange();
                 controller.visiblePageIndex.value = actualIndex;
                 controller.saveTabScrollIndex(tab, actualIndex);
                 controller.saveTabVideoId(tab, videos[actualIndex].id);
@@ -1934,6 +1942,13 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                 return const SizedBox.shrink();
               }),
               Obx(() {
+                // While camera / editor / upload is open, keep Home as a static
+                // black sheet. IndexedStack keeps this tab alive under Get.to
+                // routes — rebuilding PageView/players there caused first-install
+                // StatefulElement.activate crashes on the upload form.
+                if (controller.isInMediaCaptureFlow) {
+                  return const ColoredBox(color: Colors.black);
+                }
                 final activeTab = controller.selectedType.value;
                 final feedEmpty =
                     controller.videoFeed.value.videos?.isEmpty ?? true;

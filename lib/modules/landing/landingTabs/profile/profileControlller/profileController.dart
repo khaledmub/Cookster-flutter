@@ -547,8 +547,9 @@ class ProfileController extends GetxController {
       ).timeout(
         const Duration(seconds: 10),
         onTimeout: () {
-          print("Step 4: Request timed out. Navigating to noInternet screen.");
-          Get.offAllNamed('/noInternet');
+          print("Step 4: Request timed out — soft fail (do not wipe navigator).");
+          // Never Get.offAllNamed(noInternet) here — first-install DNS flakes
+          // were nuking the open upload form mid-edit.
           throw TimeoutException("The connection has timed out!");
         },
       );

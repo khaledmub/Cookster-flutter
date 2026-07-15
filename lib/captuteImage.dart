@@ -1,3 +1,5 @@
+import 'package:cookster/modules/landing/landingTabs/add/videoAddController/videoAddController.dart';
+import 'package:cookster/modules/landing/landingTabs/add/videoAddView/videoAddView.dart';
 import 'package:cookster/services/imageEditScreen.dart';
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
@@ -109,7 +111,27 @@ class CameraCaptureControllerX extends GetxController {
       final file = await cameraCtrl!.takePicture();
       capturedImageFile.value = File(file.path);
       update();
-      Get.to(() => ImageEditScreen(imagePath: file.path));
+      final prepared = await Get.to<PreparedUploadMedia?>(
+        () => ImageEditScreen(imagePath: file.path),
+      );
+      if (prepared == null) {
+        return;
+      }
+      if (!Get.isRegistered<VideoAddController>()) {
+        Get.put(VideoAddController());
+      }
+      // Replace camera with the upload form (editor already popped).
+      Get.off(
+        () => VideoPreviewScreen(
+          videoFile: prepared.file,
+          isImage: prepared.isImage,
+        ),
+        binding: BindingsBuilder(() {
+          if (!Get.isRegistered<VideoAddController>()) {
+            Get.put(VideoAddController());
+          }
+        }),
+      );
     } catch (e) {
       Get.snackbar('Error', 'Failed to capture image: $e');
     }

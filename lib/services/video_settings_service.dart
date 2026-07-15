@@ -15,25 +15,40 @@ class VideoSettingsService extends GetxService {
   final Rxn<VideoUploadSettings> settings = Rxn<VideoUploadSettings>();
   Future<VideoUploadSettings?>? _inFlight;
 
-  Future<VideoUploadSettings?> load({bool forceRefresh = false}) async {
-    if (!forceRefresh && settings.value != null) {
+  Future<VideoUploadSettings?> load({
+    bool forceRefresh = false,
+    String? acceptLanguage,
+  }) async {
+    // Language-specific fetch must not reuse a cache from another locale —
+    // GPS prefs are English while the app UI may be Arabic.
+    if (!forceRefresh &&
+        acceptLanguage == null &&
+        settings.value != null) {
       return settings.value;
     }
-    if (!forceRefresh && _inFlight != null) {
+    if (!forceRefresh && acceptLanguage == null && _inFlight != null) {
       return _inFlight;
     }
 
-    _inFlight = _fetch();
+    final future = _fetch(acceptLanguage: acceptLanguage);
+    if (acceptLanguage == null) {
+      _inFlight = future;
+    }
     try {
-      return await _inFlight;
+      return await future;
     } finally {
-      _inFlight = null;
+      if (identical(_inFlight, future)) {
+        _inFlight = null;
+      }
     }
   }
 
-  Future<VideoUploadSettings?> _fetch() async {
+  Future<VideoUploadSettings?> _fetch({String? acceptLanguage}) async {
     try {
-      final response = await ApiClient.getRequest(EndPoints.videoTypes);
+      final response = await ApiClient.getRequest(
+        EndPoints.videoTypes,
+        acceptLanguage: acceptLanguage,
+      );
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body) as Map<String, dynamic>;
         final parsed = VideoUploadSettings.fromJson(data);

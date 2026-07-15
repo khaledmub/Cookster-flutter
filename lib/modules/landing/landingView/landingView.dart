@@ -24,12 +24,14 @@ import '../../../appUtils/colorUtils.dart';
 import '../../../basicVideoEditor/basicVideoEditor.dart';
 import '../../../cameraScreen.dart';
 import '../../../captuteImage.dart';
+import '../../../core/navigation/upload_form_route.dart';
 import '../../../services/imageEditScreen.dart';
+import '../landingTabs/add/videoAddController/videoAddController.dart';
+import '../landingTabs/add/videoAddView/videoAddView.dart';
 import '../../promoteVideo/promoteVideoController/promoteVideoController.dart';
 import '../../search/searchController/searchController.dart';
 import '../../singleVideoVisit/singleVideoVisit.dart';
 import '../landingController/landingController.dart';
-import '../landingTabs/add/videoAddController/videoAddController.dart';
 import '../../../core/video/media_kit_player_pool.dart';
 import '../../../core/video/video_player_pool.dart';
 import '../landingTabs/home/homeController/homeController.dart';
@@ -236,9 +238,16 @@ class _LandingState extends State<Landing> {
                           fileType.endsWith('.jpeg') ||
                           fileType.endsWith('.png') ||
                           fileType.endsWith('.webp')) {
-                        await Get.to(
-                              () => ImageEditScreen(imagePath: pickedFile.path),
+                        // ImageEdit only prepares media and Get.back(result).
+                        // Opening the form here (after editor is gone) avoids
+                        // ProImageEditor teardown popping the form.
+                        final prepared =
+                            await Get.to<PreparedUploadMedia?>(
+                          () => ImageEditScreen(imagePath: pickedFile.path),
                         );
+                        if (prepared != null) {
+                          await _openUploadForm(prepared);
+                        }
                       } else if (fileType.endsWith('.mp4') ||
                           fileType.endsWith('.avi') ||
                           fileType.endsWith('.mov')) {
@@ -446,15 +455,19 @@ class _LandingState extends State<Landing> {
                   ),
                 ),
               );
-              return Obx(
+                  return Obx(
                 () {
                   final selected = navBarController.selectedIndex.value;
+                  final capturing = Get.isRegistered<HomeController>() &&
+                      Get.find<HomeController>().isInMediaCaptureFlow;
                   return IndexedStack(
                     index: selected,
                     sizing: StackFit.expand,
                     children: [
                       TickerMode(
-                        enabled: selected == 0,
+                        // Freeze Home completely under camera/upload — keeps
+                        // PageView/players from rebuilding under the form.
+                        enabled: selected == 0 && !capturing,
                         child: _homeScreen,
                       ),
                       if (otherScreens != null) ...[
@@ -634,11 +647,65 @@ class _LandingState extends State<Landing> {
     }
   }
 
+  bool _captureOverlayStillOpen() {
+    final route = Get.currentRoute.toLowerCase();
+    if (route.contains('videopreview') ||
+        route.contains('imageedit') ||
+        route.contains('videotext') ||
+        route.contains('camera')) {
+      return true;
+    }
+    return Get.key.currentState?.canPop() ?? false;
+  }
+
+  Future<void> _openUploadForm(PreparedUploadMedia prepared) async {
+    if (!Get.isRegistered<VideoAddController>()) {
+      Get.put(VideoAddController());
+    }
+    // Short yield for editor overlay teardown — the real defense is
+    // UploadFormPageRoute.didPop refusing forced Navigator.pop while absorbing.
+    await WidgetsBinding.instance.endOfFrame;
+
+    // First-open after install often gets a stale pop ~170ms after push.
+    // Refuse it via didPop; if it still closes the route, reopen (same as
+    // the working "second try").
+    for (var attempt = 0; attempt < 4; attempt++) {
+      final guard = UploadFormPopGuard();
+      final nav = Get.key.currentState ?? Navigator.of(Get.context!);
+      await nav.push<void>(
+        UploadFormPageRoute(
+          guard: guard,
+          builder: (_) => VideoPreviewScreen(
+            videoFile: prepared.file,
+            isImage: prepared.isImage,
+            popGuard: guard,
+          ),
+        ),
+      );
+      final reopen = guard.closedByStalePop;
+      guard.dispose();
+      if (!reopen) {
+        return;
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 200));
+      await WidgetsBinding.instance.endOfFrame;
+    }
+  }
+
   Future<void> _restoreAfterMediaCapture() async {
     if (!Get.isRegistered<HomeController>()) {
       return;
     }
     final home = Get.find<HomeController>();
+    // Wait until editor/form overlays are gone. Prefer route checks over bare
+    // canPop — GetX can briefly report canPop=false mid-transition.
+    while (mounted && _captureOverlayStillOpen()) {
+      home.reinforceMediaCaptureSilence();
+      await Future<void>.delayed(const Duration(milliseconds: 400));
+    }
+    if (!mounted || !Get.isRegistered<HomeController>()) {
+      return;
+    }
     // Always end the capture gate — even if the user is on Profile after upload.
     // Previously we no-op'd when selectedIndex != 0, which could leave a leaked
     // capture depth until process kill if end wasn't paired on offAll.

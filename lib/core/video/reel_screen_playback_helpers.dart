@@ -55,13 +55,18 @@ class ReelScreenPlaybackHelpers {
     required BuildContext context,
     required int index,
     GlobalKey<ReelVideoPlayerState>? playerKey,
+    ReelVideoPlayerState? Function()? resolveState,
     bool forcePlayerReattach = false,
     int warmMaxWaitMs = 700,
   }) async {
     // Photo→video: the player only mounts on the next frame after visibleIndex
-    // flips. Wait for [currentState] FIRST — warming before the mount made us
+    // flips. Wait for state FIRST — warming before the mount made us
     // finish attach while state was still null and silently no-op.
-    var state = await _waitForPlayerState(playerKey, context);
+    var state = await _waitForPlayerState(
+      context,
+      playerKey: playerKey,
+      resolveState: resolveState,
+    );
     if (!context.mounted) {
       return;
     }
@@ -82,9 +87,13 @@ class ReelScreenPlaybackHelpers {
     preloadManager.onVisiblePageSettled();
     coordinator.onPageSettled(index, context: context);
 
-    // Re-resolve after warm — GlobalKey can move during the await.
-    state = playerKey?.currentState ??
-        await _waitForPlayerState(playerKey, context);
+    // Re-resolve after warm — mount can complete during the await.
+    state = _readState(playerKey: playerKey, resolveState: resolveState) ??
+        await _waitForPlayerState(
+          context,
+          playerKey: playerKey,
+          resolveState: resolveState,
+        );
     if (state == null || !context.mounted) {
       return;
     }
@@ -97,14 +106,22 @@ class ReelScreenPlaybackHelpers {
     }
   }
 
-  static Future<ReelVideoPlayerState?> _waitForPlayerState(
+  static ReelVideoPlayerState? _readState({
     GlobalKey<ReelVideoPlayerState>? playerKey,
-    BuildContext context,
-  ) async {
-    if (playerKey == null) {
+    ReelVideoPlayerState? Function()? resolveState,
+  }) {
+    return resolveState?.call() ?? playerKey?.currentState;
+  }
+
+  static Future<ReelVideoPlayerState?> _waitForPlayerState(
+    BuildContext context, {
+    GlobalKey<ReelVideoPlayerState>? playerKey,
+    ReelVideoPlayerState? Function()? resolveState,
+  }) async {
+    if (playerKey == null && resolveState == null) {
       return null;
     }
-    var state = playerKey.currentState;
+    var state = _readState(playerKey: playerKey, resolveState: resolveState);
     if (state != null) {
       return state;
     }
@@ -113,16 +130,17 @@ class ReelScreenPlaybackHelpers {
       if (!context.mounted) {
         return null;
       }
-      state = playerKey.currentState;
+      state = _readState(playerKey: playerKey, resolveState: resolveState);
       if (state != null) {
         return state;
       }
     }
-    return playerKey.currentState;
+    return _readState(playerKey: playerKey, resolveState: resolveState);
   }
 
   static Future<void> resumeAfterAppForeground({
-    required GlobalKey<ReelVideoPlayerState> playerKey,
+    GlobalKey<ReelVideoPlayerState>? playerKey,
+    ReelVideoPlayerState? Function()? resolveState,
     required String? videoId,
     required Future<void> Function() attachVisible,
   }) async {
@@ -132,7 +150,8 @@ class ReelScreenPlaybackHelpers {
       );
     }
     await attachVisible();
-    await playerKey.currentState?.resumeAfterAppBackground();
+    await _readState(playerKey: playerKey, resolveState: resolveState)
+        ?.resumeAfterAppBackground();
     if (videoId != null && videoId.isNotEmpty) {
       unawaited(MediaKitPlayerPool.instance.resumeFeedVisible(videoId));
     }

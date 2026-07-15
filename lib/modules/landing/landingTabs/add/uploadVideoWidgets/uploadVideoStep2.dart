@@ -21,6 +21,7 @@ class UploadVideoStep2 extends StatefulWidget {
 class _UploadVideoStep2State extends State<UploadVideoStep2> {
   final VideoAddController videoAddController = Get.find();
   final ProfileController profileController = Get.find();
+  final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   final GlobalKey<FormFieldState> _tagKey = GlobalKey<FormFieldState>();
   final FocusNode _tagFocusNode = FocusNode();
   late final Future<int> _entityFuture;
@@ -38,6 +39,7 @@ class _UploadVideoStep2State extends State<UploadVideoStep2> {
   @override
   void initState() {
     super.initState();
+    videoAddController.validateStep2Form = _validateStep2;
     _entityFuture = _loadEntity();
     _loadLanguage();
     unawaited(_ensureVideoUploadSettings());
@@ -55,9 +57,14 @@ class _UploadVideoStep2State extends State<UploadVideoStep2> {
 
   @override
   void dispose() {
+    if (identical(videoAddController.validateStep2Form, _validateStep2)) {
+      videoAddController.validateStep2Form = null;
+    }
     _tagFocusNode.dispose();
     super.dispose();
   }
+
+  bool _validateStep2() => _formKey.currentState?.validate() ?? false;
 
   Future<void> _ensureVideoUploadSettings() async {
     final profileController = Get.find<ProfileController>();
@@ -100,7 +107,7 @@ class _UploadVideoStep2State extends State<UploadVideoStep2> {
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16.0),
                     child: Form(
-                      key: videoAddController.step2key,
+                      key: _formKey,
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [

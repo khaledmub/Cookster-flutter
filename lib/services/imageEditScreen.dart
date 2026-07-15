@@ -10,8 +10,17 @@ import 'package:pro_image_editor/pro_image_editor.dart';
 
 import '../basicVideoEditor/audioSelector.dart';
 import '../basicVideoEditor/videoEditorControllers/audioSelectorController.dart';
-import '../modules/landing/landingTabs/add/videoAddController/videoAddController.dart';
-import '../modules/landing/landingTabs/add/videoAddView/videoAddView.dart';
+
+/// Result returned to the caller (Landing / camera) which then opens the upload
+/// form. ImageEdit must NOT navigate to the form itself — stacking or
+/// replacing while ProImageEditor is still closing pops the form (~1–4s).
+class PreparedUploadMedia {
+  final File file;
+  /// `'1'` still image, `'0'` image+audio (mp4).
+  final String isImage;
+
+  const PreparedUploadMedia({required this.file, required this.isImage});
+}
 
 class ImageEditScreen extends StatefulWidget {
   final String imagePath;
@@ -26,7 +35,7 @@ class _ImageEditScreenState extends State<ImageEditScreen> {
   File? _editedImage;
   /// Prepared in [onImageEditingComplete]; navigation happens in
   /// [onCloseEditor] AFTER ProImageEditor hides LoadingDialog.
-  File? _pendingUploadFile;
+  PreparedUploadMedia? _pendingUpload;
   bool _acceptAttempted = false;
   bool _isInitialized = false;
   bool _didNavigate = false;
@@ -92,7 +101,7 @@ class _ImageEditScreenState extends State<ImageEditScreen> {
   }
 
   Future<void> _prepareUploadMedia() async {
-    if (_didNavigate || _pendingUploadFile != null) {
+    if (_didNavigate || _pendingUpload != null) {
       return;
     }
 
@@ -112,7 +121,7 @@ class _ImageEditScreenState extends State<ImageEditScreen> {
 
       // No audio → upload the still image (is_image=1).
       if (audioController.selectedFilePath.isEmpty) {
-        _pendingUploadFile = finalImage;
+        _pendingUpload = PreparedUploadMedia(file: finalImage, isImage: '1');
         return;
       }
 
@@ -133,7 +142,8 @@ class _ImageEditScreenState extends State<ImageEditScreen> {
       if (returnCode?.isValueSuccess() == true) {
         final outputFile = File(outputPath);
         if (await outputFile.exists()) {
-          _pendingUploadFile = outputFile;
+          _pendingUpload =
+              PreparedUploadMedia(file: outputFile, isImage: '0');
           return;
         }
         Get.snackbar('Error', 'Video file was not created');
@@ -150,17 +160,16 @@ class _ImageEditScreenState extends State<ImageEditScreen> {
       return;
     }
 
-    final media = _pendingUploadFile;
+    final media = _pendingUpload;
     if (media != null) {
       _didNavigate = true;
-      _pendingUploadFile = null;
+      _pendingUpload = null;
       await audioController.stopPreview();
-      // ProImageEditor calls setState AFTER onCloseEditor returns. Navigating
-      // synchronously left a half-deactivated StatefulElement (null state on
-      // activate → white crash). Wait until that rebuild finishes.
+      // ProImageEditor calls setState AFTER onCloseEditor returns. Pop after
+      // that rebuild so we don't tear down mid-activate.
       WidgetsBinding.instance.addPostFrameCallback((_) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          unawaited(_openUploadForm(media));
+          unawaited(_returnPreparedMedia(media));
         });
       });
       return;
@@ -177,27 +186,20 @@ class _ImageEditScreenState extends State<ImageEditScreen> {
     await audioController.stopPreview();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _clearEditorOverlays();
-      if (mounted) {
-        Get.back();
+      if (mounted && !_didNavigate) {
+        Get.back<PreparedUploadMedia?>();
       }
     });
   }
 
-  Future<void> _openUploadForm(File media) async {
+  Future<void> _returnPreparedMedia(PreparedUploadMedia media) async {
     _clearEditorOverlays();
-    // One more yield so LoadingDialog overlay entries finish removing.
     await Future<void>.delayed(const Duration(milliseconds: 16));
-    if (!Get.isRegistered<VideoAddController>()) {
-      Get.put(VideoAddController());
+    // Hand media back to Landing/camera — never Get.to/off the upload form from
+    // here (that races ProImageEditor teardown and pops the form).
+    if (mounted) {
+      Get.back<PreparedUploadMedia?>(result: media);
     }
-    Get.off(
-      () => VideoPreviewScreen(videoFile: media, isImage: '1'),
-      binding: BindingsBuilder(() {
-        if (!Get.isRegistered<VideoAddController>()) {
-          Get.put(VideoAddController());
-        }
-      }),
-    );
   }
 
   @override

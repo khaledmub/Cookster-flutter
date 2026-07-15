@@ -221,7 +221,8 @@ class ReelFeedPlayerKit {
 
   static Widget buildInlinePlayer({
     required WallVideos video,
-    required GlobalKey<ReelVideoPlayerState> playerKey,
+    GlobalKey<ReelVideoPlayerState>? playerKey,
+    ValueChanged<ReelVideoPlayerState?>? onStateChanged,
     VoidCallback? onPlaybackReady,
     VoidCallback? onFeedVideoPainted,
     VoidCallback? onFeedAwaitingPaint,
@@ -230,8 +231,12 @@ class ReelFeedPlayerKit {
     bool wrapPositioned = true,
     bool showProgressBar = false,
   }) {
+    // Prefer [onStateChanged] + a local [ValueKey] over [GlobalKey]. Home feed
+    // mounts/unmounts this player around camera — GlobalKey reactivation of a
+    // disposed State crashes with "Null check on StatefulElement.state".
     final player = ReelVideoPlayer(
-      key: playerKey,
+      key: playerKey ?? ValueKey<String>('inline_reel_${video.id ?? ''}'),
+      onStateChanged: onStateChanged,
       releaseOnDispose: releaseOnDispose,
       showProgressBar: showProgressBar && !video.isPhotoPost,
       playerPoolKey: video.id,

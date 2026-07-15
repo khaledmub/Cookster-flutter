@@ -43,7 +43,9 @@ class HomeController extends GetxController with WidgetsBindingObserver {
 
   /// How many overlay routes currently hold the home feed paused.
   int get routeOverlayPauseDepth => _routeOverlayPauseDepth;
-  int _mediaCaptureDepth = 0;
+  /// Rx so Obx trees under Home rebuild when camera/upload starts — a plain
+  /// int was invisible to GetX and left the feed remounting under the form.
+  final mediaCaptureDepth = 0.obs;
   int _playbackMuteDepth = 0;
   int _bottomNavMuteDepth = 0;
   bool _feedResumePendingWhenHomeTab = false;
@@ -57,7 +59,7 @@ class HomeController extends GetxController with WidgetsBindingObserver {
   DateTime? _lastHealInvisibleAt;
 
   /// True while camera / picker / editor / upload flow holds feed decoders released.
-  bool get isInMediaCaptureFlow => _mediaCaptureDepth > 0;
+  bool get isInMediaCaptureFlow => mediaCaptureDepth.value > 0;
 
   /// Set when an overlay disposed the feed pool while the user is not on Home.
   bool get feedResumePendingWhenHomeTab => _feedResumePendingWhenHomeTab;
@@ -75,6 +77,15 @@ class HomeController extends GetxController with WidgetsBindingObserver {
   /// Bumped after a full feed reset (tab switch, GPS refresh, filter apply) so
   /// the reels UI reattaches the visible player — same lifecycle as General.
   final feedPlaybackEpoch = 0.obs;
+
+  /// Bumped whenever the home [ReelVideoPlayer] may remount after being torn
+  /// down (camera / upload / mute). Forces a fresh [GlobalKey] so Flutter does
+  /// not reactivate a disposed StatefulElement (`Null check` on activate).
+  final feedPlayerMountEpoch = 0.obs;
+
+  void _bumpFeedPlayerMountEpoch() {
+    feedPlayerMountEpoch.value++;
+  }
 
   /// Home icon re-tap: next [_finishFeedTabPlayback] must land on index 0 and
   /// autoplay — ignore any previous pin / page index.
@@ -1248,7 +1259,7 @@ class HomeController extends GetxController with WidgetsBindingObserver {
   /// muted for a tab switch warm-keep). Never gated on [isReelsTabVisible].
   bool get canMountHomeReelPlayer =>
       !isAppInBackground.value &&
-      !isInMediaCaptureFlow &&
+      mediaCaptureDepth.value == 0 &&
       _playbackMuteDepth == 0 &&
       _routeOverlayPauseDepth == 0 &&
       _isOnHomeTab();
@@ -1256,7 +1267,7 @@ class HomeController extends GetxController with WidgetsBindingObserver {
   /// Debug: why [canMountHomeReelPlayer] is false (empty when mountable).
   String get canMountBlockReason {
     if (isAppInBackground.value) return 'bg';
-    if (isInMediaCaptureFlow) return 'captureDepth=$_mediaCaptureDepth';
+    if (isInMediaCaptureFlow) return 'captureDepth=${mediaCaptureDepth.value}';
     if (_playbackMuteDepth > 0) return 'muteDepth=$_playbackMuteDepth';
     if (_routeOverlayPauseDepth > 0) {
       return 'overlayDepth=$_routeOverlayPauseDepth';
@@ -1313,6 +1324,8 @@ class HomeController extends GetxController with WidgetsBindingObserver {
     if (_playbackMuteDepth > 0) {
       return;
     }
+    // Player was unmounted while muteDepth > 0 — retire the GlobalKey.
+    _bumpFeedPlayerMountEpoch();
     _tryRestoreHomeFeedPlayback();
   }
 
@@ -1521,13 +1534,9 @@ class HomeController extends GetxController with WidgetsBindingObserver {
 
   /// Called after bottom-nav lands on Home — fast resume when decoder stayed warm.
   void onReturnedToHomeTab() {
-    // Explicit Home-tab selection means camera/upload overlays are gone
-    // (capture uses Get.to while selectedIndex stays 0; offAll lands on Profile).
-    // Reclaim any leaked capture depth so we never stick on reelsInvisible.
-    if (_mediaCaptureDepth > 0 && !_hasOverlayRoute()) {
-      debugPrint('[FeedRestore] reclaim leaked captureDepth=$_mediaCaptureDepth');
-      _mediaCaptureDepth = 0;
-    }
+    // Do NOT reclaim capture depth via Navigator.canPop — it flickers false mid
+    // transition while camera/editor/upload are still stacked over Home
+    // (selectedIndex stays 0). That wipe remounted the feed under the form.
     if (isInMediaCaptureFlow) {
       // Real capture route still up under Home index — stay silenced.
       reinforceMediaCaptureSilence();
@@ -1563,11 +1572,30 @@ class HomeController extends GetxController with WidgetsBindingObserver {
 
   /// Last-resort heal when the UI is on Home but mount stayed blocked
   /// after camera/upload (BAIL schedulePlayer).
+  ///
+  /// NEVER clears [isInMediaCaptureFlow] / overlay pause while the camera,
+  /// editor, or upload form is still open — that remounted the feed under the
+  /// form (~4s later via resume retries), disposed players mid-upload, and
+  /// crashed with StatefulElement.activate.
   void healHomeFeedIfStuckInvisible() {
     if (isClosed || isAppInBackground.value) {
       return;
     }
     if (!_isOnHomeTab()) {
+      return;
+    }
+    // Capture / editor / upload keep selectedIndex==0. Schedule BAIL runs
+    // constantly under those routes — healing here was wiping the gate early.
+    if (isInMediaCaptureFlow) {
+      debugPrint('[FeedRestore] heal SKIP captureDepth=${mediaCaptureDepth.value}');
+      return;
+    }
+    if (_routeOverlayPauseDepth > 0) {
+      debugPrint('[FeedRestore] heal SKIP overlayDepth=$_routeOverlayPauseDepth');
+      return;
+    }
+    if (_hasOverlayRoute()) {
+      debugPrint('[FeedRestore] heal SKIP canPop overlay still open');
       return;
     }
     final now = DateTime.now();
@@ -1577,12 +1605,12 @@ class HomeController extends GetxController with WidgetsBindingObserver {
     }
     _lastHealInvisibleAt = now;
     debugPrint('[FeedRestore] heal Home mount '
-        'block=${canMountBlockReason} capture=$_mediaCaptureDepth '
+        'block=${canMountBlockReason} capture=${mediaCaptureDepth.value} '
         'mute=$_playbackMuteDepth overlay=$_routeOverlayPauseDepth '
         'visible=${isReelsTabVisible.value}');
 
-    // Reclaim leaked gates — user is literally scrolling the Home feed.
-    _mediaCaptureDepth = 0;
+    // Reclaim leaked mute gates only — never while capture/overlays were open
+    // above. User is literally scrolling a clear Home feed.
     _routeOverlayPauseDepth = 0;
     _playbackMuteDepth = 0;
     _bottomNavMuteDepth = 0;
@@ -1873,7 +1901,8 @@ class HomeController extends GetxController with WidgetsBindingObserver {
     _routeOverlayPauseDepth = 0;
     _playbackMuteDepth = 0;
     _bottomNavMuteDepth = 0;
-    _mediaCaptureDepth = 0;
+    mediaCaptureDepth.value = 0;
+    _bumpFeedPlayerMountEpoch();
   }
 
   Future<void> _completeHomeFeedRestore(int token) async {
@@ -1970,7 +1999,7 @@ class HomeController extends GetxController with WidgetsBindingObserver {
   /// [VideoPlayerController] can initialize without OOM on low-end devices.
   Future<void> releaseAllVideoResources({bool mediaCapture = false}) async {
     if (mediaCapture) {
-      _mediaCaptureDepth++;
+      mediaCaptureDepth.value++;
       isNavigating.value = true;
       _needsColdRestoreAfterCapture = true;
       // Cancel any in-flight remount that would reopen audio under camera.
@@ -2005,7 +2034,13 @@ class HomeController extends GetxController with WidgetsBindingObserver {
   }
 
   Future<void> endMediaCaptureFlow() async {
-    if (_mediaCaptureDepth <= 0) {
+    // Capture/editor/upload still stacked above Landing — never remount Home yet.
+    if (Get.key.currentState?.canPop() ?? false) {
+      debugPrint('[FeedRestore] endCapture SKIP — overlay routes still open');
+      reinforceMediaCaptureSilence();
+      return;
+    }
+    if (mediaCaptureDepth.value <= 0) {
       // Even with depth already cleared, never leave Home stuck invisible.
       if (_isOnHomeTab() &&
           (!isReelsTabVisible.value || _needsColdRestoreAfterCapture)) {
@@ -2013,10 +2048,13 @@ class HomeController extends GetxController with WidgetsBindingObserver {
       }
       return;
     }
-    _mediaCaptureDepth--;
-    if (_mediaCaptureDepth > 0) {
+    mediaCaptureDepth.value--;
+    if (mediaCaptureDepth.value > 0) {
       return;
     }
+    // Capture unmounted the feed player — bump before canMount flips true so
+    // remount uses a fresh GlobalKey (avoids StatefulElement.activate crash).
+    _bumpFeedPlayerMountEpoch();
     isNavigating.value = false;
     _needsColdRestoreAfterCapture = true;
     // Upload finish / nested editor can leave canPop=true briefly. Never rely
@@ -2035,10 +2073,11 @@ class HomeController extends GetxController with WidgetsBindingObserver {
   /// After [Get.offAll] to Landing (post-upload): drop every capture/overlay
   /// mute gate and defer feed attach until the user opens the Home tab.
   void clearMediaCaptureGatesAfterLandingReset() {
-    _mediaCaptureDepth = 0;
+    mediaCaptureDepth.value = 0;
     _routeOverlayPauseDepth = 0;
     _playbackMuteDepth = 0;
     _bottomNavMuteDepth = 0;
+    _bumpFeedPlayerMountEpoch();
     isNavigating.value = false;
     setReelsTabVisible(false);
     MediaKitPlayerPool.instance.setFeedUnmuteEnabled(false);
@@ -2237,7 +2276,7 @@ class HomeController extends GetxController with WidgetsBindingObserver {
     _routeOverlayPauseDepth = 0;
     _playbackMuteDepth = 0;
     _bottomNavMuteDepth = 0;
-    _mediaCaptureDepth = 0;
+    mediaCaptureDepth.value = 0;
     _feedResumePendingWhenHomeTab = false;
     isNavigating.value = false;
     isVideoPlaying.value = true;
