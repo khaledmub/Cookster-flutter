@@ -2703,13 +2703,13 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
   }
 
   /// Warm/cached paths usually paint under ~300ms. Cold HTTPS often stalls
-  /// until an explicit play nudge — recover earlier than the old 850ms gate so
-  /// network opens don't sit ~2s on poster before the first frame.
+  /// until an explicit play nudge — recover early so network opens don't sit
+  /// on the poster before the first frame.
   int get _earlyPaintStallMs {
     if (_lastOpenCacheHit || _lastOpenPartialCache) {
       return 700;
     }
-    return 420;
+    return 180;
   }
 
   bool _decodeProgressingWithoutPaint(Player player) {
@@ -3076,8 +3076,10 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
     );
   }
 
-  /// Prefer already-cached bytes when present; never stall the open path waiting
-  /// for a download. Instant HTTPS/stream start > multi-second poster hold.
+  /// Prefer already-cached bytes when present. If a download is already
+  /// in-flight/queued for this URL, briefly race it so open can hit `file://`
+  /// (~350ms) instead of cold HTTPS (~2s + paint stall). Cap is short so we
+  /// never hold the poster for a full download.
   Future<bool> _awaitInFlightPlaybackBytes(
     String url, {
     required int generation,
@@ -3089,12 +3091,24 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
     if (await isPlaybackUrlCached(url, cacheManager: disk)) {
       return true;
     }
-    // Kick a background download for the next open — do not wait.
     final cache = ReelsVideoCacheManager.instance;
-    if (!cache.isQueuedOrInFlight(url)) {
-      cache.prefetch(url, priority: 120, isTablet: false);
+    final alreadyGoing = cache.isQueuedOrInFlight(url);
+    // Visible reel wins the queue — starve far N+2 while we race.
+    cache.prefetch(url, priority: 130, isTablet: false);
+    if (!alreadyGoing && !cache.isInFlight(url)) {
+      // Cold miss with empty queue: stream immediately, warm in background.
+      return false;
     }
-    return false;
+    // In-flight or already queued — short race only.
+    final budgetMs = cache.isInFlight(url) ? 520 : 280;
+    await cache.waitForUrl(url, maxWaitMs: budgetMs);
+    if (!mounted ||
+        _isDisposed ||
+        generation != _playbackGeneration ||
+        (_usesFeedVisibleChannel && _pool.isStaleFeedOpen(generation))) {
+      return false;
+    }
+    return isPlaybackUrlCached(url, cacheManager: disk);
   }
 
   Future<void> _openWithCandidates({
@@ -3257,6 +3271,15 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
         afterFlip: _usesFeedVisibleChannel && !pooled.feedOpenedMedia,
         skipFrameWait: true,
       );
+      // Cold HTTPS on Honor often sits paused until paint_stall soft-recovery;
+      // nudge decode immediately so we don't burn ~420ms waiting to learn that.
+      if (_usesFeedVisibleChannel &&
+          _needsConstrainedStartGate &&
+          !cacheHit &&
+          !partialCache &&
+          !_lastOpenCacheHit) {
+        unawaited(_pool.startMutedFeedDecode());
+      }
       if (_usesFeedVisibleChannel) {
         await _registerRenderSlot(pooled.player);
       }

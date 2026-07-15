@@ -639,9 +639,13 @@ class FeedPingPongController {
           );
           return false;
         }
+        // Network opens already pay CDN TTFB — keep Honor stabilize short so
+        // cold HTTPS doesn't add a fixed ~320ms before the frame wait starts.
         final stabilizeMs = fastScroll
             ? 80
-            : (honorActiveOpen ? 320 : 160);
+            : (honorActiveOpen
+                ? (_isLocalPlaybackUrl(sourceUrl) ? 200 : 100)
+                : 160);
         final stabilizeAction = await stabilizeMpvSurfaceDimensions(
           player,
           maxWaitMs: stabilizeMs,

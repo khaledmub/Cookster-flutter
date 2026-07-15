@@ -11,7 +11,6 @@ import 'reels_perf.dart';
 import 'video_player_pool.dart';
 import 'video_preload_target.dart';
 import 'video_source_resolver.dart';
-import 'prefetch_indices.dart';
 import '../../services/feature_flags/remote_config_service.dart';
 import '../../services/settings/settings_service.dart';
 
@@ -114,14 +113,49 @@ class VideoPreloadManager {
 
   /// First index after [visibleIndex] with real video candidates, scanning a
   /// few slots ahead so photo posts (no candidates) are skipped.
-  int? _nextVideoIndexAfter(int visibleIndex) {
-    for (var i = visibleIndex + 1; i <= visibleIndex + 4; i++) {
+  int? _nextVideoIndexAfter(int visibleIndex, {int scan = 8}) {
+    for (var i = visibleIndex + 1; i <= visibleIndex + scan; i++) {
       final target = _sourceBuilder(i);
-      if (target != null && target.candidates.isNotEmpty && target.key.isNotEmpty) {
+      if (target != null &&
+          target.candidates.isNotEmpty &&
+          target.key.isNotEmpty) {
         return i;
       }
     }
     return null;
+  }
+
+  /// Near-window indices that skip photo gaps so N+1/N+2 *videos* get disk
+  /// bytes (raw +1/+2 often lands on photos and wastes warm slots).
+  List<int> _videoBridgedWarmIndices({
+    required int visibleIndex,
+    required int depth,
+    int? towardIndex,
+  }) {
+    final indices = <int>{visibleIndex, if (towardIndex != null) towardIndex};
+    var foundForward = 0;
+    final forwardStart = towardIndex ?? visibleIndex;
+    for (var i = forwardStart + 1;
+        i <= forwardStart + 14 && foundForward < depth;
+        i++) {
+      final target = _sourceBuilder(i);
+      if (target != null &&
+          target.candidates.isNotEmpty &&
+          target.key.isNotEmpty) {
+        indices.add(i);
+        foundForward++;
+      }
+    }
+    for (var i = visibleIndex - 1; i >= visibleIndex - 8; i--) {
+      final target = _sourceBuilder(i);
+      if (target != null &&
+          target.candidates.isNotEmpty &&
+          target.key.isNotEmpty) {
+        indices.add(i);
+        break;
+      }
+    }
+    return indices.toList();
   }
 
   /// Await until the preferred ladder URL for [index] is on disk.
@@ -193,11 +227,10 @@ class VideoPreloadManager {
       return;
     }
     final diskDepth = await _resolvePreloadDepth();
-    final bootstrapIndices = <int>[
-      visibleIndex,
-      for (var step = 1; step <= diskDepth; step++) visibleIndex + step,
-      visibleIndex - 1,
-    ];
+    final bootstrapIndices = _videoBridgedWarmIndices(
+      visibleIndex: visibleIndex,
+      depth: diskDepth,
+    );
     if (!_diskBootstrapDone) {
       _diskBootstrapDone = true;
       unawaited(
@@ -213,9 +246,10 @@ class VideoPreloadManager {
       return;
     }
     _decoderBootstrapDone = true;
+    final nextVideo = _nextVideoIndexAfter(visibleIndex);
     unawaited(
       _warmIndices(
-        [visibleIndex + 1],
+        [nextVideo ?? visibleIndex + 1],
         reason: 'bootstrap_decoder',
         decoderWarmLimit: _mediaKitPool.maxWarmSlots,
         visibleIndex: visibleIndex,
@@ -279,17 +313,36 @@ class VideoPreloadManager {
       depth = depth.clamp(2, 3);
       extraDepth = extraDepth.clamp(0, 1);
     }
-    final indices = buildDirectionalPrefetchIndices(
-      fromIndex: fromIndex,
-      towardIndex: towardIndex,
-      depth: depth,
-      extraDepth: extraDepth,
+    final effectiveDepth = depth + extraDepth;
+    final towardVideo = () {
+      final t = _sourceBuilder(towardIndex);
+      if (t != null && t.candidates.isNotEmpty && t.key.isNotEmpty) {
+        return towardIndex;
+      }
+      return towardIndex > fromIndex
+          ? _nextVideoIndexAfter(towardIndex - 1)
+          : null;
+    }();
+    final indices = _videoBridgedWarmIndices(
+      visibleIndex: fromIndex,
+      depth: effectiveDepth,
+      towardIndex: towardVideo ?? towardIndex,
     );
+    final priorityOverrides = <int, int>{};
+    if (towardVideo != null) {
+      priorityOverrides[towardVideo] = 120;
+      final nextAfterToward = _nextVideoIndexAfter(towardVideo);
+      if (nextAfterToward != null) {
+        priorityOverrides[nextAfterToward] = 100;
+      }
+    }
     await _warmIndices(
       indices,
       reason: 'scroll_start',
       decoderWarmLimit: 0,
       visibleIndex: towardIndex,
+      priorityOverrides:
+          priorityOverrides.isEmpty ? null : priorityOverrides,
     );
   }
 
@@ -305,9 +358,17 @@ class VideoPreloadManager {
     if (!_deviceConstraints.scrollDemuxPrefetchEnabled) {
       return;
     }
+    var demuxIndex = towardIndex;
+    final toward = _sourceBuilder(towardIndex);
+    if (toward == null ||
+        toward.candidates.isEmpty ||
+        toward.key.isEmpty) {
+      // Swiping across photos — demux the next real video so land isn't cold.
+      demuxIndex = _nextVideoIndexAfter(towardIndex - 1) ?? towardIndex;
+    }
     await _prefetchFeedSlotForIndex(
-      towardIndex,
-      offsetFromVisible: (towardIndex - fromIndex).abs().clamp(1, 3),
+      demuxIndex,
+      offsetFromVisible: (demuxIndex - fromIndex).abs().clamp(1, 3),
     );
   }
 
@@ -330,20 +391,35 @@ class VideoPreloadManager {
 
     final throttleDecoder = _deviceConstraints.shouldThrottleDecoderWarm();
 
-    final indices = buildSettledPrefetchIndices(
+    final nextVideo = _nextVideoIndexAfter(currentIndex);
+    final nextNextVideo =
+        nextVideo == null ? null : _nextVideoIndexAfter(nextVideo);
+    final indices = _videoBridgedWarmIndices(
       visibleIndex: currentIndex,
       depth: diskDepth,
     );
+    final priorityOverrides = <int, int>{
+      if (nextVideo != null) nextVideo: 100,
+      if (nextNextVideo != null) nextNextVideo: 90,
+    };
 
     await _warmIndices(
       indices,
       reason: 'page_settled',
       decoderWarmLimit: throttleDecoder ? 0 : decoderDepth,
       visibleIndex: currentIndex,
+      priorityOverrides:
+          priorityOverrides.isEmpty ? null : priorityOverrides,
     );
 
     if (!throttleDecoder && useMediaKit) {
-      unawaited(_prefetchFeedSlotAhead(currentIndex));
+      final demuxTarget = nextVideo ?? currentIndex + 1;
+      unawaited(
+        _prefetchFeedSlotForIndex(
+          demuxTarget,
+          offsetFromVisible: 1,
+        ),
+      );
     }
 
     await _deviceConstraints.ensureInitialized();
@@ -370,10 +446,6 @@ class VideoPreloadManager {
         }
       }),
     );
-  }
-
-  Future<void> _prefetchFeedSlotAhead(int currentIndex) async {
-    await _prefetchFeedSlotForIndex(currentIndex + 1, offsetFromVisible: 1);
   }
 
   Future<void> _prefetchFeedSlotForIndex(
