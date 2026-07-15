@@ -1,1 +1,1 @@
-const bool kDisableVideoPromotionTemporarily = false;
+const bool kDisableVideoPromotionTemporarily = true;

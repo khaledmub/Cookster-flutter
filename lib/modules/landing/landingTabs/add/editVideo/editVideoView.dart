@@ -27,7 +27,9 @@ class _EditVideoViewState extends State<EditVideoView> {
   final GlobalKey<ScaffoldMessengerState> _scaffoldMessengerKey =
       GlobalKey<ScaffoldMessengerState>();
   final GlobalKey<FormFieldState> videoTypeKey = GlobalKey<FormFieldState>();
-  final CityController cityController = Get.find();
+  final CityController cityController = Get.isRegistered<CityController>()
+      ? Get.find<CityController>()
+      : Get.put(CityController());
   final GlobalKey<FormFieldState> tagKey = GlobalKey<FormFieldState>();
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>(); // Add form key
   final FocusNode tagFocusNode = FocusNode();
