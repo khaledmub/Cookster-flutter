@@ -144,6 +144,14 @@ class _VideoReelScreenState extends State<VideoReelScreen>
   /// Page poster stays above the video surface until the first composited frame.
   bool _maskActiveVideoWithPoster = true;
 
+  /// First Home open: keep the black spinner over the feed until the first
+  /// reel is actually playable — never clear on a transient empty list (Near Me
+  /// waits for location, then videos arrive ~seconds later).
+  bool _holdColdStartSpinner = true;
+  bool _firstPlayableReelReady = false;
+  Timer? _coldStartSpinnerTimeout;
+  bool _coldStartTimeoutArmed = false;
+
   Completer<void>? _tabSwitchFrameCompleter;
   String? _tabSwitchTargetVideoId;
 
@@ -712,6 +720,10 @@ class _VideoReelScreenState extends State<VideoReelScreen>
         'id=$targetId isPhoto=${targetVideo.isPhotoPost} '
         'canPlay=${controller.canPlayHomeReels} '
         'canMount=${controller.canMountHomeReelPlayer}');
+    // Cover until paint — even if an earlier transient empty_feed cleared us.
+    if (!_firstPlayableReelReady) {
+      _ensureColdStartSpinnerUntilPlayable(reason: 'finish_playback');
+    }
     final currentPage = layer.pageController.hasClients
         ? (layer.pageController.page?.round() ?? -1) % videos.length
         : -1;
@@ -725,6 +737,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
     if (alreadyOnTarget) {
       if (targetVideo.isPhotoPost) {
         _completeTabSwitchFrameIfReady();
+        _dismissColdStartSpinner(reason: 'photo_already_visible');
         return;
       }
       final audible = MediaKitPlayerPool.instance.isActiveAudible(targetId!);
@@ -771,6 +784,15 @@ class _VideoReelScreenState extends State<VideoReelScreen>
       );
       _playbackCoordinator.onPageSettled(targetIndex, context: context);
       _resumeFeedAudibleOnce();
+      if (targetVideo.isPhotoPost && _holdColdStartSpinner) {
+        // Photos have no videoPainted signal — drop spinner once the page is up
+        // (poster is usually already warmed by image_warmed).
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted && tab == _activeTabType) {
+            _dismissColdStartSpinner(reason: 'photo_ready');
+          }
+        });
+      }
       if (preferNewest) {
         // Icon re-tap: silence cleared the previous player; nudge audible
         // again after the first frame so autoplay isn't stuck muted.
@@ -795,6 +817,54 @@ class _VideoReelScreenState extends State<VideoReelScreen>
     unawaited(_preloadManager.onVisibleIndexChanged(index));
   }
 
+  void _dismissColdStartSpinner({required String reason}) {
+    _coldStartSpinnerTimeout?.cancel();
+    _coldStartSpinnerTimeout = null;
+    if (_firstPlayableReelReady && !_holdColdStartSpinner) {
+      return;
+    }
+    if (!mounted) {
+      _firstPlayableReelReady = true;
+      _holdColdStartSpinner = false;
+      return;
+    }
+    setState(() {
+      _firstPlayableReelReady = true;
+      _holdColdStartSpinner = false;
+    });
+    debugPrint('[FeedRestore] coldStartSpinner dismiss reason=$reason');
+  }
+
+  /// Re-cover the feed if spinner was cleared too early (transient empty list
+  /// during login / location) while the first reel is still mounting.
+  void _ensureColdStartSpinnerUntilPlayable({required String reason}) {
+    if (_firstPlayableReelReady) {
+      return;
+    }
+    _armColdStartSpinnerTimeout();
+    if (_holdColdStartSpinner) {
+      return;
+    }
+    if (!mounted) {
+      _holdColdStartSpinner = true;
+      return;
+    }
+    setState(() => _holdColdStartSpinner = true);
+    debugPrint('[FeedRestore] coldStartSpinner rearm reason=$reason');
+  }
+
+  void _armColdStartSpinnerTimeout() {
+    if (_coldStartTimeoutArmed || _firstPlayableReelReady) {
+      return;
+    }
+    _coldStartTimeoutArmed = true;
+    _coldStartSpinnerTimeout?.cancel();
+    // Login → Near Me location → first paint can exceed 5s on cold devices.
+    _coldStartSpinnerTimeout = Timer(const Duration(seconds: 12), () {
+      _dismissColdStartSpinner(reason: 'timeout');
+    });
+  }
+
   void _onFeedVideoPainted() {
     if (!mounted) {
       return;
@@ -804,6 +874,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
     if (_maskActiveVideoWithPoster) {
       setState(() => _maskActiveVideoWithPoster = false);
     }
+    _dismissColdStartSpinner(reason: 'video_painted');
     _lastHandledPlaybackEpoch = controller.feedPlaybackEpoch.value;
     _resumeFeedAudibleOnce();
   }
@@ -1416,6 +1487,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _coldStartSpinnerTimeout?.cancel();
     for (final tab in _pageScrollListeners.keys.toList()) {
       _removePageScrollListener(tab);
     }
@@ -1849,6 +1921,9 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                 }
                 if (controller.videoFeed.value.videos == null ||
                     controller.videoFeed.value.videos!.isEmpty) {
+                  // Do NOT clear the cold-start spinner here — after login the
+                  // Near Me list is empty until location returns; clearing early
+                  // left users watching a black mount wait with no spinner.
                   return Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16.0),
                     child: Container(
@@ -1967,6 +2042,15 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                 if ((controller.isLoading.value && feedEmpty) ||
                     controller.blocksUiForLocation) {
                   return const SizedBox.shrink();
+                }
+                if (!feedEmpty && !_firstPlayableReelReady) {
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    if (mounted) {
+                      _ensureColdStartSpinnerUntilPlayable(
+                        reason: 'feed_non_empty',
+                      );
+                    }
+                  });
                 }
                 final tabs = _availableFeedTabs();
                 if (tabs.isEmpty) {
@@ -2143,7 +2227,14 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                 ),
               ),
 
-              // Optional: Swipe indicator at the bottom
+              // Cold open: cover chrome + feed until first reel is playable so
+              // users never see black/mount/decode gap — spinner → playing.
+              if (_holdColdStartSpinner)
+                const Positioned.fill(
+                  child: IgnorePointer(
+                    child: _ReelsSkeletonLoader(),
+                  ),
+                ),
             ],
       ),
     );
