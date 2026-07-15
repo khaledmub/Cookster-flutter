@@ -143,6 +143,9 @@ class VideoAddController extends GetxController {
   /// in-flight multipart + processing poll must not finish navigation.
   int _uploadSession = 0;
   http.Client? _uploadHttpClient;
+  /// Upper bound for how long the progress card stays on "processing" before we
+  /// hand off to the background poll and open the profile anyway.
+  static const Duration _maxVisibleProcessingWait = Duration(seconds: 25);
   File? _cachedThumbnail;
   Future<File?>? _thumbnailInFlight;
   var selectedCountryId = 0.obs;
@@ -205,7 +208,12 @@ class VideoAddController extends GetxController {
 
     // If a valid country is stored (not 'Unknown'), fetch its ID and cities
     if (storedCountry != 'Unknown') {
-      // Assuming profileController.videoUploadSettings.value.countries contains the country list
+      // On first app open the settings fetch may not have completed yet, which
+      // previously left country/city ids unresolved and triggered a false
+      // "select city" error. Load them now before resolving.
+      if (profileController.videoUploadSettings.value?.countries == null) {
+        await VideoSettingsService.instance.load();
+      }
       final countries = profileController.videoUploadSettings.value?.countries;
       if (countries != null) {
         // Find the country ID for the stored country
@@ -709,10 +717,16 @@ class VideoAddController extends GetxController {
         uploadedID.isNotEmpty) {
       isPreparingPlayback.value = true;
       try {
+        // Bound the visible "processing" wait so the card can never hang: if the
+        // server transcode is slow, dismiss and open profile now — the poster
+        // shows immediately and the background poll refreshes when ready.
         await VideoProcessingService.pollUntilSettled(
           uploadedID,
           waitForTranscode: true,
           shouldContinue: () => _isUploadSessionActive(uploadSession),
+        ).timeout(
+          _maxVisibleProcessingWait,
+          onTimeout: () => null,
         );
       } catch (_) {}
     }
@@ -996,35 +1010,34 @@ class VideoAddController extends GetxController {
 
     final bool isSponsored = entityDetails.value['is_sponsored'] == 1;
     if (!isSponsored) {
-      final country = selectedCountry.value.trim();
-      final city = selectedCity.value.trim();
-      final countryMissing =
-          country.isEmpty || country == 'Unknown';
-      final cityMissing = city.isEmpty || city == 'Unknown';
+      // Resolve display names → ids first. On first app open the upload
+      // settings / city list are still loading, so a name that is already
+      // shown as selected has no id yet; awaiting this loads them and prevents
+      // the false "select city" error on the first attempt.
+      final locationReady = await ensureLocationIdsReady();
 
-      if (countryMissing && cityMissing) {
-        errorMessage = "select_country_city_error".tr;
-      } else if (countryMissing) {
-        errorMessage = "select_country_error".tr;
-      } else if (cityMissing) {
-        errorMessage = "select_city_error".tr;
-      }
+      if (!locationReady) {
+        final country = selectedCountry.value.trim();
+        final city = selectedCity.value.trim();
+        final countryMissing = country.isEmpty ||
+            country == 'Unknown' ||
+            selectedLocationId.value <= 0;
+        final cityMissing =
+            city.isEmpty || city == 'Unknown' || selectedCityId.value <= 0;
 
-      if (countryMissing || cityMissing) {
+        if (countryMissing && cityMissing) {
+          errorMessage = "select_country_city_error".tr;
+        } else if (countryMissing) {
+          errorMessage = "select_country_error".tr;
+        } else if (cityMissing) {
+          errorMessage = "select_city_error".tr;
+        } else {
+          errorMessage = "select_country_city_error".tr;
+        }
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(errorMessage),
-            backgroundColor: Colors.red,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-        return;
-      }
-
-      if (!await ensureLocationIdsReady()) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text("select_country_city_error".tr),
             backgroundColor: Colors.red,
             behavior: SnackBarBehavior.floating,
           ),

@@ -1521,10 +1521,15 @@ class HomeController extends GetxController with WidgetsBindingObserver {
 
   /// Called from [ReelsPlaybackRouteObserver] after the navigator stack changes.
   void syncPlaybackWithRouteStack({required bool hasOverlay}) {
-    if (isAppInBackground.value || isInMediaCaptureFlow) {
+    if (isAppInBackground.value) {
       return;
     }
     if (hasOverlay) {
+      // Capture/editor/upload screens are full routes (overlays); keep the feed
+      // silenced while any of them is on top.
+      if (isInMediaCaptureFlow) {
+        return;
+      }
       if (_routeOverlayPauseDepth > 0) {
         reinforceReelsPausedForOverlay();
       } else if (shouldAllowHomeReelsPlayback) {
@@ -1535,7 +1540,15 @@ class HomeController extends GetxController with WidgetsBindingObserver {
       return;
     }
 
+    // No overlay routes remain.
     if (_isOnHomeTab()) {
+      // Every capture/editor/upload route has popped. If a media-capture gate
+      // leaked (aborted upload, exception, or offAll race) it would otherwise
+      // silence the feed forever — treat it as orphaned and clear it so the
+      // feed ALWAYS recovers once we're back on the Home root.
+      if (isInMediaCaptureFlow) {
+        _mediaCaptureDepth = 0;
+      }
       // Any pop back to the feed root — search, visit-profile, liked/saved,
       // upload — must hard-restore. Soft tryRestore left mute gates / a dead
       // pool after late disposeAll and the feed never recovered.
