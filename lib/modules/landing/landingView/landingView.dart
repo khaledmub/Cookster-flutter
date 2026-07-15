@@ -277,11 +277,13 @@ class _LandingState extends State<Landing> {
                 ),
                 onTap: () async {
                   Navigator.pop(context);
-                  await _prepareForMediaCapture();
-                  final cameras = await availableCameras();
-                  Get.to(CameraScreen(cameras: cameras))?.then((_) async {
+                  try {
+                    await _prepareForMediaCapture();
+                    final cameras = await availableCameras();
+                    await Get.to(() => CameraScreen(cameras: cameras));
+                  } finally {
                     await _restoreAfterMediaCapture();
-                  });
+                  }
                 },
               ),
               ListTile(
@@ -636,10 +638,15 @@ class _LandingState extends State<Landing> {
     if (!Get.isRegistered<HomeController>()) {
       return;
     }
+    final home = Get.find<HomeController>();
+    // Always end the capture gate — even if the user is on Profile after upload.
+    // Previously we no-op'd when selectedIndex != 0, which could leave a leaked
+    // capture depth until process kill if end wasn't paired on offAll.
     if (navBarController.selectedIndex.value != 0) {
+      home.clearMediaCaptureGatesAfterLandingReset();
       return;
     }
-    await Get.find<HomeController>().endMediaCaptureFlow();
+    await home.endMediaCaptureFlow();
   }
 
   Color _getIconColor(bool isSelected) {

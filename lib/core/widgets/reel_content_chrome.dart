@@ -6,9 +6,64 @@ import 'package:cookster/modules/landing/landingTabs/home/homeWidgets/reel_feed_
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:get/get.dart';
 
 export 'package:cookster/core/media/wall_video_media.dart'
-    show isReelPhotoPostFlag, isReelGridPhotoPost;
+    show isReelPhotoPostFlag, isReelGridPhotoPost, isReelGridProcessing;
+
+/// Full-cell overlay for a grid tile whose video is still transcoding on the
+/// server. Shows a spinner + label so the user knows the post is being prepared
+/// and is not yet openable.
+class ReelGridProcessingOverlay extends StatelessWidget {
+  const ReelGridProcessingOverlay({
+    super.key,
+    this.borderRadius = 12,
+  });
+
+  final double borderRadius;
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned.fill(
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(borderRadius),
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: Colors.black.withValues(alpha: 0.5),
+          ),
+          child: Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SizedBox(
+                  width: 24.w,
+                  height: 24.w,
+                  child: const CircularProgressIndicator(
+                    strokeWidth: 2.4,
+                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                  ),
+                ),
+                SizedBox(height: 8.h),
+                Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 6.w),
+                  child: Text(
+                    'processing'.tr,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 11.sp,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
 
 /// TikTok-style in-feed chrome: photos are static, videos play — badge + layout differ.
 class ReelPhotoBadge extends StatelessWidget {

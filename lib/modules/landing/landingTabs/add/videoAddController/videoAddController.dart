@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:awesome_dialog/awesome_dialog.dart';
 import 'package:cookster/appUtils/apiEndPoints.dart';
 import 'package:cookster/appUtils/colorUtils.dart';
+import 'package:cookster/appUtils/form_snackbar.dart';
 import 'package:cookster/modules/auth/signUp/signUpController/cityController.dart';
 import 'package:cookster/core/video/media_kit_player_pool.dart';
 import 'package:cookster/modules/landing/landingTabs/home/homeController/homeController.dart';
@@ -143,9 +144,6 @@ class VideoAddController extends GetxController {
   /// in-flight multipart + processing poll must not finish navigation.
   int _uploadSession = 0;
   http.Client? _uploadHttpClient;
-  /// Upper bound for how long the progress card stays on "processing" before we
-  /// hand off to the background poll and open the profile anyway.
-  static const Duration _maxVisibleProcessingWait = Duration(seconds: 25);
   File? _cachedThumbnail;
   Future<File?>? _thumbnailInFlight;
   var selectedCountryId = 0.obs;
@@ -712,25 +710,12 @@ class VideoAddController extends GetxController {
     final uploadedID =
         VideoProcessingService.extractVideoIdFromUploadResponse(responseBody);
 
-    if (!isPhotoUpload &&
-        uploadedID != null &&
-        uploadedID.isNotEmpty) {
-      isPreparingPlayback.value = true;
-      try {
-        // Bound the visible "processing" wait so the card can never hang: if the
-        // server transcode is slow, dismiss and open profile now — the poster
-        // shows immediately and the background poll refreshes when ready.
-        await VideoProcessingService.pollUntilSettled(
-          uploadedID,
-          waitForTranscode: true,
-          shouldContinue: () => _isUploadSessionActive(uploadSession),
-        ).timeout(
-          _maxVisibleProcessingWait,
-          onTimeout: () => null,
-        );
-      } catch (_) {}
-    }
-
+    // Fast-forward: as soon as the bytes are uploaded, close the card and return
+    // to the profile — no in-dialog "Processing" wait. The freshly uploaded
+    // video shows up on the profile grid as a live "processing" tile (spinner
+    // overlay, not openable). The profile's real-time watcher + the background
+    // poll below flip it to a playable poster the instant the server transcode
+    // is watch-ready, so the correct cover appears and it only opens when ready.
     try {
       dialog.dismiss();
     } catch (_) {}
@@ -744,7 +729,6 @@ class VideoAddController extends GetxController {
     isPreparingPlayback.value = false;
     isVideoUploading.value = false;
 
-    // Background refresh if cover finished later than watch-ready.
     _scheduleThumbnailProcessingPoll(
       responseBody,
       waitForTranscode: !isPhotoUpload,
@@ -832,6 +816,9 @@ class VideoAddController extends GetxController {
       binding: LandingBinding(),
     );
     if (Get.isRegistered<HomeController>()) {
+      // Upload disposeAll'd the shared pool while silenced for capture. Mark the
+      // home feed for a hard remount the moment the user opens Home — never leave
+      // mute/capture gates stuck after offAll.
       Get.find<HomeController>().clearMediaCaptureGatesAfterLandingReset();
     }
     resetController();
@@ -994,16 +981,11 @@ class VideoAddController extends GetxController {
     syncFormTextFromControllers();
     _resetUploadProgressTracking();
     if (!_isSupportedUploadFile(videoFile, asImage: uploadAsImage)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            uploadAsImage
-                ? 'Unsupported image format. Please use JPG, PNG, or WEBP.'
-                : 'Unsupported video format. Please use MP4, MOV, MKV, AVI, WEBM, M4V, 3GP, MPEG, or MPG.',
-          ),
-          backgroundColor: Colors.red,
-          behavior: SnackBarBehavior.floating,
-        ),
+      showFormSnackBar(
+        context,
+        uploadAsImage
+            ? 'Unsupported image format. Please use JPG, PNG, or WEBP.'
+            : 'Unsupported video format. Please use MP4, MOV, MKV, AVI, WEBM, M4V, 3GP, MPEG, or MPG.',
       );
       return;
     }
@@ -1035,25 +1017,13 @@ class VideoAddController extends GetxController {
           errorMessage = "select_country_city_error".tr;
         }
 
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(errorMessage),
-            backgroundColor: Colors.red,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
+        showFormSnackBar(context, errorMessage);
         return;
       }
     }
 
     if (videoType.value.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text("select_video_type".tr),
-          backgroundColor: Colors.red,
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+      showFormSnackBar(context, "select_video_type".tr);
       return;
     }
 
@@ -1070,35 +1040,17 @@ class VideoAddController extends GetxController {
       }
 
       if (errorMessage != null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(errorMessage),
-            backgroundColor: Colors.red,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
+        showFormSnackBar(context, errorMessage);
         return;
       }
 
       if (!await ensureLocationIdsReady()) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text("select_country_city_error".tr),
-            backgroundColor: Colors.red,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
+        showFormSnackBar(context, "select_country_city_error".tr);
         return;
       }
 
       if (!await videoFile.exists()) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text("video_file_not_exist_error".tr),
-            backgroundColor: Colors.red,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
+        showFormSnackBar(context, "video_file_not_exist_error".tr);
         return;
       }
 
@@ -1107,13 +1059,7 @@ class VideoAddController extends GetxController {
         final videoSize = await videoFile.length();
         print("Video size check: ${(videoSize / 1024 / 1024).toStringAsFixed(1)} MB");
         if (videoSize > _clientMaxVideoBytes) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('video_too_large_error'.tr),
-              backgroundColor: Colors.red,
-              behavior: SnackBarBehavior.floating,
-            ),
-          );
+          showFormSnackBar(context, 'video_too_large_error'.tr);
           return;
         }
       }
@@ -1315,13 +1261,7 @@ class VideoAddController extends GetxController {
     } else {
       // Handle non-sponsored video upload
       if (!await videoFile.exists()) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text("video_file_not_exist_error".tr),
-            backgroundColor: Colors.red,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
+        showFormSnackBar(context, "video_file_not_exist_error".tr);
         return;
       }
 
@@ -1330,13 +1270,7 @@ class VideoAddController extends GetxController {
         final videoSize = await videoFile.length();
         print("Video size check: ${(videoSize / 1024 / 1024).toStringAsFixed(1)} MB");
         if (videoSize > _clientMaxVideoBytes) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('video_too_large_error'.tr),
-              backgroundColor: Colors.red,
-              behavior: SnackBarBehavior.floating,
-            ),
-          );
+          showFormSnackBar(context, 'video_too_large_error'.tr);
           return;
         }
       }
@@ -1674,8 +1608,7 @@ class VideoAddController extends GetxController {
           ResponseConfig responseConfig = ResponseConfig();
           String errorMessage = responseConfig.respCode[responseCode] ??
               "form_unknown_error".tr;
-          ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(backgroundColor: Colors.redAccent, content: Text(errorMessage)));
+          showFormSnackBar(context, errorMessage);
           return null;
         }
       } else {
@@ -1683,8 +1616,7 @@ class VideoAddController extends GetxController {
       }
     } catch (e) {
       print("PRINTING ERROR: $e");
-      ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("payment_cancelled".tr)));
+      showFormSnackBar(context, "payment_cancelled".tr);
       return null;
     }
   }
@@ -1737,21 +1669,11 @@ class VideoAddController extends GetxController {
         );
       } else {
         print("Failed to fetch site settings: ${response.statusCode}");
-        ScaffoldMessenger.of(Get.context!).showSnackBar(
-          SnackBar(
-            content: Text("fetch_site_settings_error".tr),
-            backgroundColor: Colors.red,
-          ),
-        );
+        showFormSnackBar(Get.context!, "fetch_site_settings_error".tr);
       }
     } catch (e) {
       print("Error fetching site settings: $e");
-      ScaffoldMessenger.of(Get.context!).showSnackBar(
-        SnackBar(
-          content: Text("fetch_site_settings_error_message".tr),
-          backgroundColor: Colors.red,
-        ),
-      );
+      showFormSnackBar(Get.context!, "fetch_site_settings_error_message".tr);
     }
   }
 

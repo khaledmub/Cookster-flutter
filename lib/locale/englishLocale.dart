@@ -391,6 +391,8 @@ const Map<String, String> en = {
   "are_you_sure_you_want_to_exit_the_app":
       "Are you sure you want to exit the app?",
   "processing": "Processing",
+  "video_still_processing_message":
+      "This video is still being processed. It will be ready to watch shortly.",
   "recent_searches": "Recent Searches",
   "unfollowed": "Unfollowed",
   "does_not_change_anything": "Does not change anything!",

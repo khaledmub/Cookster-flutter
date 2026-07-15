@@ -331,9 +331,17 @@ class _VideoReelScreenState extends State<VideoReelScreen>
     final isActiveTab = tab == _activeTabType;
     final layer = _layerFor(tab);
     if (!controller.canMountHomeReelPlayer) {
+      debugPrint('[FeedRestore] schedulePlayer BAIL !canMount page=$pageIndex '
+          'reason=${controller.canMountBlockReason}');
       layer.activePlayerVideo = null;
+      // Any mount block while the Home feed is on-screen must self-heal —
+      // stuck capture/mute after camera previously left posters-only forever.
+      controller.healHomeFeedIfStuckInvisible();
       return;
     }
+    // Post-upload silence must not stick once Home is actively scheduling.
+    MediaKitPlayerPool.instance.setFeedUnmuteEnabled(true);
+    controller.setReelsTabVisible(true);
     final videos = _videosForTab(tab, isActiveTab: isActiveTab);
     if (videos == null ||
         videos.isEmpty ||
@@ -694,6 +702,10 @@ class _VideoReelScreenState extends State<VideoReelScreen>
     }
     final targetVideo = videos[targetIndex];
     final targetId = targetVideo.id;
+    debugPrint('[FeedRestore] finishPlayback tab=$tab idx=$targetIndex '
+        'id=$targetId isPhoto=${targetVideo.isPhotoPost} '
+        'canPlay=${controller.canPlayHomeReels} '
+        'canMount=${controller.canMountHomeReelPlayer}');
     final currentPage = layer.pageController.hasClients
         ? (layer.pageController.page?.round() ?? -1) % videos.length
         : -1;
@@ -790,6 +802,8 @@ class _VideoReelScreenState extends State<VideoReelScreen>
     if (!mounted) {
       return;
     }
+    debugPrint('[FeedRestore] videoPainted -> unmask '
+        'id=${_activeLayer.activePlayerVideo?.id}');
     if (_maskActiveVideoWithPoster) {
       setState(() => _maskActiveVideoWithPoster = false);
     }
@@ -801,6 +815,8 @@ class _VideoReelScreenState extends State<VideoReelScreen>
     if (!mounted) {
       return;
     }
+    debugPrint('[FeedRestore] awaitingPaint (poster mask ON) '
+        'id=${_activeLayer.activePlayerVideo?.id}');
     if (!_maskActiveVideoWithPoster) {
       setState(() => _maskActiveVideoWithPoster = true);
     }

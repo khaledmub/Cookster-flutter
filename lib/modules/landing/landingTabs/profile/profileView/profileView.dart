@@ -568,8 +568,23 @@ class _ProfileViewState extends State<ProfileView>
                         addRepaintBoundaries: true,
                         (context, videoIndex) {
                           final video = selectedVideos[videoIndex];
+                          final isProcessing = isReelGridProcessing(
+                            isImage: video.isImage,
+                            videoUrl: video.videoUrl,
+                            video: video.video,
+                            thumbnailUrl: video.thumbnailUrl,
+                            imageUrl: video.imageUrl,
+                            image: video.image,
+                            transcodeStatus: video.transcodeStatus,
+                            processingStatus: video.processingStatus,
+                            playbackReady: video.playbackReady,
+                          );
                           return GestureDetector(
                             onTap: () {
+                              if (isProcessing) {
+                                _showStillProcessingMessage();
+                                return;
+                              }
                               unawaited(_openProfileReelFromGrid(
                                 video,
                                 displayVideoTypes[_tabController!.index],
@@ -591,18 +606,19 @@ class _ProfileViewState extends State<ProfileView>
                                   borderRadius: 12.r,
                                   logicalSize: 100,
                                 ),
-                                ProfileGridMediaTypeOverlay(
-                                  isPhoto: isReelGridPhotoPost(
-                                    isImage: video.isImage,
-                                    videoUrl: video.videoUrl,
-                                    video: video.video,
-                                    thumbnailUrl: video.thumbnailUrl,
-                                    imageUrl: video.imageUrl,
-                                    image: video.image,
-                                    transcodeStatus: video.transcodeStatus,
-                                    processingStatus: video.processingStatus,
+                                if (!isProcessing)
+                                  ProfileGridMediaTypeOverlay(
+                                    isPhoto: isReelGridPhotoPost(
+                                      isImage: video.isImage,
+                                      videoUrl: video.videoUrl,
+                                      video: video.video,
+                                      thumbnailUrl: video.thumbnailUrl,
+                                      imageUrl: video.imageUrl,
+                                      image: video.image,
+                                      transcodeStatus: video.transcodeStatus,
+                                      processingStatus: video.processingStatus,
+                                    ),
                                   ),
-                                ),
                                 Positioned(
                                   bottom: 0,
                                   left: 0,
@@ -733,6 +749,10 @@ class _ProfileViewState extends State<ProfileView>
                                       ),
                                     ),
                                   ),
+                                if (isProcessing)
+                                  ReelGridProcessingOverlay(
+                                    borderRadius: 12.r,
+                                  ),
                               ],
                             ),
                           );
@@ -750,6 +770,18 @@ class _ProfileViewState extends State<ProfileView>
         ),
       );
     });
+  }
+
+  void _showStillProcessingMessage() {
+    if (!mounted) {
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('video_still_processing_message'.tr),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
   }
 
   Future<void> _openProfileReelFromGrid(

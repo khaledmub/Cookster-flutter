@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:cookster/appUtils/colorUtils.dart';
+import 'package:cookster/appUtils/form_snackbar.dart';
 import 'package:cookster/modules/auth/signUp/signUpController/cityController.dart';
 import 'package:cookster/modules/landing/landingTabs/add/videoAddController/videoAddController.dart';
 import 'package:cookster/modules/landing/landingTabs/profile/profileControlller/profileController.dart';
@@ -19,13 +20,12 @@ Future<List<Countries>> _ensureCountriesLoaded() async {
   return profileController.videoUploadSettings.value?.countries ?? const [];
 }
 
-void _showLocationLoadError(String message) {
-  Get.snackbar(
-    'select_country_label'.tr,
+/// Short dismissible error — avoids Get.snackbar overlay crashes after dialogs.
+void _showLocationLoadError(BuildContext context, String message) {
+  showFormSnackBar(
+    context,
     message,
-    snackPosition: SnackPosition.BOTTOM,
     backgroundColor: Colors.orange,
-    colorText: Colors.white,
   );
 }
 
@@ -97,8 +97,9 @@ Future<void> showUploadCountryPicker(
   final cityController = Get.find<CityController>();
 
   final countries = await _ensureCountriesLoaded();
+  if (!context.mounted) return;
   if (countries.isEmpty) {
-    _showLocationLoadError('select_country_error'.tr);
+    _showLocationLoadError(context, 'select_country_error'.tr);
     return;
   }
 
@@ -114,7 +115,7 @@ Future<void> showUploadCountryPicker(
   countryNames.sort((a, b) => a.compareTo(b));
 
   if (countryNames.isEmpty) {
-    _showLocationLoadError('select_country_error'.tr);
+    _showLocationLoadError(context, 'select_country_error'.tr);
     return;
   }
 
@@ -156,7 +157,7 @@ Future<void> showUploadCountryPicker(
   );
   if (!context.mounted) return;
   if (cityController.cityList.isEmpty) {
-    _showLocationLoadError('select_country_error'.tr);
+    _showLocationLoadError(context, 'select_country_error'.tr);
     return;
   }
   await showUploadCityPicker(context);
@@ -172,22 +173,23 @@ Future<void> showUploadCityPicker(
 
   final country = controller.selectedCountry.value.trim();
   if (country.isEmpty || country == 'Unknown') {
-    _showLocationLoadError('select_country_error'.tr);
+    _showLocationLoadError(context, 'select_country_error'.tr);
     return;
   }
 
   final citiesReady = await _withLocationBusy(
     () => _ensureCitiesForSelectedCountry(controller, cityController),
   );
+  if (!context.mounted) return;
   if (!citiesReady) {
-    _showLocationLoadError('select_country_error'.tr);
+    _showLocationLoadError(context, 'select_country_error'.tr);
     return;
   }
 
   final cityMap = _buildCityMap(cityController);
   final cityNames = cityMap.keys.toList()..sort((a, b) => a.compareTo(b));
   if (cityNames.isEmpty) {
-    _showLocationLoadError('select_country_error'.tr);
+    _showLocationLoadError(context, 'select_country_error'.tr);
     return;
   }
 

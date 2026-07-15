@@ -1,6 +1,7 @@
 import 'package:cookster/core/navigation/route_back.dart';
 import 'package:cookster/appUtils/appCenterIcon.dart';
 import 'package:cookster/appUtils/colorUtils.dart';
+import 'package:cookster/appUtils/form_snackbar.dart';
 import 'package:cookster/modules/auth/signUp/signUpController/cityController.dart';
 import 'package:cookster/modules/landing/landingTabs/add/videoAddController/videoAddController.dart';
 import 'package:dropdown_flutter/custom_dropdown.dart';
@@ -153,15 +154,7 @@ class _EditVideoViewState extends State<EditVideoView> {
   }
 
   void _showValidationError(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message, style: TextStyle(color: Colors.white)),
-        backgroundColor: Colors.red,
-        behavior: SnackBarBehavior.floating,
-        margin: EdgeInsets.only(bottom: 20, left: 10, right: 10),
-        duration: Duration(seconds: 3),
-      ),
-    );
+    showFormSnackBar(context, message);
   }
 
   // Method to check if any values have changed

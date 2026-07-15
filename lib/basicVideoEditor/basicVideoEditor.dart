@@ -1852,33 +1852,66 @@ class _VideoTextEditorState extends State<VideoTextEditor> {
                   ],
                 ),
               ),
-              // Processing overlay
+              // Lightweight processing HUD — dim only, progress at the bottom
+              // so the timeline/tools stay readable (not a full black takeover).
               Obx(() {
-                return (_isProcessing ||
-                        videoFilterController.isProcessing.value)
-                    ? Container(
-                      width: double.infinity,
-                      height: double.infinity,
-                      color: Colors.black87,
-                      child: Center(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            PulseLogoLoader(
-                              logoPath: "assets/images/appIconC.png",
+                final busy = _isProcessing ||
+                    videoFilterController.isProcessing.value;
+                if (!busy) {
+                  return const SizedBox.shrink();
+                }
+                final pct = (_processingProgress * 100).clamp(0, 100);
+                final label = videoFilterController.isProcessing.value
+                    ? 'processing_video'.tr
+                    : '${'processing_video'.tr}  ${pct.toStringAsFixed(0)}%';
+                return Positioned.fill(
+                  child: AbsorbPointer(
+                    child: ColoredBox(
+                      color: Colors.black.withValues(alpha: 0.35),
+                      child: Align(
+                        alignment: Alignment.bottomCenter,
+                        child: SafeArea(
+                          minimum: const EdgeInsets.fromLTRB(16, 0, 16, 20),
+                          child: Material(
+                            color: const Color(0xFF1A1A1A),
+                            elevation: 8,
+                            borderRadius: BorderRadius.circular(14),
+                            child: Padding(
+                              padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    label,
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 10),
+                                  ClipRRect(
+                                    borderRadius: BorderRadius.circular(4),
+                                    child: LinearProgressIndicator(
+                                      value: videoFilterController
+                                              .isProcessing.value
+                                          ? null
+                                          : _processingProgress.clamp(0.0, 1.0),
+                                      minHeight: 6,
+                                      backgroundColor: Colors.white24,
+                                      color: ColorUtils.primaryColor,
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
-                            const SizedBox(height: 16),
-                            Text(
-                              videoFilterController.isProcessing.value
-                                  ? ""
-                                  : "${"processing_video".tr}.... ${(_processingProgress * 100).toStringAsFixed(0)}%",
-                              style: const TextStyle(color: Colors.white),
-                            ),
-                          ],
+                          ),
                         ),
                       ),
-                    )
-                    : SizedBox.shrink();
+                    ),
+                  ),
+                );
               }),
             ],
           ),

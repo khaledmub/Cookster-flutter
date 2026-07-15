@@ -385,6 +385,8 @@ const Map<String, String> ar = {
   "are_you_sure_you_want_to_exit_the_app":
       "هل أنت متأكد أنك تريد الخروج من التطبيق؟",
   "processing": "معالجة",
+  "video_still_processing_message":
+      "لا يزال هذا الفيديو قيد المعالجة. سيصبح جاهزًا للمشاهدة قريبًا.",
   "recent_searches": "عمليات البحث الأخيرة",
   "unfollowed": "تم إلغاء المتابعة",
   "does_not_change_anything": "لا يغير شيئًا",

@@ -26,6 +26,8 @@ import '../../add/videoUploadSettingsModel/videoUploadSettingsModel.dart'
 import '../../profile/profileModel/profileModel.dart';
 import '../../profile/profileModel/simpleUserProfileModel.dart' hide VideoTypes;
 import 'package:cookster/core/media/media_url_resolver.dart';
+import 'package:cookster/core/media/wall_video_media.dart';
+import 'package:cookster/services/video_processing_service.dart';
 
 class ProfessionalProfileController extends GetxController {
   var selectedIndex = 0.obs;
@@ -508,6 +510,7 @@ class ProfessionalProfileController extends GetxController {
 
         totalLikes.value = _sumVideoLikes(userDetails.value?.videoTypes);
         print("Step 9: Total likes on all videos: ${totalLikes.value}");
+        ensureProcessingWatch();
       } else {
         print(
           "Step 9: Failed to fetch user details. Status code: ${response.statusCode}",
@@ -523,6 +526,86 @@ class ProfessionalProfileController extends GetxController {
         "Step 11: isLoading set to false. getUserDetails method completed.",
       );
     }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Real-time upload processing watcher (mirrors ProfileController): flips the
+  // just-uploaded "processing" grid tile to a playable poster the moment the
+  // server transcode is watch-ready, without a pull-to-refresh.
+  Timer? _processingWatchTimer;
+  DateTime? _processingWatchDeadline;
+  final Set<String> _settledProcessingIds = <String>{};
+
+  Set<String> _collectProcessingVideoIds() {
+    final ids = <String>{};
+    final types = userDetails.value?.videoTypes;
+    if (types == null) return ids;
+    for (final type in types) {
+      for (final v in type.videos ?? const <ProfessionalVideos>[]) {
+        final id = v.id?.toString();
+        if (id == null || id.isEmpty) continue;
+        final processing = isReelGridProcessing(
+          isImage: v.isImage,
+          videoUrl: v.videoUrl,
+          video: v.video,
+          thumbnailUrl: v.thumbnailUrl,
+          imageUrl: v.imageUrl,
+          image: v.image,
+          transcodeStatus: v.transcodeStatus,
+          processingStatus: v.processingStatus,
+          playbackReady: v.playbackReady,
+        );
+        if (processing) ids.add(id);
+      }
+    }
+    return ids;
+  }
+
+  void ensureProcessingWatch() {
+    if (isClosed) return;
+    if (_processingWatchTimer != null) return;
+    if (_collectProcessingVideoIds().isEmpty) return;
+    _processingWatchDeadline = DateTime.now().add(const Duration(minutes: 5));
+    _processingWatchTimer = Timer.periodic(
+      const Duration(seconds: 3),
+      (timer) => _onProcessingWatchTick(timer),
+    );
+  }
+
+  Future<void> _onProcessingWatchTick(Timer timer) async {
+    if (isClosed) {
+      _stopProcessingWatch();
+      return;
+    }
+    final deadline = _processingWatchDeadline;
+    if (deadline != null && DateTime.now().isAfter(deadline)) {
+      _stopProcessingWatch();
+      return;
+    }
+    final pending = _collectProcessingVideoIds();
+    if (pending.isEmpty) {
+      _stopProcessingWatch();
+      return;
+    }
+    var anyNewlySettled = false;
+    for (final id in pending) {
+      final status = await VideoProcessingService.fetchStatus(id);
+      if (status == null) continue;
+      if (status.isWatchReady || status.transcodeFailed) {
+        if (_settledProcessingIds.add(id)) {
+          anyNewlySettled = true;
+        }
+      }
+    }
+    if (anyNewlySettled && !isClosed) {
+      await getUserDetails();
+    }
+  }
+
+  void _stopProcessingWatch() {
+    _processingWatchTimer?.cancel();
+    _processingWatchTimer = null;
+    _processingWatchDeadline = null;
   }
 
   /// Lightweight refresh: only re-counts likes from Firestore
@@ -951,5 +1034,11 @@ class ProfessionalProfileController extends GetxController {
   void onInit() {
     super.onInit();
     // getUserDetails();
+  }
+
+  @override
+  void onClose() {
+    _stopProcessingWatch();
+    super.onClose();
   }
 }

@@ -135,18 +135,82 @@ bool isReelGridPhotoPost({
   final hasVideoFields =
       (videoUrl?.toString().trim().isNotEmpty == true) ||
       (video?.toString().trim().isNotEmpty == true);
-  // Cover/image only and no playable video URL → photo, even when the API
-  // wrongly sends is_image=0 with transcode_status=ready (that used to force
-  // the video player + progress bar and hide the Photo badge).
+  // Cover-only rows (fresh uploads ship JPG before mp4):
+  // - pending/processing → video (never treat as photo)
+  // - is_image=0 and not yet ready → video
+  // - is_image=0 + transcode ready + no video URL → mis-tagged photo (legacy)
+  // - otherwise → photo
   if (!hasVideoFields &&
       cover.isNotEmpty &&
       isStaticImagePlaybackUrl(cover)) {
+    if (_looksLikePendingVideoTranscode(
+      transcodeStatus: transcodeStatus,
+      processingStatus: processingStatus,
+    )) {
+      return false;
+    }
+    if (isImage != null &&
+        !isReelPhotoPostFlag(isImage) &&
+        transcodeStatus?.toString() != 'ready') {
+      return false;
+    }
     return true;
   }
   if (transcodeStatus?.toString() == 'ready' && hasRealVideoPlayback) {
     return false;
   }
   return false;
+}
+
+/// True when a grid item is a VIDEO post whose server-side transcode has not
+/// finished yet — used to show a "processing" overlay and block opening it
+/// until it is actually watchable.
+bool isReelGridProcessing({
+  required dynamic isImage,
+  dynamic videoUrl,
+  dynamic video,
+  dynamic thumbnailUrl,
+  dynamic imageUrl,
+  dynamic image,
+  dynamic transcodeStatus,
+  dynamic processingStatus,
+  dynamic playbackReady,
+}) {
+  // Real photos are never "processing".
+  if (isReelPhotoPostFlag(isImage)) {
+    return false;
+  }
+  // Fresh uploads: cover JPG + pending/processing before any mp4 exists.
+  // Do this before the photo heuristic so we never open them as photos.
+  if (_looksLikePendingVideoTranscode(
+    transcodeStatus: transcodeStatus,
+    processingStatus: processingStatus,
+  )) {
+    return true;
+  }
+  final isPhoto = isReelGridPhotoPost(
+    isImage: isImage,
+    videoUrl: videoUrl,
+    video: video,
+    thumbnailUrl: thumbnailUrl,
+    imageUrl: imageUrl,
+    image: image,
+    transcodeStatus: transcodeStatus,
+    processingStatus: processingStatus,
+  );
+  if (isPhoto) {
+    return false;
+  }
+  final ready = PlaybackMedia.isPlaybackReady(
+    isPhotoPost: false,
+    playbackReady: PlaybackMedia.parseOptionalFlag(playbackReady),
+    transcodeStatus: transcodeStatus?.toString(),
+    playbackUrl: MediaUrlResolver.playbackUrl(
+      videoUrl: videoUrl?.toString(),
+      video: video?.toString(),
+    ),
+  );
+  return !ready;
 }
 
 bool _looksLikePendingVideoTranscode({

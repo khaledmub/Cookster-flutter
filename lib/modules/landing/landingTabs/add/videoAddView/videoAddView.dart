@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 import 'package:cookster/core/navigation/route_back.dart';
 import 'package:cookster/appUtils/appCenterIcon.dart';
+import 'package:cookster/appUtils/form_snackbar.dart';
 import 'package:cookster/modules/landing/landingTabs/add/videoAddController/videoAddController.dart';
 import 'package:cookster/modules/landing/landingTabs/home/homeController/homeController.dart';
 import 'package:cookster/services/video_settings_service.dart';
@@ -489,12 +490,6 @@ class _UploadNavBar extends StatelessWidget {
   }
 
   void _showError(BuildContext buildContext, String message) {
-    ScaffoldMessenger.of(buildContext).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: Colors.red.withValues(alpha: 0.8),
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
+    showFormSnackBar(buildContext, message);
   }
 }
