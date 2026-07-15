@@ -592,20 +592,32 @@ class _ProfileViewState extends State<ProfileView>
                             },
                             child: Stack(
                               children: [
-                                ProfileGridThumbnail(
-                                  coverUrl: MediaUrlResolver.reelPosterUrl(
-                                    processingStatus:
-                                        video.processingStatus?.toString(),
-                                    transcodeStatus:
-                                        video.transcodeStatus?.toString(),
-                                    thumbnailUrl:
-                                        video.thumbnailUrl?.toString(),
-                                    imageUrl: video.imageUrl?.toString(),
-                                    image: video.image?.toString(),
+                                // While transcoding, never paint a cover URL or
+                                // food1.jpg fallback — that flashed a wrong
+                                // "صحن سلطة" under Processing for a second.
+                                if (isProcessing)
+                                  ClipRRect(
+                                    borderRadius: BorderRadius.circular(12.r),
+                                    child: const ColoredBox(
+                                      color: Color(0xFF121212),
+                                      child: SizedBox.expand(),
+                                    ),
+                                  )
+                                else
+                                  ProfileGridThumbnail(
+                                    coverUrl: MediaUrlResolver.reelPosterUrl(
+                                      processingStatus:
+                                          video.processingStatus?.toString(),
+                                      transcodeStatus:
+                                          video.transcodeStatus?.toString(),
+                                      thumbnailUrl:
+                                          video.thumbnailUrl?.toString(),
+                                      imageUrl: video.imageUrl?.toString(),
+                                      image: video.image?.toString(),
+                                    ),
+                                    borderRadius: 12.r,
+                                    logicalSize: 100,
                                   ),
-                                  borderRadius: 12.r,
-                                  logicalSize: 100,
-                                ),
                                 if (!isProcessing)
                                   ProfileGridMediaTypeOverlay(
                                     isPhoto: isReelGridPhotoPost(

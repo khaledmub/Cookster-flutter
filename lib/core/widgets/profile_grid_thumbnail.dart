@@ -9,13 +9,11 @@ class ProfileGridThumbnail extends StatelessWidget {
     required this.coverUrl,
     this.borderRadius = 12,
     this.logicalSize = 100,
-    this.fallbackAsset = 'assets/images/food1.jpg',
   });
 
   final String? coverUrl;
   final double borderRadius;
   final double logicalSize;
-  final String fallbackAsset;
 
   @override
   Widget build(BuildContext context) {
@@ -36,25 +34,10 @@ class ProfileGridThumbnail extends StatelessWidget {
                 // under BoxFit.cover). Width-only preserves aspect; cover crops.
                 memCacheWidth: mem,
                 fadeInDuration: const Duration(milliseconds: 120),
-                placeholder: (_, __) => Image.asset(
-                  fallbackAsset,
-                  fit: BoxFit.cover,
-                  width: double.infinity,
-                  height: double.infinity,
-                ),
-                errorWidget: (_, __, ___) => Image.asset(
-                  fallbackAsset,
-                  fit: BoxFit.cover,
-                  width: double.infinity,
-                  height: double.infinity,
-                ),
+                placeholder: (_, __) => const ColoredBox(color: Colors.black),
+                errorWidget: (_, __, ___) => const ColoredBox(color: Colors.black),
               )
-            : Image.asset(
-                fallbackAsset,
-                fit: BoxFit.cover,
-                width: double.infinity,
-                height: double.infinity,
-              ),
+            : const ColoredBox(color: Colors.black),
       ),
     );
   }
