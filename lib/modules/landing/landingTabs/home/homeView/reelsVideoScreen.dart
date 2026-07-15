@@ -74,6 +74,7 @@ class _FeedTabLayer {
   final ValueNotifier<int> visibleIndexNotifier;
   WallVideos? activePlayerVideo;
   int? scrollTowardActualIndex;
+  int? demuxAheadFiredFor;
   double? lastScrollPage;
   DateTime? lastScrollSampleAt;
 
@@ -1262,17 +1263,34 @@ class _VideoReelScreenState extends State<VideoReelScreen>
     layer.lastScrollPage = page;
     layer.lastScrollSampleAt = now;
 
-    if (layer.scrollTowardActualIndex == toward && progress < 0.45) {
+    final towardChanged = layer.scrollTowardActualIndex != toward;
+    if (!towardChanged && progress < 0.12) {
       return;
     }
-    layer.scrollTowardActualIndex = toward;
-    _playbackCoordinator.onPageScrollToward(
-      fromActualIndex: layer.visibleIndexNotifier.value,
-      towardActualIndex: toward,
-      context: context,
-      scrollProgress: progress,
-      scrollVelocity: scrollVelocity,
-    );
+
+    if (towardChanged) {
+      layer.scrollTowardActualIndex = toward;
+      layer.demuxAheadFiredFor = null;
+      _playbackCoordinator.onPageScrollToward(
+        fromActualIndex: layer.visibleIndexNotifier.value,
+        towardActualIndex: toward,
+        context: context,
+        scrollProgress: progress,
+        scrollVelocity: scrollVelocity,
+      );
+      return;
+    }
+
+    // Same target — start demux once mid-gesture so settle is already buffered.
+    if (progress >= 0.12 && layer.demuxAheadFiredFor != toward) {
+      layer.demuxAheadFiredFor = toward;
+      unawaited(
+        _preloadManager.onScrollDemuxAhead(
+          towardIndex: toward,
+          fromIndex: layer.visibleIndexNotifier.value,
+        ),
+      );
+    }
   }
 
   bool _shouldListenFirestoreStats(String tab, int actualIndex) {
@@ -1592,6 +1610,14 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                   _preloadManager.prefetchVisibleReel(
                     actualIndex,
                     maxWaitMs: 0,
+                  ),
+                );
+                // Keep warming the next reel(s) under the finger for fast flings.
+                unawaited(
+                  _preloadManager.onScrollToward(
+                    fromIndex: actualIndex,
+                    towardIndex: actualIndex + 1,
+                    extraDepth: 1,
                   ),
                 );
                 _schedulePlayerForPage(tab, actualIndex);

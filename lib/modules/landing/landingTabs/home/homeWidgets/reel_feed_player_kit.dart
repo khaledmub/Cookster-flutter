@@ -173,9 +173,12 @@ class ReelFeedPlayerKit {
     return ReelGaplessPoster(
       imageUrl: primary,
       blurUrl: videoPosterBlurUrl(video),
-      fallbackUrl: video.resolvedReelPosterFallbackUrl,
+      fallbackUrl: video.resolvedThumbnailUrl ??
+          video.resolvedReelPosterFallbackUrl,
       cacheKey: 'page_poster_${video.id ?? primary}',
       fit: BoxFit.cover,
+      // Fallback/LQIP paint immediately — opaque black underlay flashes on swipe.
+      opaqueBase: false,
     );
   }
 

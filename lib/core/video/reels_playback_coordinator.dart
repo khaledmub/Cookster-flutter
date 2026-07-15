@@ -46,8 +46,8 @@ class ReelsPlaybackCoordinator {
     double scrollProgress = 0,
     double scrollVelocity = 0,
   }) {
-    final extraDepth =
-        scrollVelocity >= kReelsFastScrollVelocityThreshold ? 1 : 0;
+    final fast = scrollVelocity >= kReelsFastScrollVelocityThreshold;
+    final extraDepth = fast ? 2 : 1;
     unawaited(
       _preloadManager.onScrollToward(
         fromIndex: fromActualIndex,
@@ -55,7 +55,9 @@ class ReelsPlaybackCoordinator {
         extraDepth: extraDepth,
       ),
     );
-    if (scrollProgress >= 0.45) {
+    // Start demux early so the next reel is already buffered when the finger
+    // lifts — waiting until 0.45 let fast flings settle cold.
+    if (scrollProgress >= 0.12 || fast) {
       unawaited(
         _preloadManager.onScrollDemuxAhead(
           towardIndex: towardActualIndex,
@@ -71,8 +73,12 @@ class ReelsPlaybackCoordinator {
         context,
         anchorIndex: fromActualIndex,
         direction: direction,
-        count: 3 + extraDepth,
+        count: 4 + extraDepth,
       );
+      // Also warm the toward page + next so swipe landing never hits a bare
+      // black opaqueBase while CachedNetworkImage is still fetching.
+      _precacheTiersForIndex(context, towardActualIndex);
+      _precacheTiersForIndex(context, towardActualIndex + direction);
     }
   }
 

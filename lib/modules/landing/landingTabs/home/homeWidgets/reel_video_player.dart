@@ -893,6 +893,72 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
     return 32;
   }
 
+  /// Snap muted decode back to t≈0 under the poster, then wait until frames
+  /// advance so [poster_unmask] never exposes a still first frame.
+  ///
+  /// Returns whether a seek-to-start ran (for render-death watchdog grace).
+  Future<bool> _prepareContinuousPlaybackBeforeUnmask(
+    Player player, {
+    required int generation,
+  }) async {
+    if (!_usesFeedVisibleChannel) {
+      return false;
+    }
+
+    var rewound = false;
+    final posMs = player.state.position.inMilliseconds;
+    // Opaque-paint waits routinely push past 200ms. Always reset under the
+    // poster when we've left the intro so unmask starts at the beginning —
+    // but never drop the poster until motion resumes after seek.
+    if (posMs > 80) {
+      rewound = true;
+      try {
+        await player.seek(Duration.zero);
+      } on Object catch (_) {}
+      var seekPolled = 0;
+      while (seekPolled < 250) {
+        if (!_isCurrentAttach(generation) || !mounted || _isDisposed) {
+          return rewound;
+        }
+        if (player.state.position.inMilliseconds < 80) {
+          break;
+        }
+        await Future<void>.delayed(const Duration(milliseconds: 16));
+        seekPolled += 16;
+        _onPlayerStateTick(player);
+      }
+    }
+
+    if (!player.state.playing) {
+      try {
+        await player.play();
+      } on Object catch (_) {}
+    }
+
+    final motionBase = player.state.position.inMilliseconds;
+    var motionPolled = 0;
+    while (motionPolled < 400) {
+      if (!_isCurrentAttach(generation) || !mounted || _isDisposed) {
+        return rewound;
+      }
+      final nowMs = player.state.position.inMilliseconds;
+      // Clock moving past the still first frame — safe to unmask.
+      if (player.state.playing &&
+          (nowMs >= motionBase + 40 || (rewound && nowMs >= 40))) {
+        return rewound;
+      }
+      if (!player.state.playing) {
+        try {
+          await player.play();
+        } on Object catch (_) {}
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 16));
+      motionPolled += 16;
+      _onPlayerStateTick(player);
+    }
+    return rewound;
+  }
+
   /// Decoder is advancing but Honor may report Rendered 0/s — avoid Retry overlay.
   bool _isDecodeLikelyActive(Player player) {
     if (!player.state.playing) {
@@ -1697,24 +1763,15 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
       _pool.markFrameReadyFromSurface(key);
     }
 
-    var rewoundForUnmask = false;
-    if (_usesFeedVisibleChannel && player.state.position.inMilliseconds > 200) {
-      // The video has been playing muted to pump frames and verify surface health.
-      // If it advanced significantly, rewind to the beginning BEFORE dropping the poster
-      // so the user doesn't see a visual jump ("shake") when the frame resets.
-      rewoundForUnmask = true;
-      await player.seek(Duration.zero);
-      var polled = 0;
-      while (polled < 200) {
-        if (!_isCurrentAttach(generation) || !mounted || _isDisposed) return;
-        if (player.state.position.inMilliseconds < 100) break;
-        await Future<void>.delayed(const Duration(milliseconds: 16));
-        polled += 16;
-        _onPlayerStateTick(player);
-      }
-      // Seek alone can leave Honor sitting at 0 with playing=true until play()
-      // restarts the clock — without this the render-death watchdog fires.
-      await player.play();
+    // Muted decode often advances past ~200ms under the poster. Seeking back to
+    // 0 then unmasking immediately left a still first frame for ~200–400ms.
+    // Keep the poster until playback is moving again.
+    final rewoundForUnmask = await _prepareContinuousPlaybackBeforeUnmask(
+      player,
+      generation: generation,
+    );
+    if (!_isCurrentAttach(generation) || !mounted || _isDisposed) {
+      return;
     }
 
     _logPoster(
@@ -2645,9 +2702,15 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
     return _isCurrentAttach(generation) && _canShowVideo(player);
   }
 
-  /// Warm Honor paths usually paint under ~300ms; cold decode often advances
-  /// without paint by ~1–1.5s when ImageReader is churning — soft-recover then.
-  static const int _earlyPaintStallMs = 850;
+  /// Warm/cached paths usually paint under ~300ms. Cold HTTPS often stalls
+  /// until an explicit play nudge — recover earlier than the old 850ms gate so
+  /// network opens don't sit ~2s on poster before the first frame.
+  int get _earlyPaintStallMs {
+    if (_lastOpenCacheHit || _lastOpenPartialCache) {
+      return 700;
+    }
+    return 420;
+  }
 
   bool _decodeProgressingWithoutPaint(Player player) {
     if (_canShowVideo(player)) {
@@ -3350,46 +3413,10 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
         return false;
       }
 
-      // If prefetch finished during the stall, promote HTTPS → file:// once
-      // without a hard recycle (same open token).
-      var openUrl = playbackUrl;
-      if (playbackUrl.toLowerCase().startsWith('http')) {
-        final local = await resolveBestPlaybackUrl(playbackUrl);
-        if (local.toLowerCase().startsWith('file://') &&
-            local != playbackUrl) {
-          _logPoster(
-            'paint_stall_promote_file',
-            detail: 'gen=$generation fromHttps=true',
-          );
-          final recovered = await _pool.openVisibleReel(
-            key: poolKey,
-            sourceUrl: local,
-            openToken: generation,
-          );
-          if (recovered != null &&
-              mounted &&
-              !_isDisposed &&
-              generation == _playbackGeneration &&
-              !_pool.isStaleFeedOpen(generation)) {
-            openUrl = local;
-            _lastOpenWasCold = recovered.feedOpenedMedia;
-            _pooledKey = poolKey;
-            _attachGeneration = generation;
-            _activeFeedSlotIndex =
-                recovered.feedActiveSlotIndex ?? _pool.activeFeedSlotIndex;
-            _videoController =
-                _pool.feedSlotVideoController(_activeFeedSlotIndex);
-            player = recovered.player;
-            await _attachPlayer(
-              recovered.player,
-              generation: generation,
-              afterFlip: !recovered.feedOpenedMedia,
-              skipFrameWait: true,
-            );
-            await _registerRenderSlot(recovered.player);
-          }
-        }
-      }
+      // Prefer play-only recovery on the same HTTPS/file open. Re-opening as
+      // file:// mid-stall (paint_stall_promote_file) restarted decode and
+      // showed a still first frame + multi-second delays.
+      final openUrl = playbackUrl;
 
       // Continue waiting on the same surface — no hard rebuild.
       final waitResult = await _waitForFrameReadyWithRecovery(

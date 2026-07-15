@@ -274,9 +274,10 @@ class VideoPreloadManager {
     ReelsVideoCacheManager.instance.cancelBelowPriority(90);
     var depth = await _resolvePreloadDepth();
     if (_deviceConstraints.needsConstrainedSurfaceRecovery) {
-      // Near-only: toward + at most +1/+2 — not a deep fan-out mid-fling.
-      depth = depth.clamp(1, 2);
-      extraDepth = 0;
+      // Still warm toward +1/+2 on Honor — clamping too hard left fling
+      // landings cold HTTPS every time.
+      depth = depth.clamp(2, 3);
+      extraDepth = extraDepth.clamp(0, 1);
     }
     final indices = buildDirectionalPrefetchIndices(
       fromIndex: fromIndex,

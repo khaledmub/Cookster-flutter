@@ -233,14 +233,32 @@ class _ReelGaplessPosterState extends State<ReelGaplessPoster> {
     }
 
     final effectiveBlur = _effectiveBlurProvider;
+    final fallback = widget.fallbackUrl?.trim() ?? '';
     final showOpaqueBase = widget.opaqueBase &&
         _resolvedPrimary == null &&
-        effectiveBlur == null;
+        effectiveBlur == null &&
+        fallback.isEmpty;
 
     return Stack(
       fit: StackFit.expand,
       children: [
         if (showOpaqueBase) const ColoredBox(color: Colors.black),
+        // Paint fallback / thumb immediately so swipe landings never flash a
+        // bare black base while the primary decode is still in flight.
+        if (_resolvedPrimary == null &&
+            fallback.isNotEmpty &&
+            fallback != widget.imageUrl.trim())
+          _PosterImageLayer(
+            url: fallback,
+            context: context,
+            fit: widget.fit,
+            memScale: 0.5,
+            filterQuality: FilterQuality.low,
+            resolvedProvider: _cachedProviderFor(fallback, lqip: true) ??
+                _cachedProviderFor(fallback, lqip: false),
+            cacheAsLqip: true,
+            isImagePost: _isImagePost,
+          ),
         if (_showLqipUnderlay)
           _PosterImageLayer(
             url: (widget.blurUrl?.trim().isNotEmpty == true)
