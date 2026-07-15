@@ -2,6 +2,7 @@ import 'package:awesome_dialog/awesome_dialog.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cookster/appUtils/apiEndPoints.dart';
 import 'package:cookster/core/i18n/api_message_localizer.dart';
+import 'package:cookster/core/video/feed_disk_warm_service.dart';
 import 'package:cookster/modules/landing/landingView/landingView.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -184,6 +185,8 @@ class SignUpOtpController extends GetxController {
           Get.find<SignUpController>().clearForm();
         }
 
+        // Warm while the success dialog is on screen — Landing opens with cache hot.
+        FeedDiskWarmService.instance.warmEarlyFeed(reason: 'signup_otp');
         showSuccessDialog();
       } else {
         _showSnackBar(
@@ -269,12 +272,13 @@ class SignUpOtpController extends GetxController {
       title: 'success_title'.tr,
       desc: 'account created successfully'.tr,
       btnOkText: 'ok'.tr,
-      btnOkOnPress: () {
-        Get.offAll(
-          () => Landing(initialIndex: 0),
-          binding: LandingBinding(),
-        );
-      },
+    btnOkOnPress: () {
+      FeedDiskWarmService.instance.warmEarlyFeed(reason: 'signup_otp_dialog');
+      Get.offAll(
+        () => Landing(initialIndex: 0),
+        binding: LandingBinding(),
+      );
+    },
     )..show();
   }
 }

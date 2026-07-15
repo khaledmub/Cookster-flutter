@@ -15,10 +15,11 @@ import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
 import 'package:get/get.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../../../../appBindings/app_bindings.dart';
-import '../../../../appRoutes/appRoutes.dart';
-import '../../../../services/apiClient.dart';
-import '../../../../services/username_availability_service.dart';
+import 'package:cookster/appBindings/app_bindings.dart';
+import 'package:cookster/appRoutes/appRoutes.dart';
+import 'package:cookster/core/video/feed_disk_warm_service.dart';
+import 'package:cookster/services/apiClient.dart';
+import 'package:cookster/services/username_availability_service.dart';
 import '../../../landing/landingView/landingView.dart';
 import '../../../promoteVideo/promoteVideoModel/promoteVideoModel.dart';
 import '../registrationSettingsModel/packagesModel.dart';
@@ -1062,6 +1063,7 @@ void showSuccessDialog() {
     desc: "account created successfully".tr,
     btnOkText: "ok".tr,
     btnOkOnPress: () {
+      FeedDiskWarmService.instance.warmEarlyFeed(reason: 'signup_success_dialog');
       Get.offAll(
         () => Landing(initialIndex: 0),
         binding: LandingBinding(),

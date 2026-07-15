@@ -88,13 +88,8 @@ class ReelFeedPlayerKit {
       if (full.isEmpty) {
         return const [];
       }
-      final lqip = imageLqipUrl(video);
-      if (lqip != null && lqip.isNotEmpty && lqip != full) {
-        return [
-          ReelPosterPrecacheTier(url: lqip, lqip: true),
-          ReelPosterPrecacheTier(url: full, lqip: false),
-        ];
-      }
+      // Warm full-res only for photo pages — LQIP-first made the visible reel
+      // paint a soft full-bleed layer before the sharp image arrived.
       return [
         ReelPosterPrecacheTier(url: full, lqip: false),
       ];
@@ -159,13 +154,17 @@ class ReelFeedPlayerKit {
       if (url.isEmpty) {
         return const ColoredBox(color: Colors.black);
       }
+      // Never mount the LQIP blur underlay on the main photo page — upscaling a
+      // CDN thumb / 0.35 decode to full-bleed BoxFit.cover looks heavily
+      // pixelated until the full image lands ("starts pixeled then fine").
       return ReelGaplessPoster(
         imageUrl: url,
-        blurUrl: imagePostBlurUrl(video),
+        blurUrl: null,
         fallbackUrl: video.resolvedThumbnailUrl ??
             video.resolvedReelPosterFallbackUrl,
         cacheKey: imagePostCacheKey(video),
         fit: BoxFit.cover,
+        opaqueBase: true,
       );
     }
     // Same URL order as [posterUrl] / inline player — keeps poster→video framing

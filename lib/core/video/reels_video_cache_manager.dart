@@ -228,6 +228,69 @@ class ReelsVideoCacheManager {
     _pump();
   }
 
+  /// Starve every other queued job and put [url] at the front of the line.
+  ///
+  /// In-flight HTTP for *other* URLs cannot be aborted mid-body, but nothing
+  /// new starts until this URL finishes (or [maxWaitMs] elapses). Used so the
+  /// visible reel wins bandwidth instead of sharing it with early-warm / N+2.
+  Future<bool> downloadExclusiveAndWait(
+    String url, {
+    int maxWaitMs = 12000,
+    bool isTablet = false,
+  }) async {
+    if (url.isEmpty || !url.toLowerCase().startsWith('http')) {
+      return false;
+    }
+    // Clear the queue so both slots serve this URL (and then its sequel).
+    cancelBelowPriority(1 << 30);
+    _priorities[url] = 1000;
+    if (!_inFlight.contains(url)) {
+      _pendingByUrl[url] = _PrefetchRequest(
+        url: url,
+        priority: 1000,
+        isTablet: isTablet,
+      );
+      _completers.putIfAbsent(url, Completer<void>.new);
+      _requeuePendingHighestFirst();
+      _pump();
+    } else {
+      _priorities[url] = 1000;
+    }
+
+    Future<bool> onDisk() async {
+      try {
+        final info = await manager.getFileFromCache(url);
+        final file = info?.file;
+        return file != null && await file.exists() && await file.length() > 0;
+      } catch (_) {
+        return false;
+      }
+    }
+
+    if (await onDisk()) {
+      return true;
+    }
+
+    final started = DateTime.now().millisecondsSinceEpoch;
+    while (DateTime.now().millisecondsSinceEpoch - started < maxWaitMs) {
+      if (await onDisk()) {
+        return true;
+      }
+      final remaining =
+          maxWaitMs - (DateTime.now().millisecondsSinceEpoch - started);
+      if (remaining <= 0) {
+        break;
+      }
+      await waitForUrl(url, maxWaitMs: remaining.clamp(1, 250));
+      // waitForUrl can return early if the completer was completed by a
+      // cancel — re-enqueue when nothing is running and the file is missing.
+      if (!isQueuedOrInFlight(url) && !await onDisk()) {
+        prefetch(url, priority: 1000, isTablet: isTablet);
+      }
+    }
+    return onDisk();
+  }
+
   void clearPriority(String url) {
     _priorities.remove(url);
   }

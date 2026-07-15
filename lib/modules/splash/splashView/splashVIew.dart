@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:cookster/appBindings/app_bindings.dart';
 import 'package:cookster/appRoutes/appRoutes.dart';
+import 'package:cookster/core/video/feed_disk_warm_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:get/get.dart';
@@ -23,6 +24,11 @@ class _SplashViewState extends State<SplashView>
   Future<void> _navigateToInitialScreen() async {
     final prefs = await SharedPreferences.getInstance();
     final bool initLanguage = prefs.getBool('initLanguage') ?? false;
+    final token = prefs.getString('auth_token');
+    // Already signed in: start disk-warming feed bytes during the logo.
+    if (token != null && token.isNotEmpty) {
+      FeedDiskWarmService.instance.warmEarlyFeed(reason: 'splash_signed_in');
+    }
 
     if (initLanguage) {
       Get.offAllNamed(AppRoutes.onBoarding);

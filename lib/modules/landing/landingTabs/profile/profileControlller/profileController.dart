@@ -6,6 +6,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cookster/appRoutes/appRoutes.dart';
 import 'package:cookster/appUtils/apiEndPoints.dart';
 import 'package:cookster/core/user/public_user_identity.dart';
+import 'package:cookster/core/video/feed_disk_warm_service.dart';
 import 'package:cookster/services/username_availability_service.dart';
 import 'package:cookster/core/parsing/feed_parsers.dart';
 import 'package:flutter/foundation.dart';
@@ -321,6 +322,8 @@ class ProfileController extends GetxController {
         await prefs.setString('language', language);
         await prefs.setString('selectedLanguage', selectedLanguage);
         await prefs.setBool('initLanguage', initLanguage);
+
+        FeedDiskWarmService.instance.cancel();
 
         // Clear in-memory user data
         userDetails.value = null; // Assuming this is defined elsewhere

@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:cookster/appUtils/apiEndPoints.dart';
+import 'package:cookster/core/video/feed_disk_warm_service.dart';
 import 'package:get/get.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -33,6 +34,8 @@ class OnboardingController extends GetxController {
 
     if (authToken != null && authToken.isNotEmpty) {
       print("Navigating to Landing Screen");
+      // Belt-and-suspenders if splash didn't run (deep link / hot restart).
+      FeedDiskWarmService.instance.warmEarlyFeed(reason: 'onboarding_signed_in');
       Get.offAllNamed(AppRoutes.landing);
     } else if (hasCompletedOnboarding) {
       print("Navigating to Sign-In Screen");

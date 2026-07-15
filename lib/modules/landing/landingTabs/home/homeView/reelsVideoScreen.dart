@@ -261,11 +261,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
         if (!mounted || !controller.canPlayHomeReels) {
           return;
         }
-        return _warmVisibleBeforePlayback(index, maxWaitMs: 700);
-      }).then((_) async {
-        if (!mounted || !controller.canPlayHomeReels) {
-          return;
-        }
+        unawaited(_preloadManager.prefetchVisibleReel(index, maxWaitMs: 0));
         await ReelScreenPlaybackHelpers.attachVisibleIndex(
           preloadManager: _preloadManager,
           coordinator: _playbackCoordinator,
@@ -762,36 +758,27 @@ class _VideoReelScreenState extends State<VideoReelScreen>
         layer.pageController.jumpToPage(targetIndex);
       }
       unawaited(
-        _warmVisibleBeforePlayback(
-          targetIndex,
-          maxWaitMs: fromTabSwitch
-              ? 500
-              : (MediaKitPlayerPool.instance.feedOpenCount == 0 ? 2800 : 700),
-        ).then((_) {
-          if (!mounted || tab != _activeTabType) {
-            return;
-          }
-          _schedulePlayerForPage(
-            tab,
-            targetIndex,
-            forceReattach: preferNewest,
-          );
-          MediaKitPlayerPool.instance.setScreenWidth(
-            MediaQuery.sizeOf(context).width,
-          );
-          _playbackCoordinator.onPageSettled(targetIndex, context: context);
-          _resumeFeedAudibleOnce();
-          if (preferNewest) {
-            // Icon re-tap: silence cleared the previous player; nudge audible
-            // again after the first frame so autoplay isn't stuck muted.
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              if (mounted) {
-                _resumeFeedAudibleOnce();
-              }
-            });
-          }
-        }),
+        _preloadManager.prefetchVisibleReel(targetIndex, maxWaitMs: 0),
       );
+      _schedulePlayerForPage(
+        tab,
+        targetIndex,
+        forceReattach: preferNewest,
+      );
+      MediaKitPlayerPool.instance.setScreenWidth(
+        MediaQuery.sizeOf(context).width,
+      );
+      _playbackCoordinator.onPageSettled(targetIndex, context: context);
+      _resumeFeedAudibleOnce();
+      if (preferNewest) {
+        // Icon re-tap: silence cleared the previous player; nudge audible
+        // again after the first frame so autoplay isn't stuck muted.
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            _resumeFeedAudibleOnce();
+          }
+        });
+      }
     });
   }
 
@@ -877,7 +864,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
       return;
     }
     layer.activePlayerVideo = video;
-    unawaited(_warmVisibleBeforePlayback(index));
+    unawaited(_preloadManager.prefetchVisibleReel(index, maxWaitMs: 0));
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || !controller.canPlayHomeReels) {
         MediaKitPlayerPool.instance.silenceAllSync();
@@ -1020,8 +1007,11 @@ class _VideoReelScreenState extends State<VideoReelScreen>
         );
         unawaited(_preloadManager.prefetchVisibleReel(idx));
       }
+      // While loading, still prefetch disk in background — but attach as soon
+      // as isLoading clears (never wait on disk before first paint).
       if (videos != null &&
           videos.isNotEmpty &&
+          !controller.isLoading.value &&
           controller.canPlayHomeReels &&
           _activeLayer.activePlayerVideo == null) {
         final idx = _activeLayer.visibleIndexNotifier.value.clamp(
@@ -1032,20 +1022,12 @@ class _VideoReelScreenState extends State<VideoReelScreen>
           if (!mounted) {
             return;
           }
-        unawaited(
-            _warmVisibleBeforePlayback(
-              idx,
-              maxWaitMs:
-                  MediaKitPlayerPool.instance.feedOpenCount == 0 ? 2800 : 700,
-            ).then((_) {
-              if (!mounted) {
-                return;
-              }
-              _schedulePlayerForPage(
-                _activeTabType,
-                _activeLayer.visibleIndexNotifier.value,
-              );
-            }),
+          unawaited(
+            _preloadManager.prefetchVisibleReel(idx, maxWaitMs: 0),
+          );
+          _schedulePlayerForPage(
+            _activeTabType,
+            _activeLayer.visibleIndexNotifier.value,
           );
         });
       }
@@ -1057,10 +1039,12 @@ class _VideoReelScreenState extends State<VideoReelScreen>
       if (!mounted) {
         return;
       }
+      // Index reset only — never null activePlayerVideo here. Meta sort echo
+      // used to fire this after attach and leave the pool with no remount
+      // (filter → all videos dead). Teardown/reattach is owned by setSortOrder.
       final tab = _activeTabType;
       final layer = _layerFor(tab);
       layer.visibleIndexNotifier.value = 0;
-      layer.activePlayerVideo = null;
       if (layer.pageController.hasClients) {
         layer.pageController.jumpToPage(0);
       }
@@ -1602,10 +1586,12 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                 _resetPosterMaskForPageChange(
                   videoId: videos[actualIndex].id,
                 );
+                // Open immediately — never wait on disk before attach. Disk warm
+                // runs in parallel for N+1 so the next swipe can hit file://.
                 unawaited(
                   _preloadManager.prefetchVisibleReel(
                     actualIndex,
-                    maxWaitMs: 0,  // Never block page change; disk prefetch fires async.
+                    maxWaitMs: 0,
                   ),
                 );
                 _schedulePlayerForPage(tab, actualIndex);
@@ -3040,8 +3026,12 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                     icon: Icons.arrow_downward_rounded,
                     selected: selected == 'newest',
                     onTap: () {
-                      controller.setSortOrder('newest');
-                      Get.back();
+                      // Pop first so route restore settles, then reload —
+                      // sort-before-pop raced restore and left dead players.
+                      Navigator.of(context).pop();
+                      WidgetsBinding.instance.addPostFrameCallback((_) {
+                        controller.setSortOrder('newest');
+                      });
                     },
                   ),
                   _SortOptionTile(
@@ -3049,8 +3039,10 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                     icon: Icons.arrow_upward_rounded,
                     selected: selected == 'oldest',
                     onTap: () {
-                      controller.setSortOrder('oldest');
-                      Get.back();
+                      Navigator.of(context).pop();
+                      WidgetsBinding.instance.addPostFrameCallback((_) {
+                        controller.setSortOrder('oldest');
+                      });
                     },
                   ),
                 ],

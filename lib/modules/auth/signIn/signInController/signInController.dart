@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:cookster/appBindings/app_bindings.dart';
 import 'package:cookster/appRoutes/appRoutes.dart';
 import 'package:cookster/appUtils/apiEndPoints.dart';
+import 'package:cookster/core/video/feed_disk_warm_service.dart';
 import 'package:cookster/modules/landing/landingView/landingView.dart';
 import 'package:crypto/crypto.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -109,6 +110,7 @@ class LogInController extends GetxController {
     );
 
     await _updateFirestoreUser(user, deviceToken);
+    FeedDiskWarmService.instance.warmEarlyFeed(reason: 'login_social');
     Get.offAllNamed(AppRoutes.landing);
   }
 
@@ -263,6 +265,7 @@ class LogInController extends GetxController {
 
         debugPrint("NAVIGATING TO THE USER");
 
+        FeedDiskWarmService.instance.warmEarlyFeed(reason: 'login_email');
         Get.offAll(
           () => Landing(initialIndex: 0),
           binding: LandingBinding(),
@@ -492,6 +495,7 @@ class LogInController extends GetxController {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     await prefs.remove('auth_token');
     ApiClient.setAuthToken(null);
+    FeedDiskWarmService.instance.cancel();
 
     await _googleSignIn.signOut();
 

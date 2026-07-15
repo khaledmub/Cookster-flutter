@@ -13,6 +13,7 @@ import 'package:cookster/core/video/media_kit_player_pool.dart';
 import 'package:cookster/core/video/video_player_pool.dart';
 import 'package:cookster/core/video/video_source_resolver.dart';
 import 'package:cookster/core/video/cached_playback_url.dart';
+import 'package:cookster/core/video/feed_disk_warm_service.dart';
 import 'package:cookster/modules/landing/landingController/landingController.dart';
 import '../../../../../services/apiClient.dart';
 import '../homeModel/videoFeedModel.dart';
@@ -367,7 +368,10 @@ class HomeController extends GetxController with WidgetsBindingObserver {
     final parsed = await compute(parseVideoFeed, response.body);
     _sortFeedByOrder(parsed);
     final echoedSort = parsed.meta?.sortBy?.trim();
-    if (echoedSort == 'newest' || echoedSort == 'oldest') {
+    // Only write when the value actually changes — assigning the same string
+    // can still fire Obx workers that blank the active player after attach.
+    if ((echoedSort == 'newest' || echoedSort == 'oldest') &&
+        echoedSort != feedSortOrder.value) {
       feedSortOrder.value = echoedSort!;
     }
     if (kDebugMode && selectedType.value == 'Near Me') {
@@ -471,11 +475,31 @@ class HomeController extends GetxController with WidgetsBindingObserver {
     if (feedSortOrder.value == order) return;
     feedSortOrder.value = order;
     final tab = selectedType.value;
+
+    // Same teardown as [refreshHomeFeed] — without it, filter apply + modal
+    // dismiss races restore and leaves the pool claiming a visible reel with
+    // no mounted Video surface (all videos appear dead).
+    MediaKitPlayerPool.instance.pauseAllImmediate();
+    MediaKitPlayerPool.instance.silenceAllSync();
+    unawaited(MediaKitPlayerPool.instance.clearFeedVisibleReel());
+    _routeOverlayPauseDepth = 0;
+    _playbackMuteDepth = 0;
+    _bottomNavMuteDepth = 0;
+    mediaCaptureDepth.value = 0;
+    _feedResumePendingWhenHomeTab = false;
+    isNavigating.value = false;
+    isVideoPlaying.value = true;
+    MediaKitPlayerPool.instance.setFeedUnmuteEnabled(true);
+    setReelsTabVisible(true);
+
+    _preferNewestAttach = true;
     _tabFeedCache.clear();
     resetTabScrollRestore(tab);
     visiblePageIndex.value = 0;
     currentIndex.value = 0;
-    fetchVideos(forceNetwork: true, resetScrollPosition: true);
+    videoFeed.value = VideoFeed(status: true, videos: []);
+    reelListLength.value = 0;
+    unawaited(fetchVideos(forceNetwork: true, resetScrollPosition: true));
   }
 
   /// Drop saved tab position so a sort/filter reload always opens at reel 0.
@@ -911,6 +935,9 @@ class HomeController extends GetxController with WidgetsBindingObserver {
           }
           return;
         }
+        final parsedVideos = parsed.videos;
+        // Publish + attach immediately. Disk warm is fire-and-forget so the
+        // first frame is HTTPS/stream TTFB — never a multi-second poster hold.
         videoFeed.value = parsed;
         reelListLength.value = parsed.videos?.length ?? 0;
         if (parsed.videos?.isNotEmpty ?? false) {
@@ -919,7 +946,6 @@ class HomeController extends GetxController with WidgetsBindingObserver {
           _tabFeedCache.remove(tab);
         }
         currentPage.value = parsed.meta?.page ?? 1;
-        final parsedVideos = parsed.videos;
         if (parsedVideos != null && parsedVideos.isNotEmpty) {
           if (resetScrollPosition) {
             visiblePageIndex.value = 0;
@@ -932,6 +958,19 @@ class HomeController extends GetxController with WidgetsBindingObserver {
           // Else: keep the user's current scroll — do not snap back to a stale
           // saved video id when a background fetch completes mid-playback.
         }
+
+        if (!backgroundRefresh &&
+            parsedVideos != null &&
+            parsedVideos.isNotEmpty) {
+          // Background only — do not await. Swipe/next opens stay fast.
+          unawaited(
+            FeedDiskWarmService.instance.warmAndAwaitFirst(
+              parsedVideos,
+              awaitFirstMs: 0,
+            ),
+          );
+        }
+
         // Skip epoch bump during tab switch — serialized attach runs from the
         // tab handler; a concurrent epoch was spawning duplicate decoders on MTK.
         if (tab == selectedType.value &&

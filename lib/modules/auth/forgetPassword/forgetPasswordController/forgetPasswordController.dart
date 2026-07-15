@@ -1,4 +1,5 @@
 import 'package:cookster/appUtils/apiEndPoints.dart';
+import 'package:cookster/core/video/feed_disk_warm_service.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'dart:convert';
@@ -254,6 +255,7 @@ class ForgotPasswordController extends GetxController {
 
         SharedPreferences prefs = await SharedPreferences.getInstance();
         await prefs.setString('auth_token', token);
+        ApiClient.setAuthToken(token);
         final entity = user['entity'];
         await prefs.setInt(
           'entity',
@@ -273,6 +275,7 @@ class ForgotPasswordController extends GetxController {
           ),
         );
 
+        FeedDiskWarmService.instance.warmEarlyFeed(reason: 'password_reset_login');
         Get.offAllNamed(AppRoutes.landing);
         return true;
       } else {

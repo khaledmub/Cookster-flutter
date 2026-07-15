@@ -3013,14 +3013,8 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
     );
   }
 
-  /// Wait for the preferred URL to finish downloading (CacheManager only
-  /// exposes files after a full download). Network-aware budget so first
-  /// settle can win `file://` instead of cold HTTPS.
-  ///
-  /// Normal swipe budget is short (~500–800ms): blocking longer just delays
-  /// the HTTPS fallback. Session-cold first open (empty cache, openCount==0)
-  /// uses a longer budget so the parallel prefetch can land and avoid a cold
-  /// HTTPS demux on first install.
+  /// Prefer already-cached bytes when present; never stall the open path waiting
+  /// for a download. Instant HTTPS/stream start > multi-second poster hold.
   Future<bool> _awaitInFlightPlaybackBytes(
     String url, {
     required int generation,
@@ -3032,59 +3026,12 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
     if (await isPlaybackUrlCached(url, cacheManager: disk)) {
       return true;
     }
+    // Kick a background download for the next open — do not wait.
     final cache = ReelsVideoCacheManager.instance;
     if (!cache.isQueuedOrInFlight(url)) {
       cache.prefetch(url, priority: 120, isTablet: false);
     }
-    final network = await _networkPolicy.currentNetworkClass();
-    final sessionCold = _pool.feedOpenCount == 0;
-    final maxWaitMs = sessionCold
-        ? switch (network) {
-            NetworkClass.wifi => 2200,
-            NetworkClass.mobile => 3000,
-            NetworkClass.offline => 800,
-          }
-        : switch (network) {
-            // Warm session: don't stall behind a cache that isn't landing.
-            // Open HTTPS quickly instead of burning ~1.2s waiting.
-            NetworkClass.wifi => 450,
-            NetworkClass.mobile => 700,
-            NetworkClass.offline => 350,
-          };
-    final started = DateTime.now().millisecondsSinceEpoch;
-    // Chunked wait so swipe-away / generation bump can bail early.
-    const sliceMs = 200;
-    var waited = 0;
-    while (waited < maxWaitMs) {
-      if (!mounted ||
-          _isDisposed ||
-          generation != _playbackGeneration ||
-          (_usesFeedVisibleChannel && _pool.isStaleFeedOpen(generation))) {
-        return false;
-      }
-      if (await isPlaybackUrlCached(url, cacheManager: disk)) {
-        break;
-      }
-      final slice = (maxWaitMs - waited).clamp(1, sliceMs);
-      await cache.waitForUrl(url, maxWaitMs: slice);
-      waited = DateTime.now().millisecondsSinceEpoch - started;
-    }
-    if (!mounted ||
-        _isDisposed ||
-        generation != _playbackGeneration ||
-        (_usesFeedVisibleChannel && _pool.isStaleFeedOpen(generation))) {
-      return false;
-    }
-    final ready = await isPlaybackUrlCached(url, cacheManager: disk);
-    if (!kReleaseMode) {
-      debugPrint(
-        '[ReelsPoster] cache_wait '
-        'ready=$ready waitedMs=${DateTime.now().millisecondsSinceEpoch - started} '
-        'budgetMs=$maxWaitMs sessionCold=$sessionCold '
-        'url=${url.length > 56 ? '${url.substring(0, 56)}…' : url}',
-      );
-    }
-    return ready;
+    return false;
   }
 
   Future<void> _openWithCandidates({
