@@ -424,6 +424,8 @@ class HomeController extends GetxController with WidgetsBindingObserver {
     _debounceTimer?.cancel();
     _fetchMoreDebounce?.cancel();
     pauseAllVideos();
+    // Permanent controller: onClose is rare (force-delete). Still guard the
+    // shared pool wipe so a late release cannot race a remount.
     disposeControllers();
     WidgetsBinding.instance.removeObserver(this);
     super.onClose();
@@ -2221,6 +2223,10 @@ class HomeController extends GetxController with WidgetsBindingObserver {
     _routeOverlayPauseDepth = 0;
     _playbackMuteDepth = 0;
     _bottomNavMuteDepth = 0;
+    // Invalidate any in-flight remount/teardown from the pre-offAll session so
+    // a late releaseAll / cold-restore completion cannot wipe the new pool.
+    claimReelPoolSession();
+    _coldRestoreInFlight = false;
     _bumpFeedPlayerMountEpoch();
     isNavigating.value = false;
     setReelsTabVisible(false);
@@ -2411,6 +2417,12 @@ class HomeController extends GetxController with WidgetsBindingObserver {
       return;
     }
     final tab = selectedType.value;
+    // Manual refresh is the recovery path after a stuck post-upload feed —
+    // clear sticky cold-restore first so schedulePlayer / silence cannot fight
+    // this remount (that left video without audio on first-session refresh).
+    claimReelPoolSession();
+    _needsColdRestoreAfterCapture = false;
+    _coldRestoreInFlight = false;
     // Stop the reel that was playing before the re-tap — otherwise its audio
     // keeps running under the refresh (the kept-alive player isn't disposed
     // when the list is swapped) and overlaps the new first reel.
@@ -2425,6 +2437,8 @@ class HomeController extends GetxController with WidgetsBindingObserver {
     _feedResumePendingWhenHomeTab = false;
     isNavigating.value = false;
     isVideoPlaying.value = true;
+    // Unmute AFTER silence so setFeedUnmuteEnabled bumps silenceGeneration and
+    // invalidates the fire-and-forget silenceAllSlots from silenceAllSync.
     MediaKitPlayerPool.instance.setFeedUnmuteEnabled(true);
     setReelsTabVisible(true);
     saveTabScrollIndex(tab, 0);
@@ -2458,10 +2472,24 @@ class HomeController extends GetxController with WidgetsBindingObserver {
   }
 
   void disposeControllers() {
-    unawaited(MediaKitPlayerPool.instance.releaseAll());
-    unawaited(VideoPlayerPool.instance.clear());
+    // Capture ownership before the async wipe. If a remount claims a newer
+    // session (post-upload Landing reset / forced remount), skip releasing the
+    // shared pool so we never dispose the new ping-pong slots.
+    final token = _reelPoolSessionToken;
+    unawaited(_releasePoolIfSessionCurrent(token));
     visiblePageIndex.value = 0;
     currentIndex.value = 0;
+  }
+
+  Future<void> _releasePoolIfSessionCurrent(int token) async {
+    if (!isReelPoolSessionCurrent(token)) {
+      return;
+    }
+    await MediaKitPlayerPool.instance.releaseAll();
+    if (!isReelPoolSessionCurrent(token)) {
+      return;
+    }
+    await VideoPlayerPool.instance.clear();
   }
 
   RxString selectedType = "Near Me".obs;

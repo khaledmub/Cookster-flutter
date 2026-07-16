@@ -218,10 +218,18 @@ class MediaKitPlayerPool {
   /// When false, [forceFeedAudibleAtPosterUnmask] is a no-op (off-Home / prep).
   bool _feedUnmuteEnabled = true;
 
+  /// Bumped on unmute-enable and intentional audible restore so a late
+  /// [silenceAllSlots] from [silenceAllSync] cannot re-mute after refresh.
+  int _silenceGeneration = 0;
+
   /// Blocks or allows feed/profile poster-unmask unmute. Disable when leaving
   /// Home; re-enable on Home restore or when a profile reel session starts.
   void setFeedUnmuteEnabled(bool enabled) {
     _feedUnmuteEnabled = enabled;
+    if (enabled) {
+      // Invalidate any in-flight fire-and-forget silence from tab/refresh.
+      _silenceGeneration++;
+    }
   }
 
   bool isStaleFeedOpen(int openToken) => openToken < _feedOpenToken;
@@ -1168,6 +1176,7 @@ class MediaKitPlayerPool {
 
   /// Synchronous mute/pause for tab switches — stops audio before async cleanup runs.
   void silenceAllSync({String? exceptKey}) {
+    final silenceGen = ++_silenceGeneration;
     if (exceptKey == null || exceptKey.isEmpty) {
       _activeKey = null;
     } else {
@@ -1190,12 +1199,26 @@ class MediaKitPlayerPool {
       _safeMutePlayer(player);
     }
     if (exceptKey == null || exceptKey.isEmpty) {
-      unawaited(_pingPong.silenceAllSlots());
+      unawaited(_silenceAllSlotsIfCurrent(silenceGen));
     } else if (_feedVisibleKey == exceptKey) {
-      unawaited(_pingPong.muteHiddenSlot());
+      unawaited(_muteHiddenSlotIfCurrent(silenceGen));
     } else {
-      unawaited(_pingPong.silenceAllSlots());
+      unawaited(_silenceAllSlotsIfCurrent(silenceGen));
     }
+  }
+
+  Future<void> _silenceAllSlotsIfCurrent(int silenceGen) async {
+    if (silenceGen != _silenceGeneration) {
+      return;
+    }
+    await _pingPong.silenceAllSlots();
+  }
+
+  Future<void> _muteHiddenSlotIfCurrent(int silenceGen) async {
+    if (silenceGen != _silenceGeneration) {
+      return;
+    }
+    await _pingPong.muteHiddenSlot();
   }
 
   /// media_kit asserts async on disposed players — never leave that as a zone error.
@@ -1751,12 +1774,25 @@ class MediaKitPlayerPool {
 
   Future<void> releaseAll() {
     return _runPriority(() async {
+      // Capture before any await. A newer [disposeAll] / remount bumps this and
+      // recreates ping-pong slots — finishing a stale releaseAll onto that pool
+      // left Home attaching to dead/1×1 surfaces after first-session upload.
+      final generation = _disposeGeneration;
       final keys = _players.keys.toList(growable: false);
       for (final key in keys) {
+        if (generation != _disposeGeneration) {
+          return;
+        }
         _leaseCount[key] = 1;
         await _disposeKey(key);
       }
+      if (generation != _disposeGeneration) {
+        return;
+      }
       await _disposeFeedVisiblePlayer();
+      if (generation != _disposeGeneration) {
+        return;
+      }
       _activeKey = null;
     });
   }
@@ -1765,6 +1801,7 @@ class MediaKitPlayerPool {
     return _runPriority(() async {
       _suspendPlayback();
       _disposeGeneration++;
+      _silenceGeneration++;
       _warmTaskEpoch++;
       _warmInFlight.clear();
       final keys = _players.keys.toList(growable: false);

@@ -81,8 +81,18 @@ class PackagesBinding extends Bindings {
 void ensureVisitProfileDependencies() {
   ensureLandingProfileControllers();
   ensureReelOverlayDependencies();
+  ensureHomeController();
+}
+
+/// Registers the shared home feed controller.
+///
+/// [permanent] so [Get.offAll] after upload does not delete it and fire
+/// [HomeController.onClose] → async [MediaKitPlayerPool.releaseAll] while the
+/// new Landing remounts — that race left the feed on dead/1×1 surfaces (frozen
+/// first frame) and muted audio after a manual refresh on first session.
+void ensureHomeController() {
   if (!Get.isRegistered<HomeController>()) {
-    Get.put<HomeController>(HomeController());
+    Get.put<HomeController>(HomeController(), permanent: true);
   }
 }
 
@@ -116,9 +126,7 @@ class LandingBinding extends Bindings {
   @override
   void dependencies() {
     NearBusinessBinding().dependencies();
-    if (!Get.isRegistered<HomeController>()) {
-      Get.put<HomeController>(HomeController());
-    }
+    ensureHomeController();
     if (!Get.isRegistered<SaveController>()) {
       Get.lazyPut<SaveController>(() => SaveController());
     }
@@ -138,9 +146,7 @@ class LandingBinding extends Bindings {
 class SearchBinding extends Bindings {
   @override
   void dependencies() {
-    if (!Get.isRegistered<HomeController>()) {
-      Get.put<HomeController>(HomeController());
-    }
+    ensureHomeController();
     if (!Get.isRegistered<UserSearchController>()) {
       Get.lazyPut<UserSearchController>(() => UserSearchController());
     }

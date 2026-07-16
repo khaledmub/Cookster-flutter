@@ -860,6 +860,11 @@ class VideoAddController extends GetxController {
     }
 
     try {
+      // Invalidate any in-flight Home remount/teardown before wiping the pool so
+      // a late releaseAll cannot dispose players recreated after this upload.
+      if (Get.isRegistered<HomeController>()) {
+        Get.find<HomeController>().claimReelPoolSession();
+      }
       MediaKitPlayerPool.instance.pauseAllImmediate();
       await MediaKitPlayerPool.instance.disposeAllWithTimeout();
       await MediaKitPlayerPool.instance.awaitOperationsIdle(
@@ -917,7 +922,8 @@ class VideoAddController extends GetxController {
     if (Get.isRegistered<HomeController>()) {
       // Upload disposeAll'd the shared pool while silenced for capture. Mark the
       // home feed for a hard remount the moment the user opens Home — never leave
-      // mute/capture gates stuck after offAll.
+      // mute/capture gates stuck after offAll. HomeController is permanent so
+      // offAll does not onClose→releaseAll race this remount.
       Get.find<HomeController>().clearMediaCaptureGatesAfterLandingReset();
     }
     resetController();
