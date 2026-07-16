@@ -186,8 +186,8 @@ class _ImageEditScreenState extends State<ImageEditScreen> {
     await audioController.stopPreview();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _clearEditorOverlays();
-      if (mounted && !_didNavigate) {
-        Get.back<PreparedUploadMedia?>();
+      if (mounted && !_didNavigate && Navigator.of(context).canPop()) {
+        Navigator.of(context).pop<PreparedUploadMedia?>();
       }
     });
   }
@@ -197,8 +197,15 @@ class _ImageEditScreenState extends State<ImageEditScreen> {
     await Future<void>.delayed(const Duration(milliseconds: 16));
     // Hand media back to Landing/camera — never Get.to/off the upload form from
     // here (that races ProImageEditor teardown and pops the form).
-    if (mounted) {
-      Get.back<PreparedUploadMedia?>(result: media);
+    // Prefer Navigator.pop over Get.back: Get.back always tries to close an
+    // in-flight snackbar and can throw LateInitializationError on
+    // SnackbarController._controller, aborting the result return.
+    if (!mounted) {
+      return;
+    }
+    final nav = Navigator.of(context);
+    if (nav.canPop()) {
+      nav.pop(media);
     }
   }
 

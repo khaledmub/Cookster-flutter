@@ -99,8 +99,7 @@ class VideoSourceResolver {
         .where((c) => c.type != 'mp4_quality' && c.type != 'hls')
         .toList(growable: false);
 
-    // Mobile is treated as a high-bandwidth path (same ladder as Wi-Fi) so
-    // quality / ordering / HLS-first don't downgrade on cellular.
+    // Online paths (Wi-Fi / cellular) share the same quality ladder.
     final highBandwidth = network == NetworkClass.wifi ||
         network == NetworkClass.mobile;
 

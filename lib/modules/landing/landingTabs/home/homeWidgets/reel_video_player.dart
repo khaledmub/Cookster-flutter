@@ -2197,7 +2197,7 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
   }
 
   /// After the poster drops, step up to the best **cached** HD tier.
-  /// Wi-Fi: 720→1080 on capable devices. Cellular: 360→720 only.
+  /// Online (Wi-Fi or cellular): 720→1080 on capable devices.
   /// Honor/MTK stays on the open rung after 720 (720→1080 reconfig kills playback).
   Future<void> _maybeUpgradeToCachedHd({required int generation}) async {
     if (_upgradeInFlight ||

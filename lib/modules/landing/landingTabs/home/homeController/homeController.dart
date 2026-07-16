@@ -1320,9 +1320,14 @@ class HomeController extends GetxController with WidgetsBindingObserver {
 
   /// Keeps the feed decoder mounted only on the Home tab (or while intentionally
   /// muted for a tab switch warm-keep). Never gated on [isReelsTabVisible].
+  ///
+  /// Only [_coldRestoreInFlight] blocks mounts (active pool wipe). The sticky
+  /// [_needsColdRestoreAfterCapture] flag must NOT gate mount — that left
+  /// schedulePlayer BAIL forever when cold restore never started (post-upload).
   bool get canMountHomeReelPlayer =>
       !isAppInBackground.value &&
       mediaCaptureDepth.value == 0 &&
+      !_coldRestoreInFlight &&
       _playbackMuteDepth == 0 &&
       _routeOverlayPauseDepth == 0 &&
       _isOnHomeTab();
@@ -1331,6 +1336,7 @@ class HomeController extends GetxController with WidgetsBindingObserver {
   String get canMountBlockReason {
     if (isAppInBackground.value) return 'bg';
     if (isInMediaCaptureFlow) return 'captureDepth=${mediaCaptureDepth.value}';
+    if (_coldRestoreInFlight) return 'coldRestoreInFlight';
     if (_playbackMuteDepth > 0) return 'muteDepth=$_playbackMuteDepth';
     if (_routeOverlayPauseDepth > 0) {
       return 'overlayDepth=$_routeOverlayPauseDepth';
@@ -1600,6 +1606,14 @@ class HomeController extends GetxController with WidgetsBindingObserver {
     // Do NOT reclaim capture depth via Navigator.canPop — it flickers false mid
     // transition while camera/editor/upload are still stacked over Home
     // (selectedIndex stays 0). That wipe remounted the feed under the form.
+    //
+    // After Get.offAll post-upload, capture depth should already be 0. If a
+    // leaked depth remains with no overlay routes, reclaim it so Home can remount.
+    if (isInMediaCaptureFlow && !(Get.key.currentState?.canPop() ?? false)) {
+      debugPrint('[FeedRestore] onHome reclaim leaked captureDepth='
+          '${mediaCaptureDepth.value}');
+      mediaCaptureDepth.value = 0;
+    }
     if (isInMediaCaptureFlow) {
       // Real capture route still up under Home index — stay silenced.
       reinforceMediaCaptureSilence();
@@ -1611,11 +1625,14 @@ class HomeController extends GetxController with WidgetsBindingObserver {
     isVideoPlaying.value = true;
 
     if (_needsColdRestoreAfterCapture) {
-      // Do not open the mount gate yet — [_resumeVisibleReelAfterOverlay] races
-      // the 900ms pool wipe and leaves epoch handled with no live decoder.
+      // Claim the mount lock synchronously so Obx/schedulePlayer cannot attach
+      // before the async wipe starts (race that left needsCold stuck + dead pool).
+      if (!_coldRestoreInFlight) {
+        _coldRestoreInFlight = true;
+      }
       setReelsTabVisible(false);
       MediaKitPlayerPool.instance.setFeedUnmuteEnabled(false);
-      unawaited(_coldRestoreHomeFeedAfterCapture());
+      unawaited(_coldRestoreHomeFeedAfterCapture(alreadyClaimed: true));
       return;
     }
 
@@ -1656,6 +1673,19 @@ class HomeController extends GetxController with WidgetsBindingObserver {
     // constantly under those routes — healing here was wiping the gate early.
     if (isInMediaCaptureFlow) {
       debugPrint('[FeedRestore] heal SKIP captureDepth=${mediaCaptureDepth.value}');
+      return;
+    }
+    if (_coldRestoreInFlight) {
+      debugPrint('[FeedRestore] heal SKIP coldRestoreInFlight');
+      return;
+    }
+    // Sticky post-upload flag with no in-flight wipe — start restore now.
+    if (_needsColdRestoreAfterCapture) {
+      debugPrint('[FeedRestore] heal kick coldRestore');
+      if (!_coldRestoreInFlight) {
+        _coldRestoreInFlight = true;
+      }
+      unawaited(_coldRestoreHomeFeedAfterCapture(alreadyClaimed: true));
       return;
     }
     if (_routeOverlayPauseDepth > 0) {
@@ -1702,45 +1732,72 @@ class HomeController extends GetxController with WidgetsBindingObserver {
 
   /// Wait out camera/codec teardown, wipe the pool, then hard-remount Home.
   ///
-  /// Critical: after upload we must NEVER leave [isReelsTabVisible]=false when
-  /// the user is on the Home tab. A flaky Navigator.canPop() used to abort
-  /// [restoreHomeFeedPlayback] and permanently BAIL schedulePlayer (!canMount),
-  /// which looks like "only photos work".
-  Future<void> _coldRestoreHomeFeedAfterCapture() async {
-    if (_coldRestoreInFlight) {
+  /// Mount is blocked only while [_coldRestoreInFlight] is true (active wipe).
+  Future<void> _coldRestoreHomeFeedAfterCapture({
+    bool alreadyClaimed = false,
+  }) async {
+    if (_coldRestoreInFlight && !alreadyClaimed) {
       return;
     }
     // Still on camera / upload form — do not remount or unmute under it.
     if (isInMediaCaptureFlow || isAppInBackground.value) {
       debugPrint('[FeedRestore] coldRestore SKIP capture/bg');
+      if (alreadyClaimed) {
+        _coldRestoreInFlight = false;
+      }
       reinforceMediaCaptureSilence();
       return;
     }
-    _coldRestoreInFlight = true;
+    // Not focused on Home yet — keep the flag and wait for the tab worker /
+    // onReturnedToHomeTab. Running disposeAll under Profile used to race the
+    // later Home attach and leave the feed dead until another tab switch.
+    if (!_isOnHomeTab()) {
+      debugPrint('[FeedRestore] coldRestore DEFER not-focused (pre)');
+      if (alreadyClaimed) {
+        _coldRestoreInFlight = false;
+      }
+      _feedResumePendingWhenHomeTab = true;
+      _needsColdRestoreAfterCapture = true;
+      setReelsTabVisible(false);
+      MediaKitPlayerPool.instance.setFeedUnmuteEnabled(false);
+      _scheduleFeedResumeRetries();
+      return;
+    }
+
+    if (!alreadyClaimed) {
+      _coldRestoreInFlight = true;
+    }
+    _needsColdRestoreAfterCapture = true;
     _feedResumePendingWhenHomeTab = true;
     isNavigating.value = false;
     debugPrint('[FeedRestore] coldRestore START onHome=${_isOnHomeTab()} '
-        'overlay=${_hasOverlayRoute()} bg=${isAppInBackground.value} '
-        'block=${canMountBlockReason}');
-    // Keep the mount gate closed until pool wipe + forced remount finish.
-    // Opening early races [_resumeVisibleReelAfterOverlay] against disposeAll.
+        'overlay=${_hasOverlayRoute()} bg=${isAppInBackground.value}');
     setReelsTabVisible(false);
     MediaKitPlayerPool.instance.setFeedUnmuteEnabled(false);
     MediaKitPlayerPool.instance.pauseAllImmediate();
     MediaKitPlayerPool.instance.silenceAllSync();
 
+    var remounted = false;
     try {
       // Camera2 / ImageReader teardown often lands AFTER Flutter route pops
       // (see BufferQueue abandoned in logs). Give hardware time to settle.
-      await Future<void>.delayed(const Duration(milliseconds: 900));
+      await Future<void>.delayed(const Duration(milliseconds: 500));
       if (isClosed) {
         return;
       }
-      // Capture may have started during the settle delay.
-      if (isInMediaCaptureFlow || isAppInBackground.value) {
-        debugPrint('[FeedRestore] coldRestore ABORT capture started mid-wait');
+      if (isInMediaCaptureFlow || isAppInBackground.value || !_isOnHomeTab()) {
+        debugPrint('[FeedRestore] coldRestore ABORT mid-wait '
+            'capture=${isInMediaCaptureFlow} bg=${isAppInBackground.value} '
+            'onHome=${_isOnHomeTab()}');
         _needsColdRestoreAfterCapture = true;
-        reinforceMediaCaptureSilence();
+        _feedResumePendingWhenHomeTab = true;
+        if (isInMediaCaptureFlow) {
+          reinforceMediaCaptureSilence();
+        } else {
+          setReelsTabVisible(false);
+          MediaKitPlayerPool.instance.setFeedUnmuteEnabled(false);
+          _scheduleFeedResumeRetries();
+        }
         return;
       }
       try {
@@ -1753,7 +1810,7 @@ class HomeController extends GetxController with WidgetsBindingObserver {
         await MediaKitPlayerPool.instance.ensureFeedPingPongInitialized();
       } catch (_) {}
       debugPrint('[FeedRestore] coldRestore pool reinit done '
-          'onHome=${_isOnHomeTab()} overlay=${_hasOverlayRoute()}');
+          'onHome=${_isOnHomeTab()}');
 
       if (isClosed) {
         return;
@@ -1764,8 +1821,6 @@ class HomeController extends GetxController with WidgetsBindingObserver {
         reinforceMediaCaptureSilence();
         return;
       }
-      // Only defer if user left Home / backgrounded. Do NOT defer on canPop —
-      // that false-positive killed the feed after every upload.
       if (!_isOnHomeTab() || isAppInBackground.value) {
         debugPrint('[FeedRestore] coldRestore DEFER not-focused');
         _feedResumePendingWhenHomeTab = true;
@@ -1780,8 +1835,6 @@ class HomeController extends GetxController with WidgetsBindingObserver {
       if (videos == null || videos.isEmpty) {
         debugPrint('[FeedRestore] coldRestore no videos, fetch + open gates');
         _feedResumePendingWhenHomeTab = true;
-        _needsColdRestoreAfterCapture = true;
-        _forceOpenHomePlaybackGates();
         unawaited(fetchVideos());
         _scheduleFeedResumeRetries();
         return;
@@ -1797,20 +1850,37 @@ class HomeController extends GetxController with WidgetsBindingObserver {
       _needsColdRestoreAfterCapture = false;
       _coldRestoreInFlight = false;
       _forceRemountHomeFeedAfterCapture();
+      remounted = true;
+      await Future<void>.delayed(const Duration(milliseconds: 80));
+      if (!isClosed &&
+          _isOnHomeTab() &&
+          !isInMediaCaptureFlow &&
+          !isAppInBackground.value) {
+        feedPlaybackEpoch.value++;
+        debugPrint('[FeedRestore] coldRestore nudge epoch='
+            '${feedPlaybackEpoch.value}');
+      }
     } finally {
       _coldRestoreInFlight = false;
-      // Absolute failsafe: if we're still on Home after this method, never leave
-      // the mount gate closed (matches schedulePlayer BAIL reason=reelsInvisible).
-      if (!isClosed &&
+      if (!remounted) {
+        if (!isClosed &&
+            _isOnHomeTab() &&
+            !isInMediaCaptureFlow &&
+            !isAppInBackground.value) {
+          debugPrint('[FeedRestore] coldRestore finally failsafe open');
+          _needsColdRestoreAfterCapture = false;
+          _forceOpenHomePlaybackGates();
+          feedPlaybackEpoch.value++;
+          _scheduleFeedResumeRetries();
+        }
+      } else if (!isClosed &&
           _isOnHomeTab() &&
           !isInMediaCaptureFlow &&
           !isAppInBackground.value &&
           !isReelsTabVisible.value) {
-        debugPrint('[FeedRestore] coldRestore finally failsafe open');
-        _needsColdRestoreAfterCapture = true;
+        debugPrint('[FeedRestore] coldRestore remounted but invisible — reopen');
         _forceOpenHomePlaybackGates();
         feedPlaybackEpoch.value++;
-        _scheduleFeedResumeRetries();
       }
     }
   }
@@ -1824,6 +1894,7 @@ class HomeController extends GetxController with WidgetsBindingObserver {
     }
     _clearAllHomePlaybackGates();
     _needsColdRestoreAfterCapture = false;
+    _coldRestoreInFlight = false;
     isNavigating.value = false;
     MediaKitPlayerPool.instance.setFeedUnmuteEnabled(true);
     setReelsTabVisible(true);
@@ -1838,6 +1909,9 @@ class HomeController extends GetxController with WidgetsBindingObserver {
     final token = claimReelPoolSession();
     _forceOpenHomePlaybackGates();
     _feedResumePendingWhenHomeTab = false;
+    // Invalidate any stale "already handled" epoch on the reels screen by
+    // bumping twice across a microtask — first opens attach, second catches
+    // keep-alive pages that rebuilt after canMount flipped true.
     feedPlaybackEpoch.value++;
     unawaited(_completeForcedHomeFeedRemount(token));
   }

@@ -614,18 +614,14 @@ class VideoPreloadManager {
       return 2;
     }
     final networkClass = await _networkPolicy.currentNetworkClass();
-    switch (networkClass) {
-      case NetworkClass.wifi:
-      case NetworkClass.mobile:
-        // Mobile uses the same deep window as Wi-Fi so fast swipes don't
-        // outrun the disk cache on cellular either.
-        final wifi = RemoteConfigService.instance.preloadLimitWifi.clamp(3, 7);
-        if (_deviceConstraints.needsConstrainedSurfaceRecovery) {
-          return wifi.clamp(3, 4);
-        }
-        return wifi;
-      case NetworkClass.offline:
-        return 0;
+    if (networkClass == NetworkClass.offline) {
+      return 0;
     }
+    // Online (Wi-Fi or cellular): same deep prefetch window.
+    final depth = RemoteConfigService.instance.preloadLimitWifi.clamp(3, 7);
+    if (_deviceConstraints.needsConstrainedSurfaceRecovery) {
+      return depth.clamp(3, 4);
+    }
+    return depth;
   }
 }

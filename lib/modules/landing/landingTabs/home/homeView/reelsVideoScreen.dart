@@ -343,6 +343,15 @@ class _VideoReelScreenState extends State<VideoReelScreen>
     final epoch = ++_playerScheduleEpoch;
     final isActiveTab = tab == _activeTabType;
     final layer = _layerFor(tab);
+    // Post-upload sticky flag: kick cold restore instead of attaching onto a
+    // disposed pool (that left 1x1 VideoOutputs and a dead feed).
+    if (controller.needsColdRestoreAfterCapture &&
+        !controller.coldRestoreInFlight &&
+        !controller.isInMediaCaptureFlow) {
+      debugPrint('[FeedRestore] schedulePlayer kick coldRestore page=$pageIndex');
+      controller.healHomeFeedIfStuckInvisible();
+      return;
+    }
     if (!controller.canMountHomeReelPlayer) {
       debugPrint('[FeedRestore] schedulePlayer BAIL !canMount page=$pageIndex '
           'reason=${controller.canMountBlockReason}');
@@ -1245,6 +1254,10 @@ class _VideoReelScreenState extends State<VideoReelScreen>
 
   void _scheduleFinishPlaybackIfReady() {
     if (!mounted || !controller.canPlayHomeReels || _feedTabSwitchInFlight) {
+      return;
+    }
+    if (controller.needsColdRestoreAfterCapture ||
+        controller.coldRestoreInFlight) {
       return;
     }
     final videos = controller.videoFeed.value.videos;

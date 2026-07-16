@@ -18,7 +18,9 @@ class RemoteConfigService {
     await _remoteConfig.setDefaults(const {
       'reels_preload_enabled': true,
       'reels_preload_limit_wifi': 7,
-      'reels_preload_limit_mobile': 4,
+      // Kept for Remote Config compat — app treats mobile like Wi-Fi and
+      // reads [preloadLimitWifi] for both.
+      'reels_preload_limit_mobile': 7,
       'reels_data_saver_default': false,
       'reels_device_tier_override': '',
       'reels_dual_slot_enabled': true,
@@ -43,8 +45,8 @@ class RemoteConfigService {
 
   bool get preloadEnabled => _remoteConfig.getBool('reels_preload_enabled');
   int get preloadLimitWifi => _remoteConfig.getInt('reels_preload_limit_wifi');
-  int get preloadLimitMobile =>
-      _remoteConfig.getInt('reels_preload_limit_mobile');
+  /// Alias of [preloadLimitWifi] — mobile is not throttled separately.
+  int get preloadLimitMobile => preloadLimitWifi;
   bool get dataSaverDefault =>
       _remoteConfig.getBool('reels_data_saver_default');
 

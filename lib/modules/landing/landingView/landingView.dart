@@ -637,6 +637,27 @@ class _LandingState extends State<Landing> {
         // Even with an overlay, clear gates + mark pending so the feed can
         // cold-attach once the overlay pops (post-upload pool is disposed).
         home.onReturnedToHomeTab();
+        // Post-upload: cold restore is async (pool settle). A second nudge
+        // after the settle window recovers if the first attach was missed
+        // while TickerMode / IndexedStack was still catching up.
+        if (home.needsColdRestoreAfterCapture || home.feedResumePendingWhenHomeTab) {
+          Future<void>.delayed(const Duration(milliseconds: 700), () {
+            if (!Get.isRegistered<HomeController>()) {
+              return;
+            }
+            final h = Get.find<HomeController>();
+            if (!h.feedResumePendingWhenHomeTab &&
+                !h.needsColdRestoreAfterCapture &&
+                !h.coldRestoreInFlight) {
+              return;
+            }
+            if (navBarController.selectedIndex.value != 0) {
+              return;
+            }
+            debugPrint('[FeedRestore] tabNav post-upload nudge');
+            h.onReturnedToHomeTab();
+          });
+        }
       }
     }
   }

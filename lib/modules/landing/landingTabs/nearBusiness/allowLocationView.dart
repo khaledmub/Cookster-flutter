@@ -59,7 +59,11 @@ class _AllowLocationScreenState extends State<AllowLocationScreen>
       // Immediately fetch full location and businesses
       await controller.getCurrentLocation();
       if (controller.isLocationAllowed.value) {
-        Get.back(); // Navigate back only after fetching businesses
+        // Avoid Get.back — it closes snackbars and can throw
+        // LateInitializationError if a snackbar controller was never built.
+        if (mounted && Navigator.of(context).canPop()) {
+          Navigator.of(context).pop();
+        }
       }
     }
   }

@@ -28,7 +28,9 @@ class ReelsVideoCacheManager {
 
   static const String _cacheKey = 'reelsVideoCache';
   /// Keep bandwidth focused on the swipe window (visible + 1–2 ahead).
-  static const int _maxConcurrent = 2;
+  /// 3 slots so cellular can fill the same deep prefetch window as Wi-Fi
+  /// without starving nearer reels (priority queue still prefers visible/N+1).
+  static const int _maxConcurrent = 3;
 
   CacheManager? _manager;
   final Map<String, int> _priorities = <String, int>{};
