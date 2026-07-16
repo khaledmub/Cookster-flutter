@@ -241,6 +241,10 @@ class _VideoReelScreenState extends State<VideoReelScreen>
     if (!mounted || !controller.canPlayHomeReels) {
       return;
     }
+    if (controller.needsColdRestoreAfterCapture ||
+        controller.coldRestoreInFlight) {
+      return;
+    }
     _lastHandledPlaybackEpoch = -1;
     final tab = _activeTabType;
     final videos = _videosForTab(tab, isActiveTab: true);
@@ -1177,6 +1181,12 @@ class _VideoReelScreenState extends State<VideoReelScreen>
         if (mounted) {
           setState(() => _maskActiveVideoWithPoster = true);
         }
+        return;
+      }
+      // Post-upload cold restore owns pool wipe + epoch remount — skip the
+      // overlay resume path or attach races disposeAll and sticks dead.
+      if (controller.needsColdRestoreAfterCapture ||
+          controller.coldRestoreInFlight) {
         return;
       }
       WidgetsBinding.instance.addPostFrameCallback((_) {

@@ -65,12 +65,18 @@ class HomeController extends GetxController with WidgetsBindingObserver {
   /// Set when an overlay disposed the feed pool while the user is not on Home.
   bool get feedResumePendingWhenHomeTab => _feedResumePendingWhenHomeTab;
 
+  /// Post-upload / post-camera: pool wipe + delayed remount still pending or running.
+  bool get needsColdRestoreAfterCapture => _needsColdRestoreAfterCapture;
+
+  bool get coldRestoreInFlight => _coldRestoreInFlight;
+
   var lastVideoPosition = Duration.zero.obs;
   var wasPlaying = false.obs;
 
   Timer? _debounceTimer;
   Timer? _fetchMoreDebounce;
   DateTime? _lastMemoryPressureCleanupAt;
+  Worker? _homeTabResumeWorker;
 
   /// Rebuild reels [PageView] only when list length changes (not every [videoFeed.refresh]).
   final reelListLength = 0.obs;
@@ -170,7 +176,24 @@ class HomeController extends GetxController with WidgetsBindingObserver {
     super.onInit();
     checkLocationStatus();
     WidgetsBinding.instance.addObserver(this);
+    _bindHomeTabResumeWorker();
     unawaited(_bootstrapHomeFeed());
+  }
+
+  void _bindHomeTabResumeWorker() {
+    if (!Get.isRegistered<NavBarController>()) {
+      return;
+    }
+    _homeTabResumeWorker?.dispose();
+    _homeTabResumeWorker = ever(
+      Get.find<NavBarController>().selectedIndex,
+      (index) {
+        if (index != 0 || !_feedResumePendingWhenHomeTab) {
+          return;
+        }
+        _flushPendingFeedResume();
+      },
+    );
   }
 
   /// Restore last known coords so Near Me can load before GPS finishes.
@@ -397,6 +420,7 @@ class HomeController extends GetxController with WidgetsBindingObserver {
 
   @override
   void onClose() {
+    _homeTabResumeWorker?.dispose();
     _debounceTimer?.cancel();
     _fetchMoreDebounce?.cancel();
     pauseAllVideos();
@@ -1585,15 +1609,20 @@ class HomeController extends GetxController with WidgetsBindingObserver {
     _clearAllHomePlaybackGates();
     isNavigating.value = false;
     isVideoPlaying.value = true;
-    // Open the mount gate immediately so scroll cannot BAIL reelsInvisible
-    // while cold remount runs.
-    setReelsTabVisible(true);
-    MediaKitPlayerPool.instance.setFeedUnmuteEnabled(true);
 
     if (_needsColdRestoreAfterCapture) {
+      // Do not open the mount gate yet — [_resumeVisibleReelAfterOverlay] races
+      // the 900ms pool wipe and leaves epoch handled with no live decoder.
+      setReelsTabVisible(false);
+      MediaKitPlayerPool.instance.setFeedUnmuteEnabled(false);
       unawaited(_coldRestoreHomeFeedAfterCapture());
       return;
     }
+
+    // Open the mount gate immediately so scroll cannot BAIL reelsInvisible
+    // while a warm remount runs.
+    setReelsTabVisible(true);
+    MediaKitPlayerPool.instance.setFeedUnmuteEnabled(true);
 
     final videos = videoFeed.value.videos;
     if (videos == null || videos.isEmpty) {
@@ -1688,16 +1717,14 @@ class HomeController extends GetxController with WidgetsBindingObserver {
       return;
     }
     _coldRestoreInFlight = true;
-    _needsColdRestoreAfterCapture = false;
     _feedResumePendingWhenHomeTab = true;
     isNavigating.value = false;
     debugPrint('[FeedRestore] coldRestore START onHome=${_isOnHomeTab()} '
         'overlay=${_hasOverlayRoute()} bg=${isAppInBackground.value} '
         'block=${canMountBlockReason}');
-    // Mute audio + tear down pool, but keep mount gate open when already on
-    // Home so scroll cannot stick on reelsInvisible if remount is delayed.
-    final keepMountGate = _isOnHomeTab();
-    setReelsTabVisible(keepMountGate);
+    // Keep the mount gate closed until pool wipe + forced remount finish.
+    // Opening early races [_resumeVisibleReelAfterOverlay] against disposeAll.
+    setReelsTabVisible(false);
     MediaKitPlayerPool.instance.setFeedUnmuteEnabled(false);
     MediaKitPlayerPool.instance.pauseAllImmediate();
     MediaKitPlayerPool.instance.silenceAllSync();
@@ -1767,6 +1794,8 @@ class HomeController extends GetxController with WidgetsBindingObserver {
       debugPrint('[FeedRestore] coldRestore FORCE remount '
           'idx=$idx videos=${videos.length} '
           'idx0IsImage=${videos.first.isImage}');
+      _needsColdRestoreAfterCapture = false;
+      _coldRestoreInFlight = false;
       _forceRemountHomeFeedAfterCapture();
     } finally {
       _coldRestoreInFlight = false;
@@ -1778,8 +1807,10 @@ class HomeController extends GetxController with WidgetsBindingObserver {
           !isAppInBackground.value &&
           !isReelsTabVisible.value) {
         debugPrint('[FeedRestore] coldRestore finally failsafe open');
+        _needsColdRestoreAfterCapture = true;
         _forceOpenHomePlaybackGates();
         feedPlaybackEpoch.value++;
+        _scheduleFeedResumeRetries();
       }
     }
   }
@@ -2128,6 +2159,7 @@ class HomeController extends GetxController with WidgetsBindingObserver {
     // Don't rely solely on the next Home-tab tap — probe until Home is focused
     // so a post-upload offAll + slow bootstrap fetch cannot leave the feed dead.
     _scheduleFeedResumeRetries();
+    _bindHomeTabResumeWorker();
   }
 
   Future<void> restoreVideoResourcesAfterCapture() async {
