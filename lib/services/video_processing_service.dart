@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:cookster/appBindings/app_bindings.dart';
 import 'package:cookster/appUtils/apiEndPoints.dart';
 import 'package:cookster/core/media/playback_media.dart';
+import 'package:cookster/modules/landing/landingTabs/home/homeController/homeController.dart';
 import 'package:cookster/modules/landing/landingTabs/home/homeModel/videoFeedModel.dart';
 import 'package:cookster/modules/landing/landingTabs/professionalProfile/profileControlller/professionalProfileController.dart';
 import 'package:cookster/modules/landing/landingTabs/profile/profileControlller/profileController.dart';
@@ -149,6 +150,9 @@ class VideoProcessingService {
       }
       if (result.transcodeReady || result.thumbnailReady) {
         await _refreshProfilesAfterProcessing();
+        if (Get.isRegistered<HomeController>()) {
+          await Get.find<HomeController>().refreshFeedAfterUploadIfNeeded();
+        }
       }
     }());
   }
@@ -164,6 +168,21 @@ class VideoProcessingService {
         final id = video['id'];
         if (id is String && id.isNotEmpty) return id;
         if (id != null) return id.toString();
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  /// Builds a feed row from the upload POST body when reels has not indexed yet.
+  static WallVideos? wallVideoFromUploadResponse(String? body) {
+    if (body == null || body.trim().isEmpty) {
+      return null;
+    }
+    try {
+      final data = jsonDecode(body) as Map<String, dynamic>;
+      final video = data['video'];
+      if (video is Map<String, dynamic>) {
+        return WallVideos.fromJson(video);
       }
     } catch (_) {}
     return null;

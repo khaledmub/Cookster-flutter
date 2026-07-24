@@ -43,6 +43,8 @@ const Map<String, String> ar = {
   "Near Me": "بالقرب مني",
   "near_me_geo_fallback_notice":
       "لا توجد منشورات قريبة — يتم عرض الريلز العامة. فعّل الموقع أو غيّر المدينة.",
+  "near_me_simulator_location_notice":
+      "هذا موقع GPS تجريبي لمحاكي iOS (San Francisco) وليس موقعك الحقيقي. في المحاكي: Features → Location → Custom Location وأدخل مدينتك، أو شغّل التطبيق على iPhone حقيقي.",
   "near_me_geo_expanded_notice":
       "يتم عرض منشورات من منطقة أوسع حولك.",
   "General": "عام",
@@ -150,6 +152,13 @@ const Map<String, String> ar = {
   "sort_videos_title": "ترتيب الفيديوهات",
   "sort_newest_to_oldest": "الأحدث إلى الأقدم",
   "sort_oldest_to_newest": "الأقدم إلى الأحدث",
+  "feed_filter_title": "تصفية",
+  "feed_filter_general_hint":
+      "اختر دولة ومدينة لعرض أحدث الفيديوهات من ذلك الموقع.",
+  "feed_filter_near_me_hint":
+      "افتراضياً، قريب مني يستخدم موقع GPS. اختر موقعاً لتجاوز ذلك.",
+  "feed_filter_apply": "تطبيق التصفية",
+  "feed_filter_active": "التصفية حسب",
   "public_option": "عام",
   "only_followers_option": "المتابعون فقط",
   "private_option": "خاص",

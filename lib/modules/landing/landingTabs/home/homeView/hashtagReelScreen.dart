@@ -10,7 +10,10 @@ import 'package:cookster/core/video/video_preload_manager.dart';
 import 'package:cookster/core/video/video_preload_target.dart';
 import 'package:cookster/core/video/video_source_resolver.dart';
 import 'package:cookster/core/widgets/reel_page_keep_alive.dart';
+import 'package:cookster/core/widgets/reel_action_rail.dart';
 import 'package:cookster/core/widgets/reel_content_chrome.dart';
+import 'package:cookster/modules/landing/landingTabs/home/homeView/reelsVideoScreen.dart'
+    show VideoDescriptionWidget;
 import 'package:cookster/loaders/pulseLoader.dart';
 import 'package:cookster/modules/landing/landingTabs/home/homeController/hashTagController.dart';
 import 'package:cookster/modules/landing/landingTabs/home/homeController/homeController.dart';
@@ -49,10 +52,12 @@ class _HashtagReelScreenState extends State<HashtagReelScreen>
   late final VideoPreloadManager _preloadManager;
   late final ReelsPlaybackCoordinator _playbackCoordinator;
   final VideoSourceResolver _sourceResolver = const VideoSourceResolver();
+  bool _isAuthenticated = false;
 
   @override
   void initState() {
     super.initState();
+    unawaited(_loadAuthState());
     WidgetsBinding.instance.addObserver(this);
     if (Get.isRegistered<HomeController>()) {
       Get.find<HomeController>().pauseReelsForRouteOverlay();
@@ -78,6 +83,15 @@ class _HashtagReelScreenState extends State<HashtagReelScreen>
       },
     );
     unawaited(_bootstrap());
+  }
+
+  Future<void> _loadAuthState() async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('auth_token');
+    if (!mounted) return;
+    setState(() {
+      _isAuthenticated = token != null && token.isNotEmpty;
+    });
   }
 
   Future<void> _bootstrap() async {
@@ -363,43 +377,78 @@ class _HashtagReelScreenState extends State<HashtagReelScreen>
                           video.isPlaybackReady;
                       final maskPoster =
                           isActiveVideo && _maskActiveVideoWithPoster;
-                      return ReelFeedPageMediaChrome(
-                        video: video,
-                        isActivePage: isActivePage,
-                        child: Stack(
-                          fit: StackFit.expand,
-                          children: [
-                            if (isActiveVideo)
-                              ReelFeedPlayerKit.buildInlinePlayer(
-                                video: video,
-                                playerKey: _reelPlayerKey,
-                                wrapPositioned: false,
-                                showProgressBar: !video.isPhotoPost,
-                                onPlaybackReady: () {
-                                  _onVisibleReelReady(index);
-                                },
-                                onFeedVideoPainted: () {
-                                  if (!mounted ||
-                                      !_maskActiveVideoWithPoster) {
-                                    return;
-                                  }
-                                  setState(
-                                    () => _maskActiveVideoWithPoster = false,
-                                  );
-                                },
-                              ),
-                            IgnorePointer(
-                              ignoring: isActiveVideo && !maskPoster,
-                              child: Opacity(
-                                opacity: maskPoster || !isActiveVideo
-                                    ? 1.0
-                                    : 0.0,
-                                child:
-                                    ReelFeedPlayerKit.buildPagePoster(video),
-                              ),
+                      return Stack(
+                        clipBehavior: Clip.none,
+                        alignment: Alignment.bottomLeft,
+                        fit: StackFit.expand,
+                        children: [
+                          ReelFeedPageMediaChrome(
+                            video: video,
+                            isActivePage: isActivePage,
+                            child: Stack(
+                              fit: StackFit.expand,
+                              children: [
+                                if (isActiveVideo)
+                                  ReelFeedPlayerKit.buildInlinePlayer(
+                                    video: video,
+                                    playerKey: _reelPlayerKey,
+                                    wrapPositioned: false,
+                                    showProgressBar: !video.isPhotoPost,
+                                    onPlaybackReady: () {
+                                      _onVisibleReelReady(index);
+                                    },
+                                    onFeedVideoPainted: () {
+                                      if (!mounted ||
+                                          !_maskActiveVideoWithPoster) {
+                                        return;
+                                      }
+                                      setState(
+                                        () => _maskActiveVideoWithPoster = false,
+                                      );
+                                    },
+                                  ),
+                                IgnorePointer(
+                                  ignoring: isActiveVideo && !maskPoster,
+                                  child: Opacity(
+                                    opacity: maskPoster || !isActiveVideo
+                                        ? 1.0
+                                        : 0.0,
+                                    child: ReelFeedPlayerKit.buildPagePoster(
+                                      video,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          if (isActivePage) ...[
+                            VideoDescriptionWidget(
+                              title: video.title,
+                              description: video.description,
+                              tags: video.tags,
+                              controller: Get.isRegistered<HomeController>()
+                                  ? Get.find<HomeController>()
+                                  : null,
+                              tiktokStyle: true,
+                              userName: video.userName,
+                              creatorHandle: video.creatorHandle,
+                              sponsorType: video.sponsorType,
+                              isPhotoPost: video.isPhotoPost,
+                              bottomBarClearance: 8,
+                            ),
+                            ReelActionRail(
+                              video: video,
+                              isAuthenticated: _isAuthenticated,
+                              layout: ReelActionRailLayout.collection,
+                              onBeforeNavigation: () {
+                                if (Get.isRegistered<HomeController>()) {
+                                  Get.find<HomeController>()
+                                      .pauseReelsForRouteOverlay();
+                                }
+                              },
                             ),
                           ],
-                        ),
+                        ],
                       );
                     },
                   ),

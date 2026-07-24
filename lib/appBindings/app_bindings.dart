@@ -101,9 +101,15 @@ void ensureReelOverlayDependencies() {
   if (!Get.isRegistered<VideoCommentsController>()) {
     Get.put<VideoCommentsController>(VideoCommentsController());
   }
+  ensureSaveController();
+}
+
+/// Shared save/bookmark state for home feed and reel action rails.
+SaveController ensureSaveController() {
   if (!Get.isRegistered<SaveController>()) {
-    Get.lazyPut<SaveController>(() => SaveController());
+    Get.put<SaveController>(SaveController(), permanent: true);
   }
+  return Get.find<SaveController>();
 }
 
 /// Registers profile controllers used across landing tabs and upload flow.
@@ -127,9 +133,7 @@ class LandingBinding extends Bindings {
   void dependencies() {
     NearBusinessBinding().dependencies();
     ensureHomeController();
-    if (!Get.isRegistered<SaveController>()) {
-      Get.lazyPut<SaveController>(() => SaveController());
-    }
+    ensureSaveController();
     if (!Get.isRegistered<PromoteVideoController>()) {
       Get.lazyPut<PromoteVideoController>(() => PromoteVideoController());
     }
@@ -226,9 +230,7 @@ class LikedVideosBinding extends Bindings {
 /// Registers GetX deps for [SingleVideoScreen] when opened outside [LandingBinding].
 void ensureSingleVideoDependencies() {
   ensureLandingProfileControllers();
-  if (!Get.isRegistered<SaveController>()) {
-    Get.lazyPut<SaveController>(() => SaveController());
-  }
+  ensureSaveController();
   if (!Get.isRegistered<PromoteVideoController>()) {
     Get.lazyPut<PromoteVideoController>(() => PromoteVideoController());
   }

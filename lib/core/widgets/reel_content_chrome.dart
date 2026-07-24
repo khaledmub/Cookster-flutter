@@ -1,6 +1,7 @@
 import 'package:cookster/core/media/wall_video_media.dart';
 import 'package:cookster/core/video/media_kit_player_pool.dart';
 import 'package:cookster/core/video/video_source_resolver.dart';
+import 'package:cookster/core/widgets/tiktok_feed_chrome.dart';
 import 'package:cookster/modules/landing/landingTabs/home/homeModel/videoFeedModel.dart';
 import 'package:cookster/modules/landing/landingTabs/home/homeWidgets/reel_feed_player_kit.dart';
 import 'package:flutter/foundation.dart';
@@ -71,26 +72,64 @@ class _ReelGridProcessingContent extends StatelessWidget {
   }
 }
 
-/// TikTok-style in-feed chrome: photos are static, videos play — badge + layout differ.
+/// Small inline "Photo" chip shown beside the creator name (TikTok-style).
+class ReelPhotoInlineBadge extends StatelessWidget {
+  const ReelPhotoInlineBadge({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: 6.w, vertical: 2.h),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.18),
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.28)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.photo_library_rounded,
+            color: Colors.white,
+            size: 12.sp,
+          ),
+          SizedBox(width: 4.w),
+          Text(
+            'Photo',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 11.sp,
+              fontWeight: FontWeight.w600,
+              height: 1.1,
+              shadows: const [
+                Shadow(color: Colors.black54, blurRadius: 4),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Legacy top-center badge — prefer [ReelPhotoInlineBadge] beside creator name.
+@Deprecated('Use ReelPhotoInlineBadge beside username in VideoDescriptionWidget')
 class ReelPhotoBadge extends StatelessWidget {
   const ReelPhotoBadge({
     super.key,
     this.belowFeedTabs = false,
   });
 
-  /// Home feed has category tabs + search — badge sits below that header row.
+  /// Home feed has category tabs in the top chrome row.
   final bool belowFeedTabs;
-
-  static const double _searchTop = 50;
-  static const double _searchControlHeight = 38;
 
   double _topInset(BuildContext context) {
     final safeTop = MediaQuery.paddingOf(context).top;
     if (!belowFeedTabs) {
       return safeTop + 8;
     }
-    // Sit below the search control on whichever side the locale uses.
-    return safeTop + _searchTop + _searchControlHeight + 10;
+    // Below the floating tab row (search/filter now live in that row).
+    return safeTop + TikTokFeedChrome.feedTabBarHeight + 8;
   }
 
   @override
@@ -105,47 +144,47 @@ class ReelPhotoBadge extends StatelessWidget {
         child: Align(
           alignment: Alignment.topCenter,
           child: DecoratedBox(
-          decoration: BoxDecoration(
-            color: Colors.black.withValues(alpha: 0.72),
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.28)),
-            boxShadow: const [
-              BoxShadow(
-                color: Colors.black54,
-                blurRadius: 8,
-                offset: Offset(0, 2),
-              ),
-            ],
-          ),
-          child: Padding(
-            padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 6.h),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  Icons.photo_library_rounded,
-                  color: Colors.white,
-                  size: 16.sp,
-                ),
-                SizedBox(width: 6.w),
-                Text(
-                  'Photo',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 12.sp,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 0.2,
-                    shadows: const [
-                      Shadow(
-                        color: Colors.black54,
-                        blurRadius: 4,
-                      ),
-                    ],
-                  ),
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.72),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.28)),
+              boxShadow: const [
+                BoxShadow(
+                  color: Colors.black54,
+                  blurRadius: 8,
+                  offset: Offset(0, 2),
                 ),
               ],
             ),
-          ),
+            child: Padding(
+              padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 6.h),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.photo_library_rounded,
+                    color: Colors.white,
+                    size: 16.sp,
+                  ),
+                  SizedBox(width: 6.w),
+                  Text(
+                    'Photo',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 12.sp,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.2,
+                      shadows: const [
+                        Shadow(
+                          color: Colors.black54,
+                          blurRadius: 4,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
         ),
       ),
@@ -217,7 +256,7 @@ class ProfileGridMediaTypeOverlay extends StatelessWidget {
   }
 }
 
-/// Wraps reel media; shows [ReelPhotoBadge] on active photo pages (TikTok feed pattern).
+/// Wraps reel media; photo posts are indicated beside the creator name in captions.
 class ReelFeedPageMediaChrome extends StatelessWidget {
   const ReelFeedPageMediaChrome({
     super.key,
@@ -225,14 +264,12 @@ class ReelFeedPageMediaChrome extends StatelessWidget {
     required this.child,
     required this.isActivePage,
     this.belowFeedTabs = false,
-    this.showPhotoBadge = true,
   });
 
   final WallVideos video;
   final Widget child;
   final bool isActivePage;
   final bool belowFeedTabs;
-  final bool showPhotoBadge;
 
   @override
   Widget build(BuildContext context) {
@@ -256,11 +293,7 @@ class ReelFeedPageMediaChrome extends StatelessWidget {
     }
     return Stack(
       fit: StackFit.expand,
-      children: [
-        child,
-        if (showPhotoBadge && isActivePage && video.isPhotoPost)
-          ReelPhotoBadge(belowFeedTabs: belowFeedTabs),
-      ],
+      children: [child],
     );
   }
 }

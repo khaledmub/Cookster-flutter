@@ -1001,6 +1001,11 @@ class _CollectionReelScreenState extends State<CollectionReelScreen>
                                 description: video.description,
                                 tags: video.tags,
                                 controller: _homeController,
+                                tiktokStyle: true,
+                                userName: video.userName,
+                                creatorHandle: video.creatorHandle,
+                                sponsorType: video.sponsorType,
+                                isPhotoPost: video.isPhotoPost,
                                 bottomBarClearance: 8,
                               ),
                               ReelOverlayColumn(

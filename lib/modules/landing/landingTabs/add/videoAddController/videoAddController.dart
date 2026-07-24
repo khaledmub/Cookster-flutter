@@ -7,6 +7,7 @@ import 'package:cookster/appUtils/apiEndPoints.dart';
 import 'package:cookster/appUtils/colorUtils.dart';
 import 'package:cookster/appUtils/form_snackbar.dart';
 import 'package:cookster/core/navigation/upload_form_route.dart';
+import 'package:cookster/core/video/reels_feed_pin_store.dart';
 import 'package:cookster/modules/auth/signUp/signUpController/cityController.dart';
 import 'package:cookster/core/video/media_kit_player_pool.dart';
 import 'package:cookster/modules/landing/landingTabs/home/homeController/homeController.dart';
@@ -14,6 +15,7 @@ import 'package:cookster/modules/landing/landingTabs/profile/profileControlller/
 import 'package:cookster/modules/landing/landingTabs/professionalProfile/profileControlller/professionalProfileController.dart';
 import 'package:cookster/modules/landing/landingView/landingView.dart';
 import 'package:cookster/modules/landing/landingController/landingController.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:get/get.dart';
@@ -265,19 +267,73 @@ class VideoAddController extends GetxController {
     return false;
   }
 
+  /// True when [cityId] is a real city of [countryId] in the API catalog.
+  ///
+  /// Stored ids can go stale across flows that share [CityController] (search,
+  /// promote, sponsor), which used to tag uploads with a city from a different
+  /// country — the post then never showed under the correct location filter.
+  Future<bool> _cityBelongsToCountry({
+    required int countryId,
+    required int cityId,
+    String? acceptLanguage,
+  }) async {
+    if (countryId <= 0 || cityId <= 0) {
+      return false;
+    }
+    final cityController = Get.isRegistered<CityController>()
+        ? Get.find<CityController>()
+        : Get.put(CityController());
+    if (cityController.loadedCountryId != countryId ||
+        cityController.cityList.isEmpty) {
+      await cityController.fetchCities(countryId, acceptLanguage: acceptLanguage);
+    }
+    if (cityController.cityList.isEmpty) {
+      // Catalog unavailable — don't invalidate a possibly-good id on a network
+      // blip; the upload keeps whatever we already had.
+      return true;
+    }
+    return cityController.cityList.any((c) => c.id == cityId);
+  }
+
+  Future<void> _clearStoredCityId(SharedPreferences prefs) async {
+    selectedCityId.value = -1;
+    await prefs.remove(_prefUploadCityId);
+    await prefs.remove('currentCityId');
+  }
+
   Future<void> _persistResolvedLocationIds(SharedPreferences prefs) async {
     if (selectedLocationId.value > 0) {
-      await prefs.setString(
-        _prefUploadCountryId,
-        selectedLocationId.value.toString(),
-      );
+      final countryId = selectedLocationId.value.toString();
+      await prefs.setString(_prefUploadCountryId, countryId);
+      await prefs.setString('currentCountryId', countryId);
     }
     if (selectedCityId.value > 0) {
-      await prefs.setString(
-        _prefUploadCityId,
-        selectedCityId.value.toString(),
-      );
+      final cityId = selectedCityId.value.toString();
+      await prefs.setString(_prefUploadCityId, cityId);
+      await prefs.setString('currentCityId', cityId);
     }
+  }
+
+  /// Guarantees the upload payload carries a city that really belongs to the
+  /// selected country, re-resolving from the GPS/profile name when it does not.
+  Future<bool> ensureUploadLocationIdsValid() async {
+    if (hasUploadLocationIds) {
+      final valid = await _cityBelongsToCountry(
+        countryId: selectedLocationId.value,
+        cityId: selectedCityId.value,
+      );
+      if (valid) {
+        return true;
+      }
+      if (kDebugMode) {
+        debugPrint(
+          '[UploadLocation] rejecting city=${selectedCityId.value} for '
+          'country=${selectedLocationId.value}',
+        );
+      }
+      await _clearStoredCityId(await SharedPreferences.getInstance());
+    }
+    return ensureLocationIdsReady();
   }
 
   /// Resolves country/city display names to API ids (required for upload).
@@ -328,22 +384,21 @@ class VideoAddController extends GetxController {
     }
 
     if (selectedLocationId.value > 0 && selectedCityId.value > 0) {
-      await _persistResolvedLocationIds(prefs);
-      return true;
-    }
-
-    if (selectedLocationId.value > 0 &&
-        selectedCountryId.value > 0 &&
-        selectedCityId.value > 0) {
-      final country = selectedCountry.value.trim();
-      final city = selectedCity.value.trim();
-      if (country.isNotEmpty &&
-          city.isNotEmpty &&
-          country != 'Unknown' &&
-          city != 'Unknown') {
+      final valid = await _cityBelongsToCountry(
+        countryId: selectedLocationId.value,
+        cityId: selectedCityId.value,
+      );
+      if (valid) {
         await _persistResolvedLocationIds(prefs);
         return true;
       }
+      if (kDebugMode) {
+        debugPrint(
+          '[UploadLocation] stored city=${selectedCityId.value} is not in '
+          'country=${selectedLocationId.value} — re-resolving from name',
+        );
+      }
+      await _clearStoredCityId(prefs);
     }
 
     Future<bool> resolveOnce({String? acceptLanguage}) async {
@@ -831,6 +886,20 @@ class VideoAddController extends GetxController {
     final uploadedID =
         VideoProcessingService.extractVideoIdFromUploadResponse(responseBody);
 
+    if (kDebugMode) {
+      debugPrint(
+        '[Upload] success id=$uploadedID country=${selectedLocationId.value} '
+        'city=${selectedCityId.value} isPhoto=$isPhotoUpload',
+      );
+    }
+
+    await ReelsFeedPinStore.instance.saveFromUpload(
+      responseBody: responseBody,
+      videoId: uploadedID,
+      countryId: selectedLocationId.value.toString(),
+      cityId: selectedCityId.value.toString(),
+    );
+
     // Fast-forward: as soon as the bytes are uploaded, close the card and return
     // to the profile — no in-dialog "Processing" wait. The freshly uploaded
     // video shows up on the profile grid as a live "processing" tile (spinner
@@ -856,6 +925,7 @@ class VideoAddController extends GetxController {
     );
     await _finishUploadAndOpenProfile(
       uploadedVideoId: uploadedID,
+      uploadResponseBody: responseBody,
       waitForVideoTranscode: false,
       uploadSession: uploadSession,
     );
@@ -876,6 +946,7 @@ class VideoAddController extends GetxController {
   /// Drop stale decoders/posters from upload preview, open profile tab, refresh.
   Future<void> _finishUploadAndOpenProfile({
     String? uploadedVideoId,
+    String? uploadResponseBody,
     bool waitForVideoTranscode = false,
     int? uploadSession,
   }) async {
@@ -888,7 +959,10 @@ class VideoAddController extends GetxController {
       // a late releaseAll cannot dispose players recreated after this upload.
       if (Get.isRegistered<HomeController>()) {
         Get.find<HomeController>().claimReelPoolSession();
-        Get.find<HomeController>().markFeedStaleAfterUpload();
+        Get.find<HomeController>().markFeedStaleAfterUpload(
+          videoId: uploadedVideoId,
+          responseBody: uploadResponseBody,
+        );
       }
       MediaKitPlayerPool.instance.pauseAllImmediate();
       await MediaKitPlayerPool.instance.disposeAllWithTimeout();
@@ -1122,30 +1196,28 @@ class VideoAddController extends GetxController {
 
     final bool isSponsored = entityDetails.value['is_sponsored'] == 1;
     if (!isSponsored) {
-      if (!hasUploadLocationIds) {
-        final locationReady = await ensureLocationIdsReady();
-        if (!locationReady && !hasUploadLocationIds) {
-          final country = selectedCountry.value.trim();
-          final city = selectedCity.value.trim();
-          final countryMissing = country.isEmpty ||
-              country == 'Unknown' ||
-              selectedLocationId.value <= 0;
-          final cityMissing =
-              city.isEmpty || city == 'Unknown' || selectedCityId.value <= 0;
+      final locationReady = await ensureUploadLocationIdsValid();
+      if (!locationReady && !hasUploadLocationIds) {
+        final country = selectedCountry.value.trim();
+        final city = selectedCity.value.trim();
+        final countryMissing = country.isEmpty ||
+            country == 'Unknown' ||
+            selectedLocationId.value <= 0;
+        final cityMissing =
+            city.isEmpty || city == 'Unknown' || selectedCityId.value <= 0;
 
-          if (countryMissing && cityMissing) {
-            errorMessage = "select_country_city_error".tr;
-          } else if (countryMissing) {
-            errorMessage = "select_country_error".tr;
-          } else if (cityMissing) {
-            errorMessage = "select_city_error".tr;
-          } else {
-            errorMessage = "select_city_error".tr;
-          }
-
-          showFormSnackBar(context, errorMessage);
-          return;
+        if (countryMissing && cityMissing) {
+          errorMessage = "select_country_city_error".tr;
+        } else if (countryMissing) {
+          errorMessage = "select_country_error".tr;
+        } else if (cityMissing) {
+          errorMessage = "select_city_error".tr;
+        } else {
+          errorMessage = "select_city_error".tr;
         }
+
+        showFormSnackBar(context, errorMessage);
+        return;
       }
     }
 

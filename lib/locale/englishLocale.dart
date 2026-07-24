@@ -43,6 +43,8 @@ const Map<String, String> en = {
   "Near Me": "Near Me",
   "near_me_geo_fallback_notice":
       "No nearby posts found — showing general reels. Enable location or change city.",
+  "near_me_simulator_location_notice":
+      "This is the iOS Simulator's test GPS (San Francisco), not your real location. In Simulator go to Features → Location → Custom Location and enter your city, or run the app on a real iPhone.",
   "near_me_geo_expanded_notice":
       "Showing posts from a wider area around you.",
   "General": "General",
@@ -154,6 +156,13 @@ const Map<String, String> en = {
   "sort_videos_title": "Sort Videos",
   "sort_newest_to_oldest": "Newest to Oldest",
   "sort_oldest_to_newest": "Oldest to Newest",
+  "feed_filter_title": "Filter",
+  "feed_filter_general_hint":
+      "Pick a country and city to browse the newest videos from that area.",
+  "feed_filter_near_me_hint":
+      "By default, Near Me uses your GPS. Pick a location to override it.",
+  "feed_filter_apply": "Apply Filter",
+  "feed_filter_active": "Filtering by",
   "public_option": "Public",
   "only_followers_option": "Only Followers",
   "private_option": "Private",

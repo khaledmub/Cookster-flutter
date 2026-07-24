@@ -28,6 +28,8 @@ class FeedMeta {
   bool geoFallback;
   /// True when the server widened the Near Me radius (50/80/120 km expansion).
   bool geoExpanded;
+  /// Set when the server applied [pin_video_id] on the first page.
+  String? pinnedVideoId;
 
   FeedMeta({
     this.page,
@@ -42,6 +44,7 @@ class FeedMeta {
     this.sortBy,
     this.geoFallback = false,
     this.geoExpanded = false,
+    this.pinnedVideoId,
   });
 
   factory FeedMeta.fromJson(Map<String, dynamic>? json) {
@@ -61,6 +64,7 @@ class FeedMeta {
       sortBy: json['sort_by'] as String?,
       geoFallback: json['geo_fallback'] == true,
       geoExpanded: json['geo_expanded'] == true,
+      pinnedVideoId: json['pinned_video_id']?.toString(),
     );
   }
 

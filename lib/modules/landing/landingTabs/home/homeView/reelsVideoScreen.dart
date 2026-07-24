@@ -15,7 +15,9 @@ import 'package:cookster/core/media/wall_video_media.dart';
 import 'package:cookster/core/user/public_user_identity.dart';
 import 'package:cookster/core/widgets/grid_thumbnail_cache.dart';
 import 'package:cookster/core/widgets/reel_page_keep_alive.dart';
+import 'package:cookster/core/widgets/reel_action_rail.dart';
 import 'package:cookster/core/widgets/reel_content_chrome.dart';
+import 'package:cookster/core/widgets/tiktok_feed_chrome.dart';
 import 'package:cookster/core/video/media_kit_player_pool.dart';
 import 'package:cookster/core/video/device_constraints.dart';
 import 'package:cookster/core/video/reels_playback_coordinator.dart';
@@ -24,7 +26,6 @@ import 'package:cookster/core/video/video_preload_manager.dart';
 import 'package:cookster/core/video/video_preload_target.dart';
 import 'package:cookster/core/video/video_source_resolver.dart';
 import 'package:cookster/modules/landing/landingController/landingController.dart';
-import 'package:cookster/modules/landing/landingTabs/home/homeController/saveController.dart';
 import 'package:cookster/modules/landing/landingTabs/home/homeModel/userSaveUnsave.dart';
 import 'package:cookster/modules/landing/landingTabs/home/homeModel/videoFeedModel.dart';
 import 'package:cookster/modules/landing/landingTabs/home/homeView/commentScreen.dart';
@@ -100,8 +101,6 @@ class _VideoReelScreenState extends State<VideoReelScreen>
   final ProfileController profileController = Get.find();
   final ProfessionalProfileController professionalProfileController =
       Get.find();
-
-  final SaveController saveController = Get.find();
 
   @override
   bool get wantKeepAlive => true;
@@ -659,6 +658,14 @@ class _VideoReelScreenState extends State<VideoReelScreen>
         controller.reelListLength.value = 0;
       }
       controller.setSelectedType(newTabType);
+      if (newTabType == 'Near Me') {
+        unawaited(
+          controller.fetchLocationOnce(
+            forceRefresh: true,
+            refreshNearMeFeed: true,
+          ),
+        );
+      }
       _syncActiveTabScrollListener(previousTab, newTabType);
       if (hasCache) {
         _finishFeedTabPlayback(newTabType, fromTabSwitch: true);
@@ -1211,6 +1218,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
   @override
   void initState() {
     super.initState();
+    ensureReelOverlayDependencies();
     unawaited(DeviceConstraints.instance.ensureInitialized());
     WidgetsBinding.instance.addObserver(this);
     final initialTab = _activeTabType;
@@ -1899,162 +1907,22 @@ class _VideoReelScreenState extends State<VideoReelScreen>
               key: ValueKey<String>(
                 '${tab}_${videoDetail.id ?? 'video'}',
               ),
-              child: ValueListenableBuilder<int>(
-                valueListenable: layer.visibleIndexNotifier,
-                builder: (context, visibleIndex, _) {
-                  return Obx(() {
-                  final allowFeedPlayer = controller.canMountHomeReelPlayer;
-                  final isActivePage = isActiveTab && actualIndex == visibleIndex;
-
-                  Widget buildPageStack({required bool showPlayer}) {
-                    final maskPoster = showPlayer && _maskActiveVideoWithPoster;
-                    return Stack(
-                      clipBehavior: Clip.none,
-                      alignment: Alignment.bottomLeft,
-                      children: [
-                        ReelFeedPageMediaChrome(
-                          video: videoDetail,
-                          isActivePage: isActivePage,
-                          belowFeedTabs: isActiveTab,
-                          // Active-tab badge is drawn below (avoids search overlap);
-                          // off-tab pages still get the chrome badge if kept alive.
-                          showPhotoBadge: !isActiveTab,
-                          child: RepaintBoundary(
-                            child: Stack(
-                              fit: StackFit.expand,
-                              children: [
-                                if (showPlayer && !videoDetail.isPhotoPost)
-                                  _buildInlineReelPlayer(
-                                    videoDetail,
-                                    tab: tab,
-                                  ),
-                                IgnorePointer(
-                                  ignoring: showPlayer && !maskPoster,
-                                  child: Opacity(
-                                    opacity:
-                                        maskPoster || !showPlayer ? 1.0 : 0.0,
-                                    child: _buildPagePoster(
-                                      videoDetail,
-                                      isActiveReel: showPlayer,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                        if (showPlayer || videoDetail.isPhotoPost)
-                          Positioned.fill(
-                            child: GestureDetector(
-                              behavior: HitTestBehavior.translucent,
-                              onDoubleTapDown: (_) {
-                                unawaited(
-                                  _onReelDoubleTapLike(videoDetail),
-                                );
-                              },
-                              child: const SizedBox.expand(),
-                            ),
-                          ),
-                        RepaintBoundary(
-                          child: Stack(
-                            clipBehavior: Clip.none,
-                            alignment: Alignment.bottomLeft,
-                            children: [
-                              VideoDescriptionWidget(
-                                title: videoDetail.title,
-                                description: videoDetail.description,
-                                tags: videoDetail.tags,
-                                controller: controller,
-                              ),
-                              videoUserDetails(
-                                profileController: profileController,
-                                professionalProfileController:
-                                    professionalProfileController,
-                                videoDetail: videoDetail,
-                                controller: controller,
-                                userId: userId,
-                                isAuthenticated: isAuthenticated,
-                              ),
-                              videoActions(
-                                videoDetail,
-                                currentUserDetails,
-                                currentUser,
-                                isAuthenticated,
-                                context,
-                                listenLive: _shouldListenFirestoreStats(
-                                  tab,
-                                  actualIndex,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        if (isActiveTab)
-                          Positioned(
-                            top: MediaQuery.paddingOf(context).top + 50,
-                            left: isRtl ? 0 : null,
-                            right: isRtl ? null : 0,
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                _buildFilterIcon(context, tab),
-                                GestureDetector(
-                                  onTap: () {
-                                    controller.silenceHomeReelsForTransition();
-                                    Get.to(
-                                      () => SearchView(
-                                        isGeneral: tab == 'General' ? 1 : 0,
-                                      ),
-                                      binding: SearchBinding(),
-                                    );
-                                  },
-                                  child: Container(
-                                    margin: EdgeInsets.symmetric(
-                                      horizontal: 16,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: Colors.transparent,
-                                      shape: BoxShape.circle,
-                                    ),
-                                    child: ClipRRect(
-                                      borderRadius: BorderRadius.circular(100),
-                                      child: Container(
-                                        padding: const EdgeInsets.all(4),
-                                        decoration: BoxDecoration(
-                                          color: Colors.black.withValues(
-                                            alpha: 0.45,
-                                          ),
-                                          shape: BoxShape.circle,
-                                        ),
-                                        child: Icon(
-                                          Icons.search,
-                                          color: Colors.white,
-                                          size: 28.sp,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        if (isActivePage &&
-                            videoDetail.isPhotoPost &&
-                            isActiveTab)
-                          const ReelPhotoBadge(belowFeedTabs: true),
-                      ],
-                    );
-                  }
-
-                  if (!isActivePage) {
-                    return buildPageStack(showPlayer: false);
-                  }
-                  return buildPageStack(
-                    showPlayer: !videoDetail.isPhotoPost &&
-                        videoDetail.isPlaybackReady &&
-                        allowFeedPlayer,
+              child: _HomeReelPageCell(
+                actualIndex: actualIndex,
+                isActiveTab: isActiveTab,
+                visibleIndexNotifier: layer.visibleIndexNotifier,
+                videoDetail: videoDetail,
+                builder: (context, showPlayer, isActivePage) {
+                  return _buildReelPageStack(
+                    tab: tab,
+                    actualIndex: actualIndex,
+                    videoDetail: videoDetail,
+                    isActiveTab: isActiveTab,
+                    isActivePage: isActivePage,
+                    showPlayer: showPlayer,
+                    userId: userId,
+                    isAuthenticated: isAuthenticated,
                   );
-                  });
                 },
               ),
             );
@@ -2062,6 +1930,110 @@ class _VideoReelScreenState extends State<VideoReelScreen>
           childCount: listLen,
         ),
       ),
+    );
+  }
+
+  Widget _buildReelPageStack({
+    required String tab,
+    required int actualIndex,
+    required WallVideos videoDetail,
+    required bool isActiveTab,
+    required bool isActivePage,
+    required bool showPlayer,
+    required String? userId,
+    required bool isAuthenticated,
+  }) {
+    final maskPoster = showPlayer && _maskActiveVideoWithPoster;
+    return Stack(
+      clipBehavior: Clip.none,
+      alignment: Alignment.bottomLeft,
+      children: [
+        ReelFeedPageMediaChrome(
+          video: videoDetail,
+          isActivePage: isActivePage,
+          belowFeedTabs: isActiveTab,
+          child: RepaintBoundary(
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                if (showPlayer && !videoDetail.isPhotoPost)
+                  _buildInlineReelPlayer(
+                    videoDetail,
+                    tab: tab,
+                  ),
+                IgnorePointer(
+                  ignoring: showPlayer && !maskPoster,
+                  child: Opacity(
+                    opacity: maskPoster || !showPlayer ? 1.0 : 0.0,
+                    child: _buildPagePoster(
+                      videoDetail,
+                      isActiveReel: showPlayer,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const TikTokFeedTopGradient(),
+        const TikTokFeedBottomGradient(),
+        Positioned.fill(
+          child: IgnorePointer(
+            ignoring: !(showPlayer || videoDetail.isPhotoPost),
+            child: GestureDetector(
+              behavior: HitTestBehavior.translucent,
+              onDoubleTapDown: (_) {
+                unawaited(
+                  _onReelDoubleTapLike(videoDetail),
+                );
+              },
+              child: const SizedBox.expand(),
+            ),
+          ),
+        ),
+        Positioned.fill(
+          child: RepaintBoundary(
+            child: Stack(
+              fit: StackFit.expand,
+              clipBehavior: Clip.none,
+              children: [
+                VideoDescriptionWidget(
+                  title: videoDetail.title,
+                  description: videoDetail.description,
+                  tags: videoDetail.tags,
+                  controller: controller,
+                  tiktokStyle: true,
+                  userName: videoDetail.userName,
+                  creatorHandle: videoDetail.creatorHandle,
+                  sponsorType: videoDetail.sponsorType,
+                  isPhotoPost: videoDetail.isPhotoPost,
+                  bottomBarClearance: 12,
+                ),
+                videoUserDetails(
+                  profileController: profileController,
+                  professionalProfileController: professionalProfileController,
+                  videoDetail: videoDetail,
+                  controller: controller,
+                  userId: userId,
+                  isAuthenticated: isAuthenticated,
+                  hideLegacyChrome: true,
+                ),
+              ],
+            ),
+          ),
+        ),
+        ReelActionRail(
+          video: videoDetail,
+          isAuthenticated: isAuthenticated,
+          layout: ReelActionRailLayout.home,
+          listenLive: _shouldListenFirestoreStats(
+            tab,
+            actualIndex,
+          ),
+          fallbackCommentCount: _commentCounts[videoDetail.id ?? ''],
+          onBeforeNavigation: controller.silenceHomeReelsForTransition,
+        ),
+      ],
     );
   }
 
@@ -2073,17 +2045,19 @@ class _VideoReelScreenState extends State<VideoReelScreen>
     String? userId = currentUser?.id ?? currentUserDetails?.id;
     bool isRtl = _language == 'ar';
 
-    return Scaffold(
-      backgroundColor: Colors.black,
-      appBar: AppBar(
-        toolbarHeight: 0,
-        elevation: 0,
-        backgroundColor: Colors.transparent,
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: const SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: Brightness.light,
+        statusBarBrightness: Brightness.dark,
       ),
-
-      // Tab swipe lives on the header row only — a full-screen horizontal
-      // gesture was stealing vertical PageView scroll and switching tabs.
-      body: Stack(
+      child: Scaffold(
+      extendBodyBehindAppBar: true,
+      backgroundColor: Colors.black,
+      body: MediaQuery.removePadding(
+        context: context,
+        removeTop: true,
+        child: Stack(
             children: [
               Obx(() {
                 final showSkeleton = controller.isLoading.value &&
@@ -2120,7 +2094,8 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                               fontSize: 14.sp,
                             ),
                           ),
-                          if (DeviceConstraints.instance.isIosSimulator) ...[
+                          if (DeviceConstraints.instance.isIosSimulator &&
+                              controller.isLikelyIosSimulatorDefaultLocation) ...[
                             SizedBox(height: 12.h),
                             Padding(
                               padding: const EdgeInsets.symmetric(
@@ -2128,10 +2103,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                               ),
                               child: Text(
                                 textAlign: TextAlign.center,
-                                'iOS Simulator uses a fixed test location (often '
-                                'San Francisco or a custom city like Shanghai). '
-                                'Set Simulator → Features → Location to your city, '
-                                'or tap "Use my current location" on a real device.',
+                                'near_me_simulator_location_notice'.tr,
                                 style: TextStyle(
                                   color: Colors.white70,
                                   fontSize: 11.sp,
@@ -2143,12 +2115,21 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                           Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
+                              if (controller.selectedType.value == "General")
+                                Expanded(
+                                  child: AppButton(
+                                    text: "Filter".tr,
+                                    onTap: () {
+                                      _showFilterBottomSheet(context);
+                                    },
+                                  ),
+                                ),
                               if (controller.selectedType.value == "Near Me")
                                 Expanded(
                                   child: AppButton(
-                                    text: "Change Location",
+                                    text: 'use_gps_near_me'.tr,
                                     onTap: () {
-                                      _showBottomSheet(context);
+                                      unawaited(controller.refreshLocation());
                                     },
                                   ),
                                 ),
@@ -2245,15 +2226,6 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                     controller.blocksUiForLocation) {
                   return const SizedBox.shrink();
                 }
-                if (!feedEmpty && !_firstPlayableReelReady) {
-                  WidgetsBinding.instance.addPostFrameCallback((_) {
-                    if (mounted) {
-                      _ensureColdStartSpinnerUntilPlayable(
-                        reason: 'feed_non_empty',
-                      );
-                    }
-                  });
-                }
                 final tabs = _availableFeedTabs();
                 if (tabs.isEmpty) {
                   return const SizedBox.shrink();
@@ -2263,19 +2235,45 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                   sizing: StackFit.expand,
                   children: tabs
                       .map(
-                        (tab) => _buildFeedTabLayer(
-                          tab,
-                          tab == activeTab,
+                        (tab) => KeyedSubtree(
+                          key: ValueKey<String>('home_feed_tab_$tab'),
+                          child: _buildFeedTabLayer(
+                            tab,
+                            tab == activeTab,
+                          ),
                         ),
                       )
                       .toList(),
                 );
               }),
 
-              SafeArea(
+              Positioned(
+                top: 0,
+                left: 0,
+                right: 0,
+                height: TikTokFeedChrome.topGradientHeight,
+                child: const IgnorePointer(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: TikTokFeedChrome.topGradientColors,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+
+              Positioned(
+                top: 0,
+                left: 0,
+                right: 0,
                 child: Obx(
-                  () => Container(
-                    margin: const EdgeInsets.only(top: 6),
+                  () => Padding(
+                    padding: EdgeInsets.only(
+                      top: MediaQuery.paddingOf(context).top + 6,
+                    ),
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -2283,8 +2281,8 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                         Row(
                       crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
-                        const SizedBox(width: 8),
-                        InkWell(
+                        const SizedBox(width: 4),
+                        TikTokFeedTopIconButton(
                           onTap: () {
                             isAuthenticated
                                 ? Get.to(JoinScreen())
@@ -2293,15 +2291,14 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                           child: SvgPicture.asset(
                             "assets/icons/live.svg",
                             color: Colors.white,
+                            height: 22,
                           ),
                         ),
-                        const SizedBox(width: 8),
                         Expanded(
                           child: GestureDetector(
                             behavior: HitTestBehavior.opaque,
                             onHorizontalDragEnd: _onFeedTabHorizontalSwipe,
                             child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                             children: [
                               if ((promoteVideoController
                                           .siteSettings
@@ -2310,57 +2307,18 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                                           ?.allowGeneralVideos ??
                                       0) ==
                                   1)
-                                Expanded(
-                                  child: GestureDetector(
-                                    onTap: () {
-                                      _switchFeedTab('General');
-                                    },
-                                    child: Text(
-                                      "General".tr,
-                                      textAlign: TextAlign.center,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: TextStyle(
-                                        color:
-                                            controller.selectedType.value ==
-                                                    "General"
-                                                ? Colors.white
-                                                : Colors.white.withOpacity(0.5),
-                                        fontWeight:
-                                            controller.selectedType.value ==
-                                                    "General"
-                                                ? FontWeight.w500
-                                                : FontWeight.w300,
-                                        fontSize: 16,
-                                      ),
-                                    ),
-                                  ),
+                                TikTokFeedTabLabel(
+                                  label: "General".tr,
+                                  selected:
+                                      controller.selectedType.value ==
+                                      "General",
+                                  onTap: () => _switchFeedTab('General'),
                                 ),
-                              Expanded(
-                                child: GestureDetector(
-                                  onTap: () {
-                                    _switchFeedTab('Near Me');
-                                  },
-                                  child: Text(
-                                    "Near Me".tr,
-                                    textAlign: TextAlign.center,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: TextStyle(
-                                      color:
-                                          controller.selectedType.value ==
-                                                  "Near Me"
-                                              ? Colors.white
-                                              : Colors.white.withOpacity(0.5),
-                                      fontWeight:
-                                          controller.selectedType.value ==
-                                                  "Near Me"
-                                              ? FontWeight.w500
-                                              : FontWeight.w300,
-                                      fontSize: 16,
-                                    ),
-                                  ),
-                                ),
+                              TikTokFeedTabLabel(
+                                label: "Near Me".tr,
+                                selected:
+                                    controller.selectedType.value == "Near Me",
+                                onTap: () => _switchFeedTab('Near Me'),
                               ),
                               if ((promoteVideoController
                                           .siteSettings
@@ -2369,41 +2327,80 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                                           ?.allowGeneralVideos ??
                                       0) ==
                                   1)
-                                Expanded(
-                                  child: GestureDetector(
-                                    onTap: () {
-                                      if (!isAuthenticated) {
-                                        Get.toNamed(AppRoutes.signIn);
-                                        return;
-                                      }
-                                      _switchFeedTab('Following');
-                                    },
-                                    child: Text(
-                                      "Following".tr,
-                                      textAlign: TextAlign.center,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: TextStyle(
-                                        color:
-                                            controller.selectedType.value ==
-                                                    "Following"
-                                                ? Colors.white
-                                                : Colors.white.withOpacity(0.5),
-                                        fontWeight:
-                                            controller.selectedType.value ==
-                                                    "Following"
-                                                ? FontWeight.w500
-                                                : FontWeight.w300,
-                                        fontSize: 16,
-                                      ),
-                                    ),
-                                  ),
+                                TikTokFeedTabLabel(
+                                  label: "Following".tr,
+                                  selected:
+                                      controller.selectedType.value ==
+                                      "Following",
+                                  onTap: () {
+                                    if (!isAuthenticated) {
+                                      Get.toNamed(AppRoutes.signIn);
+                                      return;
+                                    }
+                                    _switchFeedTab('Following');
+                                  },
                                 ),
                             ],
                           ),
                           ),
                         ),
-                        const SizedBox(width: 8),
+                        TikTokFeedTopIconButton(
+                          onTap: () {
+                            controller.silenceHomeReelsForTransition();
+                            Get.to(
+                              () => SearchView(
+                                isGeneral:
+                                    controller.selectedType.value == "General"
+                                        ? 1
+                                        : 0,
+                              ),
+                              binding: SearchBinding(),
+                            );
+                          },
+                          child: Icon(
+                            Icons.search,
+                            color: Colors.white,
+                            size: 26.sp,
+                          ),
+                        ),
+                        TikTokFeedTopIconButton(
+                          onTap: () => _showFilterBottomSheet(context),
+                          child: Obx(() {
+                            final tab = controller.selectedType.value;
+                            final showBadge =
+                                controller.hasGeneralLocationFilter &&
+                                tab == 'General';
+                            return Stack(
+                              clipBehavior: Clip.none,
+                              children: [
+                                Icon(
+                                  Icons.tune_rounded,
+                                  color: Colors.white,
+                                  size: 24.sp,
+                                ),
+                                if (showBadge)
+                                  Positioned(
+                                    top: -2,
+                                    right: -2,
+                                    child: Container(
+                                      width: 8,
+                                      height: 8,
+                                      decoration: BoxDecoration(
+                                        color: ColorUtils.primaryColor,
+                                        shape: BoxShape.circle,
+                                        border: Border.all(
+                                          color: Colors.black.withValues(
+                                            alpha: 0.35,
+                                          ),
+                                          width: 1,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            );
+                          }),
+                        ),
                         ChatIconWithCounter(
                           userId: userId ?? '',
                           isAuthenticated: isAuthenticated,
@@ -2418,11 +2415,11 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                             );
                           },
                         ),
-                        const SizedBox(width: 8),
+                        const SizedBox(width: 4),
                       ],
                     ),
                         if (controller.selectedType.value == 'Near Me')
-                          _buildNearMeGeoNotice(context),
+                          _buildNearMeLocationNotice(context),
                       ],
                     ),
                   ),
@@ -2438,12 +2435,52 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                   ),
                 ),
             ],
+        ),
       ),
+    ),
     );
   }
 
   String? selectedCountry;
   String? selectedCity;
+
+  Widget _buildNearMeLocationNotice(BuildContext context) {
+    if (DeviceConstraints.instance.isIosSimulator &&
+        controller.isLikelyIosSimulatorDefaultLocation) {
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(8, 4, 8, 0),
+        child: Material(
+          color: Colors.black.withOpacity(0.55),
+          borderRadius: BorderRadius.circular(8),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(
+                  Icons.location_off_outlined,
+                  size: 14,
+                  color: Colors.amber.shade200,
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    'near_me_simulator_location_notice'.tr,
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.92),
+                      fontSize: 11.sp,
+                      height: 1.35,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+    return _buildNearMeGeoNotice(context);
+  }
 
   Widget _buildNearMeGeoNotice(BuildContext context) {
     final meta = controller.videoFeed.value.meta;
@@ -2484,7 +2521,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
               ),
               if (meta.geoFallback)
                 GestureDetector(
-                  onTap: () => _showBottomSheet(context),
+                  onTap: () => unawaited(controller.refreshLocation()),
                   child: Text(
                     'Change Location'.tr,
                     style: TextStyle(
@@ -2502,881 +2539,65 @@ class _VideoReelScreenState extends State<VideoReelScreen>
     );
   }
 
-  void _showBottomSheet(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-
-      builder: (BuildContext context) {
-        return SafeArea(
-          child: StatefulBuilder(
-            builder: (BuildContext context, StateSetter setModalState) {
-              return Container(
-                color: Colors.white,
-                padding: EdgeInsets.all(20),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      'Filter'.tr,
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    SizedBox(height: 20),
-                    InkWell(
-                      onTap: () {
-                        showLocationDialog(context);
-                      },
-                      child: Row(
-                        children: [
-                          Icon(Icons.location_on_outlined),
-                          SizedBox(width: 10),
-                          Obx(
-                            () => Text(
-                              controller.currentCountry.value == ""
-                                  ? 'Select Country'.tr
-                                  : controller.currentCountry.value,
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ),
-                          Spacer(),
-                          Icon(Icons.chevron_right_rounded),
-                        ],
-                      ),
-                    ),
-                    SizedBox(height: 15),
-                    InkWell(
-                      onTap: () {
-                        debugPrint(controller.currentCityId.value);
-                        // Pass the initialCity ID to showCityDialog
-                        showCityDialog(
-                          context,
-                          initialCity: int.tryParse(
-                                controller.currentCityId.value,
-                              ) ??
-                              0,
-                        );
-                      },
-                      child: Row(
-                        children: [
-                          Icon(Icons.location_on_outlined),
-                          SizedBox(width: 10),
-                          Obx(
-                            () => ConstrainedBox(
-                              constraints: const BoxConstraints(maxWidth: 250),
-                              // Set your desired maximum width
-                              child: Text(
-                                controller.currentCity.value == ""
-                                    ? 'Select City'.tr
-                                    : controller.currentCity.value,
-                                style: const TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                                overflow:
-                                    TextOverflow
-                                        .ellipsis, // Show ellipsis if text exceeds maxWidth
-                              ),
-                            ),
-                          ),
-                          Spacer(),
-                          Icon(Icons.chevron_right_rounded),
-                        ],
-                      ),
-                    ),
-                    SizedBox(height: 20),
-                    Obx(() {
-                      return AppButton(
-                        isLoading: controller.isLoading.value,
-                        text: "Submit".tr,
-                        onTap: () {
-                          if (controller.isLoading.value) {
-                            return;
-                          }
-                          if (controller.currentCityId.value.isEmpty) {
-                            return;
-                          }
-                          Navigator.pop(context);
-                          controller.applyManualLocationFilter(
-                            countryId: controller.currentCountryId.value,
-                            countryName: controller.currentCountry.value,
-                            cityId: controller.currentCityId.value,
-                            cityName: controller.currentCity.value,
-                          );
-                          controller.resetTabScrollRestore('Near Me');
-                          controller
-                              .fetchVideos(
-                                forceNetwork: true,
-                                resetScrollPosition: true,
-                              )
-                              .then((_) {
-                                controller.saveLocationData();
-                              });
-                        },
-                      );
-                    }),
-                    SizedBox(height: 8),
-                    TextButton(
-                      onPressed: controller.isLoading.value
-                          ? null
-                          : () async {
-                            Navigator.pop(context);
-                            await controller.refreshLocation();
-                          },
-                      child: Text('use_gps_near_me'.tr),
-                    ),
-                    if (controller.nearMeManualFilterActive.value)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 4),
-                        child: Text(
-                          '${controller.currentCity.value} (${'Filter'.tr})',
-                          style: TextStyle(
-                            fontSize: 12.sp,
-                            color: Colors.grey[600],
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-              );
-            },
-          ),
-        );
-      },
-    );
-  }
-
-  /// Video widgets with details
-  Positioned videoActions(
-    WallVideos videoDetail,
-    SimpleUser? currentUserDetails,
-    User? currentUser,
-    dynamic isAuthenticated,
-    BuildContext context, {
-    required bool listenLive,
-  }) {
-    return Positioned(
-      right: 10,
-      bottom: Platform.isAndroid ? Get.height * 0.02 : Get.height * 0.02,
-      child: Column(
-        children: [
-          Container(
-            decoration: BoxDecoration(
-              color: Colors.transparent,
-              borderRadius: BorderRadius.circular(50),
-            ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(50),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 16),
-                decoration: BoxDecoration(
-                  color: Colors.black.withValues(alpha: 0.45),
-                  borderRadius: BorderRadius.circular(50),
-                ),
-                child: _buildReelActionsColumn(
-                  videoDetail: videoDetail,
-                  currentUserDetails: currentUserDetails,
-                  currentUser: currentUser,
-                  isAuthenticated: isAuthenticated,
-                  context: context,
-                  listenLive: listenLive,
-                ),
-              ),
-            ),
-          ),
-          SizedBox(height: 8),
-
-          if (videoDetail.sponsorType == null)
-            if (videoDetail.frontUserId != currentUserDetails?.id)
-              _buildReviewButton(
-                videoDetail: videoDetail,
-                currentUserDetails: currentUserDetails,
-                currentUser: currentUser,
-                isAuthenticated: isAuthenticated,
-                context: context,
-                listenLive: listenLive,
-              ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildReelActionsColumn({
-    required WallVideos videoDetail,
-    required SimpleUser? currentUserDetails,
-    required User? currentUser,
-    required dynamic isAuthenticated,
-    required BuildContext context,
-    required bool listenLive,
-  }) {
-    final videoId = videoDetail.id ?? '';
-    Widget buildColumn(ReelVideoStats stats) {
-      final likes = stats.likes;
-      final userId = currentUserDetails?.id ?? currentUser?.id ?? '';
-      final isLiked = likes.contains(userId);
-      final commentCount = stats.commentCount > 0
-          ? stats.commentCount
-          : (_commentCounts[videoId] ?? 0);
-      final formattedLikeCount = ReelVideoStats.formatCount(stats.likeCount);
-      final formattedCommentCount = ReelVideoStats.formatCount(commentCount);
-      final formattedViewCount = ReelVideoStats.formatCount(stats.viewCount);
-
-      return Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              // Simplified Like Button
-                              InkWell(
-                                onTap: () async {
-                                  final String videoId = videoDetail.id!;
-                                  String userId =
-                                      currentUserDetails?.id ??
-                                      currentUser!.id!;
-                                  HapticFeedback.lightImpact();
-
-                                  // Optimistic UI update
-                                  final optimisticLikes = List<dynamic>.from(
-                                    likes,
-                                  );
-                                  if (isLiked) {
-                                    optimisticLikes.remove(userId);
-                                  } else {
-                                    optimisticLikes.add(userId);
-                                  }
-                                  await videoCommentsController.toggleVideoLike(
-                                    videoId.toString(),
-                                    userId.toString(),
-                                  );
-                                },
-                                child: SizedBox(
-                                  height: 20.h,
-                                  width: 20.h,
-                                  child: SvgPicture.asset(
-                                    "assets/icons/heart.svg",
-                                    fit: BoxFit.fill,
-                                    color: isLiked ? Colors.red : Colors.white,
-                                  ),
-                                ),
-                              ),
-                              SizedBox(height: 2),
-                              InkWell(
-                                onTap: () {
-                                  controller.silenceHomeReelsForTransition();
-                                  Get.to(
-                                    VideoLikesScreen(videoId: videoDetail.id!),
-                                  );
-                                },
-                                child: Text(
-                                  formattedLikeCount,
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 10.sp,
-                                  ),
-                                ),
-                              ),
-                              SizedBox(
-                                height: 20.h,
-                                width: 20.h,
-                                child: SvgPicture.asset(
-                                  "assets/icons/eye.svg",
-                                  fit: BoxFit.fill,
-                                  color: Colors.white,
-                                ),
-                              ),
-                              SizedBox(width: 4),
-                              Text(
-                                formattedViewCount,
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 10.sp,
-                                ),
-                              ),
-                              // Comment Button
-                              if (videoDetail.commentsEnabled) ...[
-                                SizedBox(height: 8),
-                                InkWell(
-                                  onTap: () {
-                                    if (!isAuthenticated) {
-                                      Get.toNamed(AppRoutes.signIn);
-                                      return;
-                                    }
-                                    final uid =
-                                        currentUserDetails?.id ??
-                                        currentUser?.id;
-                                    final userImage =
-                                        currentUserDetails?.image ??
-                                        currentUser?.image ??
-                                        '';
-                                    if (videoDetail.id == null ||
-                                        uid == null ||
-                                        uid.isEmpty) {
-                                      return;
-                                    }
-                                    showCommentsBottomSheetNew(
-                                      context,
-                                      videoDetail.id!,
-                                      uid,
-                                      userImage,
-                                      videoOwnerId: videoDetail.frontUserId,
-                                    );
-
-                                    if (mounted) {
-                                      // controller.restoreVideoState();
-                                    }
-                                  },
-                                  child: SizedBox(
-                                    height: 20.h,
-                                    width: 20.h,
-                                    child: SvgPicture.asset(
-                                      "assets/icons/comment.svg",
-                                      fit: BoxFit.fill,
-                                      color: Colors.white,
-                                    ),
-                                  ),
-                                ),
-                                SizedBox(height: 2),
-                                Text(
-                                  formattedCommentCount,
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 10.sp,
-                                  ),
-                                ),
-                                SizedBox(height: 8),
-                              ],
-                              // Static Buttons (Share, Save, More)
-                              _buildStaticButtons(
-                                videoDetail,
-                                currentUserDetails?.id ?? currentUser?.id ?? '',
-                                context,
-                              ),
-
-                              if (videoDetail.takeOrder == 1 &&
-                                  (videoDetail.contactPhone?.isNotEmpty ==
-                                          true ||
-                                      videoDetail.contactEmail?.isNotEmpty ==
-                                          true ||
-                                      videoDetail.latitude?.isNotEmpty == true))
-                                Column(
-                                  children: [
-                                    Container(
-                                      margin: EdgeInsets.symmetric(vertical: 4),
-                                      width: 40,
-                                      height: 1,
-                                      decoration: BoxDecoration(
-                                        color: Colors.white,
-                                      ),
-                                    ),
-                                    InkWell(
-                                      onTap: () {
-                                        if (!isAuthenticated) {
-                                          Get.toNamed(AppRoutes.signIn);
-                                          return;
-                                        }
-                                        final businessId =
-                                            videoDetail.frontUserId.toString();
-                                        final firestore =
-                                            FirebaseFirestore.instance;
-                                        final docRef = firestore
-                                            .collection('countContactClick')
-                                            .doc(videoDetail.id);
-
-                                        firestore.runTransaction((
-                                          transaction,
-                                        ) async {
-                                          final docSnapshot = await transaction
-                                              .get(docRef);
-                                          if (!docSnapshot.exists) {
-                                            transaction.set(docRef, {
-                                              'businessId':
-                                                  videoDetail.frontUserId,
-                                              'videoId': videoDetail.id,
-                                              'totalClicks': 1,
-                                              'userIds': [
-                                                currentUserDetails!.id,
-                                              ],
-                                            });
-                                          } else {
-                                            final data = docSnapshot.data()!;
-                                            final userIds = List<String>.from(
-                                              data['userIds'] ?? [],
-                                            );
-                                            if (!userIds.contains(
-                                              currentUserDetails!.id,
-                                            )) {
-                                              transaction.update(docRef, {
-                                                'totalClicks':
-                                                    FieldValue.increment(1),
-                                                'userIds':
-                                                    FieldValue.arrayUnion([
-                                                      currentUserDetails.id,
-                                                    ]),
-                                              });
-                                            }
-                                          }
-                                        });
-
-                                        // controller.pauseCurrentVideo();
-                                        showContactNowDialog(
-                                          context,
-                                          website: videoDetail.website ?? "",
-                                          phoneNumber:
-                                              videoDetail.contactPhone ?? "",
-                                          latitude: videoDetail.latitude ?? "",
-                                          longitude:
-                                              videoDetail.longitude ?? "",
-                                          email: videoDetail.contactEmail ?? "",
-                                          videoId: videoDetail.id.toString(),
-                                        );
-                                      },
-                                      child: Container(
-                                        padding: EdgeInsets.all(8),
-                                        decoration: BoxDecoration(
-                                          color: ColorUtils.primaryColor,
-                                          shape: BoxShape.circle,
-                                        ),
-                                        child: SvgPicture.asset(
-                                          "assets/icons/contact.svg",
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                            ],
-                          );
-    }
-
-    if (!listenLive || videoId.isEmpty) {
-      return buildColumn(ReelVideoStats.empty);
-    }
-
-    return StreamBuilder<DocumentSnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('videos')
-          .doc(videoId)
-          .snapshots(),
-      builder: (context, snapshot) {
-        return buildColumn(ReelVideoStats.fromDoc(snapshot.data));
-      },
-    );
-  }
-
-  Widget _buildReviewButton({
-    required WallVideos videoDetail,
-    required SimpleUser? currentUserDetails,
-    required User? currentUser,
-    required dynamic isAuthenticated,
-    required BuildContext context,
-    required bool listenLive,
-  }) {
-    final videoId = videoDetail.id ?? '';
-    Widget ratingLabel(double rating) {
-      final label = rating > 0 ? rating.toStringAsFixed(1) : '0.0';
-      return Text(
-        label,
-        style: TextStyle(color: Colors.white, fontSize: 11.sp),
-      );
-    }
-
-    Widget buttonChild(Widget ratingWidget) {
-      return Container(
-        decoration: BoxDecoration(
-          color: Colors.transparent,
-          borderRadius: BorderRadius.circular(50),
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(50),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 10),
-            decoration: BoxDecoration(
-              color: Colors.black.withValues(alpha: 0.45),
-              borderRadius: BorderRadius.circular(50),
-            ),
-            child: InkWell(
-              onTap: () {
-                if (!isAuthenticated) {
-                  Get.toNamed(AppRoutes.signIn);
-                  return;
-                }
-                final userId = currentUserDetails?.id ?? currentUser!.id;
-                final userImage =
-                    currentUserDetails?.image ?? currentUser?.image ?? '';
-                showReviewsBottomSheet(
-                  context,
-                  videoDetail.id!,
-                  userId!,
-                  userImage,
-                );
-              },
-              child: Column(
-                children: [
-                  Icon(
-                    Icons.star_rounded,
-                    color: Colors.amberAccent,
-                    size: 28.sp,
-                  ),
-                  ratingWidget,
-                ],
-              ),
-            ),
-          ),
-        ),
-      );
-    }
-
-    if (!listenLive || videoId.isEmpty) {
-      return buttonChild(ratingLabel(0));
-    }
-
-    return StreamBuilder<DocumentSnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('videos')
-          .doc(videoId)
-          .snapshots(),
-      builder: (context, snapshot) {
-        final stats = ReelVideoStats.fromDoc(snapshot.data);
-        return buttonChild(ratingLabel(stats.averageRating));
-      },
-    );
-  }
-
-  // Helper method for static buttons to avoid rebuilding
-  Widget _buildStaticButtons(
-    WallVideos videoDetail,
-    String loggedInUserId,
-    BuildContext context,
-  ) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        // Share Button
-        Column(
-          children: [
-            InkWell(
-              onTap: () => _handleShare(videoDetail),
-              child: SizedBox(
-                height: 20.h,
-                width: 20.h,
-                child: SvgPicture.asset(
-                  "assets/icons/share.svg",
-                  fit: BoxFit.fill,
-                  color: Colors.white,
-                ),
-              ),
-            ),
-            SizedBox(height: 2),
-            Text(
-              "share".tr,
-              style: TextStyle(color: Colors.white, fontSize: 10.sp),
-            ),
-            SizedBox(height: 8),
-          ],
-        ),
-
-        // Save Button
-        videoDetail.sponsorType == null
-            ? Obx(() {
-              saveController.savedIdRevision.value;
-              final videoId = videoDetail.id?.toString() ?? '';
-              final isSaved = saveController.isVideoSaved(videoId);
-
-              return Column(
-                children: [
-                  InkWell(
-                    onTap: () async {
-                      if (isAuthenticated) {
-                        saveController.setVideoSavedLocally(
-                          videoId,
-                          saved: !isSaved,
-                        );
-                        await saveController.saveVideo(videoDetail.id!);
-                      } else {
-                        Get.toNamed(AppRoutes.signIn);
-                      }
-                    },
-                    child: SizedBox(
-                      height: 20.h,
-                      width: 20.h,
-                      child: SvgPicture.asset(
-                        "assets/icons/bookmark.svg",
-                        fit: BoxFit.fill,
-                        color: isSaved ? ColorUtils.primaryColor : Colors.white,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    "Save".tr,
-                    style: TextStyle(color: Colors.white, fontSize: 10.sp),
-                  ),
-                  SizedBox(height: 8),
-                ],
-              );
-            })
-            : SizedBox.shrink(),
-
-        // SizedBox(height: 16),
-        // More Button
-        if (videoDetail.frontUserId != loggedInUserId)
-          Column(
-            children: [
-              GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTap: () {
-                  if (isAuthenticated) {
-                    _showMoreOptions(
-                      context,
-                      videoDetail.id!,
-                      videoDetail.frontUserId!,
-                      loggedInUserId,
-                    );
-                  } else {
-                    Get.toNamed(AppRoutes.signIn);
-                  }
-                },
-                child: SizedBox(
-                  width: 48,
-                  height: 48,
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      SizedBox(
-                        height: 20.h,
-                        width: 20.h,
-                        child: SvgPicture.asset(
-                          "assets/icons/more.svg",
-                          fit: BoxFit.fill,
-                          color: Colors.white,
-                        ),
-                      ),
-                      Text(
-                        "more".tr,
-                        style: TextStyle(color: Colors.white, fontSize: 10.sp),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-      ],
-    );
-  }
-
-  void _handleShare(WallVideos videoDetail) async {
-    final videoId = videoDetail.id?.trim();
-    if (videoId == null || videoId.isEmpty) {
-      Get.snackbar(
-        'Error',
-        'Could not share this video',
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
-      );
-      return;
-    }
-    try {
-      final String appUrl = "cookster://open.cookster.app/video?id=$videoId";
-      final String webUrl =
-          "https://cookster.org/web/visitSingleVideo?id=$videoId";
-      final String shareMessage =
-          'Check out this amazing video on Cookster!\n$appUrl\n\nIf the app does not open, use this web link:\n$webUrl';
-      final box = context.findRenderObject() as RenderBox?;
-      await Share.share(
-        shareMessage,
-        subject: 'Cookster Video',
-        sharePositionOrigin: box != null
-            ? box.localToGlobal(Offset.zero) & box.size
-            : null,
-      );
-    } catch (e) {
-      debugPrint('Error sharing video: $e');
-      Get.snackbar(
-        'Error',
-        'Could not share this video',
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
-      );
-    } finally {
-      // controller.restoreVideoState();
-    }
-  }
-
-  void _showMoreOptions(
-    BuildContext context,
-    String videoId,
-    String frontUserId,
-    String userId,
-  ) {
-    // final PromoteVideoController promoteVideoController = Get.find();
-
-    var infoEmail = promoteVideoController.siteSettings.value?.settings?.email;
-    // _handleScreenExit();
-    // controller.pauseCurrentVideo();
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.white,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (context) {
-        return SafeArea(
-          child: Container(
-            padding: EdgeInsets.symmetric(vertical: 20),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: ColorUtils.grey,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-
-                ListTile(
-                  leading: Icon(Icons.block, color: ColorUtils.grey),
-                  trailing: Icon(
-                    Icons.chevron_right_rounded,
-                    color: ColorUtils.grey,
-                  ),
-                  title: Text(
-                    'block_user'.tr,
-                    style: TextStyle(color: Colors.black, fontSize: 14.sp),
-                  ),
-                  onTap: () {
-                    Navigator.pop(context);
-                    // controller.pauseCurrentVideo();
-                    controller.blockUser(userId, frontUserId);
-                  },
-                ),
-                ListTile(
-                  leading: Icon(Icons.flag_outlined, color: ColorUtils.grey),
-                  trailing: Icon(
-                    Icons.chevron_right_rounded,
-                    color: ColorUtils.grey,
-                  ),
-                  title: Text(
-                    'report-content'.tr,
-                    style: TextStyle(color: Colors.black, fontSize: 14.sp),
-                  ),
-                  onTap: () {
-                    debugPrint("THis is the report video id:$videoId");
-                    Navigator.pop(context);
-                    controller.silenceHomeReelsForTransition();
-                    Get.to(ReportContentView(videoId: videoId));
-                  },
-                ),
-                // ListTile(
-                //   leading: Icon(Icons.headphones, color: ColorUtils.grey),
-                //   trailing: Text(
-                //     infoEmail!,
-                //     style: TextStyle(color: Colors.black, fontSize: 14.sp),
-                //   ),
-                //   title: Text(
-                //     'contact_us'.tr,
-                //     style: TextStyle(color: Colors.black, fontSize: 14.sp),
-                //   ),
-                //   onTap: () async {
-                //     final Uri emailUri = Uri(
-                //       scheme: 'mailto',
-                //       path: infoEmail,
-                //       queryParameters: {
-                //         'subject': 'Contact Us',
-                //         // Optional: Pre-fill subject
-                //         // 'body': 'Your message here', // Optional: Pre-fill body
-                //       },
-                //     );
-                //
-                //     // Launch the mail app
-                //     if (await canLaunchUrl(emailUri)) {
-                //       await launchUrl(emailUri);
-                //     } else {
-                //       ScaffoldMessenger.of(context).showSnackBar(
-                //         SnackBar(content: Text('No email app found')),
-                //       );
-                //     }
-                //     Navigator.pop(context);
-                //   },
-                // ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildFilterIcon(BuildContext context, String tab) {
-    bool isRtl = Get.locale?.languageCode == 'ar';
-    return GestureDetector(
-      onTap: () {
-        _showFilterBottomSheet(context);
-      },
-      child: Container(
-        margin: EdgeInsets.only(right: isRtl ? 0 : 16, left: isRtl ? 16 : 0),
-        decoration: BoxDecoration(
-          color: Colors.transparent,
-          shape: BoxShape.circle,
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(100),
-          child: Container(
-            padding: const EdgeInsets.all(4),
-            decoration: BoxDecoration(
-              color: Colors.black.withValues(alpha: 0.45),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(
-              Icons.filter_list,
-              color: Colors.white,
-              size: 28.sp,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
   void _showFilterBottomSheet(BuildContext context) {
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20.r)),
       ),
-      builder: (BuildContext context) {
+      builder: (BuildContext sheetContext) {
         return Obx(() {
-          final selected = controller.feedSortOrder.value;
+          final tab = controller.selectedType.value;
+          final showLocation = tab == 'General';
+          final selectedSort = controller.feedSortOrder.value;
+          final filterActive = controller.hasGeneralLocationFilter;
+
           return SafeArea(
             child: Padding(
-              padding: EdgeInsets.fromLTRB(16.w, 16.h, 16.w, 24.h),
+              padding: EdgeInsets.fromLTRB(16.w, 8.h, 16.w, 24.h),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  Center(
+                    child: Container(
+                      width: 40.w,
+                      height: 4.h,
+                      margin: EdgeInsets.only(bottom: 12.h),
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade300,
+                        borderRadius: BorderRadius.circular(99),
+                      ),
+                    ),
+                  ),
                   Text(
-                    'sort_videos_title'.tr,
+                    'feed_filter_title'.tr,
+                    textAlign: TextAlign.center,
                     style: TextStyle(
                       fontSize: 18.sp,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
-                  SizedBox(height: 12.h),
+                  SizedBox(height: 16.h),
+                  Align(
+                    alignment: AlignmentDirectional.centerStart,
+                    child: Text(
+                      'sort_videos_title'.tr,
+                      style: TextStyle(
+                        fontSize: 13.sp,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.grey.shade700,
+                      ),
+                    ),
+                  ),
+                  SizedBox(height: 4.h),
                   _SortOptionTile(
                     title: 'sort_newest_to_oldest'.tr,
                     icon: Icons.arrow_downward_rounded,
-                    selected: selected == 'newest',
+                    selected: selectedSort == 'newest',
                     onTap: () {
-                      // Pop first so route restore settles, then reload —
-                      // sort-before-pop raced restore and left dead players.
-                      Navigator.of(context).pop();
+                      Navigator.of(sheetContext).pop();
                       WidgetsBinding.instance.addPostFrameCallback((_) {
                         controller.setSortOrder('newest');
                       });
@@ -3385,20 +2606,323 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                   _SortOptionTile(
                     title: 'sort_oldest_to_newest'.tr,
                     icon: Icons.arrow_upward_rounded,
-                    selected: selected == 'oldest',
+                    selected: selectedSort == 'oldest',
                     onTap: () {
-                      Navigator.of(context).pop();
+                      Navigator.of(sheetContext).pop();
                       WidgetsBinding.instance.addPostFrameCallback((_) {
                         controller.setSortOrder('oldest');
                       });
                     },
                   ),
+                  if (showLocation) ...[
+                    Divider(height: 24.h),
+                    Align(
+                      alignment: AlignmentDirectional.centerStart,
+                      child: Text(
+                        'location_label'.tr,
+                        style: TextStyle(
+                          fontSize: 13.sp,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.grey.shade700,
+                        ),
+                      ),
+                    ),
+                    SizedBox(height: 8.h),
+                    Text(
+                      'feed_filter_general_hint'.tr,
+                      style: TextStyle(
+                        fontSize: 12.sp,
+                        color: Colors.grey.shade600,
+                        height: 1.35,
+                      ),
+                    ),
+                    SizedBox(height: 12.h),
+                    _FeedFilterLocationRow(
+                      icon: Icons.public_rounded,
+                      label: 'select_country_label'.tr,
+                      value: controller.generalFilterCountry.value.isEmpty
+                          ? 'Select Country'.tr
+                          : controller.generalFilterCountry.value,
+                      onTap: () => showLocationDialog(sheetContext),
+                    ),
+                    SizedBox(height: 10.h),
+                    _FeedFilterLocationRow(
+                      icon: Icons.location_city_rounded,
+                      label: 'select_city_label'.tr,
+                      value: controller.generalFilterCity.value.isEmpty
+                          ? 'Select City'.tr
+                          : controller.generalFilterCity.value,
+                      enabled:
+                          controller.generalFilterCountryId.value.isNotEmpty,
+                      onTap: () async {
+                        if (controller.generalFilterCountryId.value.isEmpty) {
+                          Get.snackbar(
+                            'Filter'.tr,
+                            'select_country_city_error'.tr,
+                          );
+                          return;
+                        }
+                        await showCityDialog(
+                          sheetContext,
+                          initialCity: int.tryParse(
+                                controller.generalFilterCityId.value,
+                              ) ??
+                              0,
+                        );
+                      },
+                    ),
+                    if (filterActive) ...[
+                      SizedBox(height: 12.h),
+                      Container(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: 12.w,
+                          vertical: 8.h,
+                        ),
+                        decoration: BoxDecoration(
+                          color: ColorUtils.primaryColor.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(10.r),
+                          border: Border.all(
+                            color: ColorUtils.primaryColor.withValues(
+                              alpha: 0.35,
+                            ),
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.filter_alt_rounded,
+                              size: 16.sp,
+                              color: ColorUtils.primaryColor,
+                            ),
+                            SizedBox(width: 8.w),
+                            Expanded(
+                              child: Text(
+                                controller.generalFilterCityId.value.isNotEmpty
+                                    ? '${'feed_filter_active'.tr}: '
+                                        '${controller.generalFilterCity.value}, '
+                                        '${controller.generalFilterCountry.value}'
+                                    : '${'feed_filter_active'.tr}: '
+                                        '${controller.generalFilterCountry.value}',
+                                style: TextStyle(
+                                  fontSize: 12.sp,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.black87,
+                                ),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                    SizedBox(height: 16.h),
+                    AppButton(
+                      isLoading: controller.isLoading.value,
+                      text: 'feed_filter_apply'.tr,
+                      onTap: () async {
+                        if (controller.isLoading.value) {
+                          return;
+                        }
+                        if (controller.generalFilterCountryId.value.isEmpty) {
+                          Get.snackbar(
+                            'Filter'.tr,
+                            'select_country_city_error'.tr,
+                          );
+                          return;
+                        }
+                        Navigator.pop(sheetContext);
+                        await controller.applyFeedLocationFilterAndRefresh(
+                          countryId: controller.generalFilterCountryId.value,
+                          countryName: controller.generalFilterCountry.value,
+                          cityId: controller.generalFilterCityId.value,
+                          cityName: controller.generalFilterCity.value,
+                        );
+                      },
+                    ),
+                    SizedBox(height: 8.h),
+                    if (filterActive)
+                      TextButton(
+                        onPressed: controller.isLoading.value
+                            ? null
+                            : () async {
+                              Navigator.pop(sheetContext);
+                              await controller.clearFeedLocationFilterAndRefresh();
+                            },
+                        child: Text('clear_location_filter'.tr),
+                      ),
+                  ],
                 ],
               ),
             ),
           );
         });
       },
+    );
+  }
+}
+
+class _FeedFilterLocationRow extends StatelessWidget {
+  const _FeedFilterLocationRow({
+    required this.icon,
+    required this.label,
+    required this.value,
+    required this.onTap,
+    this.enabled = true,
+  });
+
+  final IconData icon;
+  final String label;
+  final String value;
+  final VoidCallback onTap;
+  final bool enabled;
+
+  @override
+  Widget build(BuildContext context) {
+    final muted = !enabled;
+    return Material(
+      color: Colors.grey.shade50,
+      borderRadius: BorderRadius.circular(12.r),
+      child: InkWell(
+        onTap: muted ? null : onTap,
+        borderRadius: BorderRadius.circular(12.r),
+        child: Padding(
+          padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 12.h),
+          child: Row(
+            children: [
+              Icon(
+                icon,
+                size: 20.sp,
+                color: muted ? Colors.grey : ColorUtils.primaryColor,
+              ),
+              SizedBox(width: 12.w),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      label,
+                      style: TextStyle(
+                        fontSize: 11.sp,
+                        color: Colors.grey.shade600,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    SizedBox(height: 2.h),
+                    Text(
+                      value,
+                      style: TextStyle(
+                        fontSize: 14.sp,
+                        fontWeight: FontWeight.w600,
+                        color: muted ? Colors.grey : Colors.black87,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+              Icon(
+                Icons.chevron_right_rounded,
+                color: muted ? Colors.grey.shade400 : Colors.grey.shade700,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Rebuilds only when this page becomes active/inactive or mount gates change —
+/// avoids rebuilding every keep-alive page on each scroll (semantics crash).
+class _HomeReelPageCell extends StatefulWidget {
+  const _HomeReelPageCell({
+    required this.actualIndex,
+    required this.isActiveTab,
+    required this.visibleIndexNotifier,
+    required this.videoDetail,
+    required this.builder,
+  });
+
+  final int actualIndex;
+  final bool isActiveTab;
+  final ValueNotifier<int> visibleIndexNotifier;
+  final WallVideos videoDetail;
+  final Widget Function(
+    BuildContext context,
+    bool showPlayer,
+    bool isActivePage,
+  ) builder;
+
+  @override
+  State<_HomeReelPageCell> createState() => _HomeReelPageCellState();
+}
+
+class _HomeReelPageCellState extends State<_HomeReelPageCell> {
+  bool _isActivePage = false;
+  Worker? _mountWorker;
+
+  @override
+  void initState() {
+    super.initState();
+    _isActivePage = _computeIsActivePage();
+    if (widget.isActiveTab) {
+      widget.visibleIndexNotifier.addListener(_onVisibleIndexChanged);
+    }
+    final home = Get.find<HomeController>();
+    _mountWorker = everAll(
+      [
+        home.isAppInBackground,
+        home.mediaCaptureDepth,
+        home.feedPlaybackEpoch,
+      ],
+      (_) {
+        if (mounted && _isActivePage) {
+          setState(() {});
+        }
+      },
+    );
+  }
+
+  @override
+  void dispose() {
+    if (widget.isActiveTab) {
+      widget.visibleIndexNotifier.removeListener(_onVisibleIndexChanged);
+    }
+    _mountWorker?.dispose();
+    super.dispose();
+  }
+
+  void _onVisibleIndexChanged() {
+    final next = _computeIsActivePage();
+    if (next != _isActivePage) {
+      setState(() => _isActivePage = next);
+    }
+  }
+
+  bool _computeIsActivePage() {
+    if (!widget.isActiveTab) {
+      return false;
+    }
+    return widget.actualIndex == widget.visibleIndexNotifier.value;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final home = Get.find<HomeController>();
+    final allowFeedPlayer = home.canMountHomeReelPlayer;
+    final showPlayer = _isActivePage &&
+        !widget.videoDetail.isPhotoPost &&
+        widget.videoDetail.isPlaybackReady &&
+        allowFeedPlayer;
+    return ExcludeSemantics(
+      excluding: !_isActivePage,
+      child: widget.builder(
+        context,
+        showPlayer,
+        _isActivePage,
+      ),
     );
   }
 }
@@ -3472,6 +2996,7 @@ class videoUserDetails extends StatelessWidget {
     required this.controller,
     required this.userId,
     required this.isAuthenticated,
+    this.hideLegacyChrome = false,
   });
 
   final ProfileController profileController;
@@ -3480,6 +3005,7 @@ class videoUserDetails extends StatelessWidget {
   final HomeController controller;
   final String? userId;
   final bool isAuthenticated;
+  final bool hideLegacyChrome;
 
   Widget _avatarPlaceholder() {
     return Container(
@@ -3491,6 +3017,9 @@ class videoUserDetails extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (hideLegacyChrome) {
+      return const SizedBox.shrink();
+    }
     final overlayTop = MediaQuery.paddingOf(context).top + 50;
     return Positioned(
       top: overlayTop,
@@ -3772,7 +3301,6 @@ void updateFollowerCountForUser(
 
 void showLocationDialog(BuildContext context) {
   final HomeController homeController = Get.find();
-  final VideoAddController controller = Get.find();
   final NavBarController profileController = Get.find();
   final CityController cityController = Get.put(CityController());
 
@@ -3786,11 +3314,7 @@ void showLocationDialog(BuildContext context) {
   // Controller for search field
   final TextEditingController searchController = TextEditingController();
   RxList<String> filteredCountryName = countryName.obs;
-  RxString selectedCountryName =
-      (controller.selectedCountry.value.isNotEmpty
-              ? controller.selectedCountry.value
-              : '')
-          .obs;
+  RxString selectedCountryName = homeController.generalFilterCountry.value.obs;
 
   // Filter countries based on search input
   void filterCountries(String query) {
@@ -3956,21 +3480,17 @@ void showLocationDialog(BuildContext context) {
 
                             String country = selectedCountryName.value;
                             final countryId = countryMap[country]!;
-                            controller.selectLocation(
-                              country,
-                              countryId,
-                            );
                             await cityController.fetchCities(
                               countryId,
                             );
-                            homeController.currentCountry.value = country;
-                            homeController.currentCountryId.value =
+                            homeController.generalFilterCountry.value = country;
+                            homeController.generalFilterCountryId.value =
                                 countryId.toString();
-                            homeController.currentCity.value = '';
-                            homeController.currentCityId.value = '';
+                            homeController.generalFilterCity.value = '';
+                            homeController.generalFilterCityId.value = '';
                             homeController.isLoading.value = false;
 
-                            showCityDialog(context);
+                            await showCityDialog(context);
                           } catch (e) {
                             debugPrint('Error selecting country: $e');
                             Get.snackbar('Error', 'Failed to load cities');
@@ -4001,11 +3521,21 @@ void showLocationDialog(BuildContext context) {
   );
 }
 
-void showCityDialog(BuildContext context, {int? initialCity}) {
-  final VideoAddController controller = Get.find();
+Future<void> showCityDialog(BuildContext context, {int? initialCity}) async {
   final CityController cityController = Get.find<CityController>();
   final UserSearchController homeController = Get.find();
   final HomeController homeUpdateController = Get.find();
+
+  // The city catalog is a shared singleton — make sure it holds the filter
+  // country's cities, otherwise the picker offers cities of whichever country
+  // was loaded last (that used to tag the feed filter with a foreign city id).
+  final filterCountryId =
+      int.tryParse(homeUpdateController.generalFilterCountryId.value) ?? 0;
+  if (filterCountryId > 0 &&
+      (cityController.loadedCountryId != filterCountryId ||
+          cityController.cityList.isEmpty)) {
+    await cityController.fetchCities(filterCountryId);
+  }
 
   // Assuming City model has id and name properties
   List<Map<String, dynamic>> cityList =
@@ -4017,16 +3547,7 @@ void showCityDialog(BuildContext context, {int? initialCity}) {
   final TextEditingController searchController = TextEditingController();
   RxList<Map<String, dynamic>> filteredCityList = cityList.obs;
   Rx<Map<String, dynamic>> selectedCity = Rx<Map<String, dynamic>>(
-    controller.selectedCity.value.isNotEmpty
-        ? {
-          'id':
-              cityList.firstWhere(
-                (city) => city['name'] == controller.selectedCity.value,
-                orElse: () => {'id': -1, 'name': ''},
-              )['id'],
-          'name': controller.selectedCity.value,
-        }
-        : {'id': -1, 'name': ''},
+    const {'id': -1, 'name': ''},
   );
 
   // Pre-select city if initialCity is provided
@@ -4218,12 +3739,11 @@ void showCityDialog(BuildContext context, {int? initialCity}) {
                                         "Selected City: $selectedName (ID: $selectedId)",
                                       );
 
-                                      homeUpdateController.currentCityId.value =
+                                      homeUpdateController
+                                          .generalFilterCityId.value =
                                           selectedId.toString();
-                                      homeUpdateController.currentCity.value =
-                                          selectedName;
-                                      controller.selectedCity.value =
-                                          selectedName;
+                                      homeUpdateController.generalFilterCity
+                                          .value = selectedName;
                                       Get.back(); // Close the city dialog
                                     } catch (e) {
                                       debugPrint('Error selecting city: $e');
@@ -4266,6 +3786,11 @@ class VideoDescriptionWidget extends StatefulWidget {
   final HomeController? controller;
   /// Extra space above the bottom edge (e.g. home tab bar). Profile reels use ~8.
   final double bottomBarClearance;
+  final bool tiktokStyle;
+  final String? userName;
+  final String? creatorHandle;
+  final dynamic sponsorType;
+  final bool isPhotoPost;
 
   const VideoDescriptionWidget({
     this.title,
@@ -4273,6 +3798,11 @@ class VideoDescriptionWidget extends StatefulWidget {
     this.tags,
     this.controller,
     this.bottomBarClearance = 68,
+    this.tiktokStyle = false,
+    this.userName,
+    this.creatorHandle,
+    this.sponsorType,
+    this.isPhotoPost = false,
     super.key,
   });
 
@@ -4302,18 +3832,27 @@ class _VideoDescriptionWidgetState extends State<VideoDescriptionWidget>
     super.didUpdateWidget(oldWidget);
     if (oldWidget.title != widget.title ||
         oldWidget.description != widget.description ||
-        oldWidget.tags != widget.tags) {
+        oldWidget.tags != widget.tags ||
+        oldWidget.userName != widget.userName ||
+        oldWidget.isPhotoPost != widget.isPhotoPost) {
       _isExpanded = false;
       _hasOverflow = false;
       WidgetsBinding.instance.addPostFrameCallback((_) => _checkOverflowOnce());
     }
   }
 
-  TextStyle get _descriptionStyle =>
-      TextStyle(color: Colors.white, fontSize: 14.sp);
+  TextStyle get _descriptionStyle => widget.tiktokStyle
+      ? TikTokFeedChrome.bodyCaption
+      : TextStyle(color: Colors.white, fontSize: 14.sp);
 
-  TextStyle get _tagStyle =>
-      TextStyle(color: ColorUtils.primaryColor, fontSize: 12.sp);
+  TextStyle get _tagStyle => widget.tiktokStyle
+      ? TextStyle(
+          color: Colors.white,
+          fontSize: 14.sp,
+          fontWeight: FontWeight.w600,
+          shadows: TikTokFeedChrome.labelShadow,
+        )
+      : TextStyle(color: ColorUtils.primaryColor, fontSize: 12.sp);
 
   List<InlineSpan> _bodySpans({required bool interactive}) {
     final spans = <InlineSpan>[];
@@ -4383,6 +3922,87 @@ class _VideoDescriptionWidgetState extends State<VideoDescriptionWidget>
     return MediaQuery.paddingOf(context).bottom + widget.bottomBarClearance;
   }
 
+  Widget? _buildCreatorHeader({
+    required TextAlign textAlign,
+    required TextDirection textDirection,
+    required CrossAxisAlignment crossAxisAlignment,
+  }) {
+    final name = widget.userName?.trim() ?? '';
+    if (name.isEmpty && !widget.isPhotoPost) {
+      return null;
+    }
+
+    final nameStyle = widget.tiktokStyle
+        ? TikTokFeedChrome.userName
+        : TextStyle(
+            color: Colors.white,
+            fontSize: 15.sp,
+            fontWeight: FontWeight.w700,
+          );
+
+    return Column(
+      crossAxisAlignment: crossAxisAlignment,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          textDirection: textDirection,
+          children: [
+            if (name.isNotEmpty)
+              Expanded(
+                child: Text(
+                  name,
+                  style: nameStyle,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: textAlign,
+                  textDirection: textDirection,
+                ),
+              ),
+            if (widget.isPhotoPost) ...[
+              if (name.isNotEmpty) SizedBox(width: 8.w),
+              const ReelPhotoInlineBadge(),
+            ],
+          ],
+        ),
+        if (PublicUserIdentity.subtitleHandle(widget.creatorHandle) != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 2),
+            child: Text(
+              PublicUserIdentity.formatAtHandle(widget.creatorHandle),
+              style: widget.tiktokStyle
+                  ? TikTokFeedChrome.bodyCaption.copyWith(
+                      fontSize: 13.sp,
+                      color: Colors.white.withValues(alpha: 0.9),
+                    )
+                  : TextStyle(
+                      color: Colors.white.withValues(alpha: 0.9),
+                      fontSize: 13.sp,
+                    ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        if (widget.sponsorType != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 2),
+            child: Text(
+              'Sponsored',
+              style: widget.tiktokStyle
+                  ? TikTokFeedChrome.bodyCaption.copyWith(
+                      fontSize: 12.sp,
+                      color: Colors.white.withValues(alpha: 0.85),
+                    )
+                  : TextStyle(
+                      color: Colors.white.withValues(alpha: 0.85),
+                      fontSize: 12.sp,
+                    ),
+            ),
+          ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final textDirection = Directionality.of(context);
@@ -4392,8 +4012,21 @@ class _VideoDescriptionWidgetState extends State<VideoDescriptionWidget>
     final crossAxisAlignment =
         isRtl ? CrossAxisAlignment.end : CrossAxisAlignment.start;
 
-    if (_title.isEmpty && !_hasBody) {
-      return const SizedBox.shrink();
+    final creatorHeader = _buildCreatorHeader(
+      textAlign: textAlign,
+      textDirection: textDirection,
+      crossAxisAlignment: crossAxisAlignment,
+    );
+
+    if (_title.isEmpty &&
+        !_hasBody &&
+        creatorHeader == null) {
+      return Positioned(
+        left: 0,
+        right: 0,
+        bottom: _bottomOffset(context),
+        child: const SizedBox.shrink(),
+      );
     }
 
     return Positioned(
@@ -4401,26 +4034,39 @@ class _VideoDescriptionWidgetState extends State<VideoDescriptionWidget>
       // Keep on the physical left so description/hashtags never overlap the
       // action column (always on the right). RTL only affects text inside.
       left: 10,
+      right: 72,
       child: Container(
-        padding: const EdgeInsets.all(8),
+        padding: widget.tiktokStyle
+            ? EdgeInsets.zero
+            : const EdgeInsets.all(8),
         constraints: BoxConstraints(maxWidth: contentMaxWidth),
-        decoration: BoxDecoration(
-          color: Colors.black.withValues(alpha: 0.3),
-          borderRadius: BorderRadius.circular(8),
-        ),
+        decoration: widget.tiktokStyle
+            ? null
+            : BoxDecoration(
+                color: Colors.black.withValues(alpha: 0.3),
+                borderRadius: BorderRadius.circular(8),
+              ),
         child: Column(
           crossAxisAlignment: crossAxisAlignment,
           mainAxisSize: MainAxisSize.min,
           children: [
+            if (creatorHeader != null) ...[
+              creatorHeader,
+              if (_title.isNotEmpty || _hasBody) SizedBox(height: 6.h),
+            ],
             if (_title.isNotEmpty)
               Text(
                 _title,
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 16.sp,
-                ),
-                maxLines: 2,
+                style: widget.tiktokStyle
+                    ? TikTokFeedChrome.bodyCaption.copyWith(
+                        fontWeight: FontWeight.w600,
+                      )
+                    : TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16.sp,
+                      ),
+                maxLines: widget.tiktokStyle ? 3 : 2,
                 overflow: TextOverflow.ellipsis,
                 textAlign: textAlign,
                 textDirection: textDirection,
@@ -4452,9 +4098,14 @@ class _VideoDescriptionWidgetState extends State<VideoDescriptionWidget>
                     child: Text(
                       _isExpanded ? "show_less".tr : "show_more".tr,
                       style: TextStyle(
-                        color: ColorUtils.primaryColor,
+                        color: widget.tiktokStyle
+                            ? Colors.white.withValues(alpha: 0.95)
+                            : ColorUtils.primaryColor,
                         fontSize: 12.sp,
                         fontWeight: FontWeight.w500,
+                        shadows: widget.tiktokStyle
+                            ? TikTokFeedChrome.labelShadow
+                            : null,
                       ),
                       textAlign: textAlign,
                       textDirection: textDirection,

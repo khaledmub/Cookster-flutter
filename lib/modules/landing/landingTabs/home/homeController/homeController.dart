@@ -15,8 +15,11 @@ import 'package:cookster/core/video/video_player_pool.dart';
 import 'package:cookster/core/video/video_source_resolver.dart';
 import 'package:cookster/core/video/cached_playback_url.dart';
 import 'package:cookster/core/video/feed_disk_warm_service.dart';
+import 'package:cookster/core/video/reels_feed_pin_store.dart';
 import 'package:cookster/modules/landing/landingController/landingController.dart';
+import 'package:cookster/modules/landing/landingTabs/add/videoAddController/videoAddController.dart';
 import '../../../../../services/apiClient.dart';
+import '../../../../../services/video_processing_service.dart';
 import '../homeModel/videoFeedModel.dart';
 import 'package:cookster/appUtils/apiEndPoints.dart';
 import 'package:geolocator/geolocator.dart';
@@ -150,7 +153,30 @@ class HomeController extends GetxController with WidgetsBindingObserver {
   bool get prefersNewestAttach => _preferNewestAttach;
 
   /// Last successful feed per tab — instant UI when switching عام / بالقرب / المتابعة.
+  /// Keys include General sort + location filter so stale unfiltered rows are never reused.
   final Map<String, VideoFeed> _tabFeedCache = {};
+
+  String _tabFeedCacheKey(String tab) {
+    if (tab == 'General') {
+      if (hasGeneralLocationFilter) {
+        return 'General|${feedSortOrder.value}|'
+            '${generalFilterCountryId.value}|${generalFilterCityId.value}';
+      }
+      return 'General|${feedSortOrder.value}|all';
+    }
+    return tab;
+  }
+
+  VideoFeed? _cachedFeedForTab(String tab) =>
+      _tabFeedCache[_tabFeedCacheKey(tab)];
+
+  void _storeFeedCacheForTab(String tab, VideoFeed feed) {
+    _tabFeedCache[_tabFeedCacheKey(tab)] = feed;
+  }
+
+  void _clearFeedCacheForTab(String tab) {
+    _tabFeedCache.remove(_tabFeedCacheKey(tab));
+  }
 
   /// Last scroll position per tab so switching tabs doesn't rewind to reel 0.
   final Map<String, int> _tabScrollIndex = {};
@@ -171,23 +197,118 @@ class HomeController extends GetxController with WidgetsBindingObserver {
   /// Set after a successful upload — forces a network reload instead of
   /// remounting the pre-upload [videoFeed] snapshot (HomeController is permanent).
   bool _feedStaleAfterUpload = false;
+  String? _pendingUploadVideoId;
+  String? _pendingUploadResponseBody;
 
   bool get feedStaleAfterUpload => _feedStaleAfterUpload;
 
   /// Drop cached tab rows + live feed so General / Near Me refetch after upload.
-  void markFeedStaleAfterUpload() {
+  void markFeedStaleAfterUpload({
+    String? videoId,
+    String? responseBody,
+  }) {
     _feedStaleAfterUpload = true;
+    if (videoId != null && videoId.isNotEmpty) {
+      _pendingUploadVideoId = videoId;
+    }
+    if (responseBody != null && responseBody.isNotEmpty) {
+      _pendingUploadResponseBody = responseBody;
+    }
     _tabFeedCache.clear();
     videoFeed.value = VideoFeed(status: true, videos: []);
     reelListLength.value = 0;
   }
 
   Future<void> refreshFeedAfterUploadIfNeeded() async {
-    if (!_feedStaleAfterUpload) {
+    final pendingId = _pendingUploadVideoId;
+    if (!_feedStaleAfterUpload &&
+        (pendingId == null || pendingId.isEmpty)) {
       return;
     }
+
+    if (pendingId != null && pendingId.isNotEmpty) {
+      if (kDebugMode) {
+        debugPrint(
+          '[FeedRestore] awaiting upload processing id=$pendingId',
+        );
+      }
+      try {
+        await VideoProcessingService.pollUntilSettled(
+          pendingId,
+          waitForTranscode: false,
+        ).timeout(const Duration(seconds: 20), onTimeout: () => null);
+      } catch (_) {}
+    }
+
     _feedStaleAfterUpload = false;
+    setSelectedType('General');
+    resetTabScrollRestore('General');
     await fetchVideos(forceNetwork: true, resetScrollPosition: true);
+    await _surfacePendingUploadAtTop();
+  }
+
+  /// Ensures the just-uploaded row is first when the API/pin has not caught up.
+  Future<void> _surfacePendingUploadAtTop() async {
+    final videoId = _pendingUploadVideoId;
+    if (videoId == null || videoId.isEmpty) {
+      return;
+    }
+
+    var videos = List<WallVideos>.from(videoFeed.value.videos ?? []);
+    if (videos.isEmpty) {
+      final local = VideoProcessingService.wallVideoFromUploadResponse(
+        _pendingUploadResponseBody,
+      );
+      if (local != null) {
+        videos = [local];
+      } else {
+        return;
+      }
+    }
+
+    final existingIdx = videos.indexWhere((v) => v.id == videoId);
+    if (existingIdx < 0) {
+      final local = VideoProcessingService.wallVideoFromUploadResponse(
+        _pendingUploadResponseBody,
+      );
+      if (local != null) {
+        videos.insert(0, local);
+        if (kDebugMode) {
+          debugPrint(
+            '[FeedRestore] prepended upload id=$videoId (not in API page yet)',
+          );
+        }
+      } else {
+        if (kDebugMode) {
+          debugPrint(
+            '[FeedRestore] upload id=$videoId missing from feed and no local row',
+          );
+        }
+        return;
+      }
+    } else if (existingIdx > 0) {
+      final row = videos.removeAt(existingIdx);
+      videos.insert(0, row);
+      if (kDebugMode) {
+        debugPrint(
+          '[FeedRestore] moved upload id=$videoId to index 0 (was $existingIdx)',
+        );
+      }
+    }
+
+    videoFeed.value = VideoFeed(
+      status: videoFeed.value.status,
+      videos: videos,
+      meta: videoFeed.value.meta,
+    );
+    reelListLength.value = videos.length;
+    _storeFeedCacheForTab('General', videoFeed.value);
+    visiblePageIndex.value = 0;
+    currentIndex.value = 0;
+    feedPlaybackEpoch.value++;
+    _pendingUploadVideoId = null;
+    _pendingUploadResponseBody = null;
+    update();
   }
 
   // New reactive variables for location checks
@@ -219,14 +340,23 @@ class HomeController extends GetxController with WidgetsBindingObserver {
     );
   }
 
+  static const _prefGeneralLocationFilter = 'generalLocationFilterActive';
+  static const _prefGeneralFilterCountry = 'generalFilterCountry';
+  static const _prefGeneralFilterCity = 'generalFilterCity';
+  static const _prefGeneralFilterCountryId = 'generalFilterCountryId';
+  static const _prefGeneralFilterCityId = 'generalFilterCityId';
+  /// Legacy pref from when manual filter was incorrectly tied to Near Me.
   static const _prefNearMeManualFilter = 'nearMeManualFilterActive';
 
   /// Restore last known coords so Near Me can load before GPS finishes.
   Future<void> _restoreLocationFromPrefs() async {
     final prefs = await SharedPreferences.getInstance();
-    final manualFilter =
-        prefs.getBool(_prefNearMeManualFilter) ?? false;
-    nearMeManualFilterActive.value = manualFilter;
+
+    var generalFilter =
+        prefs.getBool(_prefGeneralLocationFilter) ??
+        prefs.getBool(_prefNearMeManualFilter) ??
+        false;
+    generalLocationFilterActive.value = generalFilter;
 
     final lat = prefs.getDouble('latitude');
     final lng = prefs.getDouble('longitude');
@@ -242,23 +372,38 @@ class HomeController extends GetxController with WidgetsBindingObserver {
     if (country != null && country.isNotEmpty) {
       currentCountry.value = country;
     }
-    if (manualFilter) {
-      final cityId = prefs.getString('currentCityId');
-      final countryId = prefs.getString('currentCountryId');
-      if (cityId != null && cityId.isNotEmpty) {
-        currentCityId.value = cityId;
-      }
-      if (countryId != null && countryId.isNotEmpty) {
-        currentCountryId.value = countryId;
+    if (generalFilter) {
+      generalFilterCountry.value =
+          prefs.getString(_prefGeneralFilterCountry) ?? '';
+      generalFilterCity.value = prefs.getString(_prefGeneralFilterCity) ?? '';
+      generalFilterCountryId.value =
+          prefs.getString(_prefGeneralFilterCountryId) ?? '';
+      generalFilterCityId.value =
+          prefs.getString(_prefGeneralFilterCityId) ?? '';
+      // Legacy Near Me manual filter could set the flag without explicit ids.
+      // Never guess from GPS currentCountryId — that produced wrong filters
+      // (e.g. country 45 vs catalog 194 for Saudi Arabia).
+      if (generalFilterCountryId.value.isEmpty) {
+        generalLocationFilterActive.value = false;
+        generalFilter = false;
+        generalFilterCountry.value = '';
+        generalFilterCity.value = '';
+        generalFilterCityId.value = '';
+        await prefs.setBool(_prefGeneralLocationFilter, false);
+        await prefs.remove(_prefNearMeManualFilter);
       }
     } else {
-      currentCityId.value = '';
-      currentCountryId.value = '';
+      generalFilterCountry.value = '';
+      generalFilterCity.value = '';
+      generalFilterCountryId.value = '';
+      generalFilterCityId.value = '';
     }
   }
 
   Future<void> _bootstrapHomeFeed() async {
     await _restoreLocationFromPrefs();
+    await _resolveLocationIdsFromStoredNames();
+    await ReelsFeedPinStore.instance.restoreFromPrefs();
     await fetchVideos();
     if (selectedType.value == 'Near Me') {
       unawaited(fetchLocationOnce(refreshNearMeFeed: true));
@@ -301,6 +446,27 @@ class HomeController extends GetxController with WidgetsBindingObserver {
       default:
         return 'general';
     }
+  }
+
+  String? _pendingPinForTab(String tab) {
+    final feedMode =
+        tab == 'General'
+            ? 'general'
+            : tab == 'Near Me'
+            ? 'near_me'
+            : 'following';
+    String? requestCountry;
+    String? requestCity;
+    if (tab == 'General' && hasGeneralLocationFilter) {
+      requestCountry = generalFilterCountryId.value;
+      requestCity = generalFilterCityId.value;
+    }
+    return ReelsFeedPinStore.instance.pinVideoIdForFirstPage(
+      feedMode: feedMode,
+      requestCountry: requestCountry,
+      requestCity: requestCity,
+      requestSortBy: feedSortOrder.value,
+    );
   }
 
   Future<void> fetchMoreVideos() async {
@@ -358,7 +524,7 @@ class HomeController extends GetxController with WidgetsBindingObserver {
       // Mirror the full paginated list into the tab cache so a sub-tab switch
       // and back can restore the exact reel by id (the cache used to stay
       // page-1 only, so paginated ids went missing and restore fell to index 0).
-      _tabFeedCache[selectedType.value] = videoFeed.value;
+      _storeFeedCacheForTab(selectedType.value, videoFeed.value);
       // Warm the first reels of the freshly appended page so crossing the
       // pagination boundary doesn't stall waiting on a live CDN fetch.
       _prefetchNewPageHead(uniqueIncoming);
@@ -407,21 +573,25 @@ class HomeController extends GetxController with WidgetsBindingObserver {
       if (feed != 'general') {
         params['feed'] = feed;
       }
-      if (selectedType.value == 'Near Me') {
-        if (!hasManualLocationFilter) {
-          if (latitude.value.isNotEmpty) {
-            params['latitude'] = latitude.value;
-          }
-          if (longitude.value.isNotEmpty) {
-            params['longitude'] = longitude.value;
-          }
-        }
-        if (currentCountryId.value.isNotEmpty) {
-          params['country'] = currentCountryId.value;
-        }
-        if (currentCityId.value.isNotEmpty) {
-          params['city'] = currentCityId.value;
-        }
+    }
+
+    // Near Me always uses device GPS — never the General tab location filter.
+    if (selectedType.value == 'Near Me') {
+      if (latitude.value.isNotEmpty) {
+        params['latitude'] = latitude.value;
+      }
+      if (longitude.value.isNotEmpty) {
+        params['longitude'] = longitude.value;
+      }
+    }
+
+    // General tab location filter only (country/city picker in filter sheet).
+    if (selectedType.value == 'General' && hasGeneralLocationFilter) {
+      if (generalFilterCountryId.value.isNotEmpty) {
+        params['country'] = generalFilterCountryId.value;
+      }
+      if (generalFilterCityId.value.isNotEmpty) {
+        params['city'] = generalFilterCityId.value;
       }
     }
     
@@ -430,6 +600,20 @@ class HomeController extends GetxController with WidgetsBindingObserver {
     // this should always be sent.
     if (feedSortOrder.value.isNotEmpty) {
       params['sort_by'] = feedSortOrder.value;
+    }
+
+    var pinSent = false;
+    if (reset) {
+      final pinId = ReelsFeedPinStore.instance.pinVideoIdForFirstPage(
+        feedMode: _reelsFeedMode,
+        requestCountry: params['country'],
+        requestCity: params['city'],
+        requestSortBy: feedSortOrder.value,
+      );
+      if (pinId != null && pinId.isNotEmpty) {
+        params['pin_video_id'] = pinId;
+        pinSent = true;
+      }
     }
 
     var endpoint = EndPoints.reels;
@@ -455,13 +639,28 @@ class HomeController extends GetxController with WidgetsBindingObserver {
         echoedSort != feedSortOrder.value) {
       feedSortOrder.value = echoedSort!;
     }
-    if (kDebugMode && selectedType.value == 'Near Me') {
+    if (kDebugMode &&
+        (selectedType.value == 'Near Me' || selectedType.value == 'General')) {
       debugPrint(
-        'Near Me reels: count=${parsed.videos?.length ?? 0} '
+        '${selectedType.value} reels: count=${parsed.videos?.length ?? 0} '
         'geo_fallback=${parsed.meta?.geoFallback ?? false} '
-        'manualFilter=$hasManualLocationFilter '
-        'countryId=${currentCountryId.value} cityId=${currentCityId.value}',
+        'pinned=${parsed.meta?.pinnedVideoId ?? 'none'} '
+        'pin_sent=$pinSent '
+        'generalLocationFilter=$hasGeneralLocationFilter '
+        'lat=${latitude.value} lng=${longitude.value} '
+        'filterCountryId=${generalFilterCountryId.value} '
+        'filterCityId=${generalFilterCityId.value}',
       );
+    }
+    if (reset && pinSent) {
+      final pinned = parsed.meta?.pinnedVideoId?.trim();
+      if (pinned != null && pinned.isNotEmpty) {
+        await ReelsFeedPinStore.instance.clearPin();
+      } else if (kDebugMode) {
+        debugPrint(
+          '[FeedPin] pin sent but server did not pin — keeping for retry',
+        );
+      }
     }
     return parsed;
   }
@@ -552,25 +751,36 @@ class HomeController extends GetxController with WidgetsBindingObserver {
   var currentCity = "".obs;
   var latitude = "".obs;
   var longitude = "".obs;
-  var currentCityId = "".obs;
   var currentCountry = "".obs;
-  var currentCountryId = "".obs;
 
-  /// Set only when the user submits the Near Me city/country filter sheet.
-  final nearMeManualFilterActive = false.obs;
+  /// General-tab country/city filter (does not affect Near Me GPS feed).
+  final generalLocationFilterActive = false.obs;
+  var generalFilterCountry = "".obs;
+  var generalFilterCity = "".obs;
+  var generalFilterCountryId = "".obs;
+  var generalFilterCityId = "".obs;
 
-  /// True when Near Me should use picked city/country IDs instead of GPS coords.
-  bool get hasManualLocationFilter =>
-      nearMeManualFilterActive.value &&
-      (currentCityId.value.isNotEmpty || currentCountryId.value.isNotEmpty);
+  /// Apple iOS Simulator default GPS (Union Square, San Francisco).
+  static const double iosSimulatorDefaultLat = 37.785834;
+  static const double iosSimulatorDefaultLng = -122.406417;
+
+  bool get isLikelyIosSimulatorDefaultLocation {
+    final lat = double.tryParse(latitude.value);
+    final lng = double.tryParse(longitude.value);
+    if (lat == null || lng == null) {
+      return false;
+    }
+    return (lat - iosSimulatorDefaultLat).abs() < 0.002 &&
+        (lng - iosSimulatorDefaultLng).abs() < 0.002;
+  }
+
+  bool get hasGeneralLocationFilter =>
+      generalLocationFilterActive.value &&
+      generalFilterCountryId.value.isNotEmpty;
 
   var feedSortOrder = "newest".obs;
 
-  void setSortOrder(String order) {
-    if (feedSortOrder.value == order) return;
-    feedSortOrder.value = order;
-    final tab = selectedType.value;
-
+  void _teardownFeedForReload(String tab) {
     // Same teardown as [refreshHomeFeed] — without it, filter apply + modal
     // dismiss races restore and leaves the pool claiming a visible reel with
     // no mounted Video surface (all videos appear dead).
@@ -594,7 +804,77 @@ class HomeController extends GetxController with WidgetsBindingObserver {
     currentIndex.value = 0;
     videoFeed.value = VideoFeed(status: true, videos: []);
     reelListLength.value = 0;
+  }
+
+  void setSortOrder(String order) {
+    if (feedSortOrder.value == order) return;
+    feedSortOrder.value = order;
+    _teardownFeedForReload(selectedType.value);
     unawaited(fetchVideos(forceNetwork: true, resetScrollPosition: true));
+  }
+
+  Future<void> applyFeedLocationFilterAndRefresh({
+    required String countryId,
+    required String countryName,
+    required String cityId,
+    required String cityName,
+  }) async {
+    applyGeneralLocationFilter(
+      countryId: countryId,
+      countryName: countryName,
+      cityId: cityId,
+      cityName: cityName,
+    );
+    if (selectedType.value != 'General') {
+      setSelectedType('General');
+    }
+    _teardownFeedForReload('General');
+    await fetchVideos(forceNetwork: true, resetScrollPosition: true);
+    await saveGeneralFilterData();
+  }
+
+  Future<void> clearFeedLocationFilterAndRefresh() async {
+    await clearGeneralLocationFilter();
+    if (selectedType.value != 'General') {
+      setSelectedType('General');
+    }
+    _teardownFeedForReload('General');
+    await fetchVideos(forceNetwork: true, resetScrollPosition: true);
+  }
+
+  /// Maps GPS/display city names to API catalog ids for upload + filter consistency.
+  Future<void> _resolveLocationIdsFromStoredNames() async {
+    if (!Get.isRegistered<VideoAddController>()) {
+      return;
+    }
+    final country = currentCountry.value.trim();
+    final city = currentCity.value.trim();
+    if (country.isEmpty ||
+        city.isEmpty ||
+        country == 'Unknown' ||
+        city == 'Unknown') {
+      return;
+    }
+    try {
+      final upload = Get.find<VideoAddController>();
+      upload.selectedCountry.value = country;
+      upload.selectedCity.value = city;
+      final prefs = await SharedPreferences.getInstance();
+      final state = prefs.getString('currentState');
+      final ready = await upload.ensureLocationIdsReady(
+        alternateCityName: state,
+      );
+      if (ready && kDebugMode) {
+        debugPrint(
+          '[LocationIds] resolved countryId=${upload.selectedLocationId.value} '
+          'cityId=${upload.selectedCityId.value} for $city, $country',
+        );
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint('[LocationIds] resolve failed: $e');
+      }
+    }
   }
 
   /// Drop saved tab position so a sort/filter reload always opens at reel 0.
@@ -714,30 +994,18 @@ class HomeController extends GetxController with WidgetsBindingObserver {
 
       if (placemarks.isNotEmpty) {
         Placemark placemark = placemarks.first;
-        if (!hasManualLocationFilter) {
-          currentCity.value = (placemark.locality ?? 'Unknown').trim();
-          currentCountry.value = (placemark.country ?? 'Unknown').trim();
-        }
+        currentCity.value = (placemark.locality ?? 'Unknown').trim();
+        currentCountry.value = (placemark.country ?? 'Unknown').trim();
         String currentState =
             (placemark.administrativeArea ?? 'Unknown').trim();
 
         latitude.value = position.latitude.toString();
         longitude.value = position.longitude.toString();
-        if (!hasManualLocationFilter) {
-          currentCityId.value = '';
-          currentCountryId.value = '';
-          nearMeManualFilterActive.value = false;
-          final prefsForCity = await SharedPreferences.getInstance();
-          await prefsForCity.remove('currentCityId');
-          await prefsForCity.remove('currentCountryId');
-          await prefsForCity.setBool(_prefNearMeManualFilter, false);
-        }
 
         if (kDebugMode) {
           debugPrint(
             '[NearMe GPS] lat=${position.latitude} lng=${position.longitude} '
-            'city=${currentCity.value} country=${currentCountry.value} '
-            'manualFilter=$hasManualLocationFilter',
+            'city=${currentCity.value} country=${currentCountry.value}',
           );
         }
 
@@ -769,6 +1037,8 @@ class HomeController extends GetxController with WidgetsBindingObserver {
         await prefs.setDouble('latitude', position.latitude);
         await prefs.setDouble('longitude', position.longitude);
 
+        await _resolveLocationIdsFromStoredNames();
+
         hasLocationBeenFetched.value = true;
         print(
           'Location fetched - City: ${currentCity.value}, Country: ${currentCountry.value}, '
@@ -784,19 +1054,6 @@ class HomeController extends GetxController with WidgetsBindingObserver {
       error.value = "Error fetching location: $e";
     } finally {
       isLocationFetching.value = false;
-      if (hasManualLocationFilter) {
-        if (protectPlaybackDuringFlow) {
-          _preferSoftFeedResumeAfterLocation =
-              videoFeed.value.videos?.isNotEmpty ?? false;
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            _endNearMeLocationFlow();
-            if (_preferSoftFeedResumeAfterLocation) {
-              resumeAfterAppForegroundIfAllowed(soft: true);
-            }
-          });
-        }
-        return;
-      }
       if (!refreshNearMeFeed ||
           selectedType.value != 'Near Me' ||
           !hasLocationBeenFetched.value) {
@@ -1036,44 +1293,58 @@ class HomeController extends GetxController with WidgetsBindingObserver {
   //   // }
   // }
 
-  Future<void> saveLocationData() async {
+  Future<void> saveGeneralFilterData() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('currentCountry', currentCountry.value);
-    await prefs.setString('currentCity', currentCity.value);
     await prefs.setBool(
-      _prefNearMeManualFilter,
-      nearMeManualFilterActive.value,
+      _prefGeneralLocationFilter,
+      generalLocationFilterActive.value,
     );
-    if (nearMeManualFilterActive.value &&
-        currentCountryId.value.isNotEmpty) {
-      await prefs.setString('currentCountryId', currentCountryId.value);
-    }
-    if (nearMeManualFilterActive.value && currentCityId.value.isNotEmpty) {
-      await prefs.setString('currentCityId', currentCityId.value);
+    if (generalLocationFilterActive.value) {
+      await prefs.setString(
+        _prefGeneralFilterCountry,
+        generalFilterCountry.value,
+      );
+      await prefs.setString(_prefGeneralFilterCity, generalFilterCity.value);
+      if (generalFilterCountryId.value.isNotEmpty) {
+        await prefs.setString(
+          _prefGeneralFilterCountryId,
+          generalFilterCountryId.value,
+        );
+      }
+      if (generalFilterCityId.value.isNotEmpty) {
+        await prefs.setString(
+          _prefGeneralFilterCityId,
+          generalFilterCityId.value,
+        );
+      }
     }
   }
 
-  Future<void> clearManualNearMeFilter() async {
-    nearMeManualFilterActive.value = false;
-    currentCityId.value = '';
-    currentCountryId.value = '';
+  Future<void> clearGeneralLocationFilter() async {
+    generalLocationFilterActive.value = false;
+    generalFilterCountry.value = '';
+    generalFilterCity.value = '';
+    generalFilterCountryId.value = '';
+    generalFilterCityId.value = '';
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_prefNearMeManualFilter, false);
-    await prefs.remove('currentCityId');
-    await prefs.remove('currentCountryId');
+    await prefs.setBool(_prefGeneralLocationFilter, false);
+    await prefs.remove(_prefGeneralFilterCountry);
+    await prefs.remove(_prefGeneralFilterCity);
+    await prefs.remove(_prefGeneralFilterCountryId);
+    await prefs.remove(_prefGeneralFilterCityId);
   }
 
-  void applyManualLocationFilter({
+  void applyGeneralLocationFilter({
     required String countryId,
     required String countryName,
     required String cityId,
     required String cityName,
   }) {
-    nearMeManualFilterActive.value = true;
-    currentCountryId.value = countryId;
-    currentCountry.value = countryName;
-    currentCityId.value = cityId;
-    currentCity.value = cityName;
+    generalLocationFilterActive.value = true;
+    generalFilterCountryId.value = countryId;
+    generalFilterCountry.value = countryName;
+    generalFilterCityId.value = cityId;
+    generalFilterCity.value = cityName;
   }
 
   Future<void> fetchVideos({
@@ -1085,6 +1356,9 @@ class HomeController extends GetxController with WidgetsBindingObserver {
     bool resetScrollPosition = false,
   }) async {
     final tab = selectedType.value;
+    final pendingPin = _pendingPinForTab(tab);
+    final needsPinFetch = pendingPin != null;
+    final effectiveForceNetwork = forceNetwork || needsPinFetch;
     if (resetScrollPosition) {
       resetTabScrollRestore(tab);
       visiblePageIndex.value = 0;
@@ -1093,10 +1367,10 @@ class HomeController extends GetxController with WidgetsBindingObserver {
       // an early attach would resurrect the previous reel (silenced, not autoplaying
       // the newest). The post-fetch epoch bump below drives the real attach.
     }
-    final cached = _tabFeedCache[tab];
+    final cached = _cachedFeedForTab(tab);
     final sanitizedCache =
         cached != null ? _feedForTab(tab, cached) : null;
-    final hasCachedFeed = !forceNetwork &&
+    final hasCachedFeed = !effectiveForceNetwork &&
         !_feedStaleAfterUpload &&
         sanitizedCache != null &&
         (sanitizedCache.videos?.isNotEmpty ?? false);
@@ -1124,7 +1398,7 @@ class HomeController extends GetxController with WidgetsBindingObserver {
 
       // Tab switch with warm cache: show instantly, no network replace, and no
       // silent cache refresh while the switch lock is held (cache reorder race).
-      if (fromTabSwitch && !_feedStaleAfterUpload) {
+      if (fromTabSwitch && !_feedStaleAfterUpload && !needsPinFetch) {
         return;
       }
     }
@@ -1152,8 +1426,7 @@ class HomeController extends GetxController with WidgetsBindingObserver {
         }
         if (!hasLocationBeenFetched.value &&
             latitude.value.isEmpty &&
-            longitude.value.isEmpty &&
-            !hasManualLocationFilter) {
+            longitude.value.isEmpty) {
           if (!isLocationFetching.value) {
             unawaited(fetchLocationOnce(refreshNearMeFeed: true));
           }
@@ -1182,9 +1455,9 @@ class HomeController extends GetxController with WidgetsBindingObserver {
         // Stale response from a previous tab — keep cache only, don't overwrite live feed.
         if (tab != selectedType.value) {
           if (feedForTab.videos?.isNotEmpty ?? false) {
-            _tabFeedCache[tab] = feedForTab;
+            _storeFeedCacheForTab(tab, feedForTab);
           } else {
-            _tabFeedCache.remove(tab);
+            _clearFeedCacheForTab(tab);
           }
           return;
         }
@@ -1194,9 +1467,9 @@ class HomeController extends GetxController with WidgetsBindingObserver {
         videoFeed.value = feedForTab;
         reelListLength.value = feedForTab.videos?.length ?? 0;
         if (feedForTab.videos?.isNotEmpty ?? false) {
-          _tabFeedCache[tab] = feedForTab;
+          _storeFeedCacheForTab(tab, feedForTab);
         } else {
-          _tabFeedCache.remove(tab);
+          _clearFeedCacheForTab(tab);
         }
         currentPage.value = feedForTab.meta?.page ?? 1;
         if (parsedVideos != null && parsedVideos.isNotEmpty) {
@@ -1277,13 +1550,12 @@ class HomeController extends GetxController with WidgetsBindingObserver {
       if (parsed == null || (parsed.videos?.isEmpty ?? true)) {
         return;
       }
-      _tabFeedCache[tab] = _feedForTab(tab, parsed);
+      _storeFeedCacheForTab(tab, _feedForTab(tab, parsed));
     } catch (_) {}
   }
 
   // Method to manually refresh location if needed
   Future<void> refreshLocation({bool refreshFeed = true}) async {
-    await clearManualNearMeFilter();
     hasLocationBeenFetched.value = false;
     latitude.value = '';
     longitude.value = '';
@@ -2095,13 +2367,17 @@ class HomeController extends GetxController with WidgetsBindingObserver {
       }
 
       final videos = videoFeed.value.videos;
-      if (_feedStaleAfterUpload ||
-          videos == null ||
-          videos.isEmpty) {
-        if (_feedStaleAfterUpload) {
-          _feedStaleAfterUpload = false;
-        }
-        debugPrint('[FeedRestore] coldRestore stale/empty — network fetch');
+      final hasPendingUpload =
+          _pendingUploadVideoId != null && _pendingUploadVideoId!.isNotEmpty;
+      if (_feedStaleAfterUpload || hasPendingUpload) {
+        debugPrint('[FeedRestore] coldRestore stale/upload — refresh feed');
+        _feedResumePendingWhenHomeTab = true;
+        unawaited(refreshFeedAfterUploadIfNeeded());
+        _scheduleFeedResumeRetries();
+        return;
+      }
+      if (videos == null || videos.isEmpty) {
+        debugPrint('[FeedRestore] coldRestore empty — network fetch');
         _feedResumePendingWhenHomeTab = true;
         unawaited(
           fetchVideos(forceNetwork: true, resetScrollPosition: true),
@@ -2633,7 +2909,7 @@ class HomeController extends GetxController with WidgetsBindingObserver {
   String? videoIdForTab(String tab) => _tabVideoId[tab];
 
   List<WallVideos>? cachedVideosForTab(String tab) {
-    final cached = _tabFeedCache[tab];
+    final cached = _cachedFeedForTab(tab);
     if (cached == null) {
       return null;
     }
@@ -2648,14 +2924,14 @@ class HomeController extends GetxController with WidgetsBindingObserver {
     final tab = selectedType.value;
     final feed = videoFeed.value;
     if (feed.videos?.isNotEmpty ?? false) {
-      _tabFeedCache[tab] = feed;
+      _storeFeedCacheForTab(tab, feed);
     }
   }
 
   /// Swap [videoFeed] to a cached sub-tab list before the UI marks it active.
   /// Returns false when the destination tab has no cached rows yet.
   bool applyCachedFeedForTab(String tab) {
-    final cached = _tabFeedCache[tab];
+    final cached = _cachedFeedForTab(tab);
     if (cached == null) {
       return false;
     }
@@ -2745,7 +3021,7 @@ class HomeController extends GetxController with WidgetsBindingObserver {
     setReelsTabVisible(true);
     saveTabScrollIndex(tab, 0);
     _tabVideoId.remove(tab);
-    _tabFeedCache.remove(tab);
+    _clearFeedCacheForTab(tab);
     visiblePageIndex.value = 0;
     currentIndex.value = 0;
     // Tell the reels view to ignore the previous pin/page and attach+autoplay #0.

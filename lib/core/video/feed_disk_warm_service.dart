@@ -149,27 +149,38 @@ class FeedDiskWarmService {
       final prefs = await SharedPreferences.getInstance();
       final lat = prefs.getDouble('latitude');
       final lng = prefs.getDouble('longitude');
-      final cityId = prefs.getString('currentCityId');
-      final countryId = prefs.getString('currentCountryId');
-      final hasManualFilter =
-          (cityId != null && cityId.isNotEmpty) ||
-          (countryId != null && countryId.isNotEmpty);
       final hasCoords =
           lat != null && lng != null && lat != 0.0 && lng != 0.0;
+      final generalFilter =
+          prefs.getBool('generalLocationFilterActive') ?? false;
+      final generalCountryId = prefs.getString('generalFilterCountryId');
+      final generalCityId = prefs.getString('generalFilterCityId');
+      final hasGeneralFilter = generalFilter &&
+          generalCountryId != null &&
+          generalCountryId.isNotEmpty;
 
       // Prefer Near Me (home default). Only seed ONE file so Landing's
       // exclusive head warm is not bandwidth-starved.
       var warmed = 0;
-      if (hasManualFilter || hasCoords) {
+      if (hasCoords) {
         warmed += await _fetchAndEnqueue(
           gen: gen,
           feed: 'near_me',
-          latitude: hasManualFilter ? null : lat?.toString(),
-          longitude: hasManualFilter ? null : lng?.toString(),
-          city: (cityId != null && cityId.isNotEmpty) ? cityId : null,
-          country:
-              (countryId != null && countryId.isNotEmpty) ? countryId : null,
+          latitude: lat?.toString(),
+          longitude: lng?.toString(),
           label: 'near_me',
+          maxVideos: _earlyWarmMax,
+          basePriority: 200,
+        );
+      } else if (hasGeneralFilter) {
+        warmed += await _fetchAndEnqueue(
+          gen: gen,
+          feed: 'general',
+          city: (generalCityId != null && generalCityId.isNotEmpty)
+              ? generalCityId
+              : null,
+          country: generalCountryId,
+          label: 'general_filtered',
           maxVideos: _earlyWarmMax,
           basePriority: 200,
         );

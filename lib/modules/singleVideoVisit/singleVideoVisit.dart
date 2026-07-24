@@ -8,6 +8,7 @@ import 'package:cookster/core/widgets/grid_thumbnail_cache.dart';
 import 'package:cookster/core/firestore/video_view_tracker.dart';
 import 'package:cookster/core/video/fullscreen_video_playback.dart';
 import 'package:cookster/core/video/media_kit_player_pool.dart';
+import 'package:cookster/core/widgets/reel_action_rail.dart';
 import 'package:cookster/core/widgets/reel_content_chrome.dart';
 import 'package:cookster/modules/landing/landingTabs/home/homeWidgets/reel_video_player.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -29,6 +30,8 @@ import '../../services/apiClient.dart';
 import '../landing/landingTabs/home/homeController/addCommentControllr.dart';
 import '../landing/landingTabs/reportContent/reportContentView/reportContentView.dart';
 import '../landing/landingView/landingView.dart';
+import 'package:cookster/modules/landing/landingTabs/home/homeView/reelsVideoScreen.dart'
+    show VideoDescriptionWidget;
 import '../promoteVideo/promoteVideoController/promoteVideoController.dart';
 import '../singleVideoView/singleVideoView.dart';
 
@@ -380,7 +383,6 @@ class _SingleVideoVisitState extends State<SingleVisitVideo>
                             : const SizedBox.shrink(),
                   ),
                 ),
-                if (video.isImage.toString() == '1') const ReelPhotoBadge(),
                 if (_showPlayPauseIcon &&
                     !_isInitializing &&
                     video.isImage.toString() != '1')
@@ -442,178 +444,29 @@ class _SingleVideoVisitState extends State<SingleVisitVideo>
                       ),
                 ),
 
-                Positioned(
-                  bottom: Get.height * 0.1,
-                  child: VideoDescriptionWidget(
-                    title: video.title,
-                    description: video.description,
-                    tags: video.tags,
+                VideoDescriptionWidget(
+                  title: video.title,
+                  description: video.description,
+                  tags: video.tags,
+                  userName: video.userName,
+                  isPhotoPost: video.isImage.toString() == '1',
+                  tiktokStyle: true,
+                  bottomBarClearance: Get.height * 0.1,
+                ),
+                ReelActionRail(
+                  video: wallVideoForReelActions(
+                    id: video.id,
+                    frontUserId: video.frontUserId,
+                    takeOrder: video.takeOrder,
+                    allowComments: video.allowComments,
+                    userName: video.userName,
+                    userImage: video.userImage,
                   ),
-                ),
-                Positioned(
-                  right: 10,
-                  bottom: Get.height * 0.1,
-                  child: Container(
-                        padding: EdgeInsets.symmetric(
-                          horizontal: 6,
-                          vertical: 16,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.black.withValues(alpha: 0.45),
-                          borderRadius: BorderRadius.circular(50),
-                        ),
-                        child: Column(
-                          children: [
-                            VideoLikesWidget(
-                              videoId: widget.videoId ?? '',
-                              userId: _frontUserId ?? '',
-                              videoCommentsController: videoCommentsController,
-                              isAuthenticated: false,
-                            ),
-                            SizedBox(height: 8),
-                            SizedBox(
-                              height: 20.h,
-                              width: 20.h,
-                              child: SvgPicture.asset(
-                                "assets/icons/eye.svg",
-                                fit: BoxFit.fill,
-                                color: Colors.white,
-                              ),
-                            ),
-                            SizedBox(width: 4),
-                            StreamBuilder<
-                                DocumentSnapshot
-                            >(
-                              stream:
-                              FirebaseFirestore
-                                  .instance
-                                  .collection(
-                                'videos',
-                              )
-                                  .doc(video.id)
-                                  .snapshots(),
-                              builder: (context,
-                                  snapshot,) {
-
-                                if (!snapshot.hasData ||
-                                    !snapshot
-                                        .data!
-                                        .exists) {
-                                  return Text(
-                                    "0",
-                                    style: TextStyle(
-                                      color:
-                                      Colors.white,
-                                    ),
-                                  );
-                                }
-                                final data =
-                                    snapshot.data!
-                                        .data()
-                                    as Map<
-                                        String,
-                                        dynamic
-                                    >? ??
-                                        {};
-                                List<dynamic> views =
-                                    data['views'] ?? [];
-                                int viewCount =
-                                    views
-                                        .length; // Count views from array length
-                                String
-                                formattedViewCount =
-                                viewCount > 1000
-                                    ? '${(viewCount / 1000)
-                                    .toStringAsFixed(1)}K'
-                                    : viewCount
-                                    .toString();
-
-                                return Text(
-                                  formattedViewCount,
-                                  style:TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 10.sp,
-                                  ),
-                                );
-                              },
-                            ),
-                            SizedBox(height: 8),
-
-
-                            if (video.allowComments == 1)
-                              VideoCommentsWidget(
-                                videoId: widget.videoId ?? '',
-                                userId: _frontUserId ?? '',
-                                userImage: _frontUserImage ?? '',
-                                isAuthenticated: true,
-                              ),
-
-                            InkWell(
-                              onTap: () {
-                                if (widget.videoId.isNotEmpty) {
-                                  _handleShare(widget.videoId);
-                                }
-                              },
-                              child: Column(
-                                children: [
-                                  SizedBox(
-                                    height: 20.h,
-
-                                    width: 20.h,
-                                    child: SvgPicture.asset(
-                                      "assets/icons/share.svg",
-                                      fit: BoxFit.fill,
-                                      color: Colors.white,
-                                    ),
-                                  ),
-                                  Text(
-                                    "share".tr,
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 10.sp,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            SizedBox(height: 8),
-                            if (_frontUserId != video.frontUserId)
-                              Column(
-                                children: [
-                                  InkWell(
-                                    onTap: () {
-                                      if (widget.videoId.isNotEmpty) {
-                                        showMoreOptions(
-                                          context,
-                                          widget.videoId,
-                                          _frontUserId ?? '',
-                                        );
-                                      }
-                                    },
-                                    child: SizedBox(
-                                      height: 20.h,
-                                      width: 20.h,
-                                      child: SvgPicture.asset(
-                                        "assets/icons/more.svg",
-                                        fit: BoxFit.fill,
-                                        color: Colors.white,
-                                      ),
-                                    ),
-                                  ),
-                                  Text(
-                                    "more".tr,
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 10.sp,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                          ],
-                        ),
-                      ),
-                ),
-              ],
+                  isAuthenticated: _frontUserId != null &&
+                      _frontUserId!.isNotEmpty,
+                  layout: ReelActionRailLayout.standalone,
+                  onBeforeNavigation: _pauseVideo,
+                ),              ],
             );
           }),
         ),

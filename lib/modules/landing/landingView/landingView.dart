@@ -60,7 +60,7 @@ class _LandingState extends State<Landing> {
   Worker? _subscriptionExpiryWorker;
   bool _deepLinksInitialized = false;
   final RxBool _isSubscriptionExpired = false.obs;
-  SaveController get saveController => Get.find<SaveController>();
+  SaveController get saveController => ensureSaveController();
   PromoteVideoController get promoteVideoController =>
       Get.find<PromoteVideoController>();
   HomeController get controller => Get.find<HomeController>();
@@ -491,20 +491,20 @@ class _LandingState extends State<Landing> {
     );
   }
 
+  static const double _navBarContentHeight = 49;
+
   Widget _buildBottomNavBar(BuildContext context) {
     final bottomInset = MediaQuery.paddingOf(context).bottom;
 
     return Container(
           width: Get.width,
-          height: 60.h + bottomInset,
+          height: _navBarContentHeight + bottomInset,
           padding: EdgeInsets.only(bottom: bottomInset),
-          decoration: BoxDecoration(
-            color: Colors.black.withValues(alpha: 0.92),
-            border: Border(
-              top: BorderSide(color: Colors.grey.withValues(alpha: 0.2), width: 0.5),
-            ),
+          decoration: const BoxDecoration(
+            color: Colors.black,
           ),
           child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
               _buildNavItem(
@@ -562,32 +562,24 @@ class _LandingState extends State<Landing> {
       },
       child: Column(
         mainAxisSize: MainAxisSize.min,
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Container(
-            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-            decoration: BoxDecoration(
-              color:
-              isSelected
-                  ? ColorUtils.primaryColor.withOpacity(0.3)
-                  : Colors.transparent,
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: SvgPicture.asset(
-              isSelected ? selectedSvgIcon : svgIcon,
-              height: 16.h,
-              colorFilter: ColorFilter.mode(
-                _getIconColor(isSelected),
-                BlendMode.srcIn,
-              ),
+          SvgPicture.asset(
+            isSelected ? selectedSvgIcon : svgIcon,
+            height: 22,
+            colorFilter: ColorFilter.mode(
+              _getIconColor(isSelected),
+              BlendMode.srcIn,
             ),
           ),
-          SizedBox(height: 4),
+          const SizedBox(height: 2),
           Text(
             label.tr,
             style: TextStyle(
-              fontSize: 12.sp,
+              fontSize: 10,
+              height: 1.1,
               color: _getTextColor(isSelected),
-              fontWeight: isSelected ? FontWeight.w500 : FontWeight.w300,
+              fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
             ),
           ),
         ],
@@ -738,11 +730,11 @@ class _LandingState extends State<Landing> {
   }
 
   Color _getIconColor(bool isSelected) {
-    return isSelected ? ColorUtils.primaryColor : Colors.white;
+    return isSelected ? Colors.white : Colors.white.withValues(alpha: 0.55);
   }
 
   Color _getTextColor(bool isSelected) {
-    return isSelected ? ColorUtils.primaryColor : Colors.white;
+    return isSelected ? Colors.white : Colors.white.withValues(alpha: 0.55);
   }
 
   Widget _buildAddButton(BuildContext context) {
@@ -752,24 +744,19 @@ class _LandingState extends State<Landing> {
           await _handleAddButtonLogic(context);
         });
       },
+      borderRadius: BorderRadius.circular(8),
       child: Container(
-        margin: EdgeInsets.only(bottom: 10, right: 0, left: 20),
-        padding: EdgeInsets.all(15),
+        width: 44,
+        height: 28,
+        alignment: Alignment.center,
         decoration: BoxDecoration(
-          shape: BoxShape.circle,
           color: ColorUtils.primaryColor,
-          boxShadow: [
-            BoxShadow(
-              color: ColorUtils.primaryColor,
-              blurRadius: 10,
-              spreadRadius: 2,
-            ),
-          ],
+          borderRadius: BorderRadius.circular(8),
         ),
-        child: SvgPicture.asset(
-          "assets/icons/add.svg",
-          fit: BoxFit.contain,
+        child: const Icon(
+          Icons.add,
           color: ColorUtils.darkBrown,
+          size: 20,
         ),
       ),
     );
