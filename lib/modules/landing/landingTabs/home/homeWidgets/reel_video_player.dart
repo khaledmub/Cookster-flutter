@@ -747,8 +747,18 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
   static const int _minDimensionStableTicksConstrained = 4;
   static const int _minDimensionStableTicksCached = 2;
 
-  bool get _needsConstrainedStartGate =>
-      DeviceConstraints.instance.needsConstrainedSurfaceRecovery;
+  bool get _needsConstrainedStartGate {
+    if (!DeviceConstraints.instance.needsStrictSurfaceGate) {
+      return false;
+    }
+    // Honor/MTK needs strict poster polling — iOS Simulator does not. Keeping
+    // the gate on sim added ~600–1000ms revealAge on every swipe after the
+    // first reel (opaque frames + position poll + seek-to-0 motion wait).
+    if (DeviceConstraints.instance.isIosSimulator) {
+      return false;
+    }
+    return true;
+  }
 
   int _frameWaitTimeoutMs() {
     if (_fastFeedReveal || _scrollBackCacheEligible(_pooledKey)) {
@@ -910,7 +920,10 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
     // Opaque-paint waits routinely push past 200ms. Always reset under the
     // poster when we've left the intro so unmask starts at the beginning —
     // but never drop the poster until motion resumes after seek.
-    if (posMs > 80) {
+    final skipSimRewind = DeviceConstraints.instance.isIosSimulator &&
+        posMs > 80 &&
+        posMs < 800;
+    if (posMs > 80 && !skipSimRewind) {
       rewound = true;
       try {
         await player.seek(Duration.zero);
@@ -2887,7 +2900,7 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
     }
 
     final constrained =
-        DeviceConstraints.instance.needsConstrainedSurfaceRecovery;
+        DeviceConstraints.instance.needsStrictSurfaceGate;
     // Probe HD tiers only for TTFB preference. Never elevate a ready 360 over an
     // uncached 720 — that produced clean but soft first-opens after stall clusters
     // when only 360 had finished downloading.

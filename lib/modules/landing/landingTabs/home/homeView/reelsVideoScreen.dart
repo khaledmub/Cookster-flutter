@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:ui';
+import 'package:flutter/foundation.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cookster/appBindings/app_bindings.dart';
@@ -138,7 +139,95 @@ class _VideoReelScreenState extends State<VideoReelScreen>
   ReelVideoPlayerState? _feedPlayerState;
 
   void _onFeedPlayerStateChanged(ReelVideoPlayerState? state) {
+    // Ignore dispose(null): a recycled player initState may have already
+    // registered; clearing here caused attach_give_up while playback still
+    // started via ReelVideoPlayer's own switch path.
+    if (state == null || !mounted) {
+      return;
+    }
     _feedPlayerState = state;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      final layer = _activeLayer;
+      if (layer.activePlayerVideo == null) {
+        _kickColdStartPlaybackIfReady();
+        return;
+      }
+      _attachScheduledFeedPlayer(
+        epoch: _playerScheduleEpoch,
+        forceReattach: false,
+      );
+    });
+  }
+
+  /// Opens the visible feed reel once [ReelVideoPlayer] is mounted. Retries when
+  /// the widget tree has not built the player yet (common on first iOS open).
+  void _attachScheduledFeedPlayer({
+    required int epoch,
+    required bool forceReattach,
+    int attempt = 0,
+  }) {
+    if (epoch != _playerScheduleEpoch ||
+        !mounted ||
+        !controller.canPlayHomeReels) {
+      return;
+    }
+    final layer = _activeLayer;
+    final video = layer.activePlayerVideo;
+    if (video == null || video.isPhotoPost) {
+      return;
+    }
+    final key = video.id;
+    if (key == null || key.isEmpty) {
+      return;
+    }
+    final playerState = _feedPlayerState;
+    if (playerState == null) {
+      if (attempt >= 45) {
+        if (kDebugMode) {
+          debugPrint(
+            '[FeedRestore] attach_give_up id=$key attempts=$attempt '
+            '(player not mounted yet)',
+          );
+        }
+        Future<void>.delayed(const Duration(milliseconds: 400), () {
+          if (!mounted) {
+            return;
+          }
+          _kickColdStartPlaybackIfReady();
+        });
+        return;
+      }
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _attachScheduledFeedPlayer(
+          epoch: epoch,
+          forceReattach: forceReattach,
+          attempt: attempt + 1,
+        );
+      });
+      return;
+    }
+    final needsReattach = forceReattach;
+    final poolMismatch = !MediaKitPlayerPool.instance.isFeedVisibleKey(key);
+    if (!needsReattach && !poolMismatch) {
+      if (MediaKitPlayerPool.instance.isFrameReady(key) &&
+          !MediaKitPlayerPool.instance.isActiveAudible(key)) {
+        _resumeFeedAudibleOnce();
+      }
+      return;
+    }
+    if (!MediaKitPlayerPool.instance.isFeedVisibleKey(key) &&
+        !MediaKitPlayerPool.instance.isFrameReady(key) &&
+        !MediaKitPlayerPool.instance.hadRecentPaint(key)) {
+      MediaKitPlayerPool.instance.invalidatePrimedFrame(key);
+    }
+    if (!MediaKitPlayerPool.instance.isFeedVisibleKey(key)) {
+      unawaited(playerState.ensureVisibleOpen());
+    } else if (needsReattach) {
+      unawaited(playerState.resumeAfterRouteOverlay());
+    }
   }
 
   /// Page poster stays above the video surface until the first composited frame.
@@ -456,38 +545,10 @@ class _VideoReelScreenState extends State<VideoReelScreen>
           !controller.canPlayHomeReels) {
         return;
       }
-      final key = video.id;
-      if (key == null || key.isEmpty) {
-        return;
-      }
-      final poolMismatch =
-          !MediaKitPlayerPool.instance.isFeedVisibleKey(key);
-      if (!needsReattach && !poolMismatch) {
-        return;
-      }
-      final playerState = _feedPlayerState;
-      if (playerState == null) {
-        return;
-      }
-      // Defer one more frame so didUpdateWidget/_switchVideo can claim the
-      // target first — avoid queuing a redundant pending restart.
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (epoch != _playerScheduleEpoch ||
-            !mounted ||
-            !controller.canPlayHomeReels) {
-          return;
-        }
-        if (!MediaKitPlayerPool.instance.isFeedVisibleKey(key) &&
-            !MediaKitPlayerPool.instance.isFrameReady(key) &&
-            !MediaKitPlayerPool.instance.hadRecentPaint(key)) {
-          MediaKitPlayerPool.instance.invalidatePrimedFrame(key);
-        }
-        if (!MediaKitPlayerPool.instance.isFeedVisibleKey(key)) {
-          unawaited(playerState.ensureVisibleOpen());
-        } else if (needsReattach) {
-          unawaited(playerState.resumeAfterRouteOverlay());
-        }
-      });
+      _attachScheduledFeedPlayer(
+        epoch: epoch,
+        forceReattach: needsReattach,
+      );
     });
   }
 
@@ -505,14 +566,17 @@ class _VideoReelScreenState extends State<VideoReelScreen>
   }
 
   Future<void> _waitForTabSwitchFrame() async {
+    final timeout = DeviceConstraints.instance.isIosSimulator
+        ? const Duration(seconds: 4)
+        : const Duration(seconds: 2);
     final completer = Completer<void>();
     _tabSwitchFrameCompleter = completer;
     try {
       await completer.future.timeout(
-        const Duration(seconds: 2),
+        timeout,
         onTimeout: () {
           debugPrint(
-            '[ReelsVideoScreen] tab switch frame wait exceeded 2s '
+            '[ReelsVideoScreen] tab switch frame wait exceeded ${timeout.inSeconds}s '
             '(target=${_tabSwitchTargetVideoId ?? "none"})',
           );
         },
@@ -564,18 +628,23 @@ class _VideoReelScreenState extends State<VideoReelScreen>
       // Index race: persist leaving tab before any index reads change.
       _persistLeavingTabPlayback(previousTab);
       await controller.prepareForFeedTabSwitch();
+      // Keep inactive IndexedStack layers and the shared [videoFeed] in sync.
+      controller.snapshotActiveTabFeedCache();
       _preloadManager.resetForTabSwitch();
       final layer = _layerFor(newTabType);
       final cached = controller.cachedVideosForTab(newTabType);
       int? targetIndex;
       final hasCache = cached != null && cached.isNotEmpty;
       if (hasCache) {
-        targetIndex = controller.resolveScrollIndexForTab(newTabType, cached);
+        // Must precede [setSelectedType] — active PageView reads [videoFeed],
+        // not the per-tab cache map. Without this, General/Near Me show the
+        // previous tab's reels until a late fetchVideos completes.
+        controller.applyCachedFeedForTab(newTabType);
+        targetIndex = controller.visiblePageIndex.value;
         layer.visibleIndexNotifier.value = targetIndex;
         _resetPosterMaskForPageChange(
           videoId: cached[targetIndex].id,
         );
-        controller.visiblePageIndex.value = targetIndex;
         if (layer.pageController.hasClients) {
           layer.pageController.jumpToPage(targetIndex);
         }
@@ -828,6 +897,24 @@ class _VideoReelScreenState extends State<VideoReelScreen>
     _maybeBootstrapPreload();
     final index = _activeLayer.visibleIndexNotifier.value;
     unawaited(_preloadManager.onVisibleIndexChanged(index));
+  }
+
+  void _maybeDismissColdStartForSettledEmptyFeed() {
+    if (!mounted || _firstPlayableReelReady) {
+      return;
+    }
+    if (controller.isLoading.value || controller.blocksUiForLocation) {
+      return;
+    }
+    if (controller.selectedType.value == 'Near Me' &&
+        controller.isLocationFetching.value) {
+      return;
+    }
+    final videos = controller.videoFeed.value.videos;
+    if (videos != null && videos.isNotEmpty) {
+      return;
+    }
+    _dismissColdStartSpinner(reason: 'feed_settled_empty');
   }
 
   void _dismissColdStartSpinner({required String reason}) {
@@ -1084,6 +1171,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
     _feedRestoreWorker = ever(controller.videoFeed, (_) {
       _applyPendingRestoreIfPossible();
       _maybeBootstrapPreload();
+      _maybeDismissColdStartForSettledEmptyFeed();
       final videos = controller.videoFeed.value.videos;
       if (videos != null && videos.isNotEmpty) {
         final idx = _activeLayer.visibleIndexNotifier.value.clamp(
@@ -1146,12 +1234,21 @@ class _VideoReelScreenState extends State<VideoReelScreen>
           return;
         }
         _scheduleFinishPlaybackIfReady();
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            _kickColdStartPlaybackIfReady();
+          }
+        });
       }
     });
     ever(controller.isLoading, (loading) {
       if (loading == false) {
         _kickColdStartPlaybackIfReady();
+        _maybeDismissColdStartForSettledEmptyFeed();
       }
+    });
+    ever(controller.isLocationFetching, (_) {
+      _maybeDismissColdStartForSettledEmptyFeed();
     });
     _loadLanguage();
     _cacheStaticLabels();
@@ -1222,8 +1319,10 @@ class _VideoReelScreenState extends State<VideoReelScreen>
       return;
     }
     controller.isAppInBackground.value = false;
+    controller.isNavigating.value = false;
+    MediaKitPlayerPool.instance.setFeedUnmuteEnabled(true);
     if (!controller.isReelsTabVisible.value) {
-      return;
+      controller.setReelsTabVisible(true);
     }
     final videos = controller.videoFeed.value.videos;
     if (videos == null || videos.isEmpty || controller.isLoading.value) {
@@ -1232,6 +1331,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
     if (!controller.canPlayHomeReels) {
       return;
     }
+    unawaited(MediaKitPlayerPool.instance.ensureFeedPingPongInitialized());
     // Icon re-tap: the previous reel is still pool-live after silenceAll — do
     // not warm-resume it; force [_finishFeedTabPlayback] at index 0 + autoplay.
     if (controller.prefersNewestAttach) {
@@ -1944,9 +2044,6 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                 }
                 if (controller.videoFeed.value.videos == null ||
                     controller.videoFeed.value.videos!.isEmpty) {
-                  // Do NOT clear the cold-start spinner here — after login the
-                  // Near Me list is empty until location returns; clearing early
-                  // left users watching a black mount wait with no spinner.
                   return Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16.0),
                     child: Container(
@@ -1959,12 +2056,30 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                         children: [
                           Text(
                             textAlign: TextAlign.center,
-                            "${'no_video_for'.tr} ${controller.currentCity.value} ${'try_to_change'.tr}",
+                            "${'no_video_for'.tr} ${controller.currentCity.value.isNotEmpty ? controller.currentCity.value : 'Near Me'.tr} ${'try_to_change'.tr}",
                             style: TextStyle(
                               color: Colors.white,
                               fontSize: 14.sp,
                             ),
                           ),
+                          if (DeviceConstraints.instance.isIosSimulator) ...[
+                            SizedBox(height: 12.h),
+                            Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 24,
+                              ),
+                              child: Text(
+                                textAlign: TextAlign.center,
+                                'iOS Simulator reports Apple\'s default location '
+                                '(often San Francisco). Use Simulator → Features → '
+                                'Location to set your city.',
+                                style: TextStyle(
+                                  color: Colors.white70,
+                                  fontSize: 11.sp,
+                                ),
+                              ),
+                            ),
+                          ],
                           SizedBox(height: 16),
                           Row(
                             mainAxisAlignment: MainAxisAlignment.center,

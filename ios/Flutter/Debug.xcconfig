@@ -1,2 +1,4 @@
 #include? "Pods/Target Support Files/Pods-Runner/Pods-Runner.debug.xcconfig"
 #include "Generated.xcconfig"
+// iOS 26+ simulators require arm64; override Generated.xcconfig plugin exclusion.
+EXCLUDED_ARCHS[sdk=iphonesimulator*]=i386

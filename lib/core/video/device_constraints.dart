@@ -29,6 +29,7 @@ class DeviceConstraints {
 
   ReelsDeviceTier? _tier;
   bool? _needsSingleSlotFeed;
+  bool _isIosSimulator = false;
   DateTime? _lastSwipeAt;
 
   /// Hardware-derived worst-case floor. Measured promotion can never go below
@@ -85,9 +86,15 @@ class DeviceConstraints {
       RemoteConfigService.instance.reelsScrollDemuxPrefetch &&
       deviceTierSync != ReelsDeviceTier.c;
 
+  bool get isIosSimulator => _isIosSimulator;
+
   bool get needsConstrainedSurfaceRecovery =>
       deviceTierSync == ReelsDeviceTier.b ||
       deviceTierSync == ReelsDeviceTier.c;
+
+  /// Honor/MTK-style strict poster gates + iOS Simulator software-render path.
+  bool get needsStrictSurfaceGate =>
+      needsConstrainedSurfaceRecovery || _isIosSimulator;
 
   /// Honor/Huawei/MTK (tier b/c): the MediaCodec (`c2.qti.avc.decoder`) path
   /// fails to bind its render surface ("codec was not configured for a new
@@ -232,8 +239,12 @@ class DeviceConstraints {
     try {
       if (Platform.isIOS) {
         final info = await DeviceInfoPlugin().iosInfo;
+        _isIosSimulator = !info.isPhysicalDevice;
+        if (_isIosSimulator) {
+          return ReelsDeviceTier.a;
+        }
         final machine = info.utsname.machine.toLowerCase();
-        
+
         // A-series constrained (iPhone 8, SE 2nd/3rd, older iPads)
         const tierAModels = [
           'iphone10,1', 'iphone10,4', // iPhone 8

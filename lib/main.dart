@@ -24,6 +24,7 @@ import 'modules/singleVideoVisit/singleVideoVisit.dart';
 import 'package:cookster/modules/visitProfile/visitProfileView/visitProfileView.dart';
 import 'package:flutter/foundation.dart';
 import 'package:media_kit/media_kit.dart';
+import 'package:cookster/core/audio/ios_playback_audio.dart';
 import 'package:cookster/core/video/media_kit_player_pool.dart';
 import 'package:cookster/core/video/video_player_pool.dart';
 import 'package:cookster/core/video/reels_playback_route_observer.dart';
@@ -97,6 +98,9 @@ void main() async {
   }
   _configureImageCache();
   MediaKit.ensureInitialized();
+  if (!kIsWeb && Platform.isIOS) {
+    await IosPlaybackAudio.configureIfNeeded();
+  }
   await runZonedGuarded(() async {
     final prefs = await SharedPreferences.getInstance();
     try {

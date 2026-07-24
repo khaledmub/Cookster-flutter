@@ -97,6 +97,22 @@ post_install do |installer|
         config.build_settings['STRIP_STYLE'] = 'non-global'
         config.build_settings['GCC_SYMBOLS_PRIVATE_EXTERN'] = 'NO'
       end
+
+      # ffmpeg_kit_flutter_new excludes arm64 on simulator, but iOS 26+ simulators require arm64.
+      if target.name.include?('ffmpeg')
+        config.build_settings['EXCLUDED_ARCHS[sdk=iphonesimulator*]'] = 'i386'
+      end
     end
+  end
+
+  Dir.glob(File.join(installer.sandbox.root, 'Target Support Files', '**', '*.xcconfig')).each do |xcconfig_path|
+    content = File.read(xcconfig_path)
+    next unless content.include?('EXCLUDED_ARCHS[sdk=iphonesimulator*]') && content.include?('arm64')
+
+    patched = content.gsub(
+      /EXCLUDED_ARCHS\[sdk=iphonesimulator\*\] = i386 arm64/,
+      'EXCLUDED_ARCHS[sdk=iphonesimulator*] = i386'
+    )
+    File.write(xcconfig_path, patched) if patched != content
   end
 end

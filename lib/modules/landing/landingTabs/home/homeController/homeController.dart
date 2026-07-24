@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cookster/core/parsing/feed_parsers.dart';
 import 'package:flutter/foundation.dart';
@@ -223,11 +224,11 @@ class HomeController extends GetxController with WidgetsBindingObserver {
   Future<void> _bootstrapHomeFeed() async {
     await _restoreLocationFromPrefs();
     await fetchVideos();
-    unawaited(_fetchLocationInBackground());
-  }
-
-  Future<void> _fetchLocationInBackground() async {
-    await fetchLocationOnce(refreshNearMeFeed: true);
+    // When coords were restored from prefs, refresh GPS in the background.
+    // Fresh installs without coords: [fetchVideos] already kicks location inline.
+    if (selectedType.value == 'Near Me' && hasLocationBeenFetched.value) {
+      unawaited(fetchLocationOnce(refreshNearMeFeed: true));
+    }
   }
 
   /// Only block the feed on the first Near Me cold start when we have no coords
@@ -710,6 +711,46 @@ class HomeController extends GetxController with WidgetsBindingObserver {
     }
   }
 
+  /// Near Me must not surface the server's general-feed geo fallback as local reels.
+  VideoFeed _nearMeFeedWithoutGeneralFallback(VideoFeed parsed) {
+    if (parsed.meta?.geoFallback != true) {
+      return parsed;
+    }
+    if (kDebugMode) {
+      debugPrint(
+        '[NearMe] geo_fallback filtered — empty Near Me '
+        '(server returned ${parsed.videos?.length ?? 0} general reels)',
+      );
+    }
+    final meta = parsed.meta;
+    return VideoFeed(
+      status: parsed.status,
+      videos: [],
+      meta: meta == null
+          ? null
+          : FeedMeta(
+              page: meta.page,
+              perPage: meta.perPage,
+              hasMore: false,
+              nextCursor: meta.nextCursor,
+              feedSeed: meta.feedSeed,
+              premiumIndex: meta.premiumIndex,
+              sponsoredIndex: meta.sponsoredIndex,
+              patternIndex: meta.patternIndex,
+              normalOffset: meta.normalOffset,
+              sortBy: meta.sortBy,
+              geoExpanded: meta.geoExpanded,
+            ),
+    );
+  }
+
+  VideoFeed _feedForTab(String tab, VideoFeed parsed) {
+    if (tab == 'Near Me') {
+      return _nearMeFeedWithoutGeneralFallback(parsed);
+    }
+    return parsed;
+  }
+
   blockUser(String? currentUserId, String? userId) async {
     try {
       final response = await ApiClient.postRequest(EndPoints.blockUser, {
@@ -884,14 +925,17 @@ class HomeController extends GetxController with WidgetsBindingObserver {
       // the newest). The post-fetch epoch bump below drives the real attach.
     }
     final cached = _tabFeedCache[tab];
-    final hasCachedFeed =
-        !forceNetwork && cached != null && (cached.videos?.isNotEmpty ?? false);
+    final sanitizedCache =
+        cached != null ? _feedForTab(tab, cached) : null;
+    final hasCachedFeed = !forceNetwork &&
+        sanitizedCache != null &&
+        (sanitizedCache.videos?.isNotEmpty ?? false);
 
     if (hasCachedFeed) {
-      final cachedVideos = cached!.videos!;
+      final cachedVideos = sanitizedCache!.videos!;
       final wasEmpty =
           videoFeed.value.videos == null || videoFeed.value.videos!.isEmpty;
-      videoFeed.value = cached;
+      videoFeed.value = sanitizedCache;
       _sortFeedByOrder(videoFeed.value);
       reelListLength.value = cachedVideos.length;
       if (fromTabSwitch || resetScrollPosition) {
@@ -940,38 +984,43 @@ class HomeController extends GetxController with WidgetsBindingObserver {
             latitude.value.isEmpty &&
             longitude.value.isEmpty &&
             currentCityId.value.isEmpty) {
-          videoFeed.value = VideoFeed(status: true, videos: []);
-          reelListLength.value = 0;
-          unawaited(fetchLocationOnce(refreshNearMeFeed: true));
+          if (!isLocationFetching.value) {
+            unawaited(fetchLocationOnce(refreshNearMeFeed: true));
+          }
+          if (!backgroundRefresh) {
+            videoFeed.value = VideoFeed(status: true, videos: []);
+            reelListLength.value = 0;
+          }
           return;
         }
       }
 
       final parsed = await _fetchFeedPage(reset: true);
       if (parsed != null) {
-        if (backgroundRefresh && (parsed.videos?.isEmpty ?? true)) {
+        final feedForTab = _feedForTab(tab, parsed);
+        if (backgroundRefresh && (feedForTab.videos?.isEmpty ?? true)) {
           return;
         }
         // Stale response from a previous tab — keep cache only, don't overwrite live feed.
         if (tab != selectedType.value) {
-          if (parsed.videos?.isNotEmpty ?? false) {
-            _tabFeedCache[tab] = parsed;
+          if (feedForTab.videos?.isNotEmpty ?? false) {
+            _tabFeedCache[tab] = feedForTab;
           } else {
             _tabFeedCache.remove(tab);
           }
           return;
         }
-        final parsedVideos = parsed.videos;
+        final parsedVideos = feedForTab.videos;
         // Publish + attach immediately. Disk warm is fire-and-forget so the
         // first frame is HTTPS/stream TTFB — never a multi-second poster hold.
-        videoFeed.value = parsed;
-        reelListLength.value = parsed.videos?.length ?? 0;
-        if (parsed.videos?.isNotEmpty ?? false) {
-          _tabFeedCache[tab] = parsed;
+        videoFeed.value = feedForTab;
+        reelListLength.value = feedForTab.videos?.length ?? 0;
+        if (feedForTab.videos?.isNotEmpty ?? false) {
+          _tabFeedCache[tab] = feedForTab;
         } else {
           _tabFeedCache.remove(tab);
         }
-        currentPage.value = parsed.meta?.page ?? 1;
+        currentPage.value = feedForTab.meta?.page ?? 1;
         if (parsedVideos != null && parsedVideos.isNotEmpty) {
           if (resetScrollPosition) {
             visiblePageIndex.value = 0;
@@ -995,12 +1044,15 @@ class HomeController extends GetxController with WidgetsBindingObserver {
               awaitFirstMs: 0,
             ),
           );
+          if (!kIsWeb && Platform.isIOS) {
+            unawaited(MediaKitPlayerPool.instance.ensureFeedPingPongInitialized());
+          }
         }
 
         // Skip epoch bump during tab switch — serialized attach runs from the
         // tab handler; a concurrent epoch was spawning duplicate decoders on MTK.
         if (tab == selectedType.value &&
-            (parsed.videos?.isNotEmpty ?? false) &&
+            (feedForTab.videos?.isNotEmpty ?? false) &&
             !backgroundRefresh &&
             !fromTabSwitch &&
             !_feedTabSwitchLocked) {
@@ -1047,7 +1099,7 @@ class HomeController extends GetxController with WidgetsBindingObserver {
       if (parsed == null || (parsed.videos?.isEmpty ?? true)) {
         return;
       }
-      _tabFeedCache[tab] = parsed;
+      _tabFeedCache[tab] = _feedForTab(tab, parsed);
     } catch (_) {}
   }
 
@@ -2365,11 +2417,46 @@ class HomeController extends GetxController with WidgetsBindingObserver {
 
   String? videoIdForTab(String tab) => _tabVideoId[tab];
 
-  List<WallVideos>? cachedVideosForTab(String tab) =>
-      _tabFeedCache[tab]?.videos;
+  List<WallVideos>? cachedVideosForTab(String tab) {
+    final cached = _tabFeedCache[tab];
+    if (cached == null) {
+      return null;
+    }
+    return _feedForTab(tab, cached).videos;
+  }
 
   int cachedListLengthForTab(String tab) =>
-      _tabFeedCache[tab]?.videos?.length ?? 0;
+      cachedVideosForTab(tab)?.length ?? 0;
+
+  /// Persist the live feed into the per-tab cache before leaving a sub-tab.
+  void snapshotActiveTabFeedCache() {
+    final tab = selectedType.value;
+    final feed = videoFeed.value;
+    if (feed.videos?.isNotEmpty ?? false) {
+      _tabFeedCache[tab] = feed;
+    }
+  }
+
+  /// Swap [videoFeed] to a cached sub-tab list before the UI marks it active.
+  /// Returns false when the destination tab has no cached rows yet.
+  bool applyCachedFeedForTab(String tab) {
+    final cached = _tabFeedCache[tab];
+    if (cached == null) {
+      return false;
+    }
+    final feed = _feedForTab(tab, cached);
+    final videos = feed.videos;
+    if (videos == null || videos.isEmpty) {
+      return false;
+    }
+    videoFeed.value = feed;
+    _sortFeedByOrder(videoFeed.value);
+    reelListLength.value = videos.length;
+    final target = resolveScrollIndexForTab(tab, videos);
+    visiblePageIndex.value = target;
+    currentIndex.value = target;
+    return true;
+  }
 
   void saveTabScrollIndex(String tab, int index) {
     if (index < 0) {

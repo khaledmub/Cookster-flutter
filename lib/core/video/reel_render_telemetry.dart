@@ -16,6 +16,7 @@ class ReelRenderTelemetry {
   static const _events = EventChannel('com.cookster.cooksterapp/reel_render');
 
   static const int renderConfirmTimeoutMs = 280;
+  static const int iosRenderConfirmTimeoutMs = 1200;
   static const int stallSignatureMs = 250;
 
   StreamSubscription<dynamic>? _eventSub;
@@ -23,6 +24,8 @@ class ReelRenderTelemetry {
   void Function(ReelRenderStallEvent event)? onStall;
 
   bool get isSupported => !kIsWeb && Platform.isAndroid;
+
+  bool get _usesDartRenderConfirm => !kIsWeb && Platform.isIOS;
 
   Future<void> ensureInitialized() async {
     if (!isSupported) {
@@ -147,6 +150,17 @@ class ReelRenderTelemetry {
     int timeoutMs = renderConfirmTimeoutMs,
     bool trustPaintReady = true,
   }) async {
+    if (_usesDartRenderConfirm) {
+      final effectiveTimeout = timeoutMs == renderConfirmTimeoutMs
+          ? iosRenderConfirmTimeoutMs
+          : timeoutMs;
+      return _waitForDartRenderConfirm(
+        paintReady: paintReady,
+        paintReadyProbe: paintReadyProbe,
+        timeoutMs: effectiveTimeout,
+        trustPaintReady: trustPaintReady,
+      );
+    }
     if (!isSupported || playerHandle == 0) {
       return paintReady;
     }
@@ -210,6 +224,49 @@ class ReelRenderTelemetry {
     debugPrint(
       '[ReelRender] render_confirm_failed handle=$playerHandle reason=timeout',
     );
+    return false;
+  }
+
+  Future<bool> _waitForDartRenderConfirm({
+    required bool paintReady,
+    bool Function()? paintReadyProbe,
+    required int timeoutMs,
+    required bool trustPaintReady,
+  }) async {
+    if (trustPaintReady && paintReady) {
+      return true;
+    }
+
+    if (trustPaintReady && paintReadyProbe != null) {
+      var ready = paintReady;
+      final probeDeadline = DateTime.now().add(
+        Duration(milliseconds: stallSignatureMs),
+      );
+      while (DateTime.now().isBefore(probeDeadline)) {
+        if (paintReadyProbe()) {
+          ready = true;
+          break;
+        }
+        await Future<void>.delayed(const Duration(milliseconds: 16));
+      }
+      if (ready) {
+        return true;
+      }
+    }
+
+    final deadline = DateTime.now().add(Duration(milliseconds: timeoutMs));
+    var stableSamples = 0;
+    while (DateTime.now().isBefore(deadline)) {
+      if (paintReadyProbe != null && paintReadyProbe()) {
+        stableSamples++;
+        if (stableSamples >= 4) {
+          return true;
+        }
+      } else {
+        stableSamples = 0;
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 16));
+    }
     return false;
   }
 

@@ -53,7 +53,7 @@ class ProfileView extends StatefulWidget {
 }
 
 class _ProfileViewState extends State<ProfileView>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   final ProfileController profileController = Get.find();
 
   final PromoteVideoController promoteVideoController = Get.find();

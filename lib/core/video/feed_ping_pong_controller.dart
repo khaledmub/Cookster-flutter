@@ -1,7 +1,9 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:math' show max;
 import 'dart:ui' show VoidCallback;
 
+import 'package:cookster/core/audio/ios_playback_audio.dart';
 import 'package:cookster/core/video/device_constraints.dart';
 import 'package:cookster/core/video/feed_ping_pong_logic.dart';
 import 'package:cookster/core/video/mpv_surface_stability.dart';
@@ -402,7 +404,17 @@ class FeedPingPongController {
     }
 
     try {
+      if (Platform.isIOS) {
+        await IosPlaybackAudio.ensureActiveForPlayback();
+      }
       await player.setVolume(100);
+      if (!player.state.playing) {
+        await player.play();
+      }
+      if (Platform.isIOS && player.state.volume <= 50) {
+        await Future<void>.delayed(const Duration(milliseconds: 32));
+        await player.setVolume(100);
+      }
     } on Object catch (_) {
       return;
     }

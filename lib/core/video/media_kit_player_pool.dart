@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:collection';
+import 'dart:io';
 
+import 'package:cookster/core/audio/ios_playback_audio.dart';
 import 'package:cookster/core/video/feed_ping_pong_controller.dart';
 import 'package:cookster/core/video/device_constraints.dart';
 import 'package:cookster/core/video/reels_perf.dart';
@@ -999,8 +1001,12 @@ class MediaKitPlayerPool {
       }
       if (_audibleLockedKey == key &&
           isActiveAudible(key) &&
-          !DeviceConstraints.instance.needsConstrainedSurfaceRecovery) {
+          !DeviceConstraints.instance.needsStrictSurfaceGate &&
+          !Platform.isIOS) {
         return;
+      }
+      if (Platform.isIOS) {
+        await IosPlaybackAudio.ensureActiveForPlayback();
       }
       _audibleTargetKey = key;
       _activeKey = key;
@@ -1027,16 +1033,34 @@ class MediaKitPlayerPool {
     if (key.isEmpty || _userPausedKeys.contains(key)) {
       return;
     }
-    final honor = DeviceConstraints.instance.needsConstrainedSurfaceRecovery;
+    final honor = DeviceConstraints.instance.needsStrictSurfaceGate;
     if (!honor && isActiveAudible(key)) {
       return;
     }
     final token = _audibleRetryToken;
+    if (Platform.isIOS) {
+      await IosPlaybackAudio.ensureActiveForPlayback();
+    }
     await forceFeedAudibleAtPosterUnmask(key);
     if (isActiveAudible(key)) {
       return;
     }
     await Future<void>.delayed(const Duration(milliseconds: 200));
+    if (token != _audibleRetryToken ||
+        _feedVisibleKey != key ||
+        _userPausedKeys.contains(key) ||
+        isActiveAudible(key)) {
+      return;
+    }
+    await forceFeedAudibleAtPosterUnmask(key);
+    if (isActiveAudible(key)) {
+      return;
+    }
+    // iOS (especially Simulator) can need an extra beat after AVAudioSession + surface attach.
+    if (!Platform.isIOS) {
+      return;
+    }
+    await Future<void>.delayed(const Duration(milliseconds: 400));
     if (token != _audibleRetryToken ||
         _feedVisibleKey != key ||
         _userPausedKeys.contains(key) ||
@@ -1449,12 +1473,18 @@ class MediaKitPlayerPool {
     }
     try {
       if (player.state.volume <= 50) {
+        if (Platform.isIOS) {
+          await IosPlaybackAudio.ensureActiveForPlayback();
+        }
         await player.setVolume(100);
       }
       if (!player.state.playing) {
         await player.play();
       }
       if (player.state.volume <= 50) {
+        if (Platform.isIOS) {
+          await IosPlaybackAudio.ensureActiveForPlayback();
+        }
         await player.setVolume(100);
       }
     } catch (_) {}
