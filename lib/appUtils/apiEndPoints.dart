@@ -14,7 +14,8 @@ class Common {
   }
 
   static bool get isTestApi =>
-      baseUrl.contains('mubreq.com') || baseUrl.contains(testServerIp);
+      baseUrl.contains('mubreq.com') ||
+      (testServerIp.isNotEmpty && baseUrl.contains(testServerIp));
 
   static bool get usesTestServerRouting =>
       testServerIp.isNotEmpty &&
@@ -25,7 +26,7 @@ class Common {
     if (baseUrl.contains('mubreq.com')) {
       return 'https://cookster.mubreq.com/storage/';
     }
-    if (baseUrl.contains(testServerIp)) {
+    if (testServerIp.isNotEmpty && baseUrl.contains(testServerIp)) {
       return 'https://$testServerIp/storage/';
     }
     return 'https://cookster.org/storage/';

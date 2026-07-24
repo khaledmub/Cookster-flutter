@@ -19,7 +19,6 @@ import '../../../appUtils/colorUtils.dart';
 import '../../../loaders/pulseLoader.dart';
 import '../../auth/signUp/signUpController/cityController.dart';
 import '../../landing/landingController/landingController.dart';
-import '../../landing/landingTabs/add/videoAddController/videoAddController.dart';
 import '../../landing/landingTabs/home/homeController/homeController.dart';
 import '../../../../services/video_settings_service.dart';
 import '../b2bUsersList/b2bUsersList.dart';
@@ -78,9 +77,14 @@ class _SearchViewState extends State<SearchView>
       SearchBinding().dependencies();
     }
     searchController = Get.find<UserSearchController>();
-    if (Get.isRegistered<HomeController>()) {
-      Get.find<HomeController>().pauseReelsForRouteOverlay();
-    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      if (Get.isRegistered<HomeController>()) {
+        Get.find<HomeController>().pauseReelsForRouteOverlay();
+      }
+    });
     initPaginatedScroll(() {
       if (searchController.canLoadMoreVideos &&
           !searchController.isLoadingMore.value) {
@@ -117,14 +121,15 @@ class _SearchViewState extends State<SearchView>
       searchController.recentSearches.clear();
       searchController.type.value = 6;
       searchController.selectedType.value = 0;
-      // Fresh search screen = global keyword search (no inherited Near Me city).
-      searchController.clearLocationFilter();
+      // Fresh search screen = global keyword search until the user applies the
+      // filter sheet — keep saved country/city labels for the filter UI.
+      searchController.resetLocationFilterForNewSearchSession();
     });
   }
 
   void _refetchSearchIfQueryReady() {
     final query = _searchController.text.trim();
-    if (query.length < 3) {
+    if (query.isEmpty) {
       return;
     }
     if (searchController.type.value == 5) {
@@ -136,6 +141,25 @@ class _SearchViewState extends State<SearchView>
       isGeneral: widget.isGeneral,
       isFollowing: widget.isFollowing,
     );
+  }
+
+  Future<void> _refetchSearchAfterFilterApply() async {
+    final query = _searchController.text.trim();
+    if (searchController.type.value == 5) {
+      if (query.isNotEmpty) {
+        searchController.searchB2BCategories(query);
+      }
+      return;
+    }
+    if (query.isNotEmpty) {
+      await searchController.fetchSearchResults(
+        query,
+        isGeneral: widget.isGeneral,
+        isFollowing: widget.isFollowing,
+      );
+      return;
+    }
+    await searchController.refetchWithCurrentFilters();
   }
 
   void _selectSearchTab(int index) {
@@ -468,8 +492,12 @@ class _SearchViewState extends State<SearchView>
                         B2bUsersList(
                           categoryId: value.id.toString(),
                           categoryName: value.name.toString(),
-                          country: searchController.currentCountryId.value,
-                          city: searchController.currentCityId.value,
+                          country: searchController.locationFilterEnabled.value
+                              ? searchController.currentCountryId.value
+                              : '',
+                          city: searchController.locationFilterEnabled.value
+                              ? searchController.currentCityId.value
+                              : '',
                         ),
                       );
                     } else {
@@ -1118,10 +1146,30 @@ class _SearchViewState extends State<SearchView>
                           if (searchController.isCityLoading.value) {
                             return;
                           }
+                          if (searchController.currentCityId.value.isEmpty &&
+                              searchController.currentCountryId.value.isEmpty) {
+                            Get.snackbar(
+                              'Error'.tr,
+                              'select_country_city_error'.tr,
+                            );
+                            return;
+                          }
                           searchController.applyLocationFilterFromSheet();
                           await searchController.saveLocationData();
                           Navigator.pop(context);
-                          await searchController.refetchWithCurrentFilters();
+                          await _refetchSearchAfterFilterApply();
+                          if (!context.mounted) {
+                            return;
+                          }
+                          final query = _searchController.text.trim();
+                          if (query.isEmpty &&
+                              searchController.type.value != 5) {
+                            Get.snackbar(
+                              'Filter'.tr,
+                              'search_filter_enter_keyword'.tr,
+                              snackPosition: SnackPosition.BOTTOM,
+                            );
+                          }
                         },
                       );
                     }),
@@ -1130,7 +1178,7 @@ class _SearchViewState extends State<SearchView>
                       onPressed: () async {
                         searchController.clearLocationFilter();
                         Navigator.pop(context);
-                        await searchController.refetchWithCurrentFilters();
+                        await _refetchSearchAfterFilterApply();
                       },
                       child: Text('clear_location_filter'.tr),
                     ),
@@ -1158,9 +1206,6 @@ class _SearchViewState extends State<SearchView>
       return;
     }
 
-    final HomeController homeController = Get.find();
-    final VideoAddController controller = Get.find();
-
     final CityController cityController = Get.find<CityController>();
     final UserSearchController searchControllerNew = Get.find();
 
@@ -1185,8 +1230,8 @@ class _SearchViewState extends State<SearchView>
     final TextEditingController searchController = TextEditingController();
     RxList<String> filteredCountryName = countryName.obs;
     RxString selectedCountryName =
-        (controller.selectedCountry.value.isNotEmpty
-                ? controller.selectedCountry.value
+        (searchControllerNew.currentCountry.value.isNotEmpty
+                ? searchControllerNew.currentCountry.value
                 : '')
             .obs;
     // Set the initial selected country if provided
@@ -1252,7 +1297,7 @@ class _SearchViewState extends State<SearchView>
                     ],
                   ),
                   InkWell(
-                    onTap: () => Get.back(),
+                    onTap: () => navigateBackFromContext(context),
                     child: Icon(Icons.close, color: Colors.grey),
                   ),
                 ],
@@ -1374,21 +1419,11 @@ class _SearchViewState extends State<SearchView>
                               // mix Riyadh with Egypt, etc.
                               searchControllerNew.currentCityId.value = '';
                               searchControllerNew.currentCity.value = '';
-                              Get.back(); // Close the country dialog
+                              navigateBackFromContext(context); // Close the country dialog
 
                               searchControllerNew.isCityLoading.value = true;
-                              controller.selectLocation(
-                                selectedCountryName.value,
-                                selectedId,
-                              );
-                              homeController.currentCountry.value =
-                                  selectedCountryName.value;
-                              homeController.currentCity.value = '';
-                              homeController.currentCityId.value = '';
                               await cityController.fetchCities(selectedId);
                               searchControllerNew.isCityLoading.value = false;
-
-                              showCityDialog(context);
                             }
                           }
                           : null,
@@ -1417,10 +1452,8 @@ class _SearchViewState extends State<SearchView>
   }
 
   void showCityDialog(BuildContext context, {int? initialCity}) {
-    final VideoAddController controller = Get.find();
     final CityController cityController = Get.find<CityController>();
-    final UserSearchController homeController = Get.find();
-    final HomeController homeUpdateController = Get.find();
+    final UserSearchController searchLocationController = Get.find();
 
     // Assuming City model has id and name properties
     List<Map<String, dynamic>> cityList =
@@ -1432,14 +1465,15 @@ class _SearchViewState extends State<SearchView>
     final TextEditingController searchController = TextEditingController();
     RxList<Map<String, dynamic>> filteredCityList = cityList.obs;
     Rx<Map<String, dynamic>> selectedCity = Rx<Map<String, dynamic>>(
-      controller.selectedCity.value.isNotEmpty
+      searchLocationController.currentCity.value.isNotEmpty
           ? {
             'id':
                 cityList.firstWhere(
-                  (city) => city['name'] == controller.selectedCity.value,
+                  (city) =>
+                      city['name'] == searchLocationController.currentCity.value,
                   orElse: () => {'id': -1, 'name': ''},
                 )['id'],
-            'name': controller.selectedCity.value,
+            'name': searchLocationController.currentCity.value,
           }
           : {'id': -1, 'name': ''},
     );
@@ -1508,7 +1542,7 @@ class _SearchViewState extends State<SearchView>
                               ],
                             ),
                             InkWell(
-                              onTap: () => Get.back(),
+                              onTap: () => navigateBackFromContext(context),
                               child: Icon(Icons.close, color: Colors.grey),
                             ),
                           ],
@@ -1643,21 +1677,14 @@ class _SearchViewState extends State<SearchView>
                                           "Selected City: $selectedName (ID: $selectedId)",
                                         );
 
-                                        // homeController here is UserSearchController
-                                        // (misnamed) — keep search filter IDs in sync.
-                                        homeController.currentCityId.value =
+                                        // Keep search filter IDs in sync only —
+                                        // do not touch upload or Near Me state.
+                                        searchLocationController.currentCityId.value =
                                             selectedId.toString();
-                                        homeController.currentCity.value =
+                                        searchLocationController.currentCity.value =
                                             selectedName;
 
-                                        homeUpdateController
-                                            .currentCityId
-                                            .value = selectedId.toString();
-                                        homeUpdateController.currentCity.value =
-                                            selectedName;
-                                        controller.selectedCity.value =
-                                            selectedName;
-                                        Get.back(); // Close the city dialog
+                                        navigateBackFromContext(context); // Close the city dialog
                                       } catch (e) {
                                         print('Error selecting city: $e');
                                         Get.snackbar(

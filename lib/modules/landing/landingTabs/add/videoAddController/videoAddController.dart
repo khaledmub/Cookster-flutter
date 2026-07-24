@@ -57,6 +57,12 @@ class VideoAddController extends GetxController {
   static const idUploadLocation = 'upload_location';
   static const idUploadSponsor = 'upload_sponsor';
   static const idUploadVideoType = 'upload_video_type';
+  static const _prefUploadCountryId = 'uploadCountryId';
+  static const _prefUploadCityId = 'uploadCityId';
+
+  /// True when country + city were picked from the upload catalog (IDs set).
+  bool get hasUploadLocationIds =>
+      selectedLocationId.value > 0 && selectedCityId.value > 0;
 
   var currentStep = 1.obs; // Step tracking
   var selectedVisibility = VisibilityOption.public.obs; // Default to Public
@@ -203,9 +209,13 @@ class VideoAddController extends GetxController {
     String storedCity = prefs.getString('currentCity') ?? 'Unknown';
     final storedState = prefs.getString('currentState') ?? '';
     final storedCountryId =
-        int.tryParse(prefs.getString('currentCountryId') ?? '') ?? 0;
+        int.tryParse(prefs.getString(_prefUploadCountryId) ?? '') ??
+        int.tryParse(prefs.getString('currentCountryId') ?? '') ??
+        0;
     final storedCityId =
-        int.tryParse(prefs.getString('currentCityId') ?? '') ?? 0;
+        int.tryParse(prefs.getString(_prefUploadCityId) ?? '') ??
+        int.tryParse(prefs.getString('currentCityId') ?? '') ??
+        0;
 
     // Update the controller with the stored values
     selectedCountry.value = storedCountry;
@@ -258,16 +268,15 @@ class VideoAddController extends GetxController {
   Future<void> _persistResolvedLocationIds(SharedPreferences prefs) async {
     if (selectedLocationId.value > 0) {
       await prefs.setString(
-        'currentCountryId',
+        _prefUploadCountryId,
         selectedLocationId.value.toString(),
       );
     }
     if (selectedCityId.value > 0) {
-      await prefs.setString('currentCityId', selectedCityId.value.toString());
-      if (Get.isRegistered<HomeController>()) {
-        Get.find<HomeController>().currentCityId.value =
-            selectedCityId.value.toString();
-      }
+      await prefs.setString(
+        _prefUploadCityId,
+        selectedCityId.value.toString(),
+      );
     }
   }
 
@@ -299,15 +308,28 @@ class VideoAddController extends GetxController {
       }
     }
     final storedCountryId =
-        int.tryParse(prefs.getString('currentCountryId') ?? '') ?? 0;
+        int.tryParse(prefs.getString(_prefUploadCountryId) ?? '') ??
+        int.tryParse(prefs.getString('currentCountryId') ?? '') ??
+        0;
     final storedCityId =
-        int.tryParse(prefs.getString('currentCityId') ?? '') ?? 0;
+        int.tryParse(prefs.getString(_prefUploadCityId) ?? '') ??
+        int.tryParse(prefs.getString('currentCityId') ?? '') ??
+        0;
     if (selectedLocationId.value <= 0 && storedCountryId > 0) {
       selectedLocationId.value = storedCountryId;
       selectedCountryId.value = storedCountryId;
     }
     if (selectedCityId.value <= 0 && storedCityId > 0) {
       selectedCityId.value = storedCityId;
+    }
+
+    if (selectedLocationId.value > 0 && selectedCountryId.value <= 0) {
+      selectedCountryId.value = selectedLocationId.value;
+    }
+
+    if (selectedLocationId.value > 0 && selectedCityId.value > 0) {
+      await _persistResolvedLocationIds(prefs);
+      return true;
     }
 
     if (selectedLocationId.value > 0 &&
@@ -655,8 +677,8 @@ class VideoAddController extends GetxController {
     update([idUploadLocation]);
     print("Selected Location: ${selectedCountry.value} (ID: $stateId)");
     unawaited(SharedPreferences.getInstance().then((prefs) async {
-      await prefs.setString('currentCountryId', stateId.toString());
-      await prefs.remove('currentCityId');
+      await prefs.setString(_prefUploadCountryId, stateId.toString());
+      await prefs.remove(_prefUploadCityId);
     }));
   }
 
@@ -665,7 +687,9 @@ class VideoAddController extends GetxController {
     selectedCityId.value = cityIdValue;
     update([idUploadLocation]);
     print("Selected City: ${selectedCity.value} (ID: $cityIdValue)");
-    unawaited(SharedPreferences.getInstance().then(_persistResolvedLocationIds));
+    unawaited(
+      SharedPreferences.getInstance().then(_persistResolvedLocationIds),
+    );
   }
 
   void setVisibility(VisibilityOption option) {
@@ -864,6 +888,7 @@ class VideoAddController extends GetxController {
       // a late releaseAll cannot dispose players recreated after this upload.
       if (Get.isRegistered<HomeController>()) {
         Get.find<HomeController>().claimReelPoolSession();
+        Get.find<HomeController>().markFeedStaleAfterUpload();
       }
       MediaKitPlayerPool.instance.pauseAllImmediate();
       await MediaKitPlayerPool.instance.disposeAllWithTimeout();
@@ -1097,33 +1122,30 @@ class VideoAddController extends GetxController {
 
     final bool isSponsored = entityDetails.value['is_sponsored'] == 1;
     if (!isSponsored) {
-      // Resolve display names → ids first. On first app open the upload
-      // settings / city list are still loading, so a name that is already
-      // shown as selected has no id yet; awaiting this loads them and prevents
-      // the false "select city" error on the first attempt.
-      final locationReady = await ensureLocationIdsReady();
+      if (!hasUploadLocationIds) {
+        final locationReady = await ensureLocationIdsReady();
+        if (!locationReady && !hasUploadLocationIds) {
+          final country = selectedCountry.value.trim();
+          final city = selectedCity.value.trim();
+          final countryMissing = country.isEmpty ||
+              country == 'Unknown' ||
+              selectedLocationId.value <= 0;
+          final cityMissing =
+              city.isEmpty || city == 'Unknown' || selectedCityId.value <= 0;
 
-      if (!locationReady) {
-        final country = selectedCountry.value.trim();
-        final city = selectedCity.value.trim();
-        final countryMissing = country.isEmpty ||
-            country == 'Unknown' ||
-            selectedLocationId.value <= 0;
-        final cityMissing =
-            city.isEmpty || city == 'Unknown' || selectedCityId.value <= 0;
+          if (countryMissing && cityMissing) {
+            errorMessage = "select_country_city_error".tr;
+          } else if (countryMissing) {
+            errorMessage = "select_country_error".tr;
+          } else if (cityMissing) {
+            errorMessage = "select_city_error".tr;
+          } else {
+            errorMessage = "select_city_error".tr;
+          }
 
-        if (countryMissing && cityMissing) {
-          errorMessage = "select_country_city_error".tr;
-        } else if (countryMissing) {
-          errorMessage = "select_country_error".tr;
-        } else if (cityMissing) {
-          errorMessage = "select_city_error".tr;
-        } else {
-          errorMessage = "select_country_city_error".tr;
+          showFormSnackBar(context, errorMessage);
+          return;
         }
-
-        showFormSnackBar(context, errorMessage);
-        return;
       }
     }
 

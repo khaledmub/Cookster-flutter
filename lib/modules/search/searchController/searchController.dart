@@ -16,6 +16,7 @@ class UserSearchController extends GetxController {
   static const int listPageSize = 30;
 
   var isLoading = false.obs;
+  var isB2bUsersLoading = false.obs;
   var isLoadingMore = false.obs;
   var isCityLoading = false.obs;
   var searchResult = SearchResult().obs;
@@ -37,10 +38,19 @@ class UserSearchController extends GetxController {
 
   RxList<String> recentSearches = <String>[].obs;
 
-  /// Only when the user applies the search filter sheet. Do NOT auto-apply
-  /// home GPS / Near Me prefs — that forced every keyword search into the
-  /// nearest city and made every query look like the same 1 local reel.
+  /// Only when the user applies the search filter sheet (or picks a city in the
+  /// filter flow). Persisted so reopening search keeps the filter active.
   final locationFilterEnabled = false.obs;
+
+  /// Bumped when the user submits the search filter sheet so open B2B lists can
+  /// refetch without touching Near Me prefs.
+  final locationFilterRevision = 0.obs;
+
+  static const _prefSearchLocationFilterActive = 'searchLocationFilterActive';
+  static const _prefSearchCountryId = 'searchCountryId';
+  static const _prefSearchCityId = 'searchCityId';
+  static const _prefSearchCountry = 'searchCountry';
+  static const _prefSearchCity = 'searchCity';
 
   String? _lastKeywords;
   int? _lastIsGeneral;
@@ -48,6 +58,7 @@ class UserSearchController extends GetxController {
   String? _lastCity;
   String? _lastCountry;
   int _searchRequestId = 0;
+  int _b2bUsersRequestId = 0;
 
   bool get canLoadMoreVideos =>
       videoSearchTypes.contains(type.value) &&
@@ -63,43 +74,97 @@ class UserSearchController extends GetxController {
   void onInit() async {
     super.onInit();
     await loadRecentSearches();
-    // Load saved country/city names for the filter UI only — never auto-enable
-    // geo restriction on keyword search (see [locationFilterEnabled]).
     await _loadSavedLocationIds();
+    await _restoreLocationFilterEnabledFromPrefs();
   }
 
-  /// Enable/disable geo restriction from the search filter sheet.
+  Future<void> _restoreLocationFilterEnabledFromPrefs() async {
+    final prefs = await SharedPreferences.getInstance();
+    final active = prefs.getBool(_prefSearchLocationFilterActive) ?? false;
+    final hasIds =
+        currentCityId.value.isNotEmpty || currentCountryId.value.isNotEmpty;
+    locationFilterEnabled.value = active && hasIds;
+  }
+
+  /// Enable geo restriction from the search filter sheet or city picker.
   void applyLocationFilterFromSheet() {
     locationFilterEnabled.value =
         currentCountryId.value.isNotEmpty || currentCityId.value.isNotEmpty;
+    if (locationFilterEnabled.value) {
+      locationFilterRevision.value++;
+      unawaited(_persistLocationFilterActive(true));
+    }
+  }
+
+  /// Disable geo for keyword search without wiping saved country/city labels.
+  void resetLocationFilterForNewSearchSession() {
+    unawaited(_restoreLocationFilterEnabledFromPrefs());
+  }
+
+  Future<void> _persistLocationFilterActive(bool active) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_prefSearchLocationFilterActive, active);
   }
 
   void clearLocationFilter() {
     locationFilterEnabled.value = false;
+    locationFilterRevision.value++;
+    unawaited(_persistLocationFilterActive(false));
     currentCityId.value = '';
     currentCountryId.value = '';
     currentCity.value = '';
     currentCountry.value = '';
+    unawaited(_clearPersistedLocationFilter());
+  }
+
+  /// Keep country filter but drop city (e.g. Riyadh picker id ≠ account city group).
+  void clearCityKeepCountry() {
+    if (currentCountryId.value.isEmpty) {
+      return;
+    }
+    currentCityId.value = '';
+    currentCity.value = '';
+    locationFilterEnabled.value = true;
+    locationFilterRevision.value++;
+    unawaited(saveLocationData());
+  }
+
+  Map<String, String> _activeLocationFilterParams() {
+    if (!locationFilterEnabled.value) {
+      return const {};
+    }
+    final params = <String, String>{};
+    if (currentCityId.value.isNotEmpty) {
+      params['city_id'] = currentCityId.value;
+    }
+    if (currentCountryId.value.isNotEmpty) {
+      params['country_id'] = currentCountryId.value;
+    }
+    return params;
   }
 
   Future<void> _loadSavedLocationIds() async {
     final prefs = await SharedPreferences.getInstance();
-    final countryId = prefs.getString('currentCountryId') ?? '';
-    final cityId = prefs.getString('currentCityId') ?? '';
-    final country = prefs.getString('currentCountry') ?? '';
-    final city = prefs.getString('currentCity') ?? '';
-    if (countryId.isNotEmpty) {
-      currentCountryId.value = countryId;
+    var countryId = prefs.getString(_prefSearchCountryId) ?? '';
+    var cityId = prefs.getString(_prefSearchCityId) ?? '';
+    var country = prefs.getString(_prefSearchCountry) ?? '';
+    var city = prefs.getString(_prefSearchCity) ?? '';
+
+    // One-time read from legacy shared Near Me keys if search filter was saved
+    // before keys were split — never write back to those keys.
+    if (countryId.isEmpty &&
+        cityId.isEmpty &&
+        (prefs.getBool(_prefSearchLocationFilterActive) ?? false)) {
+      countryId = prefs.getString('currentCountryId') ?? '';
+      cityId = prefs.getString('currentCityId') ?? '';
+      country = prefs.getString('currentCountry') ?? '';
+      city = prefs.getString('currentCity') ?? '';
     }
-    if (cityId.isNotEmpty) {
-      currentCityId.value = cityId;
-    }
-    if (country.isNotEmpty) {
-      currentCountry.value = country;
-    }
-    if (city.isNotEmpty) {
-      currentCity.value = city;
-    }
+
+    currentCountryId.value = countryId;
+    currentCityId.value = cityId;
+    currentCountry.value = country;
+    currentCity.value = city;
   }
 
   // Clear search results
@@ -151,10 +216,23 @@ class UserSearchController extends GetxController {
 
   Future<void> saveLocationData() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('currentCountry', currentCountry.value);
-    await prefs.setString('currentCity', currentCity.value);
-    await prefs.setString('currentCityId', currentCityId.value);
-    await prefs.setString('currentCountryId', currentCountryId.value);
+    await prefs.setString(_prefSearchCountry, currentCountry.value);
+    await prefs.setString(_prefSearchCity, currentCity.value);
+    await prefs.setString(_prefSearchCityId, currentCityId.value);
+    await prefs.setString(_prefSearchCountryId, currentCountryId.value);
+    await prefs.setBool(
+      _prefSearchLocationFilterActive,
+      locationFilterEnabled.value,
+    );
+  }
+
+  Future<void> _clearPersistedLocationFilter() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_prefSearchLocationFilterActive, false);
+    await prefs.remove(_prefSearchCountryId);
+    await prefs.remove(_prefSearchCityId);
+    await prefs.remove(_prefSearchCountry);
+    await prefs.remove(_prefSearchCity);
   }
 
   Future<void> refetchWithCurrentFilters() async {
@@ -228,18 +306,16 @@ class UserSearchController extends GetxController {
       } else {
         requestBody['type'] = type.value;
         requestBody['keywords'] = keywords;
+      }
 
-        // Geo only when the user applied the search filter — never from home GPS.
-        // Sending lat/lng makes the backend call nearestCityId() and collapse
-        // every query to the same local reel.
-        if (locationFilterEnabled.value) {
-          if (currentCityId.value.isNotEmpty) {
-            requestBody['city'] = currentCityId.value;
-          }
-          if (currentCountryId.value.isNotEmpty) {
-            requestBody['country'] = currentCountryId.value;
-          }
-        }
+      requestBody.addAll(_activeLocationFilterParams());
+
+      if (kDebugMode) {
+        debugPrint(
+          '[Search] type=${type.value} keywords=$keywords '
+          'filter=${locationFilterEnabled.value} '
+          'city_id=${currentCityId.value} country_id=${currentCountryId.value}',
+        );
       }
 
       final response = await ApiClient.postRequest(
@@ -451,7 +527,11 @@ class UserSearchController extends GetxController {
     String? city,
     String? country,
   }) async {
-    isLoading.value = true;
+    final requestId = ++_b2bUsersRequestId;
+    isB2bUsersLoading.value = true;
+    // Drop stale rows immediately so a tighter city filter cannot flash old avatars.
+    b2bUsersList.value = B2BUsersList(b2bAccountsList: []);
+    filteredB2bUsersList.value = b2bUsersList.value;
 
     try {
       String endpoint = 'b2b/b2b_accounts_list';
@@ -459,15 +539,19 @@ class UserSearchController extends GetxController {
       if (categoryId != null) {
         params['category_id'] = categoryId.toString();
       }
-      final resolvedCountry =
-          (country != null && country.isNotEmpty) ? country : currentCountryId.value;
-      final resolvedCity =
-          (city != null && city.isNotEmpty) ? city : currentCityId.value;
+      final resolvedCountry = locationFilterEnabled.value
+          ? ((country != null && country.isNotEmpty)
+              ? country
+              : currentCountryId.value)
+          : (country ?? '');
+      final resolvedCity = locationFilterEnabled.value
+          ? ((city != null && city.isNotEmpty) ? city : currentCityId.value)
+          : (city ?? '');
       if (resolvedCountry.isNotEmpty) {
-        params['country'] = resolvedCountry;
+        params['country_id'] = resolvedCountry;
       }
       if (resolvedCity.isNotEmpty) {
-        params['city'] = resolvedCity;
+        params['city_id'] = resolvedCity;
       }
       if (params.isNotEmpty) {
         endpoint += '?${Uri(queryParameters: params).query}';
@@ -475,25 +559,46 @@ class UserSearchController extends GetxController {
 
       final response = await ApiClient.getRequest(endpoint);
 
-      print('B2B Users List API Request: ${ApiClient.baseUrl}$endpoint');
-      print('Response Status: ${response.statusCode}');
-      print('Response Body: ${response.body}');
+      if (kDebugMode) {
+        debugPrint('B2B Users List API Request: ${ApiClient.baseUrl}$endpoint');
+        debugPrint('Response Status: ${response.statusCode}');
+      }
+
+      if (requestId != _b2bUsersRequestId) {
+        return;
+      }
 
       if (response.statusCode == 200) {
         b2bUsersList.value = await compute(parseB2BUsers, response.body);
+        if (requestId != _b2bUsersRequestId) {
+          return;
+        }
         filteredB2bUsersList.value = b2bUsersList.value;
+        if (kDebugMode) {
+          final count = b2bUsersList.value.b2bAccountsList?.length ?? 0;
+          debugPrint(
+            '[B2B] results=$count category=$categoryId '
+            'country_id=$resolvedCountry city_id=$resolvedCity '
+            'filter=${locationFilterEnabled.value}',
+          );
+        }
       } else {
         Get.snackbar("Error", "Failed to fetch B2B users list");
         b2bUsersList.value = B2BUsersList();
         filteredB2bUsersList.value = B2BUsersList();
       }
     } catch (e) {
+      if (requestId != _b2bUsersRequestId) {
+        return;
+      }
       print('Error fetching B2B users list: $e');
       Get.snackbar("Error", "Something went wrong: $e");
       b2bUsersList.value = B2BUsersList();
       filteredB2bUsersList.value = B2BUsersList();
     } finally {
-      isLoading.value = false;
+      if (requestId == _b2bUsersRequestId) {
+        isB2bUsersLoading.value = false;
+      }
     }
   }
 

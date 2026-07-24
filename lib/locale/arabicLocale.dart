@@ -50,6 +50,9 @@ const Map<String, String> ar = {
   "Discover": "اكتشف",
   "search_results": "نتائج البحث",
   "clear_location_filter": "إزالة فلتر الموقع",
+  "search_filter_enter_keyword":
+      "تم حفظ فلتر الموقع. أدخل كلمة بحث ثم ابحث.",
+  "use_gps_near_me": "استخدم موقعي الحالي",
   "Notification": "الإشعارات",
   "No notifications available": "لا توجد إشعارات متاحة",
   "Filter": "تصفية",

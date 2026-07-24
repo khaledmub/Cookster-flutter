@@ -50,6 +50,9 @@ const Map<String, String> en = {
   "Discover": "Discover",
   "search_results": "Search Results",
   "clear_location_filter": "Clear location filter",
+  "search_filter_enter_keyword":
+      "Location filter saved. Enter a keyword and search.",
+  "use_gps_near_me": "Use my current location",
   "Notification": "Notifications",
   "No notifications available": "No notifications available",
   "Filter": "Filter",

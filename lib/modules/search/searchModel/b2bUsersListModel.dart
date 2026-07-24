@@ -32,8 +32,17 @@ class B2bAccountsList {
   String? email;
   String? phone;
   dynamic image;
+  String? imageUrl;
 
-  B2bAccountsList({this.id, this.name, this.userName, this.email, this.phone, this.image});
+  B2bAccountsList({
+    this.id,
+    this.name,
+    this.userName,
+    this.email,
+    this.phone,
+    this.image,
+    this.imageUrl,
+  });
 
   B2bAccountsList.fromJson(Map<String, dynamic> json) {
     id = json['id'];
@@ -42,6 +51,7 @@ class B2bAccountsList {
     email = json['email'];
     phone = json['phone'];
     image = json['image'];
+    imageUrl = json['image_url'];
   }
 
   Map<String, dynamic> toJson() {
@@ -52,6 +62,7 @@ class B2bAccountsList {
     data['email'] = this.email;
     data['phone'] = this.phone;
     data['image'] = this.image;
+    data['image_url'] = this.imageUrl;
     return data;
   }
 }

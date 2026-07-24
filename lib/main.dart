@@ -260,6 +260,10 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       case AppLifecycleState.hidden:
         if (Get.isRegistered<HomeController>()) {
           final home = Get.find<HomeController>();
+          // iOS location permission sheet triggers paused — not a real background.
+          if (home.isInNearMeLocationPermissionFlow) {
+            break;
+          }
           home.isAppInBackground.value = true;
           home.pauseAllVideos();
         } else {

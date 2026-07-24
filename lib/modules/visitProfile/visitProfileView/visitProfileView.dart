@@ -50,7 +50,7 @@ class VisitProfileView extends StatefulWidget {
 }
 
 class _VisitProfileViewState extends State<VisitProfileView>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   late final VisitProfileController visitProfileController;
   late final HomeController homeController;
   late final ProfileController profileController;
@@ -88,12 +88,12 @@ class _VisitProfileViewState extends State<VisitProfileView>
     profileController = Get.find<ProfileController>();
     professionalProfileController = Get.find<ProfessionalProfileController>();
     homeController.pauseReelsForRouteOverlay();
-    _initializeProfile().then((_) => _syncTabController());
     _loadLanguage();
     fetchUserId();
     _videoTypesWorker = ever(visitProfileController.visitProfile, (_) {
       _syncTabController();
     });
+    unawaited(_initializeProfile().then((_) => _syncTabController()));
     WidgetsBinding.instance.addPostFrameCallback((_) {
       homeController.reinforceReelsPausedForOverlay();
     });
@@ -106,13 +106,16 @@ class _VisitProfileViewState extends State<VisitProfileView>
   }
 
   void _syncTabController() {
+    if (!mounted) {
+      return;
+    }
     final videoTypes = visitProfileController.visitProfile.value?.videoTypes;
     final displayVideoTypes = _buildDisplayVideoTypes(videoTypes);
     if (displayVideoTypes.isEmpty) {
       _tabController?.removeListener(_onTabChanged);
       _tabController?.dispose();
       _tabController = null;
-      if (mounted) setState(() {});
+      setState(() {});
       return;
     }
     if (_tabController == null) {
@@ -121,18 +124,22 @@ class _VisitProfileViewState extends State<VisitProfileView>
         vsync: this,
       );
       _tabController!.addListener(_onTabChanged);
-    } else if (_tabController!.length != displayVideoTypes.length) {
-      final previousIndex = _tabController!.index;
-      _tabController!.removeListener(_onTabChanged);
-      _tabController!.dispose();
-      _tabController = TabController(
-        length: displayVideoTypes.length,
-        vsync: this,
-        initialIndex: previousIndex.clamp(0, displayVideoTypes.length - 1),
-      );
-      _tabController!.addListener(_onTabChanged);
+      setState(() {});
+      return;
     }
-    if (mounted) setState(() {});
+    if (_tabController!.length == displayVideoTypes.length) {
+      return;
+    }
+    final previousIndex = _tabController!.index;
+    _tabController!.removeListener(_onTabChanged);
+    _tabController!.dispose();
+    _tabController = TabController(
+      length: displayVideoTypes.length,
+      vsync: this,
+      initialIndex: previousIndex.clamp(0, displayVideoTypes.length - 1),
+    );
+    _tabController!.addListener(_onTabChanged);
+    setState(() {});
   }
 
   @override
@@ -343,13 +350,14 @@ class _VisitProfileViewState extends State<VisitProfileView>
                             final user =
                                 visitProfileController.visitProfile.value?.user;
                             if (user != null) {
+                              final blockAvatarUrl =
+                                  MediaUrlResolver.profileImageUrl(
+                                    user.image?.toString(),
+                                  );
                               ImageProvider imageProvider =
-                                  user.image != null && user.image!.isNotEmpty
+                                  blockAvatarUrl != null
                                       ? CachedNetworkImageProvider(
-                                        MediaUrlResolver.profileImageUrl(
-                                              user.image!,
-                                            ) ??
-                                            '',
+                                        blockAvatarUrl,
                                         maxWidth: gridThumbnailMemCacheSize(48),
                                         maxHeight: gridThumbnailMemCacheSize(48),
                                       )
@@ -437,6 +445,11 @@ class _VisitProfileViewState extends State<VisitProfileView>
             );
           }
 
+          final avatarUrl =
+              MediaUrlResolver.profileImageUrl(userDetails.image?.toString());
+          final coverUrl =
+              MediaUrlResolver.profileImageUrl(userDetails.coverImage?.toString());
+
           return RefreshIndicator(
             onRefresh: () async {
               await visitProfileController.fetchUserProfile(widget.userId);
@@ -466,11 +479,8 @@ class _VisitProfileViewState extends State<VisitProfileView>
                               image: DecorationImage(
                                 fit: BoxFit.cover,
                                 image:
-                                    (userDetails.coverImage != null &&
-                                            userDetails.coverImage!.isNotEmpty)
-                                        ? CachedNetworkImageProvider(
-                                          MediaUrlResolver.profileImageUrl(userDetails.coverImage!) ?? '',
-                                        )
+                                    coverUrl != null
+                                        ? CachedNetworkImageProvider(coverUrl)
                                         : const AssetImage(
                                               'assets/images/placeholder.jpg',
                                             )
@@ -491,8 +501,7 @@ class _VisitProfileViewState extends State<VisitProfileView>
                                           ? false
                                           : true,
 
-                                  imageUrl:
-                                      MediaUrlResolver.profileImageUrl(userDetails.image) ?? '',
+                                  imageUrl: avatarUrl,
                                 ),
                               ),
                             ),
@@ -510,8 +519,7 @@ class _VisitProfileViewState extends State<VisitProfileView>
                             child: OpenToWorkBadge(
                               size: 70.h,
                               showOpenToWork: false,
-                              imageUrl:
-                                  MediaUrlResolver.profileImageUrl(userDetails.image) ?? '',
+                              imageUrl: avatarUrl,
                             ),
                           ),
                         ),
@@ -873,7 +881,7 @@ class _VisitProfileViewState extends State<VisitProfileView>
                     }),
                   SizedBox(height: 8.h),
 
-                  if (displayVideoTypes.isNotEmpty)
+                  if (displayVideoTypes.isNotEmpty && _tabController != null)
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -888,11 +896,12 @@ class _VisitProfileViewState extends State<VisitProfileView>
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: List.generate(displayVideoTypes.length, (index) {
-                              bool isSelected = _tabController!.index == index;
+                              final tabController = _tabController!;
+                              final isSelected = tabController.index == index;
                               return Expanded(
                                 child: GestureDetector(
                                   onTap: () {
-                                    _tabController!.animateTo(index);
+                                    tabController.animateTo(index);
                                   },
                                   child: Container(
                                     padding: const EdgeInsets.symmetric(

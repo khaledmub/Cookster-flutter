@@ -168,6 +168,28 @@ class HomeController extends GetxController with WidgetsBindingObserver {
 
   void endFeedTabSwitch() => _feedTabSwitchLocked = false;
 
+  /// Set after a successful upload — forces a network reload instead of
+  /// remounting the pre-upload [videoFeed] snapshot (HomeController is permanent).
+  bool _feedStaleAfterUpload = false;
+
+  bool get feedStaleAfterUpload => _feedStaleAfterUpload;
+
+  /// Drop cached tab rows + live feed so General / Near Me refetch after upload.
+  void markFeedStaleAfterUpload() {
+    _feedStaleAfterUpload = true;
+    _tabFeedCache.clear();
+    videoFeed.value = VideoFeed(status: true, videos: []);
+    reelListLength.value = 0;
+  }
+
+  Future<void> refreshFeedAfterUploadIfNeeded() async {
+    if (!_feedStaleAfterUpload) {
+      return;
+    }
+    _feedStaleAfterUpload = false;
+    await fetchVideos(forceNetwork: true, resetScrollPosition: true);
+  }
+
   // New reactive variables for location checks
   var isLocationServiceEnabled = true.obs; // Default to true until checked
   var isLocationPermissionGranted = false.obs; // Default to false until checked
@@ -197,37 +219,67 @@ class HomeController extends GetxController with WidgetsBindingObserver {
     );
   }
 
+  static const _prefNearMeManualFilter = 'nearMeManualFilterActive';
+
   /// Restore last known coords so Near Me can load before GPS finishes.
   Future<void> _restoreLocationFromPrefs() async {
     final prefs = await SharedPreferences.getInstance();
+    final manualFilter =
+        prefs.getBool(_prefNearMeManualFilter) ?? false;
+    nearMeManualFilterActive.value = manualFilter;
+
     final lat = prefs.getDouble('latitude');
     final lng = prefs.getDouble('longitude');
     if (lat != null && lng != null && lat != 0 && lng != 0) {
       latitude.value = lat.toString();
       longitude.value = lng.toString();
-      hasLocationBeenFetched.value = true;
     }
     final city = prefs.getString('currentCity');
     final country = prefs.getString('currentCountry');
-    final cityId = prefs.getString('currentCityId');
     if (city != null && city.isNotEmpty) {
       currentCity.value = city;
     }
     if (country != null && country.isNotEmpty) {
       currentCountry.value = country;
     }
-    if (cityId != null && cityId.isNotEmpty) {
-      currentCityId.value = cityId;
+    if (manualFilter) {
+      final cityId = prefs.getString('currentCityId');
+      final countryId = prefs.getString('currentCountryId');
+      if (cityId != null && cityId.isNotEmpty) {
+        currentCityId.value = cityId;
+      }
+      if (countryId != null && countryId.isNotEmpty) {
+        currentCountryId.value = countryId;
+      }
+    } else {
+      currentCityId.value = '';
+      currentCountryId.value = '';
     }
   }
 
   Future<void> _bootstrapHomeFeed() async {
     await _restoreLocationFromPrefs();
     await fetchVideos();
-    // When coords were restored from prefs, refresh GPS in the background.
-    // Fresh installs without coords: [fetchVideos] already kicks location inline.
-    if (selectedType.value == 'Near Me' && hasLocationBeenFetched.value) {
+    if (selectedType.value == 'Near Me') {
       unawaited(fetchLocationOnce(refreshNearMeFeed: true));
+    }
+  }
+
+  /// True while the OS location-permission sheet may be showing (iOS fires
+  /// [AppLifecycleState.inactive] — must not tear down the feed player for that).
+  bool get isLocationPermissionPromptVisible =>
+      _awaitingLocationPermissionPrompt;
+
+  /// Covers permission prompt + GPS lookup for Near Me — iOS also sends [paused].
+  bool get isInNearMeLocationPermissionFlow => _nearMeLocationFlowDepth > 0;
+
+  void _beginNearMeLocationFlow() {
+    _nearMeLocationFlowDepth++;
+  }
+
+  void _endNearMeLocationFlow() {
+    if (_nearMeLocationFlowDepth > 0) {
+      _nearMeLocationFlowDepth--;
     }
   }
 
@@ -356,11 +408,16 @@ class HomeController extends GetxController with WidgetsBindingObserver {
         params['feed'] = feed;
       }
       if (selectedType.value == 'Near Me') {
-        if (latitude.value.isNotEmpty) {
-          params['latitude'] = latitude.value;
+        if (!hasManualLocationFilter) {
+          if (latitude.value.isNotEmpty) {
+            params['latitude'] = latitude.value;
+          }
+          if (longitude.value.isNotEmpty) {
+            params['longitude'] = longitude.value;
+          }
         }
-        if (longitude.value.isNotEmpty) {
-          params['longitude'] = longitude.value;
+        if (currentCountryId.value.isNotEmpty) {
+          params['country'] = currentCountryId.value;
         }
         if (currentCityId.value.isNotEmpty) {
           params['city'] = currentCityId.value;
@@ -401,7 +458,9 @@ class HomeController extends GetxController with WidgetsBindingObserver {
     if (kDebugMode && selectedType.value == 'Near Me') {
       debugPrint(
         'Near Me reels: count=${parsed.videos?.length ?? 0} '
-        'geo_fallback=${parsed.meta?.geoFallback ?? false}',
+        'geo_fallback=${parsed.meta?.geoFallback ?? false} '
+        'manualFilter=$hasManualLocationFilter '
+        'countryId=${currentCountryId.value} cityId=${currentCityId.value}',
       );
     }
     return parsed;
@@ -495,7 +554,16 @@ class HomeController extends GetxController with WidgetsBindingObserver {
   var longitude = "".obs;
   var currentCityId = "".obs;
   var currentCountry = "".obs;
-  
+  var currentCountryId = "".obs;
+
+  /// Set only when the user submits the Near Me city/country filter sheet.
+  final nearMeManualFilterActive = false.obs;
+
+  /// True when Near Me should use picked city/country IDs instead of GPS coords.
+  bool get hasManualLocationFilter =>
+      nearMeManualFilterActive.value &&
+      (currentCityId.value.isNotEmpty || currentCountryId.value.isNotEmpty);
+
   var feedSortOrder = "newest".obs;
 
   void setSortOrder(String order) {
@@ -569,14 +637,28 @@ class HomeController extends GetxController with WidgetsBindingObserver {
   // Add flags to track if location has been fetched
   var hasLocationBeenFetched = false.obs;
   var isLocationFetching = false.obs;
+  var _awaitingLocationPermissionPrompt = false;
+  int _nearMeLocationFlowDepth = 0;
+  bool _preferSoftFeedResumeAfterLocation = false;
 
   // Make sure you have these imports:
   // import 'package:geocoding/geocoding.dart';
 
-  Future<void> fetchLocationOnce({bool refreshNearMeFeed = false}) async {
+  Future<void> fetchLocationOnce({
+    bool refreshNearMeFeed = false,
+    bool forceRefresh = false,
+  }) async {
+    if (forceRefresh) {
+      hasLocationBeenFetched.value = false;
+    }
     final needsInitialLocation = !hasLocationBeenFetched.value &&
         latitude.value.isEmpty &&
         longitude.value.isEmpty;
+    final protectPlaybackDuringFlow =
+        refreshNearMeFeed && selectedType.value == 'Near Me';
+    if (protectPlaybackDuringFlow) {
+      _beginNearMeLocationFlow();
+    }
     final prevLat = double.tryParse(latitude.value);
     final prevLng = double.tryParse(longitude.value);
     if (selectedType.value == 'Near Me' && needsInitialLocation) {
@@ -592,7 +674,12 @@ class HomeController extends GetxController with WidgetsBindingObserver {
 
       LocationPermission permission = await Geolocator.checkPermission();
       if (permission == LocationPermission.denied) {
-        permission = await Geolocator.requestPermission();
+        _awaitingLocationPermissionPrompt = true;
+        try {
+          permission = await Geolocator.requestPermission();
+        } finally {
+          _awaitingLocationPermissionPrompt = false;
+        }
         if (permission == LocationPermission.denied) {
           error.value = "Location permission denied";
           return;
@@ -605,9 +692,9 @@ class HomeController extends GetxController with WidgetsBindingObserver {
       }
 
       final position = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(
-          accuracy: LocationAccuracy.medium,
-          timeLimit: Duration(seconds: 10),
+        locationSettings: LocationSettings(
+          accuracy: kIsWeb ? LocationAccuracy.medium : LocationAccuracy.best,
+          timeLimit: const Duration(seconds: 15),
         ),
       );
 
@@ -627,17 +714,32 @@ class HomeController extends GetxController with WidgetsBindingObserver {
 
       if (placemarks.isNotEmpty) {
         Placemark placemark = placemarks.first;
-        currentCity.value = (placemark.locality ?? 'Unknown').trim();
-        currentCountry.value = (placemark.country ?? 'Unknown').trim();
+        if (!hasManualLocationFilter) {
+          currentCity.value = (placemark.locality ?? 'Unknown').trim();
+          currentCountry.value = (placemark.country ?? 'Unknown').trim();
+        }
         String currentState =
             (placemark.administrativeArea ?? 'Unknown').trim();
 
         latitude.value = position.latitude.toString();
         longitude.value = position.longitude.toString();
-        // GPS moved — drop a manual city filter from a previous location.
-        currentCityId.value = '';
-        final prefsForCity = await SharedPreferences.getInstance();
-        await prefsForCity.remove('currentCityId');
+        if (!hasManualLocationFilter) {
+          currentCityId.value = '';
+          currentCountryId.value = '';
+          nearMeManualFilterActive.value = false;
+          final prefsForCity = await SharedPreferences.getInstance();
+          await prefsForCity.remove('currentCityId');
+          await prefsForCity.remove('currentCountryId');
+          await prefsForCity.setBool(_prefNearMeManualFilter, false);
+        }
+
+        if (kDebugMode) {
+          debugPrint(
+            '[NearMe GPS] lat=${position.latitude} lng=${position.longitude} '
+            'city=${currentCity.value} country=${currentCountry.value} '
+            'manualFilter=$hasManualLocationFilter',
+          );
+        }
 
         print('=== Location Details ===');
         print('Latitude: ${position.latitude}');
@@ -682,17 +784,43 @@ class HomeController extends GetxController with WidgetsBindingObserver {
       error.value = "Error fetching location: $e";
     } finally {
       isLocationFetching.value = false;
+      if (hasManualLocationFilter) {
+        if (protectPlaybackDuringFlow) {
+          _preferSoftFeedResumeAfterLocation =
+              videoFeed.value.videos?.isNotEmpty ?? false;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            _endNearMeLocationFlow();
+            if (_preferSoftFeedResumeAfterLocation) {
+              resumeAfterAppForegroundIfAllowed(soft: true);
+            }
+          });
+        }
+        return;
+      }
       if (!refreshNearMeFeed ||
           selectedType.value != 'Near Me' ||
           !hasLocationBeenFetched.value) {
+        if (protectPlaybackDuringFlow) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            _endNearMeLocationFlow();
+          });
+        }
         return;
       }
       // Only skip while a fetch is in-flight if we already have a playable feed.
       if (isLoading.value && (videoFeed.value.videos?.isNotEmpty ?? false)) {
+        if (protectPlaybackDuringFlow) {
+          _preferSoftFeedResumeAfterLocation = true;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            _endNearMeLocationFlow();
+            resumeAfterAppForegroundIfAllowed(soft: true);
+          });
+        }
         return;
       }
       final hasFeed = videoFeed.value.videos?.isNotEmpty ?? false;
       if (hasFeed) {
+        _preferSoftFeedResumeAfterLocation = true;
         final newLat = double.tryParse(latitude.value);
         final newLng = double.tryParse(longitude.value);
         final moved = prevLat == null ||
@@ -701,13 +829,23 @@ class HomeController extends GetxController with WidgetsBindingObserver {
             newLng == null ||
             (newLat - prevLat).abs() > 0.02 ||
             (newLng - prevLng).abs() > 0.02;
-        if (!moved) {
-          return;
+        if (moved) {
+          unawaited(fetchVideos(backgroundRefresh: true));
         }
-        unawaited(fetchVideos(backgroundRefresh: true));
+        if (protectPlaybackDuringFlow) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            _endNearMeLocationFlow();
+            resumeAfterAppForegroundIfAllowed(soft: true);
+          });
+        }
         return;
       }
       unawaited(fetchVideos(forceNetwork: true));
+      if (protectPlaybackDuringFlow) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _endNearMeLocationFlow();
+        });
+      }
     }
   }
 
@@ -902,9 +1040,40 @@ class HomeController extends GetxController with WidgetsBindingObserver {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('currentCountry', currentCountry.value);
     await prefs.setString('currentCity', currentCity.value);
-    if (currentCityId.value.isNotEmpty) {
+    await prefs.setBool(
+      _prefNearMeManualFilter,
+      nearMeManualFilterActive.value,
+    );
+    if (nearMeManualFilterActive.value &&
+        currentCountryId.value.isNotEmpty) {
+      await prefs.setString('currentCountryId', currentCountryId.value);
+    }
+    if (nearMeManualFilterActive.value && currentCityId.value.isNotEmpty) {
       await prefs.setString('currentCityId', currentCityId.value);
     }
+  }
+
+  Future<void> clearManualNearMeFilter() async {
+    nearMeManualFilterActive.value = false;
+    currentCityId.value = '';
+    currentCountryId.value = '';
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_prefNearMeManualFilter, false);
+    await prefs.remove('currentCityId');
+    await prefs.remove('currentCountryId');
+  }
+
+  void applyManualLocationFilter({
+    required String countryId,
+    required String countryName,
+    required String cityId,
+    required String cityName,
+  }) {
+    nearMeManualFilterActive.value = true;
+    currentCountryId.value = countryId;
+    currentCountry.value = countryName;
+    currentCityId.value = cityId;
+    currentCity.value = cityName;
   }
 
   Future<void> fetchVideos({
@@ -928,6 +1097,7 @@ class HomeController extends GetxController with WidgetsBindingObserver {
     final sanitizedCache =
         cached != null ? _feedForTab(tab, cached) : null;
     final hasCachedFeed = !forceNetwork &&
+        !_feedStaleAfterUpload &&
         sanitizedCache != null &&
         (sanitizedCache.videos?.isNotEmpty ?? false);
 
@@ -954,7 +1124,7 @@ class HomeController extends GetxController with WidgetsBindingObserver {
 
       // Tab switch with warm cache: show instantly, no network replace, and no
       // silent cache refresh while the switch lock is held (cache reorder race).
-      if (fromTabSwitch) {
+      if (fromTabSwitch && !_feedStaleAfterUpload) {
         return;
       }
     }
@@ -983,13 +1153,18 @@ class HomeController extends GetxController with WidgetsBindingObserver {
         if (!hasLocationBeenFetched.value &&
             latitude.value.isEmpty &&
             longitude.value.isEmpty &&
-            currentCityId.value.isEmpty) {
+            !hasManualLocationFilter) {
           if (!isLocationFetching.value) {
             unawaited(fetchLocationOnce(refreshNearMeFeed: true));
           }
-          if (!backgroundRefresh) {
+          final keepVisibleFeed = backgroundRefresh ||
+              fromTabSwitch ||
+              (videoFeed.value.videos?.isNotEmpty ?? false);
+          if (!keepVisibleFeed) {
             videoFeed.value = VideoFeed(status: true, videos: []);
             reelListLength.value = 0;
+          } else {
+            isLoading.value = false;
           }
           return;
         }
@@ -997,6 +1172,9 @@ class HomeController extends GetxController with WidgetsBindingObserver {
 
       final parsed = await _fetchFeedPage(reset: true);
       if (parsed != null) {
+        if (_feedStaleAfterUpload && tab == selectedType.value) {
+          _feedStaleAfterUpload = false;
+        }
         final feedForTab = _feedForTab(tab, parsed);
         if (backgroundRefresh && (feedForTab.videos?.isEmpty ?? true)) {
           return;
@@ -1104,11 +1282,15 @@ class HomeController extends GetxController with WidgetsBindingObserver {
   }
 
   // Method to manually refresh location if needed
-  Future<void> refreshLocation() async {
+  Future<void> refreshLocation({bool refreshFeed = true}) async {
+    await clearManualNearMeFilter();
     hasLocationBeenFetched.value = false;
-    currentCity.value = "";
-    currentCountry.value = "";
-    await fetchLocationOnce();
+    latitude.value = '';
+    longitude.value = '';
+    await fetchLocationOnce(
+      refreshNearMeFeed: refreshFeed,
+      forceRefresh: true,
+    );
   }
 
   // Method to reset location data
@@ -1354,7 +1536,21 @@ class HomeController extends GetxController with WidgetsBindingObserver {
   // }
 
   void setReelsTabVisible(bool visible) {
-    isReelsTabVisible.value = visible;
+    if (isReelsTabVisible.value == visible) {
+      return;
+    }
+    void apply() {
+      if (isReelsTabVisible.value != visible) {
+        isReelsTabVisible.value = visible;
+      }
+    }
+    final phase = SchedulerBinding.instance.schedulerPhase;
+    if (phase == SchedulerPhase.idle ||
+        phase == SchedulerPhase.postFrameCallbacks) {
+      apply();
+      return;
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) => apply());
   }
 
   bool _hasOverlayRoute() => Get.key.currentState?.canPop() ?? false;
@@ -1516,8 +1712,8 @@ class HomeController extends GetxController with WidgetsBindingObserver {
   }
 
   /// App resume from background — only restore when user is on home with no overlay.
-  void resumeAfterAppForegroundIfAllowed() {
-    if (isAppInBackground.value) {
+  void resumeAfterAppForegroundIfAllowed({bool soft = false}) {
+    if (isAppInBackground.value && !soft) {
       return;
     }
     if (!shouldAllowHomeReelsPlayback && _playbackMuteDepth == 0) {
@@ -1528,6 +1724,11 @@ class HomeController extends GetxController with WidgetsBindingObserver {
       return;
     }
     isVideoPlaying.value = true;
+    if (soft || _preferSoftFeedResumeAfterLocation) {
+      _preferSoftFeedResumeAfterLocation = false;
+      unawaited(resumeVisibleVideo(visiblePageIndex.value));
+      return;
+    }
     feedPlaybackEpoch.value++;
     unawaited(resumeVisibleVideo(visiblePageIndex.value));
   }
@@ -1539,6 +1740,7 @@ class HomeController extends GetxController with WidgetsBindingObserver {
   /// via [_bottomNavMuteDepth]) and the feed player remounts with audio while
   /// Profile/Discover/etc. is showing.
   void onAppLifecycleResumed() {
+    final inLocationFlow = isInNearMeLocationPermissionFlow;
     final allowHomePlayback = _isOnHomeTab() &&
         _bottomNavMuteDepth == 0 &&
         _playbackMuteDepth == 0 &&
@@ -1558,7 +1760,9 @@ class HomeController extends GetxController with WidgetsBindingObserver {
     isAppInBackground.value = false;
     isNavigating.value = false;
     setReelsTabVisible(true);
-    resumeAfterAppForegroundIfAllowed();
+    resumeAfterAppForegroundIfAllowed(
+      soft: inLocationFlow || _preferSoftFeedResumeAfterLocation,
+    );
   }
 
   /// Immediate silence before a route push (no depth change). Pair with
@@ -1694,6 +1898,11 @@ class HomeController extends GetxController with WidgetsBindingObserver {
     // while a warm remount runs.
     setReelsTabVisible(true);
     MediaKitPlayerPool.instance.setFeedUnmuteEnabled(true);
+
+    if (_feedStaleAfterUpload) {
+      unawaited(refreshFeedAfterUploadIfNeeded());
+      return;
+    }
 
     final videos = videoFeed.value.videos;
     if (videos == null || videos.isEmpty) {
@@ -1886,10 +2095,17 @@ class HomeController extends GetxController with WidgetsBindingObserver {
       }
 
       final videos = videoFeed.value.videos;
-      if (videos == null || videos.isEmpty) {
-        debugPrint('[FeedRestore] coldRestore no videos, fetch + open gates');
+      if (_feedStaleAfterUpload ||
+          videos == null ||
+          videos.isEmpty) {
+        if (_feedStaleAfterUpload) {
+          _feedStaleAfterUpload = false;
+        }
+        debugPrint('[FeedRestore] coldRestore stale/empty — network fetch');
         _feedResumePendingWhenHomeTab = true;
-        unawaited(fetchVideos());
+        unawaited(
+          fetchVideos(forceNetwork: true, resetScrollPosition: true),
+        );
         _scheduleFeedResumeRetries();
         return;
       }
@@ -2286,8 +2502,7 @@ class HomeController extends GetxController with WidgetsBindingObserver {
     _feedResumePendingWhenHomeTab = true;
     // Force delayed cold remount — camera BufferQueues are still dying here.
     _needsColdRestoreAfterCapture = true;
-    // Stale cached rows may still have is_image=0 from before the photo fix.
-    _tabFeedCache.clear();
+    markFeedStaleAfterUpload();
     // Don't rely solely on the next Home-tab tap — probe until Home is focused
     // so a post-upload offAll + slow bootstrap fetch cannot leave the feed dead.
     _scheduleFeedResumeRetries();

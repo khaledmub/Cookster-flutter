@@ -112,10 +112,19 @@ class _UploadLocationSection extends StatelessWidget {
                     const Spacer(),
                     Flexible(
                       child: Text(
-                        c.selectedCountry.value,
+                        c.hasUploadLocationIds &&
+                                c.selectedCountry.value.isNotEmpty
+                            ? c.selectedCountry.value
+                            : 'select_country_label'.tr,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         textAlign: TextAlign.end,
+                        style: TextStyle(
+                          color:
+                              c.hasUploadLocationIds
+                                  ? Colors.black
+                                  : Colors.grey,
+                        ),
                       ),
                     ),
                     const SizedBox(width: 8),
@@ -152,10 +161,18 @@ class _UploadLocationSection extends StatelessWidget {
                     const Spacer(),
                     Flexible(
                       child: Text(
-                        c.selectedCity.value,
+                        c.hasUploadLocationIds && c.selectedCity.value.isNotEmpty
+                            ? c.selectedCity.value
+                            : 'select_city_label'.tr,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         textAlign: TextAlign.end,
+                        style: TextStyle(
+                          color:
+                              c.hasUploadLocationIds
+                                  ? Colors.black
+                                  : Colors.grey,
+                        ),
                       ),
                     ),
                     const SizedBox(width: 8),

@@ -195,7 +195,8 @@ class MediaUrlResolver {
 
   /// User avatar / cover: absolute CDN URL, or legacy `front_users/{file}` path.
   static String? profileImageUrl(String? value) {
-    return _resolveProfileAsset(value);
+    final resolved = _resolveProfileAsset(value);
+    return _ensureValidHttpUrl(resolved);
   }
 
   /// First absolute https URL in [candidates]; skips relative keys.
@@ -224,7 +225,12 @@ class MediaUrlResolver {
     }
     final trimmed = value.trim();
     if (isAbsolute(trimmed)) {
-      return trimmed;
+      final validAbsolute = _ensureValidHttpUrl(trimmed);
+      if (validAbsolute != null) {
+        return validAbsolute;
+      }
+      // Malformed `https:///storage/...` — resolve path segment only.
+      return _legacyStorageUrl(_stripAbsoluteScheme(trimmed));
     }
     if (!trimmed.contains('/')) {
       return '${Common.profileImage}/$trimmed';
@@ -238,7 +244,7 @@ class MediaUrlResolver {
     }
     final trimmed = value.trim();
     if (isAbsolute(trimmed)) {
-      return trimmed;
+      return _ensureValidHttpUrl(trimmed) ?? _legacyStorageUrl(_stripAbsoluteScheme(trimmed));
     }
     final storage = _legacyStorageUrl(trimmed);
     if (storage != null) {
@@ -260,5 +266,20 @@ class MediaUrlResolver {
       return null;
     }
     return '${Common.imageBaseUrl}$path';
+  }
+
+  static String? _ensureValidHttpUrl(String? url) {
+    if (url == null || url.trim().isEmpty) {
+      return null;
+    }
+    final uri = Uri.tryParse(url.trim());
+    if (uri == null || !uri.hasScheme || uri.host.isEmpty) {
+      return null;
+    }
+    return url.trim();
+  }
+
+  static String _stripAbsoluteScheme(String value) {
+    return value.replaceFirst(RegExp(r'^https?:/*'), '');
   }
 }

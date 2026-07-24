@@ -1054,9 +1054,54 @@ class _VideoReelScreenState extends State<VideoReelScreen>
     MediaKitPlayerPool.instance.pauseAllImmediate();
   }
 
+  void _resumeFeedAfterLocationPermission() {
+    if (!mounted || !controller.canPlayHomeReels) {
+      return;
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !controller.canPlayHomeReels) {
+        return;
+      }
+      final videos = controller.videoFeed.value.videos;
+      if (videos == null || videos.isEmpty) {
+        _resumeAfterAppForeground();
+        return;
+      }
+      final index =
+          _activeLayer.visibleIndexNotifier.value.clamp(0, videos.length - 1);
+      final video = videos[index];
+      if (video.isPhotoPost) {
+        return;
+      }
+      final videoId = video.id?.toString();
+      if (videoId == null || videoId.isEmpty) {
+        return;
+      }
+      _activeLayer.activePlayerVideo = video;
+      unawaited(
+        MediaKitPlayerPool.instance.recoverFeedVisibleSurface(videoId),
+      );
+      unawaited(_feedPlayerState?.resumeAfterAppBackground());
+      _resumeFeedAudibleOnce();
+      if (_maskActiveVideoWithPoster) {
+        setState(() => _maskActiveVideoWithPoster = false);
+      }
+    });
+  }
+
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
+    if ((state == AppLifecycleState.inactive ||
+            state == AppLifecycleState.paused) &&
+        controller.isInNearMeLocationPermissionFlow) {
+      // iOS "Allow Location" sheet — not a real background transition.
+      return;
+    }
+    if (state == AppLifecycleState.inactive &&
+        controller.isLocationPermissionPromptVisible) {
+      return;
+    }
     if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.inactive ||
         state == AppLifecycleState.hidden) {
@@ -1065,9 +1110,13 @@ class _VideoReelScreenState extends State<VideoReelScreen>
     }
     if (state == AppLifecycleState.resumed) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) {
-          _resumeAfterAppForeground();
+        if (!mounted) {
+          return;
         }
+        if (controller.isInNearMeLocationPermissionFlow) {
+          return;
+        }
+        _resumeAfterAppForeground();
       });
     }
   }
@@ -1247,8 +1296,13 @@ class _VideoReelScreenState extends State<VideoReelScreen>
         _maybeDismissColdStartForSettledEmptyFeed();
       }
     });
-    ever(controller.isLocationFetching, (_) {
+    ever(controller.isLocationFetching, (fetching) {
       _maybeDismissColdStartForSettledEmptyFeed();
+      if (fetching == false &&
+          controller.hasLocationBeenFetched.value &&
+          controller.selectedType.value == 'Near Me') {
+        _resumeFeedAfterLocationPermission();
+      }
     });
     _loadLanguage();
     _cacheStaticLabels();
@@ -1285,7 +1339,11 @@ class _VideoReelScreenState extends State<VideoReelScreen>
           MediaKitPlayerPool.instance.invalidatePrimedFrame(key);
         }
         if (mounted) {
-          setState(() => _maskActiveVideoWithPoster = true);
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) {
+              setState(() => _maskActiveVideoWithPoster = true);
+            }
+          });
         }
         return;
       }
@@ -2070,9 +2128,10 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                               ),
                               child: Text(
                                 textAlign: TextAlign.center,
-                                'iOS Simulator reports Apple\'s default location '
-                                '(often San Francisco). Use Simulator → Features → '
-                                'Location to set your city.',
+                                'iOS Simulator uses a fixed test location (often '
+                                'San Francisco or a custom city like Shanghai). '
+                                'Set Simulator → Features → Location to your city, '
+                                'or tap "Use my current location" on a real device.',
                                 style: TextStyle(
                                   color: Colors.white70,
                                   fontSize: 11.sp,
@@ -2133,7 +2192,12 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                               SizedBox(width: 8),
                               InkWell(
                                 onTap: () {
-                                  controller.fetchVideos();
+                                  if (controller.selectedType.value ==
+                                      'Near Me') {
+                                    unawaited(controller.refreshLocation());
+                                  } else {
+                                    controller.fetchVideos();
+                                  }
                                 },
                                 child: Container(
                                   decoration: BoxDecoration(
@@ -2533,23 +2597,52 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                         isLoading: controller.isLoading.value,
                         text: "Submit".tr,
                         onTap: () {
-                          controller.isLoading.value
-                              ? null
-                              : Navigator.pop(context);
-                          controller.currentCity.value == ""
-                              ? null
-                              : controller
-                                  .fetchVideos(
-                                    city: controller.currentCity.value,
-                                    country: controller.currentCountry.value,
-                                    forceNetwork: true,
-                                  )
-                                  .then((value) {
-                                    controller.saveLocationData();
-                                  });
+                          if (controller.isLoading.value) {
+                            return;
+                          }
+                          if (controller.currentCityId.value.isEmpty) {
+                            return;
+                          }
+                          Navigator.pop(context);
+                          controller.applyManualLocationFilter(
+                            countryId: controller.currentCountryId.value,
+                            countryName: controller.currentCountry.value,
+                            cityId: controller.currentCityId.value,
+                            cityName: controller.currentCity.value,
+                          );
+                          controller.resetTabScrollRestore('Near Me');
+                          controller
+                              .fetchVideos(
+                                forceNetwork: true,
+                                resetScrollPosition: true,
+                              )
+                              .then((_) {
+                                controller.saveLocationData();
+                              });
                         },
                       );
                     }),
+                    SizedBox(height: 8),
+                    TextButton(
+                      onPressed: controller.isLoading.value
+                          ? null
+                          : () async {
+                            Navigator.pop(context);
+                            await controller.refreshLocation();
+                          },
+                      child: Text('use_gps_near_me'.tr),
+                    ),
+                    if (controller.nearMeManualFilterActive.value)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Text(
+                          '${controller.currentCity.value} (${'Filter'.tr})',
+                          style: TextStyle(
+                            fontSize: 12.sp,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                      ),
                   ],
                 ),
               );
@@ -3681,7 +3774,6 @@ void showLocationDialog(BuildContext context) {
   final HomeController homeController = Get.find();
   final VideoAddController controller = Get.find();
   final NavBarController profileController = Get.find();
-  final UserSearchController searchUpdateController = Get.find();
   final CityController cityController = Get.put(CityController());
 
   Map<String, int> countryMap = {};
@@ -3863,16 +3955,19 @@ void showLocationDialog(BuildContext context) {
                             Get.back(); // Close the country dialog
 
                             String country = selectedCountryName.value;
+                            final countryId = countryMap[country]!;
                             controller.selectLocation(
                               country,
-                              countryMap[country]!,
+                              countryId,
                             );
-                            searchUpdateController.currentCountry.value =
-                                country;
                             await cityController.fetchCities(
-                              countryMap[country]!,
+                              countryId,
                             );
                             homeController.currentCountry.value = country;
+                            homeController.currentCountryId.value =
+                                countryId.toString();
+                            homeController.currentCity.value = '';
+                            homeController.currentCityId.value = '';
                             homeController.isLoading.value = false;
 
                             showCityDialog(context);
@@ -4124,10 +4219,6 @@ void showCityDialog(BuildContext context, {int? initialCity}) {
                                       );
 
                                       homeUpdateController.currentCityId.value =
-                                          selectedId.toString();
-                                      homeController.currentCity.value =
-                                          selectedName;
-                                      homeController.currentCityId.value =
                                           selectedId.toString();
                                       homeUpdateController.currentCity.value =
                                           selectedName;

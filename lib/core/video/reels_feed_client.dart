@@ -18,6 +18,7 @@ class ReelsFeedClient {
     String? latitude,
     String? longitude,
     String? city,
+    String? country,
   }) async {
     final params = <String, String>{};
     if (!reset) {
@@ -45,6 +46,9 @@ class ReelsFeedClient {
       }
       if (city != null && city.isNotEmpty) {
         params['city'] = city;
+      }
+      if (country != null && country.isNotEmpty) {
+        params['country'] = country;
       }
     }
 

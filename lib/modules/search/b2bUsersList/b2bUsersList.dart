@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cookster/core/navigation/route_back.dart';
 import 'package:cookster/core/user/public_user_identity.dart';
@@ -11,6 +13,7 @@ import '../searchController/searchController.dart';
 import '../../../appUtils/colorUtils.dart';
 import '../../../appUtils/appCenterIcon.dart'; // For AppCenterIcon
 import 'package:cookster/core/media/media_url_resolver.dart';
+import '../searchModel/b2bUsersListModel.dart';
 
 class B2bUsersList extends StatefulWidget {
   final String categoryId;
@@ -35,6 +38,19 @@ class _B2bUsersListState extends State<B2bUsersList> {
       Get.find<UserSearchController>();
   final TextEditingController _searchController = TextEditingController();
   String _language = 'en'; // Default to English
+  Worker? _locationFilterWorker;
+  Timer? _fetchDebounce;
+
+  String? _avatarUrl(B2bAccountsList user) {
+    final resolved = MediaUrlResolver.firstAbsolute([
+      user.imageUrl,
+      user.image?.toString(),
+    ]);
+    if (resolved != null) {
+      return resolved;
+    }
+    return MediaUrlResolver.profileImageUrl(user.image?.toString());
+  }
 
   @override
   void initState() {
@@ -42,12 +58,31 @@ class _B2bUsersListState extends State<B2bUsersList> {
     print("Category ID: ${widget.categoryId}");
     print("Category Name: ${widget.categoryName}");
     _loadLanguage();
-    // Schedule the fetch operation after the build is complete
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      _fetchCategoryUsers();
+    });
+    _locationFilterWorker = ever(
+      userSearchController.locationFilterRevision,
+      (_) => _fetchCategoryUsers(),
+    );
+  }
+
+  void _fetchCategoryUsers() {
+    _fetchDebounce?.cancel();
+    _fetchDebounce = Timer(const Duration(milliseconds: 250), () {
+      if (!mounted) {
+        return;
+      }
+      final country = userSearchController.locationFilterEnabled.value
+          ? userSearchController.currentCountryId.value
+          : widget.country;
+      final city = userSearchController.locationFilterEnabled.value
+          ? userSearchController.currentCityId.value
+          : widget.city;
       userSearchController.fetchB2BUsersList(
         categoryId: int.parse(widget.categoryId),
-        country: widget.country,
-        city: widget.city,
+        country: country,
+        city: city,
       );
     });
   }
@@ -63,6 +98,8 @@ class _B2bUsersListState extends State<B2bUsersList> {
 
   @override
   void dispose() {
+    _fetchDebounce?.cancel();
+    _locationFilterWorker?.dispose();
     _searchController.dispose();
     super.dispose();
   }
@@ -98,13 +135,7 @@ class _B2bUsersListState extends State<B2bUsersList> {
                     top: 10.h,
                     child: GestureDetector(
                       behavior: HitTestBehavior.opaque,
-                      onTap: () {
-                        try {
-                          Get.back();
-                        } catch (e) {
-                          print("Error navigating back: $e");
-                        }
-                      },
+                      onTap: () => navigateBackFromContext(context),
                       child: Container(
                         height: 40,
                         width: 40,
@@ -190,7 +221,7 @@ class _B2bUsersListState extends State<B2bUsersList> {
       ),
       body: Obx(
         () =>
-            userSearchController.isLoading.value
+            userSearchController.isB2bUsersLoading.value
                 ? const Center(child: CircularProgressIndicator())
                 : userSearchController
                             .filteredB2bUsersList
@@ -203,21 +234,66 @@ class _B2bUsersListState extends State<B2bUsersList> {
                         .b2bAccountsList!
                         .isEmpty
                 ? Center(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Image.asset("assets/images/notfound.png", height: 250),
-                      SizedBox(height: 16),
-                      Text(
-                        "${"no_b2b_found".tr} ${widget.categoryName} ",
-                        style: TextStyle(
-                          color: ColorUtils.primaryColor,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 24),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Image.asset("assets/images/notfound.png", height: 250),
+                        SizedBox(height: 16),
+                        Text(
+                          "${"no_b2b_found".tr} ${widget.categoryName} ",
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: ColorUtils.primaryColor,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                          ),
                         ),
-                      ),
-                    ],
+                        if (userSearchController.locationFilterEnabled.value &&
+                            (userSearchController.currentCity.value.isNotEmpty ||
+                                userSearchController
+                                    .currentCountry
+                                    .value
+                                    .isNotEmpty)) ...[
+                          SizedBox(height: 8.h),
+                          Text(
+                            [
+                              userSearchController.currentCity.value,
+                              userSearchController.currentCountry.value,
+                            ].where((part) => part.isNotEmpty).join(', '),
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: ColorUtils.darkBrown.withValues(alpha: 0.6),
+                              fontSize: 13.sp,
+                            ),
+                          ),
+                          SizedBox(height: 16.h),
+                          if (userSearchController.currentCityId.value.isNotEmpty &&
+                              userSearchController
+                                  .currentCountry
+                                  .value
+                                  .isNotEmpty)
+                            TextButton(
+                              onPressed: () {
+                                userSearchController.clearCityKeepCountry();
+                                _fetchCategoryUsers();
+                              },
+                              child: Text(
+                                '${userSearchController.currentCountry.value} — all cities',
+                              ),
+                            ),
+                          TextButton(
+                            onPressed: () {
+                              userSearchController.clearLocationFilter();
+                              _fetchCategoryUsers();
+                            },
+                            child: Text('clear_location_filter'.tr),
+                          ),
+                        ],
+                      ],
+                    ),
                   ),
                 )
                 : Column(
@@ -252,10 +328,14 @@ class _B2bUsersListState extends State<B2bUsersList> {
                                   .filteredB2bUsersList
                                   .value
                                   .b2bAccountsList![index];
-                          return Container(
+                          final avatarUrl = _avatarUrl(user);
+                          return Material(
+                            color: Colors.white,
+                            elevation: 0,
+                            borderRadius: BorderRadius.circular(12),
+                            child: Container(
                             margin: const EdgeInsets.symmetric(vertical: 8),
                             decoration: BoxDecoration(
-                              color: Colors.white,
                               border: Border.all(
                                 color: Colors.grey.shade300,
                                 width: 1,
@@ -270,29 +350,28 @@ class _B2bUsersListState extends State<B2bUsersList> {
                               ],
                             ),
                             child: ListTile(
-                              leading:
-                                  user.image != null && user.image != ""
-                                      ? CircleAvatar(
-                                        backgroundImage: CachedNetworkImageProvider(
-                                          user.image!.contains('http')
-                                              ? user.image!
-                                              : MediaUrlResolver.profileImageUrl(user.image!) ?? '',
-                                        ),
-                                        radius: 25,
-                                        onBackgroundImageError: (
-                                          exception,
-                                          stackTrace,
-                                        ) {
-                                          print("Image load error: $exception");
-                                        },
-                                      )
-                                      : const CircleAvatar(
-                                        child: Icon(
+                              leading: CircleAvatar(
+                                radius: 25,
+                                backgroundColor: Colors.grey.shade300,
+                                child: ClipOval(
+                                  child: avatarUrl != null && avatarUrl.isNotEmpty
+                                      ? CachedNetworkImage(
+                                        imageUrl: avatarUrl,
+                                        width: 50,
+                                        height: 50,
+                                        fit: BoxFit.cover,
+                                        errorWidget: (context, url, error) =>
+                                            const Icon(
                                           Icons.person,
                                           color: Colors.white,
                                         ),
-                                        radius: 25,
+                                      )
+                                      : const Icon(
+                                        Icons.person,
+                                        color: Colors.white,
                                       ),
+                                ),
+                              ),
                               title: Text(
                                 user.name ?? "Unknown",
                                 style: const TextStyle(
@@ -317,6 +396,7 @@ class _B2bUsersListState extends State<B2bUsersList> {
                                 Get.to(VisitProfileView(userId: user.id!));
                               },
                             ),
+                          ),
                           );
                         },
                       ),

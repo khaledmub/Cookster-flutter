@@ -150,19 +150,25 @@ class FeedDiskWarmService {
       final lat = prefs.getDouble('latitude');
       final lng = prefs.getDouble('longitude');
       final cityId = prefs.getString('currentCityId');
+      final countryId = prefs.getString('currentCountryId');
+      final hasManualFilter =
+          (cityId != null && cityId.isNotEmpty) ||
+          (countryId != null && countryId.isNotEmpty);
       final hasCoords =
           lat != null && lng != null && lat != 0.0 && lng != 0.0;
 
       // Prefer Near Me (home default). Only seed ONE file so Landing's
       // exclusive head warm is not bandwidth-starved.
       var warmed = 0;
-      if (hasCoords) {
+      if (hasManualFilter || hasCoords) {
         warmed += await _fetchAndEnqueue(
           gen: gen,
           feed: 'near_me',
-          latitude: lat.toString(),
-          longitude: lng.toString(),
+          latitude: hasManualFilter ? null : lat?.toString(),
+          longitude: hasManualFilter ? null : lng?.toString(),
           city: (cityId != null && cityId.isNotEmpty) ? cityId : null,
+          country:
+              (countryId != null && countryId.isNotEmpty) ? countryId : null,
           label: 'near_me',
           maxVideos: _earlyWarmMax,
           basePriority: 200,
@@ -198,6 +204,7 @@ class FeedDiskWarmService {
     String? latitude,
     String? longitude,
     String? city,
+    String? country,
   }) async {
     if (gen != _generation) {
       return 0;
@@ -208,6 +215,7 @@ class FeedDiskWarmService {
       latitude: latitude,
       longitude: longitude,
       city: city,
+      country: country,
     );
     if (gen != _generation) {
       return 0;
