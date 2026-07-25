@@ -7,7 +7,6 @@ import 'package:cookster/appBindings/app_bindings.dart';
 import 'package:cookster/appRoutes/appRoutes.dart';
 import 'package:cookster/appUtils/apiEndPoints.dart';
 import 'package:cookster/appUtils/appUtils.dart';
-import 'package:cookster/goLive/join_screen.dart';
 import 'package:cookster/core/text/hashtag_text.dart';
 import 'package:cookster/core/firestore/reel_video_stats.dart';
 import 'package:cookster/core/firestore/video_view_tracker.dart';
@@ -17,6 +16,7 @@ import 'package:cookster/core/widgets/grid_thumbnail_cache.dart';
 import 'package:cookster/core/widgets/reel_page_keep_alive.dart';
 import 'package:cookster/core/widgets/reel_action_rail.dart';
 import 'package:cookster/core/widgets/reel_content_chrome.dart';
+import 'package:cookster/core/widgets/feed_hub_menu.dart';
 import 'package:cookster/core/widgets/tiktok_feed_chrome.dart';
 import 'package:cookster/core/video/media_kit_player_pool.dart';
 import 'package:cookster/core/video/device_constraints.dart';
@@ -50,7 +50,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 import '../../../../../appUtils/colorUtils.dart';
 import '../../../../auth/signUp/signUpController/cityController.dart';
-import '../../../../chatScreen/userChatList.dart';
 import '../../../../promoteVideo/promoteVideoController/promoteVideoController.dart';
 import '../../../../search/searchController/searchController.dart';
 import '../../../../singleVideoView/singleVideoView.dart';
@@ -60,7 +59,6 @@ import '../../../../../services/settings/settings_service.dart';
 import '../../add/videoAddController/videoAddController.dart';
 import '../homeController/addCommentControllr.dart';
 import '../homeController/homeController.dart';
-import '../homeWidgets/chatIconWithCounter.dart';
 import '../homeWidgets/contactNowDialog.dart';
 import '../homeWidgets/reviewSheet.dart';
 import '../homeWidgets/reel_feed_player_kit.dart';
@@ -107,6 +105,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
 
   bool _showIcon = false;
   bool isAuthenticated = false;
+  final GlobalKey _headerHubKey = GlobalKey();
   final VideoSourceResolver _sourceResolver = const VideoSourceResolver();
   final ReelsSessionStore _sessionStore = ReelsSessionStore.instance;
   late final VideoPreloadManager _preloadManager;
@@ -2281,25 +2280,13 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                         Row(
                       crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
-                        const SizedBox(width: 4),
-                        TikTokFeedTopIconButton(
-                          onTap: () {
-                            isAuthenticated
-                                ? Get.to(JoinScreen())
-                                : Get.toNamed(AppRoutes.signIn);
-                          },
-                          child: SvgPicture.asset(
-                            "assets/icons/live.svg",
-                            color: Colors.white,
-                            height: 22,
-                          ),
-                        ),
                         Expanded(
                           child: GestureDetector(
                             behavior: HitTestBehavior.opaque,
                             onHorizontalDragEnd: _onFeedTabHorizontalSwipe,
                             child: Row(
-                            children: [
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
                               if ((promoteVideoController
                                           .siteSettings
                                           .value
@@ -2363,59 +2350,22 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                             size: 26.sp,
                           ),
                         ),
-                        TikTokFeedTopIconButton(
-                          onTap: () => _showFilterBottomSheet(context),
-                          child: Obx(() {
+                        Obx(
+                          () {
                             final tab = controller.selectedType.value;
                             final showBadge =
                                 controller.hasGeneralLocationFilter &&
                                 tab == 'General';
-                            return Stack(
-                              clipBehavior: Clip.none,
-                              children: [
-                                Icon(
-                                  Icons.tune_rounded,
-                                  color: Colors.white,
-                                  size: 24.sp,
-                                ),
-                                if (showBadge)
-                                  Positioned(
-                                    top: -2,
-                                    right: -2,
-                                    child: Container(
-                                      width: 8,
-                                      height: 8,
-                                      decoration: BoxDecoration(
-                                        color: ColorUtils.primaryColor,
-                                        shape: BoxShape.circle,
-                                        border: Border.all(
-                                          color: Colors.black.withValues(
-                                            alpha: 0.35,
-                                          ),
-                                          width: 1,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                              ],
-                            );
-                          }),
-                        ),
-                        ChatIconWithCounter(
-                          userId: userId ?? '',
-                          isAuthenticated: isAuthenticated,
-                          onTap: () {
-                            if (!isAuthenticated) {
-                              Get.toNamed(AppRoutes.signIn);
-                              return;
-                            }
-                            controller.silenceHomeReelsForTransition();
-                            Get.to(
-                              ChatListScreen(userId: userIdFromStorage),
+                            return FeedHubIconButton(
+                              anchorKey: _headerHubKey,
+                              isAuthenticated: isAuthenticated,
+                              showFilterBadge: showBadge,
+                              iconSize: 26.sp,
+                              onFilter: () => _showFilterBottomSheet(context),
                             );
                           },
                         ),
-                        const SizedBox(width: 4),
+                        const SizedBox(width: 8),
                       ],
                     ),
                         if (controller.selectedType.value == 'Near Me')
@@ -3923,9 +3873,8 @@ class _VideoDescriptionWidgetState extends State<VideoDescriptionWidget>
   }
 
   Widget? _buildCreatorHeader({
-    required TextAlign textAlign,
     required TextDirection textDirection,
-    required CrossAxisAlignment crossAxisAlignment,
+    required double maxNameWidth,
   }) {
     final name = widget.userName?.trim() ?? '';
     if (name.isEmpty && !widget.isPhotoPost) {
@@ -3941,21 +3890,24 @@ class _VideoDescriptionWidgetState extends State<VideoDescriptionWidget>
           );
 
     return Column(
-      crossAxisAlignment: crossAxisAlignment,
+      crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
         Row(
+          mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.center,
-          textDirection: textDirection,
           children: [
             if (name.isNotEmpty)
-              Expanded(
+              ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxWidth: maxNameWidth.clamp(0, double.infinity),
+                ),
                 child: Text(
                   name,
                   style: nameStyle,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  textAlign: textAlign,
+                  textAlign: TextAlign.left,
                   textDirection: textDirection,
                 ),
               ),
@@ -3981,6 +3933,8 @@ class _VideoDescriptionWidgetState extends State<VideoDescriptionWidget>
                     ),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.left,
+              textDirection: textDirection,
             ),
           ),
         if (widget.sponsorType != null)
@@ -3997,6 +3951,8 @@ class _VideoDescriptionWidgetState extends State<VideoDescriptionWidget>
                       color: Colors.white.withValues(alpha: 0.85),
                       fontSize: 12.sp,
                     ),
+              textAlign: TextAlign.left,
+              textDirection: textDirection,
             ),
           ),
       ],
@@ -4006,16 +3962,11 @@ class _VideoDescriptionWidgetState extends State<VideoDescriptionWidget>
   @override
   Widget build(BuildContext context) {
     final textDirection = Directionality.of(context);
-    final isRtl = textDirection == TextDirection.rtl;
     final contentMaxWidth = _contentMaxWidth(context);
-    final textAlign = isRtl ? TextAlign.right : TextAlign.left;
-    final crossAxisAlignment =
-        isRtl ? CrossAxisAlignment.end : CrossAxisAlignment.start;
 
     final creatorHeader = _buildCreatorHeader(
-      textAlign: textAlign,
       textDirection: textDirection,
-      crossAxisAlignment: crossAxisAlignment,
+      maxNameWidth: contentMaxWidth - (widget.isPhotoPost ? 72 : 0),
     );
 
     if (_title.isEmpty &&
@@ -4031,11 +3982,14 @@ class _VideoDescriptionWidgetState extends State<VideoDescriptionWidget>
 
     return Positioned(
       bottom: _bottomOffset(context),
-      // Keep on the physical left so description/hashtags never overlap the
-      // action column (always on the right). RTL only affects text inside.
+      // Physical left/right — action rail stays on the right in every locale.
       left: 10,
       right: 72,
-      child: Container(
+      child: Directionality(
+        // Flex "start" and Row child order follow ambient direction; without
+        // this wrapper Arabic RTL flips caption content to the right edge.
+        textDirection: TextDirection.ltr,
+        child: Container(
         padding: widget.tiktokStyle
             ? EdgeInsets.zero
             : const EdgeInsets.all(8),
@@ -4047,7 +4001,7 @@ class _VideoDescriptionWidgetState extends State<VideoDescriptionWidget>
                 borderRadius: BorderRadius.circular(8),
               ),
         child: Column(
-          crossAxisAlignment: crossAxisAlignment,
+          crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
             if (creatorHeader != null) ...[
@@ -4068,7 +4022,7 @@ class _VideoDescriptionWidgetState extends State<VideoDescriptionWidget>
                       ),
                 maxLines: widget.tiktokStyle ? 3 : 2,
                 overflow: TextOverflow.ellipsis,
-                textAlign: textAlign,
+                textAlign: TextAlign.left,
                 textDirection: textDirection,
               ),
             if (_title.isNotEmpty && _hasBody) SizedBox(height: 4.h),
@@ -4076,13 +4030,13 @@ class _VideoDescriptionWidgetState extends State<VideoDescriptionWidget>
               AnimatedSize(
                 duration: const Duration(milliseconds: 300),
                 curve: Curves.easeInOut,
-                alignment: isRtl ? Alignment.topRight : Alignment.topLeft,
+                alignment: Alignment.topLeft,
                 child: RichText(
                   maxLines: _isExpanded ? null : 1,
                   overflow: _isExpanded
                       ? TextOverflow.visible
                       : TextOverflow.ellipsis,
-                  textAlign: textAlign,
+                  textAlign: TextAlign.left,
                   textDirection: textDirection,
                   text: TextSpan(children: _bodySpans(interactive: true)),
                 ),
@@ -4107,7 +4061,7 @@ class _VideoDescriptionWidgetState extends State<VideoDescriptionWidget>
                             ? TikTokFeedChrome.labelShadow
                             : null,
                       ),
-                      textAlign: textAlign,
+                      textAlign: TextAlign.left,
                       textDirection: textDirection,
                     ),
                   ),
@@ -4115,8 +4069,8 @@ class _VideoDescriptionWidgetState extends State<VideoDescriptionWidget>
             ],
           ],
         ),
+        ),
       ),
     );
   }
 }
-

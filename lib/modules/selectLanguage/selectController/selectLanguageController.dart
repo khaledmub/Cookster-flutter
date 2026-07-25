@@ -21,8 +21,8 @@ class LanguageController extends GetxController {
     selectedLanguage.value = selectedTempLanguage.value;
     String languageCode = selectedLanguage.value == "English" ? "en" : "ar";
 
-    // Update locale for UI translations
-    LocalizationService().changeLocale(languageCode);
+    // Update locale for UI translations (must finish before navigation/dispose).
+    await LocalizationService().changeLocale(languageCode);
 
     // Save to SharedPreferences for LanguageController
     SharedPreferences prefs = await SharedPreferences.getInstance();
@@ -44,7 +44,7 @@ class LanguageController extends GetxController {
       selectedLanguage.value = savedLang;
       selectedTempLanguage.value = savedLang;
       String languageCode = savedLang == "English" ? "en" : "ar";
-      LocalizationService().changeLocale(languageCode);
+      await LocalizationService().changeLocale(languageCode);
       // Ensure ApiClient uses the saved language
       await ApiClient.updateLanguage(languageCode);
     }

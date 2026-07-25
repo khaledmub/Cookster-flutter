@@ -11,6 +11,7 @@ import 'package:cookster/modules/landing/landingTabs/profile/profileView/profile
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -388,11 +389,28 @@ class _LandingState extends State<Landing> {
     } catch (_) {}
   }
 
+  /// [NavBarController] outlives this route, so a previous Landing's [Obx] can
+  /// still be mounted (and already built this frame) when a replacement Landing
+  /// is inflated — e.g. the locale switch rebuilds the whole root stack. Writing
+  /// the shared Rx mid-build would mark that stale Obx dirty and trip the
+  /// "setState() called during build" assertion, so defer until the frame ends.
+  void _applyInitialTabIndex() {
+    if (navBarController.selectedIndex.value == widget.initialIndex) return;
+    if (SchedulerBinding.instance.schedulerPhase == SchedulerPhase.idle) {
+      navBarController.selectedIndex.value = widget.initialIndex;
+      return;
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      navBarController.selectedIndex.value = widget.initialIndex;
+    });
+  }
+
   @override
   void initState() {
     super.initState();
     LandingBinding().dependencies();
-    navBarController.selectedIndex.value = widget.initialIndex;
+    _applyInitialTabIndex();
     fetchUserDetails();
     navBarController.checkForUpdate();
     _initDeepLinks();

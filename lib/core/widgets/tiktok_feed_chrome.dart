@@ -10,7 +10,8 @@ class TikTokFeedChrome {
   static const double feedTabBarHeight = 54;
   static const double actionIconSize = 22;
   static const double actionAvatarSize = 44;
-  static const double tabFontSize = 17;
+  static const double tabFontSize = 16;
+  static const double tabHorizontalPadding = 12;
 
   static const List<Color> topGradientColors = [
     Color(0xB3000000),
@@ -140,7 +141,10 @@ class TikTokFeedTabLabel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Expanded(
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+        horizontal: TikTokFeedChrome.tabHorizontalPadding,
+      ),
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: onTap,

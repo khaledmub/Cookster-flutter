@@ -126,19 +126,37 @@ class _SelectLanguageViewState extends State<SelectLanguageView> {
                         AppButton(
                           text: "Save".tr,
                           onTap: () async {
+                            // Close hub/filter/search overlays before RTL/LTR
+                            // flip. Bounded so a stuck flag can never spin here.
+                            for (var i = 0; i < 4; i++) {
+                              if (!(Get.isDialogOpen ?? false) &&
+                                  !(Get.isBottomSheetOpen ?? false)) {
+                                break;
+                              }
+                              Get.back();
+                            }
+
                             await languageController.applyLanguageChange();
-                            
+
                             // Prevent zombie players when rebuilding the root navigation stack
                             if (Get.isRegistered<HomeController>()) {
                               Get.find<HomeController>().disposeControllers();
                             }
                             await MediaKitPlayerPool.instance.releaseAll();
-                            
-                            final prefs = await SharedPreferences.getInstance();
+
+                            await WidgetsBinding.instance.endOfFrame;
+
+                            if (!context.mounted) {
+                              return;
+                            }
+
+                            final prefs =
+                                await SharedPreferences.getInstance();
                             final userId = prefs.getString('user_id');
                             if (userId != null && userId.isNotEmpty) {
                               Get.offAllNamed(AppRoutes.landing);
-                            } else if (Get.key.currentState?.canPop() ?? false) {
+                            } else if (Get.key.currentState?.canPop() ??
+                                false) {
                               Get.back(result: true);
                             } else {
                               Get.offAllNamed(AppRoutes.signIn);
