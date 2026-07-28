@@ -47,6 +47,11 @@ const Map<String, String> ar = {
       "هذا موقع GPS تجريبي لمحاكي iOS (San Francisco) وليس موقعك الحقيقي. في المحاكي: Features → Location → Custom Location وأدخل مدينتك، أو شغّل التطبيق على iPhone حقيقي.",
   "near_me_geo_expanded_notice":
       "يتم عرض منشورات من منطقة أوسع حولك.",
+  "near_me_geo_expanded_radius_notice":
+      "يتم عرض المنشورات ضمن @radius كم حولك.",
+  "near_me_geo_city_notice": "يتم عرض جميع المنشورات في @city.",
+  "near_me_in_city": "في @city",
+  "near_me_distance_away": "على بعد @distance",
   "General": "عام",
   "Change Location": "تغيير الموقع",
   "Discover": "اكتشف",

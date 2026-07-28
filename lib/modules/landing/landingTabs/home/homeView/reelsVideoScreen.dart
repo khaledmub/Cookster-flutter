@@ -7,6 +7,7 @@ import 'package:cookster/appBindings/app_bindings.dart';
 import 'package:cookster/appRoutes/appRoutes.dart';
 import 'package:cookster/appUtils/apiEndPoints.dart';
 import 'package:cookster/appUtils/appUtils.dart';
+import 'package:cookster/core/format/near_me_geo_format.dart';
 import 'package:cookster/core/text/hashtag_text.dart';
 import 'package:cookster/core/firestore/reel_video_stats.dart';
 import 'package:cookster/core/firestore/video_view_tracker.dart';
@@ -2006,6 +2007,10 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                   creatorHandle: videoDetail.creatorHandle,
                   sponsorType: videoDetail.sponsorType,
                   isPhotoPost: videoDetail.isPhotoPost,
+                  distanceKm: tab == 'Near Me' ? videoDetail.distanceKm : null,
+                  distanceBasis:
+                      tab == 'Near Me' ? videoDetail.distanceBasis : null,
+                  cityName: tab == 'Near Me' ? videoDetail.cityName : null,
                   bottomBarClearance: 12,
                 ),
                 videoUserDetails(
@@ -2432,17 +2437,33 @@ class _VideoReelScreenState extends State<VideoReelScreen>
     return _buildNearMeGeoNotice(context);
   }
 
+  String? _nearMeGeoNoticeMessage(FeedMeta meta) {
+    if (meta.geoFallback) {
+      return 'near_me_geo_fallback_notice'.tr;
+    }
+    if (meta.geoExpanded) {
+      final radius = meta.geoRadiusKm;
+      if (radius != null && radius > 0) {
+        return 'near_me_geo_expanded_radius_notice'.trParams({
+          'radius': radius.round().toString(),
+        });
+      }
+      return 'near_me_geo_expanded_notice'.tr;
+    }
+    final city = meta.geoCityName?.trim();
+    if (isNearMeCityScope(meta.geoScope) && city != null && city.isNotEmpty) {
+      return 'near_me_geo_city_notice'.trParams({'city': city});
+    }
+    return null;
+  }
+
   Widget _buildNearMeGeoNotice(BuildContext context) {
     final meta = controller.videoFeed.value.meta;
     if (meta == null) {
       return const SizedBox.shrink();
     }
-    final String message;
-    if (meta.geoFallback) {
-      message = 'near_me_geo_fallback_notice'.tr;
-    } else if (meta.geoExpanded) {
-      message = 'near_me_geo_expanded_notice'.tr;
-    } else {
+    final String? message = _nearMeGeoNoticeMessage(meta);
+    if (message == null || message.isEmpty) {
       return const SizedBox.shrink();
     }
     return Padding(
@@ -3741,6 +3762,9 @@ class VideoDescriptionWidget extends StatefulWidget {
   final String? creatorHandle;
   final dynamic sponsorType;
   final bool isPhotoPost;
+  final double? distanceKm;
+  final String? distanceBasis;
+  final String? cityName;
 
   const VideoDescriptionWidget({
     this.title,
@@ -3753,6 +3777,9 @@ class VideoDescriptionWidget extends StatefulWidget {
     this.creatorHandle,
     this.sponsorType,
     this.isPhotoPost = false,
+    this.distanceKm,
+    this.distanceBasis,
+    this.cityName,
     super.key,
   });
 
@@ -3784,7 +3811,10 @@ class _VideoDescriptionWidgetState extends State<VideoDescriptionWidget>
         oldWidget.description != widget.description ||
         oldWidget.tags != widget.tags ||
         oldWidget.userName != widget.userName ||
-        oldWidget.isPhotoPost != widget.isPhotoPost) {
+        oldWidget.isPhotoPost != widget.isPhotoPost ||
+        oldWidget.distanceKm != widget.distanceKm ||
+        oldWidget.distanceBasis != widget.distanceBasis ||
+        oldWidget.cityName != widget.cityName) {
       _isExpanded = false;
       _hasOverflow = false;
       WidgetsBinding.instance.addPostFrameCallback((_) => _checkOverflowOnce());
@@ -3877,7 +3907,24 @@ class _VideoDescriptionWidgetState extends State<VideoDescriptionWidget>
     required double maxNameWidth,
   }) {
     final name = widget.userName?.trim() ?? '';
-    if (name.isEmpty && !widget.isPhotoPost) {
+    final locationBadge = resolveNearMeLocationBadge(
+      distanceKm: widget.distanceKm,
+      distanceBasis: widget.distanceBasis,
+      cityName: widget.cityName,
+    );
+    final String? locationLabel = switch (locationBadge.kind) {
+      NearMeLocationBadgeKind.distance =>
+        'near_me_distance_away'.trParams({
+          'distance': locationBadge.distanceFormatted!,
+        }),
+      NearMeLocationBadgeKind.inCity => 'near_me_in_city'.trParams({
+        'city': locationBadge.city!,
+      }),
+      NearMeLocationBadgeKind.none => null,
+    };
+    if (name.isEmpty &&
+        !widget.isPhotoPost &&
+        (locationLabel == null || locationLabel.isEmpty)) {
       return null;
     }
 
@@ -3915,8 +3962,41 @@ class _VideoDescriptionWidgetState extends State<VideoDescriptionWidget>
               if (name.isNotEmpty) SizedBox(width: 8.w),
               const ReelPhotoInlineBadge(),
             ],
-          ],
-        ),
+            ],
+          ),
+        if (locationLabel != null && locationLabel.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(top: 2),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  locationBadge.kind == NearMeLocationBadgeKind.distance
+                      ? Icons.near_me_outlined
+                      : Icons.location_city_outlined,
+                  size: 12.sp,
+                  color: Colors.white.withValues(alpha: 0.85),
+                ),
+                SizedBox(width: 4.w),
+                Text(
+                  locationLabel,
+                  style: widget.tiktokStyle
+                      ? TikTokFeedChrome.bodyCaption.copyWith(
+                          fontSize: 12.sp,
+                          color: Colors.white.withValues(alpha: 0.85),
+                        )
+                      : TextStyle(
+                          color: Colors.white.withValues(alpha: 0.85),
+                          fontSize: 12.sp,
+                        ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.left,
+                  textDirection: textDirection,
+                ),
+              ],
+            ),
+          ),
         if (PublicUserIdentity.subtitleHandle(widget.creatorHandle) != null)
           Padding(
             padding: const EdgeInsets.only(top: 2),

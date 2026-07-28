@@ -575,13 +575,21 @@ class HomeController extends GetxController with WidgetsBindingObserver {
       }
     }
 
-    // Near Me always uses device GPS — never the General tab location filter.
+    // Near Me uses device GPS; optional city/country ids help server city-scope.
     if (selectedType.value == 'Near Me') {
       if (latitude.value.isNotEmpty) {
         params['latitude'] = latitude.value;
       }
       if (longitude.value.isNotEmpty) {
         params['longitude'] = longitude.value;
+      }
+      if (nearMeFilterCountryId.value.isNotEmpty &&
+          nearMeFilterCountryId.value != '-1') {
+        params['country'] = nearMeFilterCountryId.value;
+      }
+      if (nearMeFilterCityId.value.isNotEmpty &&
+          nearMeFilterCityId.value != '-1') {
+        params['city'] = nearMeFilterCityId.value;
       }
     }
 
@@ -644,6 +652,9 @@ class HomeController extends GetxController with WidgetsBindingObserver {
       debugPrint(
         '${selectedType.value} reels: count=${parsed.videos?.length ?? 0} '
         'geo_fallback=${parsed.meta?.geoFallback ?? false} '
+        'geo_scope=${parsed.meta?.geoScope ?? ''} '
+        'geo_city=${parsed.meta?.geoCityName ?? ''} '
+        'geo_radius_km=${parsed.meta?.geoRadiusKm ?? ''} '
         'pinned=${parsed.meta?.pinnedVideoId ?? 'none'} '
         'pin_sent=$pinSent '
         'generalLocationFilter=$hasGeneralLocationFilter '
@@ -760,6 +771,10 @@ class HomeController extends GetxController with WidgetsBindingObserver {
   var generalFilterCountryId = "".obs;
   var generalFilterCityId = "".obs;
 
+  /// Resolved from GPS for optional Near Me `city` / `country` query params.
+  var nearMeFilterCountryId = "".obs;
+  var nearMeFilterCityId = "".obs;
+
   /// Apple iOS Simulator default GPS (Union Square, San Francisco).
   static const double iosSimulatorDefaultLat = 37.785834;
   static const double iosSimulatorDefaultLng = -122.406417;
@@ -864,11 +879,16 @@ class HomeController extends GetxController with WidgetsBindingObserver {
       final ready = await upload.ensureLocationIdsReady(
         alternateCityName: state,
       );
-      if (ready && kDebugMode) {
-        debugPrint(
-          '[LocationIds] resolved countryId=${upload.selectedLocationId.value} '
-          'cityId=${upload.selectedCityId.value} for $city, $country',
-        );
+      if (ready) {
+        nearMeFilterCountryId.value =
+            upload.selectedLocationId.value.toString();
+        nearMeFilterCityId.value = upload.selectedCityId.value.toString();
+        if (kDebugMode) {
+          debugPrint(
+            '[LocationIds] resolved countryId=${upload.selectedLocationId.value} '
+            'cityId=${upload.selectedCityId.value} for $city, $country',
+          );
+        }
       }
     } catch (e) {
       if (kDebugMode) {
@@ -1134,7 +1154,12 @@ class HomeController extends GetxController with WidgetsBindingObserver {
               patternIndex: meta.patternIndex,
               normalOffset: meta.normalOffset,
               sortBy: meta.sortBy,
+              geoFallback: true,
               geoExpanded: meta.geoExpanded,
+              geoScope: meta.geoScope,
+              geoRadiusKm: meta.geoRadiusKm,
+              geoCityId: meta.geoCityId,
+              geoCityName: meta.geoCityName,
             ),
     );
   }

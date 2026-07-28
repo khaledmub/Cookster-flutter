@@ -28,6 +28,13 @@ class FeedMeta {
   bool geoFallback;
   /// True when the server widened the Near Me radius (50/80/120 km expansion).
   bool geoExpanded;
+  /// Near Me filter scope echoed by the server (`radius`, `city`, …).
+  String? geoScope;
+  /// Active Near Me radius in km when [geoScope] is radius-based.
+  double? geoRadiusKm;
+  /// Resolved city for the viewer's GPS on Near Me feeds.
+  int? geoCityId;
+  String? geoCityName;
   /// Set when the server applied [pin_video_id] on the first page.
   String? pinnedVideoId;
 
@@ -44,6 +51,10 @@ class FeedMeta {
     this.sortBy,
     this.geoFallback = false,
     this.geoExpanded = false,
+    this.geoScope,
+    this.geoRadiusKm,
+    this.geoCityId,
+    this.geoCityName,
     this.pinnedVideoId,
   });
 
@@ -64,6 +75,12 @@ class FeedMeta {
       sortBy: json['sort_by'] as String?,
       geoFallback: json['geo_fallback'] == true,
       geoExpanded: json['geo_expanded'] == true,
+      geoScope: json['geo_scope'] as String?,
+      geoRadiusKm: parseApiDouble(json['geo_radius_km']),
+      geoCityId: parseApiCount(json['geo_city_id']) == 0
+          ? null
+          : parseApiCount(json['geo_city_id']),
+      geoCityName: json['geo_city_name'] as String?,
       pinnedVideoId: json['pinned_video_id']?.toString(),
     );
   }
@@ -189,6 +206,12 @@ class WallVideos {
   dynamic website;
   dynamic latitude;
   dynamic longitude;
+  int? cityId;
+  String? cityName;
+  /// Near Me distance in km when [distanceBasis] is available.
+  double? distanceKm;
+  /// `business` = GPS→business coords; `city` = city-center fallback.
+  String? distanceBasis;
 
   WallVideos({
     this.id,
@@ -235,6 +258,10 @@ class WallVideos {
     this.website,
     this.latitude,
     this.longitude,
+    this.cityId,
+    this.cityName,
+    this.distanceKm,
+    this.distanceBasis,
   });
 
   bool get isTranscodeReady => transcodeStatus == 'ready';
@@ -292,6 +319,11 @@ class WallVideos {
     website = json['website'];
     latitude = json['latitude'];
     longitude = json['longitude'];
+    final parsedCityId = parseApiCount(json['city_id']);
+    cityId = parsedCityId == 0 ? null : parsedCityId;
+    cityName = json['city_name'] as String?;
+    distanceKm = parseApiDouble(json['distance_km']);
+    distanceBasis = json['distance_basis'] as String?;
 
     String? userImageFromNested;
     final user = json['user'];

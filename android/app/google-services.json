@@ -30,6 +30,14 @@
           }
         },
         {
+          "client_id": "588874074588-b5kfq0ogd86ahog7fh2n46d7ejqiei9o.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.cookster.cooksterapp",
+            "certificate_hash": "2e947141bc6f402984748587e86f9657410ca2e2"
+          }
+        },
+        {
           "client_id": "588874074588-bchjtldth8l4oojk1h1d79lfkvbeiuvv.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
@@ -103,6 +111,14 @@
           "android_info": {
             "package_name": "com.example.cookster",
             "certificate_hash": "44a65eb500d82eef6b27ee8665a5c306bcf96214"
+          }
+        },
+        {
+          "client_id": "588874074588-ollb907krg037oqa9d8jqn1ia9hqnnfg.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.cookster",
+            "certificate_hash": "2e947141bc6f402984748587e86f9657410ca2e2"
           }
         },
         {

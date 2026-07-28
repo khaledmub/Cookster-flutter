@@ -21,6 +21,8 @@
         android:required="false" />
 
     <queries>
+        <!-- Google Sign-In / Play Services (Android 11+ package visibility) -->
+        <package android:name="com.google.android.gms" />
         <!-- WhatsApp -->
         <intent>
             <action android:name="android.intent.action.VIEW" />

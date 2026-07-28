@@ -9,6 +9,7 @@ import 'package:crypto/crypto.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
 import 'package:get/get.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -379,6 +380,18 @@ class LogInController extends GetxController {
     }
   }
 
+  static bool _isGoogleDeveloperError(Object error) {
+    if (error is PlatformException) {
+      final message = error.message ?? '';
+      return error.code == 'sign_in_failed' &&
+          (message.contains('ApiException: 10') || message.contains(': 10:'));
+    }
+    if (error is FirebaseAuthException) {
+      return error.code == 'missing-id-token';
+    }
+    return false;
+  }
+
   Future<void> signInWithGoogle() async {
     isLoading.value = true;
 
@@ -422,10 +435,28 @@ class LogInController extends GetxController {
       ScaffoldMessenger.of(Get.context!).showSnackBar(
         SnackBar(
           content: Text(
-            error.code == 'missing-id-token'
+            _isGoogleDeveloperError(error)
                 ? 'google_signin_failed'.tr
                 : 'Google: ${error.code}',
           ),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } on PlatformException catch (error, stack) {
+      debugPrint('Google PlatformException: ${error.code} ${error.message}\n$stack');
+      if (_isGoogleDeveloperError(error)) {
+        debugPrint(
+          'Google Sign-In DEVELOPER_ERROR (ApiException 10): add this machine\'s '
+          'debug/profile SHA-1 to Firebase → Project settings → Android app '
+          'com.cookster.cooksterapp, then re-download google-services.json. '
+          'Run: keytool -list -v -keystore ~/.android/debug.keystore '
+          '-alias androiddebugkey -storepass android -keypass android',
+        );
+      }
+      ScaffoldMessenger.of(Get.context!).showSnackBar(
+        SnackBar(
+          content: Text('google_signin_failed'.tr),
           backgroundColor: Colors.red,
           behavior: SnackBarBehavior.floating,
         ),

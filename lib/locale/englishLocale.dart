@@ -47,6 +47,11 @@ const Map<String, String> en = {
       "This is the iOS Simulator's test GPS (San Francisco), not your real location. In Simulator go to Features → Location → Custom Location and enter your city, or run the app on a real iPhone.",
   "near_me_geo_expanded_notice":
       "Showing posts from a wider area around you.",
+  "near_me_geo_expanded_radius_notice":
+      "Showing posts within @radius km around you.",
+  "near_me_geo_city_notice": "Showing all posts in @city.",
+  "near_me_in_city": "In @city",
+  "near_me_distance_away": "@distance away",
   "General": "General",
   "Change Location": "Change Location",
   "Discover": "Discover",
