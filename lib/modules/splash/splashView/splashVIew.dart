@@ -3,8 +3,8 @@ import 'dart:async';
 import 'package:cookster/appBindings/app_bindings.dart';
 import 'package:cookster/appRoutes/appRoutes.dart';
 import 'package:cookster/core/video/feed_disk_warm_service.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:get/get.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -22,21 +22,26 @@ class _SplashViewState extends State<SplashView>
   late AnimationController _controller;
 
   Future<void> _navigateToInitialScreen() async {
-    final prefs = await SharedPreferences.getInstance();
-    final bool initLanguage = prefs.getBool('initLanguage') ?? false;
-    final token = prefs.getString('auth_token');
-    // Already signed in: start disk-warming feed bytes during the logo.
-    if (token != null && token.isNotEmpty) {
-      FeedDiskWarmService.instance.warmEarlyFeed(reason: 'splash_signed_in');
-    }
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final bool initLanguage = prefs.getBool('initLanguage') ?? false;
+      final token = prefs.getString('auth_token');
+      // Already signed in: start disk-warming feed bytes during the logo.
+      if (token != null && token.isNotEmpty) {
+        FeedDiskWarmService.instance.warmEarlyFeed(reason: 'splash_signed_in');
+      }
 
-    if (initLanguage) {
+      if (initLanguage) {
+        Get.offAllNamed(AppRoutes.onBoarding);
+      } else {
+        Get.offAll(
+          () => const InitLanguageView(),
+          binding: SelectLanguageBinding(),
+        );
+      }
+    } catch (e, stack) {
+      debugPrint('Splash navigation failed: $e\n$stack');
       Get.offAllNamed(AppRoutes.onBoarding);
-    } else {
-      Get.offAll(
-        () => const InitLanguageView(),
-        binding: SelectLanguageBinding(),
-      );
     }
   }
 
@@ -88,8 +93,8 @@ class _SplashViewState extends State<SplashView>
               },
               child: Image.asset(
                 "assets/images/appIcon.png",
-                width: 100.h,
-                height: 100.h,
+                width: 100,
+                height: 100,
               ),
             ),
           ),

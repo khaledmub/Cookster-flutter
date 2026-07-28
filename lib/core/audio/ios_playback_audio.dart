@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:audio_session/audio_session.dart';
@@ -13,16 +14,24 @@ class IosPlaybackAudio {
     if (kIsWeb || !Platform.isIOS || _configured) {
       return;
     }
-    final session = await AudioSession.instance;
-    await session.configure(
-      const AudioSessionConfiguration(
-        avAudioSessionCategory: AVAudioSessionCategory.playback,
-        avAudioSessionMode: AVAudioSessionMode.moviePlayback,
-        avAudioSessionCategoryOptions:
-            AVAudioSessionCategoryOptions.defaultToSpeaker,
-      ),
-    );
-    _configured = true;
+    try {
+      final session = await AudioSession.instance.timeout(
+        const Duration(seconds: 2),
+      );
+      await session
+          .configure(
+            const AudioSessionConfiguration(
+              avAudioSessionCategory: AVAudioSessionCategory.playback,
+              avAudioSessionMode: AVAudioSessionMode.moviePlayback,
+              avAudioSessionCategoryOptions:
+                  AVAudioSessionCategoryOptions.defaultToSpeaker,
+            ),
+          )
+          .timeout(const Duration(seconds: 2));
+      _configured = true;
+    } catch (e) {
+      debugPrint('IosPlaybackAudio.configureIfNeeded failed: $e');
+    }
   }
 
   /// Call immediately before unmuting a media_kit [Player] on iOS.

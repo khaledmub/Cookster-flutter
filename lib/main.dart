@@ -91,37 +91,85 @@ void _logFlutterError(FlutterErrorDetails details) {
   FlutterError.dumpErrorToConsole(details);
 }
 
-void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  if (Common.usesTestServerRouting) {
-    HttpOverrides.global = TestServerHttpOverrides();
+Future<T?> _withTimeout<T>(
+  Future<T> future, {
+  required Duration timeout,
+  required String label,
+}) async {
+  try {
+    return await future.timeout(timeout);
+  } catch (e, stack) {
+    debugPrint('Startup $label timed out/failed: $e\n$stack');
+    return null;
   }
-  _configureImageCache();
-  MediaKit.ensureInitialized();
-  if (!kIsWeb && Platform.isIOS) {
-    await IosPlaybackAudio.configureIfNeeded();
-  }
-  await runZonedGuarded(() async {
-    final prefs = await SharedPreferences.getInstance();
+}
+
+void main() {
+  // ensureInitialized + runApp MUST share one zone (avoids Zone mismatch and
+  // release builds that never paint past the white LaunchScreen).
+  runZonedGuarded(() async {
+    WidgetsFlutterBinding.ensureInitialized();
+    if (Common.usesTestServerRouting) {
+      HttpOverrides.global = TestServerHttpOverrides();
+    }
+    _configureImageCache();
     try {
-      await Firebase.initializeApp();
+      MediaKit.ensureInitialized();
+    } catch (e, stack) {
+      debugPrint('MediaKit.ensureInitialized failed: $e\n$stack');
+    }
+
+    // Never block first frame on AVAudioSession — hung audio init looks like a
+    // permanent white screen on TestFlight/App Store builds.
+    if (!kIsWeb && Platform.isIOS) {
+      unawaited(
+        _withTimeout(
+          IosPlaybackAudio.configureIfNeeded(),
+          timeout: const Duration(seconds: 2),
+          label: 'IosPlaybackAudio',
+        ),
+      );
+    }
+
+    final prefs =
+        await _withTimeout(
+          SharedPreferences.getInstance(),
+          timeout: const Duration(seconds: 5),
+          label: 'SharedPreferences',
+        ) ??
+        await SharedPreferences.getInstance();
+
+    try {
+      await _withTimeout(
+        Firebase.initializeApp(),
+        timeout: const Duration(seconds: 8),
+        label: 'Firebase.initializeApp',
+      );
       FlutterError.onError = (FlutterErrorDetails details) {
         _logFlutterError(details);
-        FirebaseCrashlytics.instance.recordFlutterFatalError(details);
+        unawaited(
+          FirebaseCrashlytics.instance.recordFlutterFatalError(details),
+        );
       };
       PlatformDispatcher.instance.onError = (error, stack) {
         debugPrint('══╡ UNCAUGHT ERROR ╞══');
         debugPrint('$error');
         debugPrint('$stack');
-        FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
+        unawaited(
+          FirebaseCrashlytics.instance.recordError(error, stack, fatal: true),
+        );
         return true;
       };
 
-      await Future.wait([
-        ApiClient.hydrateFromPrefs(),
-        RemoteConfigService.instance.initialize(),
-        SettingsService.instance.load(),
-      ]);
+      await _withTimeout(
+        Future.wait([
+          ApiClient.hydrateFromPrefs(),
+          RemoteConfigService.instance.initialize(),
+          SettingsService.instance.load(),
+        ]),
+        timeout: const Duration(seconds: 8),
+        label: 'startup services',
+      );
       // Do not latch data-saver from Remote Config into SharedPreferences.
       // That one-way write permanently collapses preload depth to 0 and forces
       // tier C on Play/TestFlight installs even after RC is turned off.
@@ -131,8 +179,10 @@ void main() async {
         unawaited(setupFirebaseMessaging());
       });
     } catch (e, stack) {
-      await FirebaseCrashlytics.instance.recordError(e, stack, fatal: false);
-      print('Firebase initialization error: $e');
+      debugPrint('Firebase initialization error: $e\n$stack');
+      try {
+        await FirebaseCrashlytics.instance.recordError(e, stack, fatal: false);
+      } catch (_) {}
     }
 
     await SystemChrome.setPreferredOrientations([
@@ -140,9 +190,8 @@ void main() async {
       DeviceOrientation.portraitDown,
     ]);
 
-    String? savedLang = prefs.getString('selectedLanguage');
-
-    Locale initialLocale =
+    final savedLang = prefs.getString('selectedLanguage');
+    final Locale initialLocale =
         savedLang == "Arabic"
             ? LocalizationService.arabic
             : LocalizationService.english;
@@ -152,7 +201,9 @@ void main() async {
     debugPrint('══╡ ZONE ERROR ╞══');
     debugPrint('$error');
     debugPrint('$stack');
-    await FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
+    try {
+      await FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
+    } catch (_) {}
   });
 }
 
@@ -469,7 +520,8 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
                     Get.locale?.languageCode == 'ar'
                         ? TextDirection.rtl
                         : TextDirection.ltr,
-                child: child!,
+                // child can be null briefly during route transitions.
+                child: child ?? const SizedBox.shrink(),
               ),
             );
           },

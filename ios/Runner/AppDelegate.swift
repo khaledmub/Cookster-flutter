@@ -10,28 +10,24 @@ import AVFoundation
    didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
  ) -> Bool {
     GMSServices.provideAPIKey("AIzaSyCEvp7gFgGU7PjTLmjoI2Nly0Mlol5ZlaA")
-    do {
-      let session = AVAudioSession.sharedInstance()
-      try session.setCategory(
-        .playback,
-        mode: .moviePlayback,
-        options: [.defaultToSpeaker]
-      )
-      try session.setActive(true)
-    } catch {
-      NSLog("AVAudioSession setup failed: \(error.localizedDescription)")
+    // AVAudioSession activation can block while another app holds the session.
+    // Never do it on the launch critical path — the watchdog kills the app before
+    // Flutter draws, which surfaces as a permanently white launch screen.
+    DispatchQueue.global(qos: .userInitiated).async {
+      do {
+        let session = AVAudioSession.sharedInstance()
+        try session.setCategory(
+          .playback,
+          mode: .moviePlayback,
+          options: [.defaultToSpeaker]
+        )
+        try session.setActive(true)
+      } catch {
+        NSLog("AVAudioSession setup failed: \(error.localizedDescription)")
+      }
     }
        GeneratedPluginRegistrant.register(with: self)
        return super.application(application, didFinishLaunchingWithOptions: launchOptions)
- }
-
- override func applicationDidBecomeActive(_ application: UIApplication) {
-   do {
-     try AVAudioSession.sharedInstance().setActive(true)
-   } catch {
-     NSLog("AVAudioSession reactivate failed: \(error.localizedDescription)")
-   }
-   super.applicationDidBecomeActive(application)
  }
 }
 
