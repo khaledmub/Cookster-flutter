@@ -133,6 +133,26 @@ class ReelFeedPlayerKit {
     return false;
   }
 
+  /// A poster URL that differs from [primary] so the fallback layer can paint.
+  ///
+  /// [ReelGaplessPoster] skips the fallback when it equals the primary. Reels
+  /// without a dedicated reel-poster resolve both to the same `thumb.webp`,
+  /// which left the poster with no layer at all — a transparent page over the
+  /// black scaffold until the thumb finished decoding. The grid cover is a
+  /// different crop but is usually already cached, so it beats showing black.
+  static String? pagePosterFallbackUrl(WallVideos video, String primary) {
+    for (final candidate in [
+      video.resolvedThumbnailUrl,
+      video.resolvedReelPosterFallbackUrl,
+    ]) {
+      final url = candidate?.trim() ?? '';
+      if (url.isNotEmpty && url != primary) {
+        return url;
+      }
+    }
+    return null;
+  }
+
   /// Blur underlay for video page posters.
   static String? videoPosterBlurUrl(WallVideos video) {
     if (video.isTranscodeReady) {
@@ -173,8 +193,7 @@ class ReelFeedPlayerKit {
     return ReelGaplessPoster(
       imageUrl: primary,
       blurUrl: videoPosterBlurUrl(video),
-      fallbackUrl: video.resolvedThumbnailUrl ??
-          video.resolvedReelPosterFallbackUrl,
+      fallbackUrl: pagePosterFallbackUrl(video, primary),
       cacheKey: 'page_poster_${video.id ?? primary}',
       fit: BoxFit.cover,
       // Fallback/LQIP paint immediately — opaque black underlay flashes on swipe.

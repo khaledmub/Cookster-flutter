@@ -39,6 +39,36 @@ class ReelsPlaybackCoordinator {
     _precacheTiersForIndex(context, index);
   }
 
+  /// Warm posters around [anchorIndex] in both directions.
+  ///
+  /// Every other warm here is scroll-driven, so a list that is *replaced*
+  /// rather than scrolled (Near Me refetches after a location grant and swaps
+  /// every reel) leaves the new pages with no poster bytes. The page poster
+  /// then paints nothing while the video surface is still hidden, which shows
+  /// as a black screen.
+  void precacheWindow(
+    BuildContext context,
+    int anchorIndex, {
+    int ahead = 4,
+    int behind = 1,
+  }) {
+    _precacheTiersForIndex(context, anchorIndex);
+    _precacheDirectionalThumbnails(
+      context,
+      anchorIndex: anchorIndex,
+      direction: 1,
+      count: ahead,
+    );
+    if (behind > 0) {
+      _precacheDirectionalThumbnails(
+        context,
+        anchorIndex: anchorIndex,
+        direction: -1,
+        count: behind,
+      );
+    }
+  }
+
   void onPageScrollToward({
     required int fromActualIndex,
     required int towardActualIndex,

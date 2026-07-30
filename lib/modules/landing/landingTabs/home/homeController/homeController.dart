@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cookster/core/location/location_permission_gate.dart';
 import 'package:cookster/core/parsing/feed_parsers.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -972,33 +973,25 @@ class HomeController extends GetxController with WidgetsBindingObserver {
         return;
       }
 
-      LocationPermission permission = await Geolocator.checkPermission();
-      if (permission == LocationPermission.denied) {
-        _awaitingLocationPermissionPrompt = true;
-        try {
-          permission = await Geolocator.requestPermission();
-        } finally {
-          _awaitingLocationPermissionPrompt = false;
-        }
-        if (permission == LocationPermission.denied) {
-          error.value = "Location permission denied";
-          return;
-        }
+      _awaitingLocationPermissionPrompt = true;
+      final LocationPermission permission;
+      try {
+        permission = await LocationPermissionGate.ensurePermission();
+      } finally {
+        _awaitingLocationPermissionPrompt = false;
       }
-
-      if (permission == LocationPermission.deniedForever) {
+      if (!LocationPermissionGate.isGranted(permission)) {
         error.value = "Location permission denied";
         return;
       }
 
-      final position = await Geolocator.getCurrentPosition(
-        locationSettings: LocationSettings(
-          accuracy: kIsWeb ? LocationAccuracy.medium : LocationAccuracy.best,
-          timeLimit: const Duration(seconds: 15),
-        ),
+      final position = await LocationPermissionGate.currentPosition(
+        accuracy: kIsWeb ? LocationAccuracy.medium : LocationAccuracy.best,
+        timeLimit: const Duration(seconds: 15),
       );
 
-      if (position.latitude == 0 && position.longitude == 0) {
+      if (position == null ||
+          (position.latitude == 0 && position.longitude == 0)) {
         error.value = "Unable to get location coordinates";
         return;
       }

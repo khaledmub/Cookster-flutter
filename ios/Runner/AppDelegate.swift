@@ -2,6 +2,7 @@ import UIKit
 import Flutter
 import GoogleMaps
 import AVFoundation
+import FirebaseMessaging
 
 @main
 @objc class AppDelegate: FlutterAppDelegate {
@@ -26,8 +27,27 @@ import AVFoundation
         NSLog("AVAudioSession setup failed: \(error.localizedDescription)")
       }
     }
+    // FirebaseAppDelegateProxyEnabled is false in Info.plist — without this,
+    // iOS never registers for APNS and FCM getToken() fails at login.
+    application.registerForRemoteNotifications()
        GeneratedPluginRegistrant.register(with: self)
        return super.application(application, didFinishLaunchingWithOptions: launchOptions)
  }
+
+  override func application(
+    _ application: UIApplication,
+    didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data
+  ) {
+    Messaging.messaging().apnsToken = deviceToken
+    super.application(application, didRegisterForRemoteNotificationsWithDeviceToken: deviceToken)
+  }
+
+  override func application(
+    _ application: UIApplication,
+    didFailToRegisterForRemoteNotificationsWithError error: Error
+  ) {
+    NSLog("APNS registration failed: \(error.localizedDescription)")
+    super.application(application, didFailToRegisterForRemoteNotificationsWithError: error)
+  }
 }
 

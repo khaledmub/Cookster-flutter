@@ -27,6 +27,22 @@ class DeviceConstraints {
 
   static final DeviceConstraints instance = DeviceConstraints._();
 
+  /// Repro switches for device-only reel bugs. The iOS Simulator resolves to
+  /// tier A (single-slot feed), so the dual-slot ping-pong path that every
+  /// modern iPhone takes is unreachable locally. Run with:
+  /// `--dart-define=REELS_FORCE_PHYSICAL=true --dart-define=REELS_FORCE_TIER=s`
+  static const String _forcedTier = String.fromEnvironment('REELS_FORCE_TIER');
+  static const bool _forcePhysical =
+      bool.fromEnvironment('REELS_FORCE_PHYSICAL');
+
+  static ReelsDeviceTier? get _forcedTierValue => switch (_forcedTier) {
+        's' => ReelsDeviceTier.s,
+        'a' => ReelsDeviceTier.a,
+        'b' => ReelsDeviceTier.b,
+        'c' => ReelsDeviceTier.c,
+        _ => null,
+      };
+
   ReelsDeviceTier? _tier;
   bool? _needsSingleSlotFeed;
   bool _isIosSimulator = false;
@@ -86,7 +102,7 @@ class DeviceConstraints {
       RemoteConfigService.instance.reelsScrollDemuxPrefetch &&
       deviceTierSync != ReelsDeviceTier.c;
 
-  bool get isIosSimulator => _isIosSimulator;
+  bool get isIosSimulator => _isIosSimulator && !_forcePhysical;
 
   bool get needsConstrainedSurfaceRecovery =>
       deviceTierSync == ReelsDeviceTier.b ||
@@ -94,7 +110,7 @@ class DeviceConstraints {
 
   /// Honor/MTK-style strict poster gates + iOS Simulator software-render path.
   bool get needsStrictSurfaceGate =>
-      needsConstrainedSurfaceRecovery || _isIosSimulator;
+      needsConstrainedSurfaceRecovery || isIosSimulator;
 
   /// Honor/Huawei/MTK (tier b/c): the MediaCodec (`c2.qti.avc.decoder`) path
   /// fails to bind its render surface ("codec was not configured for a new
@@ -188,6 +204,9 @@ class DeviceConstraints {
 
   /// Re-read measured tier after promotion/demotion (ignores RC override).
   void refreshFromMeasuredProfile() {
+    if (_forcedTierValue != null) {
+      return;
+    }
     final override = RemoteConfigService.instance.reelsDeviceTierOverride;
     if (override.isNotEmpty) {
       return;
@@ -212,6 +231,10 @@ class DeviceConstraints {
   }
 
   Future<ReelsDeviceTier> _resolveEffectiveTier() async {
+    final forced = _forcedTierValue;
+    if (forced != null) {
+      return forced;
+    }
     final override = RemoteConfigService.instance.reelsDeviceTierOverride;
     if (override.isNotEmpty) {
       return switch (override) {
@@ -237,6 +260,14 @@ class DeviceConstraints {
 
   Future<ReelsDeviceTier> _brandPriorTier() async {
     try {
+      final forced = _forcedTierValue;
+      if (forced != null) {
+        if (Platform.isIOS) {
+          _isIosSimulator =
+              !(await DeviceInfoPlugin().iosInfo).isPhysicalDevice;
+        }
+        return forced;
+      }
       if (Platform.isIOS) {
         final info = await DeviceInfoPlugin().iosInfo;
         _isIosSimulator = !info.isPhysicalDevice;

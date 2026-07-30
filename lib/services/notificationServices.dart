@@ -2,7 +2,9 @@
 // ignore_for_file: avoid_print, depend_on_referenced_packages
 
 import 'dart:convert';
+import 'dart:io';
 import 'dart:typed_data';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:http/http.dart' as http;
@@ -10,6 +12,33 @@ import 'package:http/http.dart' as http;
 // Global instance for notifications
 final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
     FlutterLocalNotificationsPlugin();
+
+/// Returns the FCM token once APNS has registered. Call only after
+/// [setupFirebaseMessaging] / notification permission on iOS.
+Future<String?> resolveFcmDeviceToken({
+  Duration timeout = const Duration(seconds: 10),
+}) async {
+  try {
+    if (!kIsWeb && Platform.isIOS) {
+      // With FirebaseAppDelegateProxyEnabled=false, APNS arrives only after
+      // native registerForRemoteNotifications — poll briefly instead of failing.
+      final deadline = DateTime.now().add(timeout);
+      while (DateTime.now().isBefore(deadline)) {
+        final apns = await FirebaseMessaging.instance.getAPNSToken();
+        if (apns != null) {
+          break;
+        }
+        await Future<void>.delayed(const Duration(milliseconds: 200));
+      }
+    }
+    return await FirebaseMessaging.instance
+        .getToken()
+        .timeout(timeout, onTimeout: () => null);
+  } catch (e) {
+    debugPrint('FCM getToken failed: $e');
+    return null;
+  }
+}
 
 // This function handles background messages
 @pragma('vm:entry-point')
@@ -168,8 +197,12 @@ Future<void> setupNotifications() async {
   const AndroidInitializationSettings initializationSettingsAndroid =
       AndroidInitializationSettings('@mipmap/ic_launcher');
 
+  const DarwinInitializationSettings initializationSettingsDarwin =
+      DarwinInitializationSettings();
+
   const InitializationSettings initializationSettings = InitializationSettings(
     android: initializationSettingsAndroid,
+    iOS: initializationSettingsDarwin,
   );
 
   await flutterLocalNotificationsPlugin.initialize(

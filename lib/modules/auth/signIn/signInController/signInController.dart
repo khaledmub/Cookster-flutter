@@ -7,7 +7,6 @@ import 'package:cookster/core/video/feed_disk_warm_service.dart';
 import 'package:cookster/modules/landing/landingView/landingView.dart';
 import 'package:crypto/crypto.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
@@ -18,6 +17,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 
 import '../../../../services/apiClient.dart';
+import '../../../../services/notificationServices.dart';
 import '../../signUp/signUpController/signUpController.dart';
 
 class LogInController extends GetxController {
@@ -170,7 +170,7 @@ class LogInController extends GetxController {
     isLoading.value = true;
     final endpoint = EndPoints.login;
 
-    String? deviceToken = await FirebaseMessaging.instance.getToken();
+    String? deviceToken = await resolveFcmDeviceToken();
 
     try {
       final response = await ApiClient.postRequest(endpoint, {
@@ -221,7 +221,7 @@ class LogInController extends GetxController {
 
   Future<void> loginWithEmailUser() async {
     isLoading.value = true;
-    String? deviceToken = await FirebaseMessaging.instance.getToken();
+    String? deviceToken = await resolveFcmDeviceToken();
 
     try {
       final response = await ApiClient.postRequest(EndPoints.loginWithEmail, {

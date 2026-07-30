@@ -9,7 +9,6 @@ import 'package:cookster/core/location/app_location_defaults.dart';
 import 'package:cookster/core/user/public_user_identity.dart';
 import 'package:cookster/modules/auth/signUp/signUpController/cityController.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
 import 'package:get/get.dart';
@@ -19,6 +18,7 @@ import 'package:cookster/appBindings/app_bindings.dart';
 import 'package:cookster/appRoutes/appRoutes.dart';
 import 'package:cookster/core/video/feed_disk_warm_service.dart';
 import 'package:cookster/services/apiClient.dart';
+import 'package:cookster/services/notificationServices.dart';
 import 'package:cookster/services/username_availability_service.dart';
 import '../../../landing/landingView/landingView.dart';
 import '../../../promoteVideo/promoteVideoModel/promoteVideoModel.dart';
@@ -542,7 +542,7 @@ class SignUpController extends GetxController {
       if (isBusinessAccount) "location": locationController.text,
       if (isBusinessAccount) "latitude": latitude.value,
       if (isBusinessAccount) "longitude": longitude.value,
-      'uuid': await FirebaseMessaging.instance.getToken(),
+      'uuid': await resolveFcmDeviceToken(),
       if (isProfessionalAccount)
         'type_of_account':
             accountType.value.isNotEmpty
@@ -677,7 +677,7 @@ class SignUpController extends GetxController {
   }) async {
     isProfileCreating.value = true;
 
-    String? deviceToken = await FirebaseMessaging.instance.getToken();
+    String? deviceToken = await resolveFcmDeviceToken();
 
     Map<String, dynamic> requestBody = {
       "entity": selectedProfileId.value,

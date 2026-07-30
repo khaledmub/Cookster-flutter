@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:cookster/appUtils/apiEndPoints.dart';
+import 'package:cookster/core/location/location_permission_gate.dart';
 import 'package:cookster/core/parsing/feed_parsers.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -150,23 +151,19 @@ class HashtagController extends GetxController {
       return city.trim();
     }
 
-    LocationPermission permission = await Geolocator.checkPermission();
-    if (permission == LocationPermission.denied) {
-      permission = await Geolocator.requestPermission();
-      if (permission == LocationPermission.denied) {
-        error.value = "Location permission denied";
-        return null;
-      }
-    }
-
-    if (permission == LocationPermission.deniedForever) {
-      error.value = "Location permission permanently denied";
+    final permission = await LocationPermissionGate.ensurePermission();
+    if (!LocationPermissionGate.isGranted(permission)) {
+      error.value = "Location permission denied";
       return null;
     }
 
-    final position = await Geolocator.getCurrentPosition(
-      desiredAccuracy: LocationAccuracy.high,
+    final position = await LocationPermissionGate.currentPosition(
+      accuracy: LocationAccuracy.high,
     );
+    if (position == null) {
+      error.value = "Location permission denied";
+      return null;
+    }
     final placemarks = await placemarkFromCoordinates(
       position.latitude,
       position.longitude,

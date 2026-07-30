@@ -1,4 +1,5 @@
 import 'package:geolocator/geolocator.dart';
+import 'package:cookster/core/location/location_permission_gate.dart';
 import 'package:cookster/core/parsing/feed_parsers.dart';
 import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
@@ -21,6 +22,10 @@ class LocationController extends GetxController {
   Position? _cachedPosition;
   DateTime? _lastLocationUpdate;
   static const int _locationCacheMinutes = 5;
+
+  /// Discover init and the allow-location screen both call in; a second pass
+  /// while the first is still prompting made Geolocator throw.
+  Future<void>? _locationInFlight;
 
   void toggleRadiusCardVisibility() {
     isRadiusCardVisible.value = !isRadiusCardVisible.value;
@@ -50,7 +55,12 @@ class LocationController extends GetxController {
     }
   }
 
-  Future<void> getCurrentLocation() async {
+  Future<void> getCurrentLocation() {
+    return _locationInFlight ??=
+        _getCurrentLocation().whenComplete(() => _locationInFlight = null);
+  }
+
+  Future<void> _getCurrentLocation() async {
     try {
       isLoading.value = true;
       loadError.value = null;
@@ -76,31 +86,22 @@ class LocationController extends GetxController {
         return;
       }
 
-      LocationPermission permission = await Geolocator.checkPermission();
-      if (permission == LocationPermission.denied) {
-        permission = await Geolocator.requestPermission();
-        if (permission == LocationPermission.denied) {
-          isLocationAllowed.value = false;
-          // Get.snackbar('Error', 'Location permissions are denied.');
-          return;
-        }
-      }
-
-      if (permission == LocationPermission.deniedForever) {
+      final permission = await LocationPermissionGate.ensurePermission();
+      if (!LocationPermissionGate.isGranted(permission)) {
         isLocationAllowed.value = false;
-        // Get.snackbar(
-        //   'Error',
-        //   'Location permissions are permanently denied. Please enable them in settings.',
-        // );
         return;
       }
 
       isLocationAllowed.value = true;
 
-      Position position = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.low,
-        timeLimit: Duration(seconds: 10),
+      final position = await LocationPermissionGate.currentPosition(
+        timeLimit: const Duration(seconds: 10),
       );
+      if (position == null) {
+        isLocationAllowed.value = false;
+        loadError.value = 'Unable to get your location. Please try again.';
+        return;
+      }
 
       _cachedPosition = position;
       _lastLocationUpdate = DateTime.now();
@@ -213,10 +214,13 @@ class LocationController extends GetxController {
         return;
       }
 
-      Position position = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.low,
-        timeLimit: Duration(seconds: 5),
+      final position = await LocationPermissionGate.currentPosition(
+        timeLimit: const Duration(seconds: 5),
       );
+      if (position == null) {
+        isLocationAllowed.value = false;
+        return;
+      }
 
       _cachedPosition = position;
       _lastLocationUpdate = DateTime.now();
@@ -224,16 +228,8 @@ class LocationController extends GetxController {
       longitude.value = position.longitude;
       isLocationAllowed.value = true;
     } catch (e) {
-      Position? lastPosition = await Geolocator.getLastKnownPosition();
-      if (lastPosition != null) {
-        latitude.value = lastPosition.latitude;
-        longitude.value = lastPosition.longitude;
-        _cachedPosition = lastPosition;
-        _lastLocationUpdate = DateTime.now();
-        isLocationAllowed.value = true;
-      } else {
-        isLocationAllowed.value = false;
-      }
+      debugPrint('getLocationOnly failed: $e');
+      isLocationAllowed.value = false;
     }
   }
 }

@@ -232,6 +232,37 @@ class _VideoReelScreenState extends State<VideoReelScreen>
   /// Page poster stays above the video surface until the first composited frame.
   bool _maskActiveVideoWithPoster = true;
 
+  /// Reel the poster was actually dropped for. A page cell can flip its own
+  /// `showPlayer` on before this screen re-arms [_maskActiveVideoWithPoster],
+  /// and on unconstrained devices (tier S — every modern iPhone) the video
+  /// surface is also held at opacity 0 until it paints. Both layers invisible
+  /// means the black scaffold shows through for the whole open. Keying the
+  /// unmask to a reel id makes a stale `false` harmless.
+  String? _unmaskedReelId;
+
+  /// Debug-only dedupe so [ReelsBlank] logs transitions, not every frame.
+  String? _lastPosterLayerLog;
+
+  void _armPosterMask() {
+    if (!mounted || (_maskActiveVideoWithPoster && _unmaskedReelId == null)) {
+      return;
+    }
+    setState(() {
+      _maskActiveVideoWithPoster = true;
+      _unmaskedReelId = null;
+    });
+  }
+
+  void _dropPosterMask(String? reelId) {
+    if (!mounted || (!_maskActiveVideoWithPoster && _unmaskedReelId == reelId)) {
+      return;
+    }
+    setState(() {
+      _maskActiveVideoWithPoster = false;
+      _unmaskedReelId = reelId;
+    });
+  }
+
   /// First Home open: keep the black spinner over the feed until the first
   /// reel is actually playable — never clear on a transient empty list (Near Me
   /// waits for location, then videos arrive ~seconds later).
@@ -352,9 +383,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
     final video = videos[index];
     layer.activePlayerVideo = video;
     final key = video.id;
-    if (mounted) {
-      setState(() => _maskActiveVideoWithPoster = true);
-    }
+    _armPosterMask();
     _preloadManager.prepareForSessionStart();
     _schedulePlayerForPage(tab, index, forceReattach: true);
     unawaited(
@@ -978,9 +1007,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
     }
     debugPrint('[FeedRestore] videoPainted -> unmask '
         'id=${_activeLayer.activePlayerVideo?.id}');
-    if (_maskActiveVideoWithPoster) {
-      setState(() => _maskActiveVideoWithPoster = false);
-    }
+    _dropPosterMask(_activeLayer.activePlayerVideo?.id);
     _dismissColdStartSpinner(reason: 'video_painted');
     _lastHandledPlaybackEpoch = controller.feedPlaybackEpoch.value;
     _resumeFeedAudibleOnce();
@@ -992,9 +1019,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
     }
     debugPrint('[FeedRestore] awaitingPaint (poster mask ON) '
         'id=${_activeLayer.activePlayerVideo?.id}');
-    if (!_maskActiveVideoWithPoster) {
-      setState(() => _maskActiveVideoWithPoster = true);
-    }
+    _armPosterMask();
   }
 
   void _resetPosterMaskForPageChange({
@@ -1003,15 +1028,11 @@ class _VideoReelScreenState extends State<VideoReelScreen>
   }) {
     if (!forceShowPoster &&
         ReelScreenPlaybackHelpers.shouldKeepPosterHidden(videoId)) {
-      if (_maskActiveVideoWithPoster) {
-        setState(() => _maskActiveVideoWithPoster = false);
-      }
+      _dropPosterMask(videoId);
       ReelScreenPlaybackHelpers.resumeAudibleForReel(videoId);
       return;
     }
-    if (!_maskActiveVideoWithPoster) {
-      setState(() => _maskActiveVideoWithPoster = true);
-    }
+    _armPosterMask();
   }
 
   void _resumeAfterAppForeground() {
@@ -1061,10 +1082,26 @@ class _VideoReelScreenState extends State<VideoReelScreen>
     MediaKitPlayerPool.instance.pauseAllImmediate();
   }
 
+  /// Warm posters for the pages that are about to be visible. Scroll-driven
+  /// warms never run when the feed list is replaced wholesale.
+  void _warmPosterWindowForVisible() {
+    if (!mounted) {
+      return;
+    }
+    final videos = controller.videoFeed.value.videos;
+    if (videos == null || videos.isEmpty) {
+      return;
+    }
+    final index =
+        _activeLayer.visibleIndexNotifier.value.clamp(0, videos.length - 1);
+    _playbackCoordinator.precacheWindow(context, index);
+  }
+
   void _resumeFeedAfterLocationPermission() {
     if (!mounted || !controller.canPlayHomeReels) {
       return;
     }
+    _warmPosterWindowForVisible();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || !controller.canPlayHomeReels) {
         return;
@@ -1090,9 +1127,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
       );
       unawaited(_feedPlayerState?.resumeAfterAppBackground());
       _resumeFeedAudibleOnce();
-      if (_maskActiveVideoWithPoster) {
-        setState(() => _maskActiveVideoWithPoster = false);
-      }
+      _dropPosterMask(videoId);
     });
   }
 
@@ -1293,6 +1328,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
         _scheduleFinishPlaybackIfReady();
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (mounted) {
+            _warmPosterWindowForVisible();
             _kickColdStartPlaybackIfReady();
           }
         });
@@ -1300,6 +1336,11 @@ class _VideoReelScreenState extends State<VideoReelScreen>
     });
     ever(controller.isLoading, (loading) {
       if (loading == false) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            _warmPosterWindowForVisible();
+          }
+        });
         _kickColdStartPlaybackIfReady();
         _maybeDismissColdStartForSettledEmptyFeed();
       }
@@ -1347,11 +1388,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
           MediaKitPlayerPool.instance.invalidatePrimedFrame(key);
         }
         if (mounted) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (mounted) {
-              setState(() => _maskActiveVideoWithPoster = true);
-            }
-          });
+          WidgetsBinding.instance.addPostFrameCallback((_) => _armPosterMask());
         }
         return;
       }
@@ -1943,7 +1980,20 @@ class _VideoReelScreenState extends State<VideoReelScreen>
     required String? userId,
     required bool isAuthenticated,
   }) {
-    final maskPoster = showPlayer && _maskActiveVideoWithPoster;
+    final reelId = videoDetail.id;
+    final posterDropped = !_maskActiveVideoWithPoster &&
+        reelId != null &&
+        reelId.isNotEmpty &&
+        _unmaskedReelId == reelId;
+    final maskPoster = showPlayer && !posterDropped;
+    if (!kReleaseMode && showPlayer) {
+      final layer = maskPoster ? 'poster' : 'video';
+      final stamp = '$reelId:$layer';
+      if (_lastPosterLayerLog != stamp) {
+        _lastPosterLayerLog = stamp;
+        debugPrint('[ReelsBlank] active=$reelId showing=$layer');
+      }
+    }
     return Stack(
       clipBehavior: Clip.none,
       alignment: Alignment.bottomLeft,

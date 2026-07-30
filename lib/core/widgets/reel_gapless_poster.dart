@@ -239,6 +239,18 @@ class _ReelGaplessPosterState extends State<ReelGaplessPoster> {
         effectiveBlur == null &&
         fallback.isEmpty;
 
+    if (!kReleaseMode &&
+        !showOpaqueBase &&
+        _resolvedPrimary == null &&
+        effectiveBlur == null) {
+      // Every layer falls back to CachedNetworkImage, whose placeholder is an
+      // empty box — this poster paints nothing until bytes decode.
+      debugPrint(
+        '[PosterBlank] key=${widget.cacheKey} '
+        'url=${widget.imageUrl.split('/').last} fallback=$fallback',
+      );
+    }
+
     return Stack(
       fit: StackFit.expand,
       children: [
