@@ -65,9 +65,11 @@ class ReelVideoPlayer extends StatefulWidget {
   final VoidCallback? onPlaybackReady;
   /// Fired after the feed surface is opaque and has composited real frames —
   /// parent can drop the poster mask on top without a black flash.
-  final VoidCallback? onFeedVideoPainted;
+  /// Argument is this player's reel id so the parent can ignore stale callbacks.
+  final ValueChanged<String?>? onFeedVideoPainted;
   /// Fired before slot recycle / awaiting paint — parent should force poster mask.
-  final VoidCallback? onFeedAwaitingPaint;
+  /// Argument is this player's reel id so the parent can ignore stale callbacks.
+  final ValueChanged<String?>? onFeedAwaitingPaint;
   final VoidCallback? onVideoCompleted;
   /// Prefer this over [GlobalKey] for parents that mount/unmount the player
   /// (home feed after camera) — avoids StatefulElement.activate null crashes.
@@ -182,6 +184,14 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
 
   String get _poolKey =>
       widget.playerPoolKey ?? widget.videoId ?? widget.videoUrl;
+
+  void _notifyFeedAwaitingPaint() {
+    widget.onFeedAwaitingPaint?.call(widget.videoId ?? _pooledKey ?? _poolKey);
+  }
+
+  void _notifyFeedVideoPainted() {
+    widget.onFeedVideoPainted?.call(widget.videoId ?? _pooledKey ?? _poolKey);
+  }
 
   /// Feed keeps pool leases + fast resume; profile opens fresh (strict poster gate).
   bool get _strictSurfaceGate => widget.releaseOnDispose;
@@ -350,7 +360,7 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
     _activeFeedSlotIndex = _pool.activeFeedSlotIndex;
     _videoController = _pool.feedSlotVideoController(_activeFeedSlotIndex);
     _failedSourceUrls.clear();
-    widget.onFeedAwaitingPaint?.call();
+    _notifyFeedAwaitingPaint();
     _logPoster(
       'route_overlay_resume',
       detail: 'key=$key openCount=${_pool.feedOpenCount}',
@@ -439,7 +449,7 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
     _frameReady = false;
     _postRecycleUnmask = true;
     _fastFeedReveal = false;
-    widget.onFeedAwaitingPaint?.call();
+    _notifyFeedAwaitingPaint();
     _logPoster(
       'slot_recycle_await',
       detail: 'openCount=${_pool.feedOpenCount} gen=$_playbackGeneration',
@@ -471,7 +481,7 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
     _videoController = _pool.feedSlotVideoController(_activeFeedSlotIndex);
     // Remask again after handle swap — awaiting-recycle can race setState and
     // leave Opacity-1 SurfaceView black under a dropped poster.
-    widget.onFeedAwaitingPaint?.call();
+    _notifyFeedAwaitingPaint();
     _logPoster(
       'slot_recycled',
       detail: 'openCount=${_pool.feedOpenCount} gen=$_playbackGeneration',
@@ -515,7 +525,7 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
     _frameReady = false;
     _surfacePaintFrames = 0;
     _visibleSurfacePaintFrames = 0;
-    widget.onFeedAwaitingPaint?.call();
+    _notifyFeedAwaitingPaint();
   }
 
   void _onFeedSurfaceBumped() {
@@ -604,7 +614,7 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
     }
     _surfacePaintFrames = 0;
     _visibleSurfacePaintFrames = 0;
-    widget.onFeedAwaitingPaint?.call();
+    _notifyFeedAwaitingPaint();
     _logPoster('swipe_hide_surface');
     if (mounted) {
       setState(() {});
@@ -697,7 +707,12 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
     _videoController = null;
     if (key != null) {
       if (_usesFeedVisibleChannel) {
-        unawaited(_pool.pause(key));
+        // Transient remount of the same visible reel must not pause the shared
+        // decoder — that left live=0 + black until the next open. Page changes
+        // already silence via pauseAllImmediate / clearFeedVisibleReel.
+        if (!_pool.isFeedVisibleKey(key)) {
+          unawaited(_pool.pause(key));
+        }
       } else if (widget.releaseOnDispose) {
         unawaited(_pool.release(key));
       } else {
@@ -920,10 +935,17 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
     // Opaque-paint waits routinely push past 200ms. Always reset under the
     // poster when we've left the intro so unmask starts at the beginning —
     // but never drop the poster until motion resumes after seek.
+    //
+    // Warm resume of an already-decoding reel (swipe back to the last played
+    // video): keep continuous playback. Seeking to 0 under the poster left the
+    // thumb visible while the progress bar kept advancing at the old position.
+    final warmContinuous = _isWarmUnmaskPath() &&
+        player.state.playing &&
+        posMs > 80;
     final skipSimRewind = DeviceConstraints.instance.isIosSimulator &&
         posMs > 80 &&
         posMs < 800;
-    if (posMs > 80 && !skipSimRewind) {
+    if (posMs > 80 && !skipSimRewind && !warmContinuous) {
       rewound = true;
       try {
         await player.seek(Duration.zero);
@@ -1809,7 +1831,7 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
         if (!mounted || _isDisposed) {
           return;
         }
-        widget.onFeedVideoPainted?.call();
+        _notifyFeedVideoPainted();
       });
       unawaited(_recordCleanOpen());
       if (key != null && key.isNotEmpty) {
@@ -2009,7 +2031,7 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
       if (mounted && !_isDisposed) {
         setState(() {});
       }
-      widget.onFeedAwaitingPaint?.call();
+      _notifyFeedAwaitingPaint();
       if (sourceUrl == null || sourceUrl.isEmpty) {
         _isInitializing = false;
         unawaited(_loadVideo());
@@ -2258,6 +2280,15 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
     _upgradeInFlight = true;
     try {
       final playbackUrl = await _resolvePlaybackUrlForSource(hdCandidate, network);
+      // No-op upgrade (same URL already bound) — re-entering openVisibleReel
+      // remuted audio and raced remounts into black screens.
+      final bound = (currentUrl ?? '').trim();
+      if (bound.isNotEmpty && bound == playbackUrl.trim()) {
+        ReelsPerf.log(
+          'upgrade skip reel=${widget.videoId} tier=$targetTier same_url',
+        );
+        return;
+      }
       final posterAlreadyDown = _feedPosterUnmaskedAtMs > 0;
       final pooled = await _pool.openVisibleReel(
         key: poolKey,
@@ -3035,6 +3066,13 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
               bail = 'gen_mismatch';
               return;
             }
+            // Mid-clip warm resume often arrives paused after a remount — play
+            // before unmask or the progress bar freezes / surface stays black.
+            if (!_userPaused && !player.state.playing) {
+              try {
+                await player.play();
+              } on Object catch (_) {}
+            }
             if (_pool.isFrameReady(poolKey) && _canShowVideo(player)) {
               await _onFrameReady(player, generation: generation);
               bail = 'instant_resume';
@@ -3435,8 +3473,23 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
       if (!mounted ||
           _isDisposed ||
           generation != _playbackGeneration ||
-          _pool.isStaleFeedOpen(generation)) {
+          _pool.isStaleFeedOpen(generation) ||
+          !_pool.isFeedVisibleKey(poolKey)) {
         _abortQualityCascade = true;
+        // Remount / token bump left visibleKey=null mid-stall — force a reopen
+        // so we don't sit on a black surface forever.
+        if (mounted && !_isDisposed) {
+          final retryKey = widget.videoId ?? poolKey;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted || _isDisposed) {
+              return;
+            }
+            if (retryKey.isEmpty) {
+              return;
+            }
+            unawaited(ensureVisibleOpen());
+          });
+        }
         return false;
       }
 
@@ -3727,13 +3780,15 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
     }
     _pendingSwitchAfterInit = false;
     final key = _poolKey;
-    // Same key just attempted (success, fail, or stale) — do not immediately
-    // re-schedule; rebuild noise must not storm switch_cold. A later
-    // onPageChanged / ensureVisibleOpen may retry if still mismatched.
+    // Same key just attempted — only skip when that attach is healthy. After
+    // paint_stall + stale_gen (visibleKey=null) we must reopen, not bail.
     if (key.isNotEmpty &&
         attemptedKey != null &&
         attemptedKey.isNotEmpty &&
-        key == attemptedKey) {
+        key == attemptedKey &&
+        _pooledKey == key &&
+        _pool.isFeedVisibleKey(key) &&
+        (_frameReady || _pool.isFrameReady(key))) {
       _logSwitchDiag('drain_skip_same_key', reason: 'drain', key: key);
       return;
     }

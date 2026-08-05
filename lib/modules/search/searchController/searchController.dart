@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'package:cookster/appUtils/apiEndPoints.dart';
 import 'package:cookster/core/parsing/feed_parsers.dart';
+import 'package:cookster/modules/landing/landingTabs/add/videoAddController/videoAddController.dart';
+import 'package:cookster/modules/landing/landingTabs/home/homeController/homeController.dart';
 import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -165,6 +167,103 @@ class UserSearchController extends GetxController {
     currentCityId.value = cityId;
     currentCountry.value = country;
     currentCity.value = city;
+
+    // First open / empty filter: default to the same place as the Near Me tab.
+    if (currentCountryId.value.isEmpty && currentCityId.value.isEmpty) {
+      await ensureDefaultLocationFromNearMe();
+    }
+  }
+
+  /// Prefill country/city from Near Me (Home GPS + catalog ids) when the search
+  /// filter has nothing selected yet. Does not enable the filter until Submit.
+  Future<void> ensureDefaultLocationFromNearMe() async {
+    if (currentCountryId.value.isNotEmpty || currentCityId.value.isNotEmpty) {
+      return;
+    }
+
+    var countryId = '';
+    var cityId = '';
+    var country = '';
+    var city = '';
+
+    if (Get.isRegistered<HomeController>()) {
+      final home = Get.find<HomeController>();
+      countryId = home.nearMeFilterCountryId.value.trim();
+      cityId = home.nearMeFilterCityId.value.trim();
+      country = home.currentCountry.value.trim();
+      city = home.currentCity.value.trim();
+    }
+
+    if (countryId.isEmpty && cityId.isEmpty) {
+      final prefs = await SharedPreferences.getInstance();
+      countryId = (prefs.getString('currentCountryId') ?? '').trim();
+      cityId = (prefs.getString('currentCityId') ?? '').trim();
+      if (country.isEmpty) {
+        country = (prefs.getString('currentCountry') ?? '').trim();
+      }
+      if (city.isEmpty) {
+        city = (prefs.getString('currentCity') ?? '').trim();
+      }
+    }
+
+    if (countryId == '-1') {
+      countryId = '';
+    }
+    if (cityId == '-1') {
+      cityId = '';
+    }
+    if (country == 'Unknown') {
+      country = '';
+    }
+    if (city == 'Unknown') {
+      city = '';
+    }
+
+    if (countryId.isEmpty &&
+        cityId.isEmpty &&
+        country.isEmpty &&
+        city.isEmpty) {
+      return;
+    }
+
+    // Names without catalog ids (GPS resolved, ids not yet): resolve like Near Me.
+    if ((countryId.isEmpty || cityId.isEmpty) &&
+        country.isNotEmpty &&
+        city.isNotEmpty &&
+        Get.isRegistered<VideoAddController>()) {
+      try {
+        final upload = Get.find<VideoAddController>();
+        upload.selectedCountry.value = country;
+        upload.selectedCity.value = city;
+        final prefs = await SharedPreferences.getInstance();
+        final ready = await upload.ensureLocationIdsReady(
+          alternateCityName: prefs.getString('currentState'),
+        );
+        if (ready) {
+          if (countryId.isEmpty && upload.selectedLocationId.value > 0) {
+            countryId = upload.selectedLocationId.value.toString();
+          }
+          if (cityId.isEmpty && upload.selectedCityId.value > 0) {
+            cityId = upload.selectedCityId.value.toString();
+          }
+        }
+      } catch (e) {
+        if (kDebugMode) {
+          debugPrint('[SearchFilter] Near Me id resolve failed: $e');
+        }
+      }
+    }
+
+    currentCountryId.value = countryId;
+    currentCityId.value = cityId;
+    currentCountry.value = country;
+    currentCity.value = city;
+    if (kDebugMode) {
+      debugPrint(
+        '[SearchFilter] defaulted to Near Me location '
+        'country=$country($countryId) city=$city($cityId)',
+      );
+    }
   }
 
   // Clear search results

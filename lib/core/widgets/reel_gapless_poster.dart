@@ -254,6 +254,11 @@ class _ReelGaplessPosterState extends State<ReelGaplessPoster> {
     return Stack(
       fit: StackFit.expand,
       children: [
+        // Always keep a base while nothing has decoded — `opaqueBase: false`
+        // + empty CachedNetworkImage placeholders painted the black scaffold
+        // after Near Me location grant (every poster cold at once).
+        if (_resolvedPrimary == null)
+          const ColoredBox(color: Color(0xFF111111)),
         if (showOpaqueBase) const ColoredBox(color: Colors.black),
         // Paint fallback / thumb immediately so swipe landings never flash a
         // bare black base while the primary decode is still in flight.
@@ -359,11 +364,11 @@ class _PosterImageLayer extends StatelessWidget {
         fadeInDuration: Duration.zero,
         fadeOutDuration: Duration.zero,
         useOldImageOnUrlChange: true,
-        placeholder: (_, __) => const SizedBox.shrink(),
+        placeholder: (_, __) => const ColoredBox(color: Color(0xFF111111)),
         errorWidget: (_, __, ___) {
           final fallback = fallbackUrl?.trim() ?? '';
           if (fallback.isEmpty || fallback == url) {
-            return const SizedBox.shrink();
+            return const ColoredBox(color: Color(0xFF111111));
           }
           final (memW, _) = fullScreenPosterMemCacheSize(context);
           final scaledW = (memW * memScale).round().clamp(64, memW);

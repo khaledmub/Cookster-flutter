@@ -254,7 +254,13 @@ class _VideoReelScreenState extends State<VideoReelScreen>
   }
 
   void _dropPosterMask(String? reelId) {
-    if (!mounted || (!_maskActiveVideoWithPoster && _unmaskedReelId == reelId)) {
+    // Never clear the mask with an unknown id — that left
+    // `_maskActiveVideoWithPoster=false` + `_unmaskedReelId=null`, so every
+    // page kept painting the poster on top of a playing surface.
+    if (!mounted || reelId == null || reelId.isEmpty) {
+      return;
+    }
+    if (!_maskActiveVideoWithPoster && _unmaskedReelId == reelId) {
       return;
     }
     setState(() {
@@ -1001,24 +1007,67 @@ class _VideoReelScreenState extends State<VideoReelScreen>
     });
   }
 
-  void _onFeedVideoPainted() {
+  void _onFeedVideoPainted(String? paintedId) {
     if (!mounted) {
       return;
     }
-    debugPrint('[FeedRestore] videoPainted -> unmask '
-        'id=${_activeLayer.activePlayerVideo?.id}');
-    _dropPosterMask(_activeLayer.activePlayerVideo?.id);
+    final activeId = _activeLayer.activePlayerVideo?.id;
+    final id = (paintedId != null && paintedId.isNotEmpty)
+        ? paintedId
+        : activeId;
+    // A late paint from the previous reel must not unmask (or clear) the
+    // poster for the page that is actually on screen.
+    if (id == null ||
+        id.isEmpty ||
+        (activeId != null &&
+            activeId.isNotEmpty &&
+            id != activeId)) {
+      debugPrint(
+        '[FeedRestore] videoPainted IGNORED id=$id active=$activeId',
+      );
+      return;
+    }
+    debugPrint('[FeedRestore] videoPainted -> unmask id=$id');
+    _dropPosterMask(id);
     _dismissColdStartSpinner(reason: 'video_painted');
     _lastHandledPlaybackEpoch = controller.feedPlaybackEpoch.value;
     _resumeFeedAudibleOnce();
   }
 
-  void _onFeedAwaitingPaint() {
+  void _onFeedAwaitingPaint(String? fromId) {
     if (!mounted) {
       return;
     }
-    debugPrint('[FeedRestore] awaitingPaint (poster mask ON) '
-        'id=${_activeLayer.activePlayerVideo?.id}');
+    final activeId = _activeLayer.activePlayerVideo?.id;
+    // Ignore recycle/await signals from a non-active player — remasking here
+    // left the thumb covering a live reel while its progress bar kept moving.
+    if (fromId != null &&
+        fromId.isNotEmpty &&
+        activeId != null &&
+        activeId.isNotEmpty &&
+        fromId != activeId) {
+      debugPrint(
+        '[FeedRestore] awaitingPaint IGNORED id=$fromId active=$activeId',
+      );
+      return;
+    }
+    // Already painted and still the live feed surface — remasking after a
+    // same-key upgrade/recycle left a black gap under the thumb.
+    final id = fromId ?? activeId;
+    if (id != null &&
+        id.isNotEmpty &&
+        id == _unmaskedReelId &&
+        !_maskActiveVideoWithPoster &&
+        MediaKitPlayerPool.instance.isFeedVisibleKey(id) &&
+        MediaKitPlayerPool.instance.isFrameReady(id)) {
+      debugPrint(
+        '[FeedRestore] awaitingPaint SKIP already-live id=$id',
+      );
+      return;
+    }
+    debugPrint(
+      '[FeedRestore] awaitingPaint (poster mask ON) id=${fromId ?? activeId}',
+    );
     _armPosterMask();
   }
 
@@ -1097,6 +1146,16 @@ class _VideoReelScreenState extends State<VideoReelScreen>
     _playbackCoordinator.precacheWindow(context, index);
   }
 
+  /// True when the visible Near Me reel is already attached and painted.
+  bool _isVisibleReelHealthy(String? videoId) {
+    if (videoId == null || videoId.isEmpty) {
+      return false;
+    }
+    final pool = MediaKitPlayerPool.instance;
+    return pool.isFeedVisibleKey(videoId) &&
+        (pool.isFrameReady(videoId) || pool.hadRecentPaint(videoId));
+  }
+
   void _resumeFeedAfterLocationPermission() {
     if (!mounted || !controller.canPlayHomeReels) {
       return;
@@ -1114,20 +1173,49 @@ class _VideoReelScreenState extends State<VideoReelScreen>
       final index =
           _activeLayer.visibleIndexNotifier.value.clamp(0, videos.length - 1);
       final video = videos[index];
+      _activeLayer.activePlayerVideo = video;
       if (video.isPhotoPost) {
+        _dismissColdStartSpinner(reason: 'location_photo');
         return;
       }
       final videoId = video.id?.toString();
       if (videoId == null || videoId.isEmpty) {
         return;
       }
-      _activeLayer.activePlayerVideo = video;
-      unawaited(
-        MediaKitPlayerPool.instance.recoverFeedVisibleSurface(videoId),
+
+      // Allow Once often completes while a reel is already playing. Force
+      // reattach / invalidateFeedOpenToken was stopping that video.
+      if (_isVisibleReelHealthy(videoId)) {
+        debugPrint(
+          '[FeedRestore] location resume KEEP-LIVE id=$videoId',
+        );
+        if (_unmaskedReelId != videoId || _maskActiveVideoWithPoster) {
+          _dropPosterMask(videoId);
+        }
+        unawaited(_feedPlayerState?.resumeAfterAppBackground());
+        _resumeFeedAudibleOnce();
+        return;
+      }
+
+      debugPrint(
+        '[FeedRestore] location resume REATTACH id=$videoId',
       );
-      unawaited(_feedPlayerState?.resumeAfterAppBackground());
-      _resumeFeedAudibleOnce();
-      _dropPosterMask(videoId);
+      _armPosterMask();
+      _lastHandledPlaybackEpoch = -1;
+      unawaited(_preloadManager.prefetchVisibleReel(index, maxWaitMs: 0));
+      _schedulePlayerForPage(
+        _activeTabType,
+        index,
+        forceReattach: true,
+      );
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || !controller.canPlayHomeReels) {
+          return;
+        }
+        unawaited(_feedPlayerState?.ensureVisibleOpen());
+        unawaited(_feedPlayerState?.resumeAfterAppBackground());
+        _resumeFeedAudibleOnce();
+      });
     });
   }
 
@@ -1339,6 +1427,34 @@ class _VideoReelScreenState extends State<VideoReelScreen>
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (mounted) {
             _warmPosterWindowForVisible();
+            // Near Me list replace after location — only reattach if the
+            // current reel is dead. Always forcing reattach stopped playback
+            // right after "Allow Once".
+            if (controller.selectedType.value == 'Near Me' &&
+                controller.hasLocationBeenFetched.value) {
+              final videos = controller.videoFeed.value.videos;
+              if (videos != null && videos.isNotEmpty) {
+                final index = _activeLayer.visibleIndexNotifier.value
+                    .clamp(0, videos.length - 1);
+                final id = videos[index].id;
+                if (!_isVisibleReelHealthy(id)) {
+                  debugPrint(
+                    '[FeedRestore] Near Me load REATTACH dead id=$id',
+                  );
+                  _armPosterMask();
+                  _schedulePlayerForPage(
+                    _activeTabType,
+                    index,
+                    forceReattach: true,
+                  );
+                } else {
+                  debugPrint(
+                    '[FeedRestore] Near Me load KEEP-LIVE id=$id',
+                  );
+                  _resumeFeedAudibleOnce();
+                }
+              }
+            }
           }
         });
         _kickColdStartPlaybackIfReady();
@@ -2931,12 +3047,13 @@ class _HomeReelPageCellState extends State<_HomeReelPageCell> {
 
   @override
   Widget build(BuildContext context) {
-    final home = Get.find<HomeController>();
-    final allowFeedPlayer = home.canMountHomeReelPlayer;
+    // Keep the player mounted for the active video page even when
+    // [canMountHomeReelPlayer] flickers (mute/overlay/cold-restore). Unmounting
+    // paused the only decoder (dispose → live=0) and left a black surface.
+    // Mute/pause is owned by HomeController + the pool, not by removing the widget.
     final showPlayer = _isActivePage &&
         !widget.videoDetail.isPhotoPost &&
-        widget.videoDetail.isPlaybackReady &&
-        allowFeedPlayer;
+        widget.videoDetail.isPlaybackReady;
     return ExcludeSemantics(
       excluding: !_isActivePage,
       child: widget.builder(

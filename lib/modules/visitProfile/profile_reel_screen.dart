@@ -450,7 +450,7 @@ class _ProfileReelScreenState extends State<ProfileReelScreen>
     unawaited(_preloadManager.onVisibleIndexChanged(index));
   }
 
-  void _onFeedVideoPainted() {
+  void _onFeedVideoPainted(String? _) {
     if (!mounted || !_maskActiveVideoWithPoster) {
       return;
     }

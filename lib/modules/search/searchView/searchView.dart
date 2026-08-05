@@ -1035,6 +1035,9 @@ class _SearchViewState extends State<SearchView>
   }
 
   Future<void> _showBottomSheet(BuildContext context) async {
+    // Prefer Near Me's place when the filter has no country/city yet (fresh
+    // open or after Clear).
+    await searchController.ensureDefaultLocationFromNearMe();
     if (Get.isRegistered<NavBarController>()) {
       final nav = Get.find<NavBarController>();
       if (nav.videoUploadSettings.value?.countries?.isEmpty ?? true) {

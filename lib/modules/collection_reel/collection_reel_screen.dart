@@ -421,14 +421,14 @@ class _CollectionReelScreenState extends State<CollectionReelScreen>
     unawaited(_preloadManager.onVisibleIndexChanged(index));
   }
 
-  void _onFeedVideoPainted() {
+  void _onFeedVideoPainted(String? _) {
     if (!mounted || !_maskActiveVideoWithPoster) {
       return;
     }
     setState(() => _maskActiveVideoWithPoster = false);
   }
 
-  void _onFeedAwaitingPaint() {
+  void _onFeedAwaitingPaint(String? _) {
     if (!mounted || _maskActiveVideoWithPoster) {
       return;
     }

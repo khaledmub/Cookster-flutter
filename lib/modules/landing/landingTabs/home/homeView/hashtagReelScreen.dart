@@ -397,7 +397,7 @@ class _HashtagReelScreenState extends State<HashtagReelScreen>
                                     onPlaybackReady: () {
                                       _onVisibleReelReady(index);
                                     },
-                                    onFeedVideoPainted: () {
+                                    onFeedVideoPainted: (_) {
                                       if (!mounted ||
                                           !_maskActiveVideoWithPoster) {
                                         return;
