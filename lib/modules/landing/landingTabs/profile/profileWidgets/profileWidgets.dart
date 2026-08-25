@@ -163,8 +163,8 @@ class CustomButtonWidget extends StatelessWidget {
   }
 }
 
-void showProfileQrCodeDialog(String userEmail) {
-  final String profileUrl = profileShareUrl(email: userEmail);
+void showProfileQrCodeDialog({String? userEmail, String? userId}) {
+  final String profileUrl = profileShareUrl(email: userEmail, userId: userId);
   Get.dialog(
     Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),

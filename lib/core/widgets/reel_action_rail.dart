@@ -675,11 +675,14 @@ class ReelActionRailShare {
       return;
     }
     try {
-      final appUrl = 'cookster://open.cookster.app/video?id=$videoId';
+      final appUrl =
+          'cookster://open.cookster.app/web/visitSingleVideo?id=$videoId';
       final webUrl = 'https://cookster.org/web/visitSingleVideo?id=$videoId';
+      // Put the HTTPS URL first — WhatsApp / messengers often only richly
+      // linkify the first URL. Custom scheme stays as a direct fallback.
       final message =
-          'Check out this amazing video on Cookster!\n$appUrl\n\n'
-          'If the app does not open, use this web link:\n$webUrl';
+          'Check out this amazing video on Cookster!\n$webUrl\n\n'
+          'Direct app link:\n$appUrl';
       final box = context.findRenderObject() as RenderBox?;
       await Share.share(
         message,

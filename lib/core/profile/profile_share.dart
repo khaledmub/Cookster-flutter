@@ -2,16 +2,25 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:share_plus/share_plus.dart';
 
+/// Canonical web profile URL that the server actually serves.
+///
+/// `/web/visitProfile?userId=` and `/profile?email=` currently 302 to the
+/// homepage. `/web/visitProfile?id=` returns a real landing page.
 String profileShareUrl({String? email, String? userId}) {
-  final trimmedEmail = email?.trim() ?? '';
-  if (trimmedEmail.isNotEmpty) {
-    return 'https://cookster.org/profile?email=${Uri.encodeComponent(trimmedEmail)}';
-  }
   final trimmedId = userId?.trim() ?? '';
   if (trimmedId.isNotEmpty) {
-    return 'https://cookster.org/web/visitProfile?userId=$trimmedId';
+    return 'https://cookster.org/web/visitProfile?id=$trimmedId';
+  }
+  final trimmedEmail = email?.trim() ?? '';
+  if (trimmedEmail.isNotEmpty) {
+    // Legacy fallback — prefer userId whenever available.
+    return 'https://cookster.org/profile?email=${Uri.encodeComponent(trimmedEmail)}';
   }
   return 'https://cookster.org';
+}
+
+String profileAppUrl({required String userId}) {
+  return 'cookster://open.cookster.app/web/visitProfile?id=${userId.trim()}';
 }
 
 Future<void> shareProfile({
@@ -20,14 +29,21 @@ Future<void> shareProfile({
   String? userId,
   String? displayName,
 }) async {
-  final url = profileShareUrl(email: email, userId: userId);
-  final webFallback = trimmedIdFallbackUrl(userId: userId, email: email);
+  final trimmedId = userId?.trim() ?? '';
+  final webUrl = profileShareUrl(email: email, userId: userId);
   final name = displayName?.trim();
-  final message = name != null && name.isNotEmpty
-      ? 'Check out $name on Cookster!\n$url\n\n'
-          'If the app does not open, use this web link:\n$webFallback'
-      : 'Check out this profile on Cookster!\n$url\n\n'
-          'If the app does not open, use this web link:\n$webFallback';
+
+  final String message;
+  if (trimmedId.isNotEmpty) {
+    final appUrl = profileAppUrl(userId: trimmedId);
+    message = name != null && name.isNotEmpty
+        ? 'Check out $name on Cookster!\n$webUrl\n\nDirect app link:\n$appUrl'
+        : 'Check out this profile on Cookster!\n$webUrl\n\nDirect app link:\n$appUrl';
+  } else {
+    message = name != null && name.isNotEmpty
+        ? 'Check out $name on Cookster!\n$webUrl'
+        : 'Check out this profile on Cookster!\n$webUrl';
+  }
 
   final box = context.findRenderObject() as RenderBox?;
   try {
@@ -47,16 +63,4 @@ Future<void> shareProfile({
       colorText: Colors.white,
     );
   }
-}
-
-String trimmedIdFallbackUrl({String? userId, String? email}) {
-  final trimmedEmail = email?.trim() ?? '';
-  if (trimmedEmail.isNotEmpty) {
-    return 'https://cookster.org/profile?email=${Uri.encodeComponent(trimmedEmail)}';
-  }
-  final id = userId?.trim() ?? '';
-  if (id.isNotEmpty) {
-    return 'https://cookster.org/web/visitProfile?userId=$id';
-  }
-  return 'https://cookster.org';
 }

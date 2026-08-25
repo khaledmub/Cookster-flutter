@@ -14,8 +14,11 @@ import '../searchModel/b2bUsersListModel.dart';
 import '../searchModel/searchModel.dart';
 
 class UserSearchController extends GetxController {
-  static const Set<int> videoSearchTypes = {1, 2, 3, 4};
+  /// Food General (1), Food Business (2), Top Rated food (4), Top Rated business (7).
+  static const Set<int> videoSearchTypes = {1, 2, 3, 4, 7};
   static const int listPageSize = 30;
+
+  bool get isVideoSearchType => videoSearchTypes.contains(type.value);
 
   var isLoading = false.obs;
   var isB2bUsersLoading = false.obs;
@@ -175,9 +178,11 @@ class UserSearchController extends GetxController {
   }
 
   /// Prefill country/city from Near Me (Home GPS + catalog ids) when the search
-  /// filter has nothing selected yet. Does not enable the filter until Submit.
-  Future<void> ensureDefaultLocationFromNearMe() async {
-    if (currentCountryId.value.isNotEmpty || currentCityId.value.isNotEmpty) {
+  /// filter has nothing selected yet. Does not enable the filter until Submit
+  /// (or [applyHomeLocationFilterForSearchSession]).
+  Future<void> ensureDefaultLocationFromNearMe({bool force = false}) async {
+    if (!force &&
+        (currentCountryId.value.isNotEmpty || currentCityId.value.isNotEmpty)) {
       return;
     }
 
@@ -192,6 +197,18 @@ class UserSearchController extends GetxController {
       cityId = home.nearMeFilterCityId.value.trim();
       country = home.currentCountry.value.trim();
       city = home.currentCity.value.trim();
+      // General-tab manual filter is the user's chosen "current place" when
+      // they opened search from General with a location filter active.
+      if (countryId.isEmpty && cityId.isEmpty && home.hasGeneralLocationFilter) {
+        countryId = home.generalFilterCountryId.value.trim();
+        cityId = home.generalFilterCityId.value.trim();
+        if (country.isEmpty) {
+          country = home.generalFilterCountry.value.trim();
+        }
+        if (city.isEmpty) {
+          city = home.generalFilterCity.value.trim();
+        }
+      }
     }
 
     if (countryId.isEmpty && cityId.isEmpty) {
@@ -266,6 +283,44 @@ class UserSearchController extends GetxController {
     }
   }
 
+  /// Opened from Near Me / General-with-filter: lock search to that place so
+  /// Food / General tabs return local videos (including empty-keyword browse).
+  Future<void> applyHomeLocationFilterForSearchSession({
+    required bool fromNearMe,
+  }) async {
+    if (Get.isRegistered<HomeController>()) {
+      final home = Get.find<HomeController>();
+      if (!fromNearMe && home.hasGeneralLocationFilter) {
+        currentCountryId.value = home.generalFilterCountryId.value.trim();
+        currentCityId.value = home.generalFilterCityId.value.trim();
+        currentCountry.value = home.generalFilterCountry.value.trim();
+        currentCity.value = home.generalFilterCity.value.trim();
+      } else {
+        await ensureDefaultLocationFromNearMe(force: true);
+      }
+    } else {
+      await ensureDefaultLocationFromNearMe(force: true);
+    }
+
+    if (currentCountryId.value.isEmpty && currentCityId.value.isEmpty) {
+      if (kDebugMode) {
+        debugPrint('[SearchFilter] no home location ids to apply');
+      }
+      return;
+    }
+    locationFilterEnabled.value = true;
+    locationFilterRevision.value++;
+    await saveLocationData();
+    if (kDebugMode) {
+      debugPrint(
+        '[SearchFilter] applied home location filter '
+        'fromNearMe=$fromNearMe '
+        'country=${currentCountry.value}(${currentCountryId.value}) '
+        'city=${currentCity.value}(${currentCityId.value})',
+      );
+    }
+  }
+
   // Clear search results
   void clearSearchResults() {
     searchResult.value = SearchResult();
@@ -335,8 +390,10 @@ class UserSearchController extends GetxController {
   }
 
   Future<void> refetchWithCurrentFilters() async {
-    final keywords = _lastKeywords;
-    if (keywords == null || keywords.isEmpty) {
+    // Video tabs (Food / Top Rated) can browse with an empty keyword once a
+    // location filter is active — Users / B2B still need text or a category.
+    final keywords = _lastKeywords ?? '';
+    if (keywords.isEmpty && !isVideoSearchType) {
       return;
     }
     await fetchSearchResults(
@@ -358,7 +415,11 @@ class UserSearchController extends GetxController {
     int? isFollowing = 0,
     bool reset = true,
   }) async {
-    if (keywords.isEmpty) {
+    final trimmed = keywords.trim();
+    // Users tab still requires a keyword. Food / General / Top Rated can
+    // browse (especially with current-location filter) with an empty query —
+    // the API returns location-scoped videos when keywords are blank.
+    if (trimmed.isEmpty && !isVideoSearchType) {
       clearSearchResults();
       return;
     }
@@ -374,8 +435,8 @@ class UserSearchController extends GetxController {
     final requestId = reset ? ++_searchRequestId : _searchRequestId;
 
     try {
-      if (reset && keywords.isNotEmpty) {
-        await _saveSearchQuery(keywords);
+      if (reset && trimmed.isNotEmpty) {
+        await _saveSearchQuery(trimmed);
       }
 
       final page = reset
@@ -383,7 +444,7 @@ class UserSearchController extends GetxController {
           : (searchResult.value.meta?.page ?? 1) + 1;
       final requestBody = <String, dynamic>{};
 
-      if (videoSearchTypes.contains(type.value)) {
+      if (isVideoSearchType) {
         requestBody['paginate'] = 1;
         requestBody['per_page'] = listPageSize;
         if (reset) {
@@ -401,17 +462,22 @@ class UserSearchController extends GetxController {
       if (isFollowing == 1) {
         requestBody['is_following'] = isFollowing;
         requestBody['type'] = type.value;
-        requestBody['keywords'] = keywords;
+        requestBody['keywords'] = trimmed;
       } else {
         requestBody['type'] = type.value;
-        requestBody['keywords'] = keywords;
+        requestBody['keywords'] = trimmed;
+      }
+
+      if (isGeneral != null) {
+        requestBody['is_general'] = isGeneral;
       }
 
       requestBody.addAll(_activeLocationFilterParams());
 
       if (kDebugMode) {
         debugPrint(
-          '[Search] type=${type.value} keywords=$keywords '
+          '[Search] type=${type.value} keywords="$trimmed" '
+          'is_general=$isGeneral '
           'filter=${locationFilterEnabled.value} '
           'city_id=${currentCityId.value} country_id=${currentCountryId.value}',
         );
@@ -455,7 +521,7 @@ class UserSearchController extends GetxController {
           searchResult.refresh();
         }
 
-        _lastKeywords = keywords;
+        _lastKeywords = trimmed;
         _lastIsGeneral = isGeneral;
         _lastIsFollowing = isFollowing;
         _lastCity = city;

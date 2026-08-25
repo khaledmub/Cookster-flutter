@@ -146,7 +146,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
     }
     _feedPlayerState = state;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) {
+      if (!mounted || _feedTabSwitchInFlight) {
         return;
       }
       final layer = _activeLayer;
@@ -183,7 +183,12 @@ class _VideoReelScreenState extends State<VideoReelScreen>
       return;
     }
     final playerState = _feedPlayerState;
-    if (playerState == null) {
+    // Tab switch remounts the IndexedStack player — dispose leaves a stale
+    // State handle briefly. Treat !mounted as "not ready" and retry.
+    if (playerState == null || !playerState.mounted) {
+      if (playerState != null && !playerState.mounted) {
+        _feedPlayerState = null;
+      }
       if (attempt >= 45) {
         if (kDebugMode) {
           debugPrint(
@@ -422,6 +427,10 @@ class _VideoReelScreenState extends State<VideoReelScreen>
     }
     final key = _activeLayer.activePlayerVideo?.id;
     if (key == null || key.isEmpty) {
+      return;
+    }
+    // Never unmute while the page poster still covers the surface.
+    if (_maskActiveVideoWithPoster || _unmaskedReelId != key) {
       return;
     }
     if (!MediaKitPlayerPool.instance.isFeedVisibleKey(key) ||
@@ -676,13 +685,20 @@ class _VideoReelScreenState extends State<VideoReelScreen>
         controller.applyCachedFeedForTab(newTabType);
         targetIndex = controller.visiblePageIndex.value;
         layer.visibleIndexNotifier.value = targetIndex;
+        // Always keep poster up across IndexedStack remount — pool may still
+        // report frame-ready for the same id from the previous tab visit.
         _resetPosterMaskForPageChange(
           videoId: cached[targetIndex].id,
+          forceShowPoster: true,
         );
         if (layer.pageController.hasClients) {
           layer.pageController.jumpToPage(targetIndex);
         }
         _tabSwitchTargetVideoId = cached[targetIndex].id;
+        _warmPosterWindowForVisible();
+        if (mounted) {
+          _playbackCoordinator.precacheVisiblePoster(context, targetIndex);
+        }
       }
       // Apply scroll + visiblePageIndex before showing the tab — otherwise
       // FocusDetector jumps using the previous tab's index (wrong reel poster).
@@ -703,13 +719,15 @@ class _VideoReelScreenState extends State<VideoReelScreen>
       }
       _syncActiveTabScrollListener(previousTab, newTabType);
       if (hasCache) {
-        _finishFeedTabPlayback(newTabType, fromTabSwitch: true);
-        unawaited(
-          _preloadManager.prefetchVisibleReel(
-            targetIndex!,
-            maxWaitMs: 500,
-          ),
+        // Warm disk before attach so General doesn't open HTTPS (2–5s on sim).
+        await _preloadManager.prefetchVisibleReel(
+          targetIndex!,
+          maxWaitMs: 1800,
         );
+        if (!mounted || controller.selectedType.value != newTabType) {
+          return;
+        }
+        _finishFeedTabPlayback(newTabType, fromTabSwitch: true);
         unawaited(controller.fetchVideos(fromTabSwitch: true));
         await _waitForTabSwitchFrame();
       } else {
@@ -720,13 +738,18 @@ class _VideoReelScreenState extends State<VideoReelScreen>
           final resolved =
               controller.resolveScrollIndexForTab(newTabType, videos);
           _tabSwitchTargetVideoId = videos[resolved].id;
-          _finishFeedTabPlayback(newTabType, fromTabSwitch: true);
-          unawaited(
-            _preloadManager.prefetchVisibleReel(
-              resolved,
-              maxWaitMs: 500,
-            ),
+          _warmPosterWindowForVisible();
+          if (mounted) {
+            _playbackCoordinator.precacheVisiblePoster(context, resolved);
+          }
+          await _preloadManager.prefetchVisibleReel(
+            resolved,
+            maxWaitMs: 1800,
           );
+          if (!mounted || controller.selectedType.value != newTabType) {
+            return;
+          }
+          _finishFeedTabPlayback(newTabType, fromTabSwitch: true);
           await _waitForTabSwitchFrame();
         }
       }
@@ -886,6 +909,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
     layer.visibleIndexNotifier.value = targetIndex;
     _resetPosterMaskForPageChange(
       videoId: targetId,
+      forceShowPoster: fromTabSwitch || preferNewest,
     );
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || tab != _activeTabType) {
@@ -896,12 +920,17 @@ class _VideoReelScreenState extends State<VideoReelScreen>
         layer.pageController.jumpToPage(targetIndex);
       }
       unawaited(
-        _preloadManager.prefetchVisibleReel(targetIndex, maxWaitMs: 0),
+        _preloadManager.prefetchVisibleReel(
+          targetIndex,
+          maxWaitMs: fromTabSwitch ? 1200 : 0,
+        ),
       );
+      // Tab switch remounts the shared player — same-key early return in
+      // attach left General silent/black until a later kick. Always reattach.
       _schedulePlayerForPage(
         tab,
         targetIndex,
-        forceReattach: preferNewest,
+        forceReattach: preferNewest || fromTabSwitch,
       );
       MediaKitPlayerPool.instance.setScreenWidth(
         MediaQuery.sizeOf(context).width,
@@ -1152,8 +1181,11 @@ class _VideoReelScreenState extends State<VideoReelScreen>
       return false;
     }
     final pool = MediaKitPlayerPool.instance;
+    // Never treat hadRecentPaint alone as healthy — that dropped the poster
+    // while the remounted surface was still black (sound without picture).
     return pool.isFeedVisibleKey(videoId) &&
-        (pool.isFrameReady(videoId) || pool.hadRecentPaint(videoId));
+        pool.isFrameReady(videoId) &&
+        pool.canInstantResume(videoId);
   }
 
   void _resumeFeedAfterLocationPermission() {
@@ -1352,6 +1384,11 @@ class _VideoReelScreenState extends State<VideoReelScreen>
       _applyPendingRestoreIfPossible();
       _maybeBootstrapPreload();
       _maybeDismissColdStartForSettledEmptyFeed();
+      // During General↔Near Me switch, finishPlayback owns attach. Scheduling
+      // here races applyCachedFeedForTab (wrong selectedType) and aborts opens.
+      if (_feedTabSwitchInFlight || controller.isFeedTabSwitchLocked) {
+        return;
+      }
       final videos = controller.videoFeed.value.videos;
       if (videos != null && videos.isNotEmpty) {
         final idx = _activeLayer.visibleIndexNotifier.value.clamp(
@@ -1372,7 +1409,9 @@ class _VideoReelScreenState extends State<VideoReelScreen>
           videos.length - 1,
         );
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (!mounted) {
+          if (!mounted ||
+              _feedTabSwitchInFlight ||
+              controller.isFeedTabSwitchLocked) {
             return;
           }
           unawaited(
@@ -2616,8 +2655,39 @@ class _VideoReelScreenState extends State<VideoReelScreen>
       }
       return 'near_me_geo_expanded_notice'.tr;
     }
-    final city = meta.geoCityName?.trim();
-    if (isNearMeCityScope(meta.geoScope) && city != null && city.isNotEmpty) {
+    if (!isNearMeCityScope(meta.geoScope)) {
+      return null;
+    }
+
+    // City groups (Dhahran/Khobar/Dammam) already come from the API; the old
+    // banner only showed geo_city_name (e.g. "Dhahran") which looked broken.
+    final catalog = <int, String>{};
+    if (Get.isRegistered<CityController>()) {
+      for (final city in Get.find<CityController>().cityList) {
+        final id = city.id;
+        final name = city.name?.trim();
+        if (id != null && name != null && name.isNotEmpty) {
+          catalog[id] = name;
+        }
+      }
+    }
+    final feed = controller.videoFeed.value;
+    final groupNames = cityGroupDisplayNames(
+      anchorCityName: meta.geoCityName,
+      serverGroupNames: meta.geoCityGroupNames,
+      videoCityNames: (feed.videos ?? const []).map((v) => v.cityName),
+      videoCityIds: (feed.videos ?? const []).map((v) => v.cityId),
+      catalogNamesById: catalog,
+    );
+    if (groupNames.length > 1) {
+      return 'near_me_geo_city_group_notice'.trParams({
+        'cities': formatCityGroupList(groupNames),
+      });
+    }
+    final city = groupNames.isNotEmpty
+        ? groupNames.first
+        : meta.geoCityName?.trim();
+    if (city != null && city.isNotEmpty) {
       return 'near_me_geo_city_notice'.trParams({'city': city});
     }
     return null;

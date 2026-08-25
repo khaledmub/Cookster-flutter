@@ -35,6 +35,9 @@ class FeedMeta {
   /// Resolved city for the viewer's GPS on Near Me feeds.
   int? geoCityId;
   String? geoCityName;
+  /// Sibling cities in the active geo city-group (e.g. Dhahran/Khobar/Dammam).
+  List<int>? geoCityGroupIds;
+  List<String>? geoCityGroupNames;
   /// Set when the server applied [pin_video_id] on the first page.
   String? pinnedVideoId;
 
@@ -55,6 +58,8 @@ class FeedMeta {
     this.geoRadiusKm,
     this.geoCityId,
     this.geoCityName,
+    this.geoCityGroupIds,
+    this.geoCityGroupNames,
     this.pinnedVideoId,
   });
 
@@ -81,8 +86,42 @@ class FeedMeta {
           ? null
           : parseApiCount(json['geo_city_id']),
       geoCityName: json['geo_city_name'] as String?,
+      geoCityGroupIds: _parseIntList(
+        json['geo_city_group_ids'] ?? json['geo_city_ids'],
+      ),
+      geoCityGroupNames: _parseStringList(
+        json['geo_city_group_names'] ?? json['geo_group_city_names'],
+      ),
       pinnedVideoId: json['pinned_video_id']?.toString(),
     );
+  }
+
+  static List<int>? _parseIntList(dynamic raw) {
+    if (raw is! List) {
+      return null;
+    }
+    final out = <int>[];
+    for (final item in raw) {
+      final n = parseApiCount(item);
+      if (n > 0) {
+        out.add(n);
+      }
+    }
+    return out.isEmpty ? null : out;
+  }
+
+  static List<String>? _parseStringList(dynamic raw) {
+    if (raw is! List) {
+      return null;
+    }
+    final out = <String>[];
+    for (final item in raw) {
+      final s = item?.toString().trim() ?? '';
+      if (s.isNotEmpty) {
+        out.add(s);
+      }
+    }
+    return out.isEmpty ? null : out;
   }
 
   Map<String, dynamic> toRequestPayload() {

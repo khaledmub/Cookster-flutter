@@ -1,4 +1,5 @@
 import 'package:cookster/appUtils/colorUtils.dart';
+import 'package:cookster/core/profile/profile_share.dart';
 import 'package:cookster/modules/landing/landingTabs/profile/profileControlller/profileController.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -376,9 +377,8 @@ class CustomButtonWidget extends StatelessWidget {
   }
 }
 
-void showProfileQrCodeDialog(String userEmail) {
-  final String profileUrl =
-      'https://cookster.org/profile?email=${Uri.encodeComponent(userEmail)}';
+void showProfileQrCodeDialog({String? userEmail, String? userId}) {
+  final String profileUrl = profileShareUrl(email: userEmail, userId: userId);
   Get.dialog(
     Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),

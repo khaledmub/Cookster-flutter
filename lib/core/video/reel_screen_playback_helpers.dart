@@ -18,6 +18,8 @@ class ReelScreenPlaybackHelpers {
       return false;
     }
     final pool = MediaKitPlayerPool.instance;
+    // Require live instant-resume — frame-ready alone can be stale across
+    // IndexedStack remounts (poster drops → black + audio).
     return pool.isFeedVisibleKey(videoId) &&
         pool.isFrameReady(videoId) &&
         pool.canInstantResume(videoId);

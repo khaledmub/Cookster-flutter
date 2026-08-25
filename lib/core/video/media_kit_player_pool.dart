@@ -999,6 +999,11 @@ class MediaKitPlayerPool {
           _userPausedKeys.contains(key)) {
         return;
       }
+      // Require a painted frame — otherwise resume/bump paths unmute into a
+      // black/opacity-0 surface (classic iPhone sound-without-picture).
+      if (!isFrameReady(key)) {
+        return;
+      }
       if (_audibleLockedKey == key &&
           isActiveAudible(key) &&
           !DeviceConstraints.instance.needsStrictSurfaceGate &&

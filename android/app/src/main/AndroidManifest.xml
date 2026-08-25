@@ -129,7 +129,64 @@
                     android:scheme="https" />
             </intent-filter>
 
-            <!-- Deep Link with custom scheme -->
+            <!-- App Link for profile pages -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+
+                <data
+                    android:host="cookster.org"
+                    android:pathPrefix="/web/visitProfile"
+                    android:scheme="http" />
+                <data
+                    android:host="cookster.org"
+                    android:pathPrefix="/web/visitProfile"
+                    android:scheme="https" />
+                <data
+                    android:host="www.cookster.org"
+                    android:pathPrefix="/web/visitProfile"
+                    android:scheme="http" />
+                <data
+                    android:host="www.cookster.org"
+                    android:pathPrefix="/web/visitProfile"
+                    android:scheme="https" />
+                <data
+                    android:host="cookster.org"
+                    android:pathPrefix="/visitProfile"
+                    android:scheme="http" />
+                <data
+                    android:host="cookster.org"
+                    android:pathPrefix="/visitProfile"
+                    android:scheme="https" />
+                <data
+                    android:host="www.cookster.org"
+                    android:pathPrefix="/visitProfile"
+                    android:scheme="http" />
+                <data
+                    android:host="www.cookster.org"
+                    android:pathPrefix="/visitProfile"
+                    android:scheme="https" />
+                <data
+                    android:host="cookster.org"
+                    android:pathPrefix="/profile"
+                    android:scheme="http" />
+                <data
+                    android:host="cookster.org"
+                    android:pathPrefix="/profile"
+                    android:scheme="https" />
+                <data
+                    android:host="www.cookster.org"
+                    android:pathPrefix="/profile"
+                    android:scheme="http" />
+                <data
+                    android:host="www.cookster.org"
+                    android:pathPrefix="/profile"
+                    android:scheme="https" />
+            </intent-filter>
+
+            <!-- Deep Link with custom scheme (app shares + web landing redirects) -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
 
@@ -138,6 +195,9 @@
 
                 <data
                     android:host="open.cookster.app"
+                    android:scheme="cookster" />
+                <data
+                    android:host="api"
                     android:scheme="cookster" />
             </intent-filter>
 

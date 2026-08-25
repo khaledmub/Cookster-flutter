@@ -19,6 +19,7 @@ import 'package:cookster/core/video/feed_disk_warm_service.dart';
 import 'package:cookster/core/video/reels_feed_pin_store.dart';
 import 'package:cookster/modules/landing/landingController/landingController.dart';
 import 'package:cookster/modules/landing/landingTabs/add/videoAddController/videoAddController.dart';
+import 'package:cookster/modules/auth/signUp/signUpController/cityController.dart';
 import '../../../../../services/apiClient.dart';
 import '../../../../../services/video_processing_service.dart';
 import '../homeModel/videoFeedModel.dart';
@@ -650,16 +651,27 @@ class HomeController extends GetxController with WidgetsBindingObserver {
     }
     if (kDebugMode &&
         (selectedType.value == 'Near Me' || selectedType.value == 'General')) {
+      final cityIds = <int, int>{};
+      for (final video in parsed.videos ?? const []) {
+        final id = video.cityId;
+        if (id != null && id > 0) {
+          cityIds[id] = (cityIds[id] ?? 0) + 1;
+        }
+      }
       debugPrint(
         '${selectedType.value} reels: count=${parsed.videos?.length ?? 0} '
         'geo_fallback=${parsed.meta?.geoFallback ?? false} '
         'geo_scope=${parsed.meta?.geoScope ?? ''} '
         'geo_city=${parsed.meta?.geoCityName ?? ''} '
+        'geo_city_id=${parsed.meta?.geoCityId ?? ''} '
+        'geo_group=${parsed.meta?.geoCityGroupNames ?? parsed.meta?.geoCityGroupIds ?? ''} '
+        'page_city_ids=$cityIds '
         'geo_radius_km=${parsed.meta?.geoRadiusKm ?? ''} '
         'pinned=${parsed.meta?.pinnedVideoId ?? 'none'} '
         'pin_sent=$pinSent '
         'generalLocationFilter=$hasGeneralLocationFilter '
         'lat=${latitude.value} lng=${longitude.value} '
+        'nearMeCityId=${nearMeFilterCityId.value} '
         'filterCountryId=${generalFilterCountryId.value} '
         'filterCityId=${generalFilterCityId.value}',
       );
@@ -884,6 +896,12 @@ class HomeController extends GetxController with WidgetsBindingObserver {
         nearMeFilterCountryId.value =
             upload.selectedLocationId.value.toString();
         nearMeFilterCityId.value = upload.selectedCityId.value.toString();
+        // Warm the city catalog so Near Me group banners can resolve sibling
+        // names (Dhahran / Khobar / Dammam) from city_id on each reel.
+        final countryId = upload.selectedLocationId.value;
+        if (countryId > 0 && Get.isRegistered<CityController>()) {
+          unawaited(Get.find<CityController>().fetchCities(countryId));
+        }
         if (kDebugMode) {
           debugPrint(
             '[LocationIds] resolved countryId=${upload.selectedLocationId.value} '
@@ -1153,6 +1171,8 @@ class HomeController extends GetxController with WidgetsBindingObserver {
               geoRadiusKm: meta.geoRadiusKm,
               geoCityId: meta.geoCityId,
               geoCityName: meta.geoCityName,
+              geoCityGroupIds: meta.geoCityGroupIds,
+              geoCityGroupNames: meta.geoCityGroupNames,
             ),
     );
   }
@@ -3055,8 +3075,10 @@ class HomeController extends GetxController with WidgetsBindingObserver {
     await fetchVideos(forceNetwork: true, resetScrollPosition: true);
   }
 
-  /// Pause feed playback when switching عام / بالقرب / المتابعة. Keeps the
-  /// decoder pool warm so returning to a tab resumes without a full reload.
+  /// Pause feed playback when switching عام / بالقرب / المتابعة.
+  /// Clears feed-visible priming so the destination tab cannot claim
+  /// "instant resume" / drop the poster while the shared player remounts
+  /// (IndexedStack) with an opacity-0 surface → black scaffold.
   Future<void> prepareForFeedTabSwitch() async {
     // The view's _persistLeavingTabPlayback already saved the leaving tab's
     // scroll index + video id from the per-tab PageView truth (visibleIndexNotifier).
@@ -3064,6 +3086,11 @@ class HomeController extends GetxController with WidgetsBindingObserver {
     // PageView after _finishFeedTabPlayback, which saved the wrong reel and made
     // the next return land on a different video.
     MediaKitPlayerPool.instance.pauseAllImmediate();
+    final leavingKey = MediaKitPlayerPool.instance.feedVisibleKey;
+    if (leavingKey != null && leavingKey.isNotEmpty) {
+      MediaKitPlayerPool.instance.invalidatePrimedFrame(leavingKey);
+    }
+    await MediaKitPlayerPool.instance.clearFeedVisibleReel();
     await VideoPlayerPool.instance.pauseAll();
   }
 

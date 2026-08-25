@@ -494,7 +494,8 @@ class _SingleVideoVisitState extends State<SingleVisitVideo>
   void _handleShare(String videoId) async {
     _pauseVideo();
     try {
-      final String appUrl = "cookster://open.cookster.app/video?id=$videoId";
+      final String appUrl =
+          "cookster://open.cookster.app/web/visitSingleVideo?id=$videoId";
       final String webUrl =
           "https://cookster.org/web/visitSingleVideo?id=$videoId";
       // Put the web app-link URL first because many messengers make only the

@@ -21,6 +21,73 @@ bool isNearMeCityScope(String? geoScope) {
   return scope == 'city' || scope.contains('city');
 }
 
+/// Joins city names for banners: `A, B & C`.
+String formatCityGroupList(Iterable<String> cities) {
+  final list = cities
+      .map((c) => c.trim())
+      .where((c) => c.isNotEmpty)
+      .toSet()
+      .toList()
+    ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+  if (list.isEmpty) {
+    return '';
+  }
+  if (list.length == 1) {
+    return list.first;
+  }
+  if (list.length == 2) {
+    return '${list[0]} & ${list[1]}';
+  }
+  return '${list.sublist(0, list.length - 1).join(', ')} & ${list.last}';
+}
+
+/// City-group label for Near Me / location-filtered feeds.
+///
+/// Prefers server-provided group names, then unique [WallVideos.cityName] /
+/// resolved catalog names from the loaded page(s). The GPS anchor city is
+/// always included so Dhahran still shows even when the first page is mostly
+/// Dammam/Khobar posts.
+List<String> cityGroupDisplayNames({
+  required String? anchorCityName,
+  List<String>? serverGroupNames,
+  Iterable<String?> videoCityNames = const [],
+  Iterable<int?> videoCityIds = const [],
+  Map<int, String> catalogNamesById = const {},
+}) {
+  final names = <String>{};
+
+  void addName(String? raw) {
+    final n = raw?.trim() ?? '';
+    if (n.isNotEmpty && n.toLowerCase() != 'null') {
+      names.add(n);
+    }
+  }
+
+  addName(anchorCityName);
+  for (final n in serverGroupNames ?? const <String>[]) {
+    addName(n);
+  }
+  for (final n in videoCityNames) {
+    addName(n);
+  }
+  for (final id in videoCityIds) {
+    if (id == null || id <= 0) {
+      continue;
+    }
+    addName(catalogNamesById[id]);
+  }
+
+  final ordered = names.toList()
+    ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+  final anchor = anchorCityName?.trim();
+  if (anchor != null &&
+      anchor.isNotEmpty &&
+      ordered.remove(anchor)) {
+    ordered.insert(0, anchor);
+  }
+  return ordered;
+}
+
 enum NearMeLocationBadgeKind { distance, inCity, none }
 
 class NearMeLocationBadge {

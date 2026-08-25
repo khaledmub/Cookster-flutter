@@ -473,7 +473,10 @@ class _ProfileViewState extends State<ProfileView>
                           );
                         },
                         onQr: () {
-                          showProfileQrCodeDialog(userDetails.email);
+                          showProfileQrCodeDialog(
+                            userEmail: userDetails.email?.toString(),
+                            userId: userDetails.id?.toString(),
+                          );
                         },
                         onMore: () {
                           showMoreOptionsProfile(

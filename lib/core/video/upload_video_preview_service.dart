@@ -67,10 +67,13 @@ class UploadVideoPreviewService {
         '${tempDir.path}/device_preview_${DateTime.now().millisecondsSinceEpoch}.mp4';
     final escapedIn = source.path.replaceAll("'", r"'\''");
     final escapedOut = outPath.replaceAll("'", r"'\''");
+    final videoCodec = Platform.isIOS
+        ? "-c:v h264_videotoolbox -b:v 4M -allow_sw 1 -pix_fmt yuv420p"
+        : "-c:v libx264 -preset veryfast -crf 23 -pix_fmt yuv420p";
     final command =
         "-y -i '$escapedIn' "
         "-vf scale='min($maxPlayableLongEdge,iw)':-2 "
-        "-c:v libx264 -preset veryfast -crf 23 "
+        "$videoCodec "
         "-c:a aac -b:a 128k -movflags +faststart "
         "'$escapedOut'";
 

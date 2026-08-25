@@ -346,22 +346,27 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       final uri = Uri.parse(link);
       final bool isCooksterDomain =
           uri.host == 'cookster.org' || uri.host == 'www.cookster.org';
-      final bool isCooksterCustomScheme =
-          uri.scheme == 'cookster' && uri.host == 'open.cookster.app';
+      // Web landing pages and app shares use cookster://open.cookster.app/web/...
+      // Legacy redirects may still use cookster://api/video_details|profile_details.
+      final bool isCooksterCustomScheme = uri.scheme == 'cookster' &&
+          (uri.host == 'open.cookster.app' || uri.host == 'api');
 
       if (!isCooksterDomain && !isCooksterCustomScheme) {
         return;
       }
 
       final path = uri.path.toLowerCase();
-      final profileUserId = uri.queryParameters['userId'] ??
-          uri.queryParameters['user_id'] ??
-          uri.queryParameters['id'];
       final profileEmail = uri.queryParameters['email'];
-
-      if (path.contains('visitprofile') ||
+      final bool isProfileLink = path.contains('visitprofile') ||
+          path.contains('profile_details') ||
           path.contains('/profile') ||
-          profileEmail != null) {
+          path.endsWith('profile') ||
+          profileEmail != null;
+
+      if (isProfileLink) {
+        final profileUserId = uri.queryParameters['userId'] ??
+            uri.queryParameters['user_id'] ??
+            uri.queryParameters['id'];
         if (profileUserId != null && profileUserId.isNotEmpty) {
           _openVisitProfile(profileUserId);
           return;
@@ -372,17 +377,23 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         }
       }
 
-      String? videoId = uri.queryParameters['id'];
-      videoId ??= uri.queryParameters['videoId'];
-      videoId ??= uri.queryParameters['video_id'];
+      String? videoId = uri.queryParameters['videoId'] ??
+          uri.queryParameters['video_id'];
+      // Only treat bare `id` as a video id when this is not a profile link.
+      if (!isProfileLink) {
+        videoId ??= uri.queryParameters['id'];
+      }
       if ((videoId == null || videoId.isEmpty) && uri.pathSegments.isNotEmpty) {
         final lastSegment = uri.pathSegments.last;
         const reservedSegments = {
           'web',
           'visitSingleVideo',
           'video',
+          'video_details',
           'visitProfile',
           'profile',
+          'profile_details',
+          'api',
         };
         if (!reservedSegments.contains(lastSegment)) {
           videoId = lastSegment;

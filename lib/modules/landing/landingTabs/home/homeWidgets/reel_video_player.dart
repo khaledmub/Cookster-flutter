@@ -540,9 +540,15 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
       _videoSurfaceVisible = false;
       _frameReady = false;
       _surfacePaintFrames = 0;
+      _feedPosterUnmaskedAtMs = 0;
       _resetDimensionStability();
       if (key != null && key.isNotEmpty) {
         _pool.invalidatePrimedFrame(key);
+      }
+      // Remasked — keep silent until opaque paint confirms again.
+      final remaskPlayer = _activePlayer;
+      if (remaskPlayer != null) {
+        unawaited(remaskPlayer.setVolume(0).catchError((_) {}));
       }
     }
     final player = _activePlayer;
@@ -555,10 +561,12 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
     final hadUnmasked = _feedPosterUnmaskedAtMs > 0;
     _logPoster('surface_bumped', detail: 'key=$key keep=$keepVisible');
     if (hadUnmasked &&
+        keepVisible &&
         key != null &&
         key.isNotEmpty &&
         !_userPaused &&
         _feedVisibleKeyMatches(key) &&
+        _videoSurfaceVisible &&
         !_pool.isActiveAudible(key)) {
       unawaited(_pool.forceFeedAudibleAtPosterUnmask(key));
     }
@@ -1827,15 +1835,22 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
     }
     
     if (_usesFeedVisibleChannel) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted || _isDisposed) {
-          return;
-        }
-        _notifyFeedVideoPainted();
-      });
+      // Drop parent poster first, then unmute. Unmuting here before the
+      // parent mask dropped caused "sound without picture" on iPhone
+      // (Opacity 0 / remount race while audio was already live).
+      _notifyFeedVideoPainted();
       unawaited(_recordCleanOpen());
       if (key != null && key.isNotEmpty) {
-        unawaited(_pool.forceFeedAudibleAtPosterUnmask(key));
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted ||
+              _isDisposed ||
+              !_videoSurfaceVisible ||
+              !_feedVisibleKeyMatches(key) ||
+              _userPaused) {
+            return;
+          }
+          unawaited(_pool.forceFeedAudibleAtPosterUnmask(key));
+        });
       }
     }
   }
@@ -3067,9 +3082,11 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
               return;
             }
             // Mid-clip warm resume often arrives paused after a remount — play
-            // before unmask or the progress bar freezes / surface stays black.
+            // muted before unmask or the progress bar freezes / surface stays
+            // black. Never leave a prior session volume live here (sound w/o picture).
             if (!_userPaused && !player.state.playing) {
               try {
+                await player.setVolume(0);
                 await player.play();
               } on Object catch (_) {}
             }

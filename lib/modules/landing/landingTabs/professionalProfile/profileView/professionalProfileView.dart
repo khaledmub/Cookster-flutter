@@ -807,7 +807,10 @@ class _ProfessionalProfileViewState extends State<ProfessionalProfileView>
                           );
                         },
                         onQr: () {
-                          showProfileQrCodeDialog(userDetails.email);
+                          showProfileQrCodeDialog(
+                            userEmail: userDetails.email?.toString(),
+                            userId: userDetails.id?.toString(),
+                          );
                         },
                         onMore: () {
                           showMoreOptionsProfile(

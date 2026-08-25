@@ -732,33 +732,11 @@ class _VideoTextEditorState extends State<VideoTextEditor> {
         inputFile = videoFilterController.filteredVideoFile.value!;
       }
 
-      // Check file size (in bytes)
+      // Check file size (in bytes) — logged only. Size is handled by the single
+      // capped encode below (no separate pre-compress pass — that double-encoded
+      // large iPhone gallery clips and dominated Save latency).
       final fileSize = await inputFile.length();
-      const maxSize = 72 * 1024 * 1024; // 72MB in bytes
-
-      // Compress if file size exceeds 72MB
-      if (fileSize > maxSize) {
-        final compressedPath =
-            "${tempDir.path}/compressed_${DateTime.now().millisecondsSinceEpoch}.mp4";
-        String compressionCommand =
-            "-i '${inputFile.path.replaceAll("'", "\\'")}' -c:v libx264 -b:v 8M -preset fast -c:a aac -b:a 128k '${compressedPath.replaceAll("'", "\\'")}'";
-        final compressionSession = await FFmpegKit.executeAsync(
-          compressionCommand,
-          (session) async {
-            final returnCode = await session.getReturnCode();
-            if (ReturnCode.isSuccess(returnCode)) {
-              inputFile = File(compressedPath);
-            } else {
-              throw Exception("Compression failed");
-            }
-          },
-          (log) => print("Compression Log: ${log.getMessage()}"),
-          (statistics) {},
-        );
-        await compressionSession.getReturnCode();
-        final compressedSize = await inputFile.length();
-        print("Compressed size: ${compressedSize / (1024 * 1024)} MB");
-      }
+      print("Export input size: ${fileSize / (1024 * 1024)} MB");
 
       final outputPath =
           "${tempDir.path}/processed_${DateTime.now().millisecondsSinceEpoch}.mp4";
@@ -802,6 +780,15 @@ class _VideoTextEditorState extends State<VideoTextEditor> {
       } else {
         targetWidth = originalWidth;
         targetHeight = targetWidth / targetAspectRatio;
+      }
+
+      // Cap long edge — 4K gallery exports were re-encoding full res on CPU.
+      const maxLongEdge = 1080.0;
+      final longEdge = targetWidth > targetHeight ? targetWidth : targetHeight;
+      if (longEdge > maxLongEdge) {
+        final scale = maxLongEdge / longEdge;
+        targetWidth *= scale;
+        targetHeight *= scale;
       }
 
       // Round to even integers for FFmpeg
@@ -986,8 +973,14 @@ class _VideoTextEditorState extends State<VideoTextEditor> {
         command += "-c:a copy ";
       }
 
-      // Video encoding settings
-      command += "-c:v libx264 -preset medium -crf 23 ";
+      // Video encoding — iOS uses VideoToolbox (HW); Android stays on libx264.
+      // `preset medium` + full-res software encode was the main Save delay on iPhone.
+      if (Platform.isIOS) {
+        command +=
+            "-c:v h264_videotoolbox -b:v 4M -allow_sw 1 -pix_fmt yuv420p ";
+      } else {
+        command += "-c:v libx264 -preset veryfast -crf 23 -pix_fmt yuv420p ";
+      }
       command += "'${outputPath.replaceAll("'", "\\'")}'";
 
       print("Executing FFmpeg command: $command");

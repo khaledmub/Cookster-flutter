@@ -110,7 +110,10 @@ class _SearchViewState extends State<SearchView>
 
   void _clearSearchData() {
     // Use post frame callback to avoid modifying observables during build
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) {
+        return;
+      }
       searchController.searchResult.value = SearchResult();
       searchController.b2bList.value = B2BList();
       searchController.filteredB2bList.value = B2BList();
@@ -124,16 +127,30 @@ class _SearchViewState extends State<SearchView>
       // Fresh search screen = global keyword search until the user applies the
       // filter sheet — keep saved country/city labels for the filter UI.
       searchController.resetLocationFilterForNewSearchSession();
+
+      // Near Me / General-with-filter: lock to that place so Food → General
+      // returns local videos without requiring the user to re-submit the sheet.
+      final fromNearMe = widget.isGeneral != 1;
+      final homeHasGeneralFilter = Get.isRegistered<HomeController>() &&
+          Get.find<HomeController>().hasGeneralLocationFilter;
+      if (fromNearMe || homeHasGeneralFilter) {
+        await searchController.applyHomeLocationFilterForSearchSession(
+          fromNearMe: fromNearMe,
+        );
+      }
     });
   }
 
   void _refetchSearchIfQueryReady() {
     final query = _searchController.text.trim();
-    if (query.isEmpty) {
+    if (searchController.type.value == 5) {
+      if (query.isNotEmpty) {
+        searchController.searchB2BCategories(query);
+      }
       return;
     }
-    if (searchController.type.value == 5) {
-      searchController.searchB2BCategories(query);
+    // Food / Top Rated: allow empty keyword browse (current-location results).
+    if (query.isEmpty && !searchController.isVideoSearchType) {
       return;
     }
     searchController.fetchSearchResults(
@@ -151,7 +168,7 @@ class _SearchViewState extends State<SearchView>
       }
       return;
     }
-    if (query.isNotEmpty) {
+    if (query.isNotEmpty || searchController.isVideoSearchType) {
       await searchController.fetchSearchResults(
         query,
         isGeneral: widget.isGeneral,
@@ -1165,8 +1182,11 @@ class _SearchViewState extends State<SearchView>
                             return;
                           }
                           final query = _searchController.text.trim();
+                          // Users still need a keyword; Food/Top Rated browse
+                          // with the location filter alone.
                           if (query.isEmpty &&
-                              searchController.type.value != 5) {
+                              searchController.type.value != 5 &&
+                              !searchController.isVideoSearchType) {
                             Get.snackbar(
                               'Filter'.tr,
                               'search_filter_enter_keyword'.tr,
