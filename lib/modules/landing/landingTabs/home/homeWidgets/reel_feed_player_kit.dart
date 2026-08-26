@@ -222,12 +222,12 @@ class ReelFeedPlayerKit {
   /// Visible-slot image holder — mount only on the active image page.
   static Widget buildVisibleImageDisplay({
     required WallVideos video,
-    required GlobalKey<ReelImageDisplayState> displayKey,
+    GlobalKey<ReelImageDisplayState>? displayKey,
     bool wrapPositioned = true,
   }) {
     final url = imagePostDisplayUrl(video) ?? '';
     final display = ReelImageDisplay(
-      key: displayKey,
+      key: displayKey ?? ValueKey<String>('image_post_${video.id ?? url}'),
       imageUrl: url,
       blurUrl: imagePostBlurUrl(video),
       cacheKey: imagePostCacheKey(video),

@@ -25,6 +25,7 @@ import 'package:flutter_svg/svg.dart';
 import 'package:get/get.dart';
 import 'package:http/http.dart' as http;
 import 'package:like_button/like_button.dart';
+import 'package:cookster/core/share/cookster_share_links.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -806,16 +807,8 @@ class _SingleVideoScreenState extends State<SingleVideoScreen>
   void _handleShare(String videoId) async {
     _pauseVideo();
     try {
-      final String appUrl =
-          "cookster://open.cookster.app/web/visitSingleVideo?id=$videoId";
-      final String webUrl =
-          "https://cookster.org/web/visitSingleVideo?id=$videoId";
-      // Put the web app-link URL first because many messengers make only the
-      // first URL richly clickable; keep custom scheme as direct fallback.
       final String shareMessage =
-          'Check out this amazing video on Cookster!\n'
-          '$webUrl\n\n'
-          'Direct app link:\n$appUrl';
+          CooksterShareLinks.videoShareMessage(videoId);
       await Share.share(shareMessage, subject: 'Cookster Video');
     } catch (e) {
       debugPrint('Error sharing video: $e');

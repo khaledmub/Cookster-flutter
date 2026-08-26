@@ -1109,6 +1109,10 @@ class _ProfileReelScreenState extends State<ProfileReelScreen>
                                       ),
                                     ),
                                   ),
+                                  if (isActivePage && video.isPhotoPost)
+                                    ReelFeedPlayerKit.buildVisibleImageDisplay(
+                                      video: video,
+                                    ),
                                 ],
                               ),
                             ),

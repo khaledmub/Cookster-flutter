@@ -2176,6 +2176,10 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                     ),
                   ),
                 ),
+                if (isActivePage && videoDetail.isPhotoPost)
+                  ReelFeedPlayerKit.buildVisibleImageDisplay(
+                    video: videoDetail,
+                  ),
               ],
             ),
           ),

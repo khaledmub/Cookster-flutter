@@ -83,14 +83,21 @@ class MediaUrlResolver {
     return _firstResolved([thumbnailBlur]);
   }
 
-  /// CDN feed sometimes puts a low-res file under `/videos/thumbnail/…`
-  /// or names the still `thumb.webp` (grid/LQIP, not full photo).
+  /// CDN `thumb.webp` is a video frame poster — never use it as a full photo.
   static bool isCdnThumbnailPath(String? url) {
     if (url == null || url.trim().isEmpty) {
       return false;
     }
     final lower = url.toLowerCase();
     return lower.contains('/videos/thumbnail/') || lower.contains('thumb.webp');
+  }
+
+  /// True when [url] must not be used as a full-screen photo (grey placeholder).
+  static bool isPhotoPlaceholderUrl(String? url) {
+    if (url == null || url.trim().isEmpty) {
+      return false;
+    }
+    return isCdnThumbnailPath(url);
   }
 
   /// `…/videos/thumbnail/123.jpg` → `…/videos/123.jpg`
@@ -117,7 +124,7 @@ class MediaUrlResolver {
     String? image,
     String? thumbnailUrl,
   }) {
-    String? fallbackThumb;
+    String? gridFallback;
     for (final raw in [videoUrl, video, imageUrl, image]) {
       final resolved = _resolveMediaPath(raw);
       if (resolved == null || resolved.isEmpty) {
@@ -126,29 +133,35 @@ class MediaUrlResolver {
       if (!_isStaticImagePath(resolved)) {
         continue;
       }
-      if (isCdnThumbnailPath(resolved)) {
+      if (isPhotoPlaceholderUrl(resolved)) {
         final upgraded = upgradePhotoUrlToFullResolution(resolved);
-        if (upgraded != resolved && !isCdnThumbnailPath(upgraded)) {
+        if (upgraded != resolved && !isPhotoPlaceholderUrl(upgraded)) {
           return upgraded;
         }
-        fallbackThumb ??= resolved;
         continue;
       }
       return resolved;
     }
 
-    // Legacy rows with only thumbnail fields populated.
-    final legacyThumb = _resolveMediaPath(thumbnailUrl);
-    if (legacyThumb != null &&
-        legacyThumb.isNotEmpty &&
-        _isStaticImagePath(legacyThumb)) {
-      final upgraded = upgradePhotoUrlToFullResolution(legacyThumb);
-      if (upgraded != legacyThumb && !isCdnThumbnailPath(upgraded)) {
-        return upgraded;
+    for (final raw in [imageUrl, image, thumbnailUrl]) {
+      final resolved = _resolveMediaPath(raw);
+      if (resolved == null ||
+          resolved.isEmpty ||
+          !_isStaticImagePath(resolved)) {
+        continue;
       }
-      return fallbackThumb ?? legacyThumb;
+      if (isPhotoPlaceholderUrl(resolved)) {
+        final upgraded = upgradePhotoUrlToFullResolution(resolved);
+        if (upgraded != resolved && !isPhotoPlaceholderUrl(upgraded)) {
+          gridFallback = upgraded;
+        }
+        continue;
+      }
+      gridFallback = resolved;
+      break;
     }
-    return fallbackThumb;
+
+    return gridFallback;
   }
 
   /// Low-res placeholder while [photoDisplayUrl] loads — uses [thumbnailUrl].
@@ -178,7 +191,7 @@ class MediaUrlResolver {
       if (resolved == null || resolved.isEmpty || resolved == full) {
         continue;
       }
-      if (isCdnThumbnailPath(resolved) &&
+      if (isPhotoPlaceholderUrl(resolved) &&
           upgradePhotoUrlToFullResolution(resolved) == full) {
         return resolved;
       }

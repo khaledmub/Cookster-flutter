@@ -19,6 +19,7 @@ import 'package:cookster/modules/landing/landingTabs/profile/profileControlller/
 import 'package:cookster/modules/landing/landingTabs/professionalProfile/profileControlller/professionalProfileController.dart';
 import 'package:cookster/modules/landing/landingTabs/reportContent/reportContentView/reportContentView.dart';
 import 'package:cookster/modules/video_likes_screen/video_likes_screen.dart';
+import 'package:cookster/core/share/cookster_share_links.dart';
 import 'package:cookster/modules/visitProfile/visitProfileView/visitProfileView.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -675,14 +676,7 @@ class ReelActionRailShare {
       return;
     }
     try {
-      final appUrl =
-          'cookster://open.cookster.app/web/visitSingleVideo?id=$videoId';
-      final webUrl = 'https://cookster.org/web/visitSingleVideo?id=$videoId';
-      // Put the HTTPS URL first — WhatsApp / messengers often only richly
-      // linkify the first URL. Custom scheme stays as a direct fallback.
-      final message =
-          'Check out this amazing video on Cookster!\n$webUrl\n\n'
-          'Direct app link:\n$appUrl';
+      final message = CooksterShareLinks.videoShareMessage(videoId);
       final box = context.findRenderObject() as RenderBox?;
       await Share.share(
         message,

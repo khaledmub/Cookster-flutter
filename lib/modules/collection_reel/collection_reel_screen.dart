@@ -995,6 +995,10 @@ class _CollectionReelScreenState extends State<CollectionReelScreen>
                                 ),
                               ),
                             ),
+                            if (isActivePage && video.isPhotoPost)
+                              ReelFeedPlayerKit.buildVisibleImageDisplay(
+                                video: video,
+                              ),
                             if (isActivePage) ...[
                               VideoDescriptionWidget(
                                 title: video.title,
