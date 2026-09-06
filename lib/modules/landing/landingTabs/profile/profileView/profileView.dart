@@ -44,6 +44,7 @@ import '../profileWidgets/profileWidgets.dart';
 import '../../professionalProfile/profileWidgets/professsionalProfileWidgets.dart'
     show ProfileActionCard;
 import 'package:cookster/core/media/media_url_resolver.dart';
+import 'package:cookster/modules/rewards/client_reward_qr_screen.dart';
 
 class ProfileView extends StatefulWidget {
   const ProfileView({super.key});
@@ -484,6 +485,9 @@ class _ProfileViewState extends State<ProfileView>
                             userDetails.name,
                             userDetails.email,
                           );
+                        },
+                        onRewardQr: () {
+                          Get.to(() => const ClientRewardQrScreen());
                         },
                       ),
                       if (displayVideoTypes.isNotEmpty) ...[

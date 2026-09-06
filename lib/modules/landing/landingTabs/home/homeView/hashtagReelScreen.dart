@@ -155,14 +155,24 @@ class _HashtagReelScreenState extends State<HashtagReelScreen>
     final index =
         _visibleIndexNotifier.value.clamp(0, videos.length - 1);
     final video = videos[index];
+    if (!_maskActiveVideoWithPoster) {
+      setState(() => _maskActiveVideoWithPoster = true);
+    }
+    final videoId = video.id;
+    if (videoId != null && videoId.isNotEmpty) {
+      MediaKitPlayerPool.instance.invalidatePrimedFrame(videoId);
+      MediaKitPlayerPool.instance.clearRecentPaint(videoId);
+    }
     if (video.isPhotoPost) {
       return;
     }
-    _resetPosterMaskForPageChange(videoId: video.id);
     await ReelScreenPlaybackHelpers.resumeAfterAppForeground(
       playerKey: _reelPlayerKey,
       videoId: video.id,
-      attachVisible: () => _attachPlaybackForIndex(index),
+      attachVisible: () => _attachPlaybackForIndex(
+        index,
+        forceReattach: true,
+      ),
     );
   }
 

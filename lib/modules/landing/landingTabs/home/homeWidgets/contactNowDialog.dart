@@ -1,5 +1,6 @@
 import 'package:awesome_dialog/awesome_dialog.dart';
 import 'package:cookster/appBindings/app_bindings.dart';
+import 'package:cookster/modules/landing/landingTabs/home/homeController/homeController.dart';
 import 'package:cookster/modules/landing/landingTabs/home/homeWidgets/sendEmail.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -337,6 +338,11 @@ Future<void> _launchWebsite(BuildContext context, String website) async {
 
 Future<void> _launchUrl(BuildContext context, Uri url, String appName) async {
   try {
+    // Silence + cover before Maps/WhatsApp/browser — iOS blanks textures on
+    // app switch; without this the feed can return unmasked → black flash.
+    if (Get.isRegistered<HomeController>()) {
+      Get.find<HomeController>().silenceHomeReelsForTransition();
+    }
     if (await canLaunchUrl(url)) {
       await launchUrl(url, mode: LaunchMode.externalApplication);
     } else {

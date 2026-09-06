@@ -17,7 +17,7 @@
 
     <!-- Permission Descriptions -->
     <key>NSCameraUsageDescription</key>
-    <string>This app requires camera access to enable live streaming, record videos, and capture photos for your cooking content.</string>
+    <string>This app requires camera access to record videos, capture photos, and scan partner reward QR codes.</string>
     <key>NSPhotoLibraryUsageDescription</key>
     <string>Photo library access is required to allow users to select images for upload.</string>
     <key>NSPhotoLibraryAddUsageDescription</key>

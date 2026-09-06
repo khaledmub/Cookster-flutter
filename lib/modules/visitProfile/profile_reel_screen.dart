@@ -488,14 +488,26 @@ class _ProfileReelScreenState extends State<ProfileReelScreen>
     final index =
         _visibleIndexNotifier.value.clamp(0, _videos.length - 1);
     final video = _videos[index];
+    // Always remask after app switch — iOS blanks the texture while pool
+    // flags can still look "ready" (black flash if poster stays down).
+    if (!_maskActiveVideoWithPoster) {
+      setState(() => _maskActiveVideoWithPoster = true);
+    }
+    final videoId = video.id;
+    if (videoId != null && videoId.isNotEmpty) {
+      MediaKitPlayerPool.instance.invalidatePrimedFrame(videoId);
+      MediaKitPlayerPool.instance.clearRecentPaint(videoId);
+    }
     if (video.isPhotoPost) {
       return;
     }
-    _resetPosterMaskForPageChange(videoId: video.id);
     await ReelScreenPlaybackHelpers.resumeAfterAppForeground(
       playerKey: _reelPlayerKey,
       videoId: video.id,
-      attachVisible: () => _attachPlaybackForIndex(index),
+      attachVisible: () => _attachPlaybackForIndex(
+        index,
+        forceReattach: true,
+      ),
     );
   }
 

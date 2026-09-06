@@ -217,6 +217,8 @@ class ProfileActionCard extends StatelessWidget {
   final VoidCallback? onShare;
   final VoidCallback? onQr;
   final VoidCallback? onMore;
+  final VoidCallback? onRewardQr;
+  final VoidCallback? onPartnerRewards;
 
   const ProfileActionCard({
     super.key,
@@ -224,15 +226,19 @@ class ProfileActionCard extends StatelessWidget {
     this.onShare,
     this.onQr,
     this.onMore,
+    this.onRewardQr,
+    this.onPartnerRewards,
   });
 
   bool get _hasContacts => contacts.isNotEmpty;
 
   bool get _hasPills => onShare != null || onQr != null || onMore != null;
 
+  bool get _hasRewardPills => onRewardQr != null || onPartnerRewards != null;
+
   @override
   Widget build(BuildContext context) {
-    if (!_hasContacts && !_hasPills) {
+    if (!_hasContacts && !_hasPills && !_hasRewardPills) {
       return const SizedBox.shrink();
     }
     return Padding(
@@ -300,6 +306,39 @@ class ProfileActionCard extends StatelessWidget {
                     ),
                 ],
               ),
+            if (_hasRewardPills) ...[
+              if (_hasPills || _hasContacts) ...[
+                SizedBox(height: 12.h),
+                Divider(
+                  height: 1,
+                  thickness: 1,
+                  color: ColorUtils.primaryColor.withValues(alpha: 0.35),
+                ),
+                SizedBox(height: 12.h),
+              ],
+              Row(
+                children: [
+                  if (onRewardQr != null)
+                    Expanded(
+                      child: ProfilePillAction(
+                        icon: Icons.card_giftcard_rounded,
+                        label: 'reward_qr',
+                        onTap: onRewardQr!,
+                      ),
+                    ),
+                  if (onRewardQr != null && onPartnerRewards != null)
+                    SizedBox(width: 8.w),
+                  if (onPartnerRewards != null)
+                    Expanded(
+                      child: ProfilePillAction(
+                        icon: Icons.storefront_outlined,
+                        label: 'partner_rewards',
+                        onTap: onPartnerRewards!,
+                      ),
+                    ),
+                ],
+              ),
+            ],
           ],
         ),
       ),

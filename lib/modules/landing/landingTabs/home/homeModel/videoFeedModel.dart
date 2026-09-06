@@ -24,8 +24,12 @@ class FeedMeta {
   /// Echoed from GET /api/reels when `sort_by` is active (`newest` | `oldest`).
   String? sortBy;
   /// True when Near Me geo filter returned nothing and the server fell back
-  /// to the general reels feed (`GET /api/reels?feed=near_me`).
+  /// to the general reels feed. With the Near Me backend update this is only
+  /// set when GPS itself could not be resolved — empty countries use
+  /// [geoEmptyCountry] instead.
   bool geoFallback;
+  /// True when the viewer's GPS country has zero published videos (list empty).
+  bool geoEmptyCountry;
   /// True when the server widened the Near Me radius (50/80/120 km expansion).
   bool geoExpanded;
   /// Near Me filter scope echoed by the server (`radius`, `city`, …).
@@ -35,11 +39,18 @@ class FeedMeta {
   /// Resolved city for the viewer's GPS on Near Me feeds.
   int? geoCityId;
   String? geoCityName;
+  /// Resolved country for the viewer's GPS on Near Me feeds.
+  int? geoCountryId;
+  String? geoCountryName;
   /// Sibling cities in the active geo city-group (e.g. Dhahran/Khobar/Dammam).
   List<int>? geoCityGroupIds;
   List<String>? geoCityGroupNames;
   /// Set when the server applied [pin_video_id] on the first page.
   String? pinnedVideoId;
+  /// Echo when the API ranked never-watched reels ahead of watched ones.
+  bool unseenFirst;
+  /// Echo when the unseen phase is exhausted and the response is watched-only.
+  bool unseenExhausted;
 
   FeedMeta({
     this.page,
@@ -53,14 +64,19 @@ class FeedMeta {
     this.normalOffset,
     this.sortBy,
     this.geoFallback = false,
+    this.geoEmptyCountry = false,
     this.geoExpanded = false,
     this.geoScope,
     this.geoRadiusKm,
     this.geoCityId,
     this.geoCityName,
+    this.geoCountryId,
+    this.geoCountryName,
     this.geoCityGroupIds,
     this.geoCityGroupNames,
     this.pinnedVideoId,
+    this.unseenFirst = false,
+    this.unseenExhausted = false,
   });
 
   factory FeedMeta.fromJson(Map<String, dynamic>? json) {
@@ -79,6 +95,7 @@ class FeedMeta {
       normalOffset: json['normal_offset'] as int?,
       sortBy: json['sort_by'] as String?,
       geoFallback: json['geo_fallback'] == true,
+      geoEmptyCountry: json['geo_empty_country'] == true,
       geoExpanded: json['geo_expanded'] == true,
       geoScope: json['geo_scope'] as String?,
       geoRadiusKm: parseApiDouble(json['geo_radius_km']),
@@ -86,6 +103,10 @@ class FeedMeta {
           ? null
           : parseApiCount(json['geo_city_id']),
       geoCityName: json['geo_city_name'] as String?,
+      geoCountryId: parseApiCount(json['geo_country_id']) == 0
+          ? null
+          : parseApiCount(json['geo_country_id']),
+      geoCountryName: json['geo_country_name'] as String?,
       geoCityGroupIds: _parseIntList(
         json['geo_city_group_ids'] ?? json['geo_city_ids'],
       ),
@@ -93,6 +114,8 @@ class FeedMeta {
         json['geo_city_group_names'] ?? json['geo_group_city_names'],
       ),
       pinnedVideoId: json['pinned_video_id']?.toString(),
+      unseenFirst: json['unseen_first'] == true,
+      unseenExhausted: json['unseen_exhausted'] == true,
     );
   }
 

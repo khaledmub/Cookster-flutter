@@ -86,6 +86,10 @@ class EndPoints {
   static String getVideos = "videos/list";
   static String reels = "reels";
   static String reelsPresign = "reels/presign";
+  /// POST body `{ "device_id": "..." }` — records a unique reel view for unseen-first.
+  static String reelView(String videoId) => "reels/$videoId/view";
+  /// POST body `{ "device_id": "...", "video_ids": ["..."] }` — batch views (max 20).
+  static String reelsViewsBatch = "reels/views";
   static String uploadVideo = "videos/create";
   static String videoProcessingStatus = "videos/processing_status";
   static String videoTypes = "videos/settings";
@@ -104,4 +108,13 @@ class EndPoints {
   static String validateRegister = "validate_register";
   static String checkUsername = "check_username";
   static String deleteAccount = "delete_account";
+
+  /// Partner QR rewards — see [docs/BACKEND_REWARDS_QR_SPEC.md].
+  static String rewardsMyCode = "rewards/my-code";
+  static String rewardsDealCurrent = "rewards/deals/current";
+  static String rewardsDealCreate = "rewards/deals";
+  static String rewardsDealRenew = "rewards/deals/renew";
+  static String rewardsDealPause = "rewards/deals/pause";
+  static String rewardsScan = "rewards/scan";
+  static String rewardsDealHistory = "rewards/deals/history";
 }

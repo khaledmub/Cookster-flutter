@@ -13,16 +13,18 @@ class ReelScreenPlaybackHelpers {
 
   /// Hide poster only when this reel is still the live feed decoder with a painted frame.
   /// Never use [hadRecentPaint] alone — that hides the poster while [Player.open] runs → black.
+  /// After Maps/app-switch, callers must force-remask; stale [isFrameReady] survives pause.
   static bool shouldKeepPosterHidden(String? videoId) {
     if (videoId == null || videoId.isEmpty) {
       return false;
     }
     final pool = MediaKitPlayerPool.instance;
     // Require live instant-resume — frame-ready alone can be stale across
-    // IndexedStack remounts (poster drops → black + audio).
+    // IndexedStack remounts / iOS app switch (poster drops → black + audio).
     return pool.isFeedVisibleKey(videoId) &&
         pool.isFrameReady(videoId) &&
-        pool.canInstantResume(videoId);
+        pool.canInstantResume(videoId) &&
+        pool.hadRecentPaint(videoId);
   }
 
   /// Backup audible resume when scroll-back skips the poster — only if still muted.

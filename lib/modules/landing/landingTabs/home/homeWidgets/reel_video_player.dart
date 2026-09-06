@@ -340,6 +340,26 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
     if (key.isNotEmpty &&
         _pooledKey == key &&
         _pool.isFeedVisibleKey(key)) {
+      // Overlay return can leave a blank texture while pool flags stay primed.
+      if (!_videoSurfaceVisible || !_poolProvenSurfacePaint(key)) {
+        _videoSurfaceVisible = false;
+        _frameReady = false;
+        _surfacePaintFrames = 0;
+        _visibleSurfacePaintFrames = 0;
+        _resetDimensionStability();
+        _pool.invalidatePrimedFrame(key);
+        _notifyFeedAwaitingPaint();
+        unawaited(
+          _pool.recoverFeedVisibleSurface(key, bumpSurface: true),
+        );
+        final overlayPlayer = _activePlayer;
+        if (overlayPlayer != null) {
+          _afterSurfaceMounted(
+            overlayPlayer,
+            paintTicks: _needsConstrainedStartGate ? 10 : 4,
+          );
+        }
+      }
       await _pool.resumeFeedVisible(key);
       return;
     }
@@ -369,34 +389,30 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
   }
 
   /// Recover GL surface after app resume without remounting the player widget.
+  ///
+  /// iOS blanks MediaKit textures after Maps / app switch. Never keep the
+  /// parent poster down on stale [isFrameReady] / [hadRecentPaint] — that is
+  /// the black flash before each video starts.
   Future<void> resumeAfterAppBackground() async {
     if (_isDisposed || !_usesFeedVisibleChannel || !mounted) {
       return;
     }
     final widgetKey = _poolKey;
     final poolKey = _pooledKey ?? widgetKey;
-    final hadPaint =
-        widgetKey.isNotEmpty && _pool.hadRecentPaint(widgetKey);
-    final stillPrimed = widgetKey.isNotEmpty &&
-        (_pool.isFrameReady(widgetKey) || hadPaint);
-    if (stillPrimed) {
-      _fastFeedReveal = true;
-    } else {
-      _videoSurfaceVisible = false;
-      _frameReady = false;
-      _fastFeedReveal = false;
-      _surfacePaintFrames = 0;
-      _visibleSurfacePaintFrames = 0;
-      _resetDimensionStability();
-    }
+    _videoSurfaceVisible = false;
+    _frameReady = false;
+    _fastFeedReveal = false;
+    _surfacePaintFrames = 0;
+    _visibleSurfacePaintFrames = 0;
+    _resetDimensionStability();
+    _notifyFeedAwaitingPaint();
     if (widgetKey.isNotEmpty) {
-      if (!stillPrimed) {
-        _pool.invalidatePrimedFrame(widgetKey);
-      }
+      _pool.invalidatePrimedFrame(widgetKey);
+      _pool.clearRecentPaint(widgetKey);
       unawaited(
         _pool.recoverFeedVisibleSurface(
           widgetKey,
-          bumpSurface: !stillPrimed && !hadPaint,
+          bumpSurface: true,
         ),
       );
     }
@@ -409,10 +425,6 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
     final player = _activePlayer;
     if (player == null) {
       await _loadVideo();
-      return;
-    }
-    if (stillPrimed && _canShowVideo(player)) {
-      await _onFrameReady(player, generation: _attachGeneration);
       return;
     }
     _afterSurfaceMounted(
@@ -545,7 +557,9 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
       if (key != null && key.isNotEmpty) {
         _pool.invalidatePrimedFrame(key);
       }
-      // Remasked — keep silent until opaque paint confirms again.
+      // Remask parent poster — surface bump alone left opacity-0 video over
+      // an already-dropped poster (black scaffold on iPhone after Maps).
+      _notifyFeedAwaitingPaint();
       final remaskPlayer = _activePlayer;
       if (remaskPlayer != null) {
         unawaited(remaskPlayer.setVolume(0).catchError((_) {}));

@@ -45,6 +45,8 @@ import '../editProfile/editProfileView/subscribedPackage.dart';
 import '../profileControlller/professionalProfileController.dart';
 import '../profileWidgets/professsionalProfileWidgets.dart';
 import 'package:cookster/core/media/media_url_resolver.dart';
+import 'package:cookster/modules/rewards/client_reward_qr_screen.dart';
+import 'package:cookster/modules/rewards/partner_reward_screen.dart';
 
 class ProfessionalProfileView extends StatefulWidget {
   const ProfessionalProfileView({super.key});
@@ -818,6 +820,12 @@ class _ProfessionalProfileViewState extends State<ProfessionalProfileView>
                             userDetails.name,
                             userDetails.email,
                           );
+                        },
+                        onRewardQr: () {
+                          Get.to(() => const ClientRewardQrScreen());
+                        },
+                        onPartnerRewards: () {
+                          Get.to(() => const PartnerRewardScreen());
                         },
                       ),
 

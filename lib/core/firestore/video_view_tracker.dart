@@ -1,9 +1,18 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:device_info_plus/device_info_plus.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:async';
 import 'dart:io';
 
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cookster/appUtils/apiEndPoints.dart';
+import 'package:cookster/core/video/watched_videos_store.dart';
+import 'package:cookster/services/apiClient.dart';
+import 'package:device_info_plus/device_info_plus.dart';
+import 'package:flutter/foundation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
 class VideoViewTracker {
+  /// Session dedupe so ~2s track + retries don't burn the 60/min API budget.
+  static final Set<String> _apiReportedIds = <String>{};
+
   static Future<String> deviceId() async {
     final prefs = await SharedPreferences.getInstance();
     String? id = prefs.getString('device_id');
@@ -28,6 +37,13 @@ class VideoViewTracker {
   }) async {
     if (videoId.isEmpty) return;
 
+    // Optimistic local mark so Home refresh can put this reel after still-
+    // unwatched ones even before API/Firestore commits.
+    await WatchedVideosStore.instance.markWatched(videoId);
+
+    // Server ranking for page 2+ — fire-and-forget; never block UI / Firebase.
+    unawaited(reportViewToApi(videoId));
+
     final viewerKey = isAuthenticated && userId != null && userId.isNotEmpty
         ? userId
         : await deviceId();
@@ -49,6 +65,78 @@ class VideoViewTracker {
         SetOptions(merge: true),
       );
     });
+  }
+
+  /// POST /api/reels/{videoId}/view — idempotent; powers unseen_first ranking.
+  static Future<void> reportViewToApi(String videoId) async {
+    final id = videoId.trim();
+    if (id.isEmpty || _apiReportedIds.contains(id)) {
+      return;
+    }
+    _apiReportedIds.add(id);
+    try {
+      final device = await deviceId();
+      final response = await ApiClient.postRequest(
+        EndPoints.reelView(id),
+        {
+          if (device.isNotEmpty) 'device_id': device,
+        },
+      );
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        // Allow a later retry this session if the server rejected the write.
+        _apiReportedIds.remove(id);
+        if (kDebugMode) {
+          debugPrint(
+            '[ReelView] API ${response.statusCode} for $id: ${response.body}',
+          );
+        }
+      }
+    } catch (e) {
+      _apiReportedIds.remove(id);
+      if (kDebugMode) {
+        debugPrint('[ReelView] API error for $id: $e');
+      }
+    }
+  }
+
+  /// POST /api/reels/views — batch (max 20). Optional helper for catch-up sync.
+  static Future<void> reportViewsBatchToApi(List<String> videoIds) async {
+    final ids = videoIds
+        .map((e) => e.trim())
+        .where((e) => e.isNotEmpty && !_apiReportedIds.contains(e))
+        .take(20)
+        .toList();
+    if (ids.isEmpty) {
+      return;
+    }
+    _apiReportedIds.addAll(ids);
+    try {
+      final device = await deviceId();
+      final response = await ApiClient.postRequest(
+        EndPoints.reelsViewsBatch,
+        {
+          if (device.isNotEmpty) 'device_id': device,
+          'video_ids': ids,
+        },
+      );
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        for (final id in ids) {
+          _apiReportedIds.remove(id);
+        }
+        if (kDebugMode) {
+          debugPrint(
+            '[ReelView] batch API ${response.statusCode}: ${response.body}',
+          );
+        }
+      }
+    } catch (e) {
+      for (final id in ids) {
+        _apiReportedIds.remove(id);
+      }
+      if (kDebugMode) {
+        debugPrint('[ReelView] batch API error: $e');
+      }
+    }
   }
 
   static int resolveDisplayCount(Map<String, dynamic> data) {

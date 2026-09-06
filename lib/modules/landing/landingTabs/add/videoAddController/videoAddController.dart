@@ -384,21 +384,68 @@ class VideoAddController extends GetxController {
     }
 
     if (selectedLocationId.value > 0 && selectedCityId.value > 0) {
-      final valid = await _cityBelongsToCountry(
-        countryId: selectedLocationId.value,
-        cityId: selectedCityId.value,
-      );
-      if (valid) {
-        await _persistResolvedLocationIds(prefs);
-        return true;
-      }
-      if (kDebugMode) {
-        debugPrint(
-          '[UploadLocation] stored city=${selectedCityId.value} is not in '
-          'country=${selectedLocationId.value} — re-resolving from name',
+      // GPS / Near Me sets [selectedCountry] before calling this. Stale upload
+      // prefs (e.g. Saudi/Riyadh) must not short-circuit when GPS is elsewhere.
+      final gpsCountry = selectedCountry.value.trim();
+      if (gpsCountry.isNotEmpty && gpsCountry != 'Unknown') {
+        await VideoSettingsService.instance.load();
+        final countries =
+            profileController.videoUploadSettings.value?.countries;
+        int? nameMatchedCountryId;
+        if (countries != null) {
+          for (final c in countries) {
+            if (_locationNamesMatch(c.name, gpsCountry) && c.id != null) {
+              nameMatchedCountryId = c.id;
+              break;
+            }
+          }
+        }
+        if (nameMatchedCountryId != null &&
+            nameMatchedCountryId != selectedLocationId.value) {
+          if (kDebugMode) {
+            debugPrint(
+              '[UploadLocation] GPS country="$gpsCountry" id=$nameMatchedCountryId '
+              '≠ stored id=${selectedLocationId.value} — re-resolving',
+            );
+          }
+          selectedLocationId.value = -1;
+          selectedCountryId.value = -1;
+          selectedCityId.value = -1;
+          await _clearStoredCityId(prefs);
+        } else {
+          final valid = await _cityBelongsToCountry(
+            countryId: selectedLocationId.value,
+            cityId: selectedCityId.value,
+          );
+          if (valid) {
+            await _persistResolvedLocationIds(prefs);
+            return true;
+          }
+          if (kDebugMode) {
+            debugPrint(
+              '[UploadLocation] stored city=${selectedCityId.value} is not in '
+              'country=${selectedLocationId.value} — re-resolving from name',
+            );
+          }
+          await _clearStoredCityId(prefs);
+        }
+      } else {
+        final valid = await _cityBelongsToCountry(
+          countryId: selectedLocationId.value,
+          cityId: selectedCityId.value,
         );
+        if (valid) {
+          await _persistResolvedLocationIds(prefs);
+          return true;
+        }
+        if (kDebugMode) {
+          debugPrint(
+            '[UploadLocation] stored city=${selectedCityId.value} is not in '
+            'country=${selectedLocationId.value} — re-resolving from name',
+          );
+        }
+        await _clearStoredCityId(prefs);
       }
-      await _clearStoredCityId(prefs);
     }
 
     Future<bool> resolveOnce({String? acceptLanguage}) async {

@@ -17,6 +17,8 @@ import 'package:cookster/core/video/video_source_resolver.dart';
 import 'package:cookster/core/video/cached_playback_url.dart';
 import 'package:cookster/core/video/feed_disk_warm_service.dart';
 import 'package:cookster/core/video/reels_feed_pin_store.dart';
+import 'package:cookster/core/video/watched_videos_store.dart';
+import 'package:cookster/core/firestore/video_view_tracker.dart';
 import 'package:cookster/modules/landing/landingController/landingController.dart';
 import 'package:cookster/modules/landing/landingTabs/add/videoAddController/videoAddController.dart';
 import 'package:cookster/modules/auth/signUp/signUpController/cityController.dart';
@@ -374,6 +376,7 @@ class HomeController extends GetxController with WidgetsBindingObserver {
     if (country != null && country.isNotEmpty) {
       currentCountry.value = country;
     }
+    _lastNearMeGpsCountry = currentCountry.value.trim();
     if (generalFilter) {
       generalFilterCountry.value =
           prefs.getString(_prefGeneralFilterCountry) ?? '';
@@ -403,6 +406,7 @@ class HomeController extends GetxController with WidgetsBindingObserver {
   }
 
   Future<void> _bootstrapHomeFeed() async {
+    await WatchedVideosStore.instance.ensureLoaded();
     await _restoreLocationFromPrefs();
     await _resolveLocationIdsFromStoredNames();
     await ReelsFeedPinStore.instance.restoreFromPrefs();
@@ -577,21 +581,15 @@ class HomeController extends GetxController with WidgetsBindingObserver {
       }
     }
 
-    // Near Me uses device GPS; optional city/country ids help server city-scope.
+    // Near Me uses device GPS only. Do NOT send catalog country/city ids —
+    // stale upload prefs (e.g. Riyadh after signup) were overriding GPS and
+    // city-scoping the feed to the wrong country.
     if (selectedType.value == 'Near Me') {
       if (latitude.value.isNotEmpty) {
         params['latitude'] = latitude.value;
       }
       if (longitude.value.isNotEmpty) {
         params['longitude'] = longitude.value;
-      }
-      if (nearMeFilterCountryId.value.isNotEmpty &&
-          nearMeFilterCountryId.value != '-1') {
-        params['country'] = nearMeFilterCountryId.value;
-      }
-      if (nearMeFilterCityId.value.isNotEmpty &&
-          nearMeFilterCityId.value != '-1') {
-        params['city'] = nearMeFilterCityId.value;
       }
     }
 
@@ -610,6 +608,13 @@ class HomeController extends GetxController with WidgetsBindingObserver {
     // this should always be sent.
     if (feedSortOrder.value.isNotEmpty) {
       params['sort_by'] = feedSortOrder.value;
+    }
+
+    // Server ranks never-watched first (logged-in → user id; guest → device_id).
+    params['unseen_first'] = '1';
+    final deviceId = await VideoViewTracker.deviceId();
+    if (deviceId.isNotEmpty) {
+      params['device_id'] = deviceId;
     }
 
     var pinSent = false;
@@ -650,7 +655,9 @@ class HomeController extends GetxController with WidgetsBindingObserver {
       feedSortOrder.value = echoedSort!;
     }
     if (kDebugMode &&
-        (selectedType.value == 'Near Me' || selectedType.value == 'General')) {
+        (selectedType.value == 'Near Me' ||
+            selectedType.value == 'General' ||
+            selectedType.value == 'Following')) {
       final cityIds = <int, int>{};
       for (final video in parsed.videos ?? const []) {
         final id = video.cityId;
@@ -660,10 +667,15 @@ class HomeController extends GetxController with WidgetsBindingObserver {
       }
       debugPrint(
         '${selectedType.value} reels: count=${parsed.videos?.length ?? 0} '
+        'unseen_first=${parsed.meta?.unseenFirst ?? false} '
+        'unseen_exhausted=${parsed.meta?.unseenExhausted ?? false} '
         'geo_fallback=${parsed.meta?.geoFallback ?? false} '
+        'geo_empty_country=${parsed.meta?.geoEmptyCountry ?? false} '
         'geo_scope=${parsed.meta?.geoScope ?? ''} '
         'geo_city=${parsed.meta?.geoCityName ?? ''} '
         'geo_city_id=${parsed.meta?.geoCityId ?? ''} '
+        'geo_country=${parsed.meta?.geoCountryName ?? ''} '
+        'geo_country_id=${parsed.meta?.geoCountryId ?? ''} '
         'geo_group=${parsed.meta?.geoCityGroupNames ?? parsed.meta?.geoCityGroupIds ?? ''} '
         'page_city_ids=$cityIds '
         'geo_radius_km=${parsed.meta?.geoRadiusKm ?? ''} '
@@ -787,6 +799,8 @@ class HomeController extends GetxController with WidgetsBindingObserver {
   /// Resolved from GPS for optional Near Me `city` / `country` query params.
   var nearMeFilterCountryId = "".obs;
   var nearMeFilterCityId = "".obs;
+  /// Last GPS country used for Near Me — detects country change vs stale cache.
+  String _lastNearMeGpsCountry = '';
 
   /// Apple iOS Simulator default GPS (Union Square, San Francisco).
   static const double iosSimulatorDefaultLat = 37.785834;
@@ -889,6 +903,8 @@ class HomeController extends GetxController with WidgetsBindingObserver {
       upload.selectedCity.value = city;
       final prefs = await SharedPreferences.getInstance();
       final state = prefs.getString('currentState');
+      final previousCountryId = nearMeFilterCountryId.value;
+      final previousGpsCountry = _lastNearMeGpsCountry;
       final ready = await upload.ensureLocationIdsReady(
         alternateCityName: state,
       );
@@ -908,6 +924,15 @@ class HomeController extends GetxController with WidgetsBindingObserver {
             'cityId=${upload.selectedCityId.value} for $city, $country',
           );
         }
+      } else {
+        nearMeFilterCountryId.value = '';
+        nearMeFilterCityId.value = '';
+      }
+      _lastNearMeGpsCountry = country;
+      if ((previousGpsCountry.isNotEmpty && previousGpsCountry != country) ||
+          (previousCountryId.isNotEmpty &&
+              previousCountryId != nearMeFilterCountryId.value)) {
+        _clearFeedCacheForTab('Near Me');
       }
     } catch (e) {
       if (kDebugMode) {
@@ -922,10 +947,28 @@ class HomeController extends GetxController with WidgetsBindingObserver {
     saveTabScrollIndex(tab, 0);
   }
 
+  /// Rank never-watched reels before watched ones; within each phase honor
+  /// [feedSortOrder]. Keeps [pin_video_id] at index 0 when present.
+  ///
+  /// When the API already ranked with `unseen_first` ([FeedMeta.unseenFirst]),
+  /// keep server order so phased cursors stay correct.
   void _sortFeedByOrder(VideoFeed feed) {
     final videos = feed.videos;
     if (videos == null || videos.length < 2) {
       return;
+    }
+
+    if (feed.meta?.unseenFirst == true) {
+      return;
+    }
+
+    final pinnedId = feed.meta?.pinnedVideoId?.trim();
+    WallVideos? pinned;
+    if (pinnedId != null && pinnedId.isNotEmpty) {
+      final pinIndex = videos.indexWhere((v) => v.id?.trim() == pinnedId);
+      if (pinIndex >= 0) {
+        pinned = videos.removeAt(pinIndex);
+      }
     }
 
     int rank(WallVideos video) {
@@ -946,10 +989,33 @@ class HomeController extends GetxController with WidgetsBindingObserver {
       return 0;
     }
 
-    if (feedSortOrder.value == 'oldest') {
-      videos.sort((a, b) => rank(a).compareTo(rank(b)));
-    } else {
-      videos.sort((a, b) => rank(b).compareTo(rank(a)));
+    int compareBySort(WallVideos a, WallVideos b) {
+      final ra = rank(a);
+      final rb = rank(b);
+      if (feedSortOrder.value == 'oldest') {
+        return ra.compareTo(rb);
+      }
+      return rb.compareTo(ra);
+    }
+
+    final watched = WatchedVideosStore.instance;
+    final unseen = <WallVideos>[];
+    final seen = <WallVideos>[];
+    for (final video in videos) {
+      if (watched.isWatched(video.id)) {
+        seen.add(video);
+      } else {
+        unseen.add(video);
+      }
+    }
+    unseen.sort(compareBySort);
+    seen.sort(compareBySort);
+    videos
+      ..clear()
+      ..addAll(unseen)
+      ..addAll(seen);
+    if (pinned != null) {
+      videos.insert(0, pinned);
     }
   }
 
@@ -980,6 +1046,7 @@ class HomeController extends GetxController with WidgetsBindingObserver {
     }
     final prevLat = double.tryParse(latitude.value);
     final prevLng = double.tryParse(longitude.value);
+    final prevCountryHint = currentCountry.value.trim();
     if (selectedType.value == 'Near Me' && needsInitialLocation) {
       isLocationFetching.value = true;
     }
@@ -1117,8 +1184,17 @@ class HomeController extends GetxController with WidgetsBindingObserver {
             newLng == null ||
             (newLat - prevLat).abs() > 0.02 ||
             (newLng - prevLng).abs() > 0.02;
-        if (moved) {
-          unawaited(fetchVideos(backgroundRefresh: true));
+        final countryChanged = prevCountryHint.isNotEmpty &&
+            prevCountryHint != currentCountry.value.trim();
+        if (countryChanged || moved) {
+          if (countryChanged) {
+            _clearFeedCacheForTab('Near Me');
+            unawaited(
+              fetchVideos(forceNetwork: true, resetScrollPosition: true),
+            );
+          } else {
+            unawaited(fetchVideos(backgroundRefresh: true));
+          }
         }
         if (protectPlaybackDuringFlow) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -1137,9 +1213,18 @@ class HomeController extends GetxController with WidgetsBindingObserver {
     }
   }
 
-  /// Near Me must not surface the server's general-feed geo fallback as local reels.
+  /// Near Me must not surface a worldwide dump when GPS could not resolve.
+  /// Empty countries now arrive as `[]` + [FeedMeta.geoEmptyCountry] — leave those alone.
   VideoFeed _nearMeFeedWithoutGeneralFallback(VideoFeed parsed) {
-    if (parsed.meta?.geoFallback != true) {
+    final meta = parsed.meta;
+    if (meta?.geoEmptyCountry == true) {
+      return parsed;
+    }
+    if (meta?.geoFallback != true) {
+      return parsed;
+    }
+    // Legacy / GPS-unresolved path may still attach general reels — strip them.
+    if ((parsed.videos?.isEmpty ?? true)) {
       return parsed;
     }
     if (kDebugMode) {
@@ -1148,32 +1233,34 @@ class HomeController extends GetxController with WidgetsBindingObserver {
         '(server returned ${parsed.videos?.length ?? 0} general reels)',
       );
     }
-    final meta = parsed.meta;
     return VideoFeed(
       status: parsed.status,
       videos: [],
-      meta: meta == null
-          ? null
-          : FeedMeta(
-              page: meta.page,
-              perPage: meta.perPage,
-              hasMore: false,
-              nextCursor: meta.nextCursor,
-              feedSeed: meta.feedSeed,
-              premiumIndex: meta.premiumIndex,
-              sponsoredIndex: meta.sponsoredIndex,
-              patternIndex: meta.patternIndex,
-              normalOffset: meta.normalOffset,
-              sortBy: meta.sortBy,
-              geoFallback: true,
-              geoExpanded: meta.geoExpanded,
-              geoScope: meta.geoScope,
-              geoRadiusKm: meta.geoRadiusKm,
-              geoCityId: meta.geoCityId,
-              geoCityName: meta.geoCityName,
-              geoCityGroupIds: meta.geoCityGroupIds,
-              geoCityGroupNames: meta.geoCityGroupNames,
-            ),
+      meta: FeedMeta(
+        page: meta?.page,
+        perPage: meta?.perPage,
+        hasMore: false,
+        nextCursor: meta?.nextCursor,
+        feedSeed: meta?.feedSeed,
+        premiumIndex: meta?.premiumIndex,
+        sponsoredIndex: meta?.sponsoredIndex,
+        patternIndex: meta?.patternIndex,
+        normalOffset: meta?.normalOffset,
+        sortBy: meta?.sortBy,
+        geoFallback: true,
+        geoEmptyCountry: meta?.geoEmptyCountry ?? false,
+        geoExpanded: meta?.geoExpanded ?? false,
+        geoScope: meta?.geoScope,
+        geoRadiusKm: meta?.geoRadiusKm,
+        geoCityId: meta?.geoCityId,
+        geoCityName: meta?.geoCityName,
+        geoCountryId: meta?.geoCountryId,
+        geoCountryName: meta?.geoCountryName,
+        geoCityGroupIds: meta?.geoCityGroupIds,
+        geoCityGroupNames: meta?.geoCityGroupNames,
+        unseenFirst: meta?.unseenFirst ?? false,
+        unseenExhausted: meta?.unseenExhausted ?? false,
+      ),
     );
   }
 
@@ -1183,6 +1270,58 @@ class HomeController extends GetxController with WidgetsBindingObserver {
     }
     return parsed;
   }
+
+  /// Prefer server GPS-resolved country/city names for empty-state copy.
+  void _applyNearMeGeoMeta(FeedMeta? meta) {
+    if (meta == null) {
+      return;
+    }
+    final country = meta.geoCountryName?.trim() ?? '';
+    if (country.isNotEmpty && country != currentCountry.value) {
+      currentCountry.value = country;
+      _lastNearMeGpsCountry = country;
+    }
+    final countryId = meta.geoCountryId;
+    if (countryId != null && countryId > 0) {
+      nearMeFilterCountryId.value = countryId.toString();
+    }
+    final city = meta.geoCityName?.trim() ?? '';
+    if (city.isNotEmpty && currentCity.value.trim().isEmpty) {
+      currentCity.value = city;
+    }
+    final cityId = meta.geoCityId;
+    if (cityId != null && cityId > 0) {
+      nearMeFilterCityId.value = cityId.toString();
+    }
+  }
+
+  /// Place label for Near Me empty / geo_empty_country UX.
+  String get nearMeEmptyPlaceLabel {
+    final meta = videoFeed.value.meta;
+    final fromMeta = meta?.geoCountryName?.trim();
+    if (fromMeta != null && fromMeta.isNotEmpty) {
+      return fromMeta;
+    }
+    if (currentCountry.value.trim().isNotEmpty) {
+      return currentCountry.value.trim();
+    }
+    final city = meta?.geoCityName?.trim();
+    if (city != null && city.isNotEmpty) {
+      return city;
+    }
+    if (currentCity.value.trim().isNotEmpty) {
+      return currentCity.value.trim();
+    }
+    return 'Near Me'.tr;
+  }
+
+  bool get isNearMeCountryEmpty =>
+      selectedType.value == 'Near Me' &&
+      (videoFeed.value.meta?.geoEmptyCountry == true ||
+          ((videoFeed.value.videos?.isEmpty ?? true) &&
+              hasLocationBeenFetched.value &&
+              !isLocationFetching.value &&
+              !isLoading.value));
 
   blockUser(String? currentUserId, String? userId) async {
     try {
@@ -1487,8 +1626,12 @@ class HomeController extends GetxController with WidgetsBindingObserver {
           _feedStaleAfterUpload = false;
         }
         final feedForTab = _feedForTab(tab, parsed);
+        // Near Me: never keep a stale wrong-country feed when the fresh GPS
+        // result is empty / geo_fallback. Other tabs still skip empty bg refresh.
         if (backgroundRefresh && (feedForTab.videos?.isEmpty ?? true)) {
-          return;
+          if (tab != 'Near Me') {
+            return;
+          }
         }
         // Stale response from a previous tab — keep cache only, don't overwrite live feed.
         if (tab != selectedType.value) {
@@ -1504,6 +1647,9 @@ class HomeController extends GetxController with WidgetsBindingObserver {
         // first frame is HTTPS/stream TTFB — never a multi-second poster hold.
         videoFeed.value = feedForTab;
         reelListLength.value = feedForTab.videos?.length ?? 0;
+        if (tab == 'Near Me') {
+          _applyNearMeGeoMeta(feedForTab.meta);
+        }
         if (feedForTab.videos?.isNotEmpty ?? false) {
           _storeFeedCacheForTab(tab, feedForTab);
         } else {

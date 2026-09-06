@@ -58,6 +58,7 @@ import '../../../../video_likes_screen/video_likes_screen.dart';
 import '../../../../../services/reels/reels_session_store.dart';
 import '../../../../../services/settings/settings_service.dart';
 import '../../add/videoAddController/videoAddController.dart';
+import '../../add/uploadVideoWidgets/location_picker_dialog.dart';
 import '../homeController/addCommentControllr.dart';
 import '../homeController/homeController.dart';
 import '../homeWidgets/contactNowDialog.dart';
@@ -230,7 +231,10 @@ class _VideoReelScreenState extends State<VideoReelScreen>
     if (!MediaKitPlayerPool.instance.isFeedVisibleKey(key)) {
       unawaited(playerState.ensureVisibleOpen());
     } else if (needsReattach) {
-      unawaited(playerState.resumeAfterRouteOverlay());
+      // After Maps/app-switch the texture is blank even when still feed-visible.
+      // Soft route-overlay resume only unmuted audio and left poster down → black.
+      _armPosterMask();
+      unawaited(playerState.resumeAfterAppBackground());
     }
   }
 
@@ -710,9 +714,13 @@ class _VideoReelScreenState extends State<VideoReelScreen>
       }
       controller.setSelectedType(newTabType);
       if (newTabType == 'Near Me') {
+        // Don't force GPS on every tab visit — that tore down playback for ~1s.
+        final needsGps = !controller.hasLocationBeenFetched.value ||
+            controller.latitude.value.isEmpty ||
+            controller.longitude.value.isEmpty;
         unawaited(
           controller.fetchLocationOnce(
-            forceRefresh: true,
+            forceRefresh: needsGps,
             refreshNearMeFeed: true,
           ),
         );
@@ -722,7 +730,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
         // Warm disk before attach so General doesn't open HTTPS (2–5s on sim).
         await _preloadManager.prefetchVisibleReel(
           targetIndex!,
-          maxWaitMs: 1800,
+          maxWaitMs: 450,
         );
         if (!mounted || controller.selectedType.value != newTabType) {
           return;
@@ -744,7 +752,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
           }
           await _preloadManager.prefetchVisibleReel(
             resolved,
-            maxWaitMs: 1800,
+            maxWaitMs: 450,
           );
           if (!mounted || controller.selectedType.value != newTabType) {
             return;
@@ -757,13 +765,8 @@ class _VideoReelScreenState extends State<VideoReelScreen>
       controller.endFeedTabSwitch();
       _tabSwitchTargetVideoId = null;
       _feedTabSwitchInFlight = false;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) {
-            _suppressFocusPlayback = false;
-          }
-        });
-      });
+      // Clear immediately so the first tap isn't swallowed (double-press bug).
+      _suppressFocusPlayback = false;
     }
   }
 
@@ -922,7 +925,7 @@ class _VideoReelScreenState extends State<VideoReelScreen>
       unawaited(
         _preloadManager.prefetchVisibleReel(
           targetIndex,
-          maxWaitMs: fromTabSwitch ? 1200 : 0,
+          maxWaitMs: fromTabSwitch ? 400 : 0,
         ),
       );
       // Tab switch remounts the shared player — same-key early return in
@@ -1082,13 +1085,17 @@ class _VideoReelScreenState extends State<VideoReelScreen>
     }
     // Already painted and still the live feed surface — remasking after a
     // same-key upgrade/recycle left a black gap under the thumb.
+    // Require a *proven* recent surface paint, not stale isFrameReady alone
+    // (Maps return left frame-ready true while texture was blank).
     final id = fromId ?? activeId;
     if (id != null &&
         id.isNotEmpty &&
         id == _unmaskedReelId &&
         !_maskActiveVideoWithPoster &&
         MediaKitPlayerPool.instance.isFeedVisibleKey(id) &&
-        MediaKitPlayerPool.instance.isFrameReady(id)) {
+        MediaKitPlayerPool.instance.isFrameReady(id) &&
+        MediaKitPlayerPool.instance.canInstantResume(id) &&
+        MediaKitPlayerPool.instance.hadRecentPaint(id)) {
       debugPrint(
         '[FeedRestore] awaitingPaint SKIP already-live id=$id',
       );
@@ -1134,14 +1141,19 @@ class _VideoReelScreenState extends State<VideoReelScreen>
       return;
     }
     final index = layer.visibleIndexNotifier.value.clamp(0, videos.length - 1);
-    _resetPosterMaskForPageChange(
-      videoId: videos[index].id,
-    );
+    // Maps / app-switch blanks the iOS MediaKit texture. Never trust stale
+    // isFrameReady — keep the poster up until a fresh paint unmasks.
+    _armPosterMask();
     final video = videos[index];
     if (video.isPhotoPost) {
       return;
     }
     layer.activePlayerVideo = video;
+    final videoId = video.id;
+    if (videoId != null && videoId.isNotEmpty) {
+      MediaKitPlayerPool.instance.invalidatePrimedFrame(videoId);
+      MediaKitPlayerPool.instance.clearRecentPaint(videoId);
+    }
     unawaited(_preloadManager.prefetchVisibleReel(index, maxWaitMs: 0));
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || !controller.canPlayHomeReels) {
@@ -1156,6 +1168,13 @@ class _VideoReelScreenState extends State<VideoReelScreen>
   }
 
   void _silenceFeedOnAppBackground() {
+    // Cover before the OS blanks the texture — return must never start unmasked.
+    _armPosterMask();
+    final videoId = _activeLayer.activePlayerVideo?.id;
+    if (videoId != null && videoId.isNotEmpty) {
+      MediaKitPlayerPool.instance.invalidatePrimedFrame(videoId);
+      MediaKitPlayerPool.instance.clearRecentPaint(videoId);
+    }
     MediaKitPlayerPool.instance.silenceAllSync();
     MediaKitPlayerPool.instance.pauseAllImmediate();
   }
@@ -1940,24 +1959,11 @@ class _VideoReelScreenState extends State<VideoReelScreen>
     if (_sessionRestored || _feedTabSwitchInFlight) {
       return;
     }
-    if (_pendingRestoreVideoId == null) {
-      _sessionRestored = true;
-      return;
-    }
-    final videos = controller.videoFeed.value.videos;
-    if (videos == null || videos.isEmpty) {
-      return;
-    }
-    final index = videos.indexWhere((item) => item.id == _pendingRestoreVideoId);
-    final targetIndex = index == -1
-        ? (_pendingRestoreIndex ?? 0).clamp(0, videos.length - 1)
-        : index;
-    if (targetIndex < 0 || targetIndex >= videos.length) {
-      _sessionRestored = true;
-      return;
-    }
+    // Unwatched-first: always open at the head of the feed (unseen, then
+    // seen). Do not jump back into mid-feed scroll from a previous session.
+    _pendingRestoreVideoId = null;
+    _pendingRestoreIndex = null;
     _sessionRestored = true;
-    unawaited(_restoreToIndex(targetIndex));
   }
 
   Future<void> _restoreToIndex(int targetIndex) async {
@@ -2301,7 +2307,16 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                         children: [
                           Text(
                             textAlign: TextAlign.center,
-                            "${'no_video_for'.tr} ${controller.currentCity.value.isNotEmpty ? controller.currentCity.value : 'Near Me'.tr} ${'try_to_change'.tr}",
+                            controller.selectedType.value == 'Near Me'
+                                ? (controller.videoFeed.value.meta
+                                            ?.geoFallback ==
+                                        true
+                                    ? 'near_me_geo_fallback_notice'.tr
+                                    : 'near_me_no_videos_in_country'.trParams({
+                                        'place':
+                                            controller.nearMeEmptyPlaceLabel,
+                                      }))
+                                : "${'no_video_for'.tr} ${controller.currentCity.value.isNotEmpty ? controller.currentCity.value : 'Near Me'.tr} ${'try_to_change'.tr}",
                             style: TextStyle(
                               color: Colors.white,
                               fontSize: 14.sp,
@@ -2325,6 +2340,30 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                             ),
                           ],
                           SizedBox(height: 16),
+                          if (controller.selectedType.value == 'Near Me') ...[
+                            AppButton(
+                              text: 'browse_another_country'.tr,
+                              onTap: () {
+                                unawaited(
+                                  _browseAnotherCountryForNearMe(context),
+                                );
+                              },
+                            ),
+                            SizedBox(height: 10.h),
+                            TextButton(
+                              onPressed: () {
+                                unawaited(controller.refreshLocation());
+                              },
+                              child: Text(
+                                'use_gps_near_me'.tr,
+                                style: TextStyle(
+                                  color: Colors.white70,
+                                  fontSize: 13.sp,
+                                ),
+                              ),
+                            ),
+                            SizedBox(height: 8.h),
+                          ],
                           Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
@@ -2337,16 +2376,8 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                                     },
                                   ),
                                 ),
-                              if (controller.selectedType.value == "Near Me")
-                                Expanded(
-                                  child: AppButton(
-                                    text: 'use_gps_near_me'.tr,
-                                    onTap: () {
-                                      unawaited(controller.refreshLocation());
-                                    },
-                                  ),
-                                ),
-                              SizedBox(width: 8),
+                              if (controller.selectedType.value == "General")
+                                SizedBox(width: 8),
                               InkWell(
                                 onTap: () {
                                   controller.silenceHomeReelsForTransition();
@@ -2647,6 +2678,10 @@ class _VideoReelScreenState extends State<VideoReelScreen>
   }
 
   String? _nearMeGeoNoticeMessage(FeedMeta meta) {
+    // Empty country uses the full-screen empty state, not a banner over videos.
+    if (meta.geoEmptyCountry) {
+      return null;
+    }
     if (meta.geoFallback) {
       return 'near_me_geo_fallback_notice'.tr;
     }
@@ -2730,11 +2765,12 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                   ),
                 ),
               ),
-              if (meta.geoFallback)
+              if (meta.geoFallback || meta.geoEmptyCountry)
                 GestureDetector(
-                  onTap: () => unawaited(controller.refreshLocation()),
+                  onTap: () =>
+                      unawaited(_browseAnotherCountryForNearMe(context)),
                   child: Text(
-                    'Change Location'.tr,
+                    'browse_another_country'.tr,
                     style: TextStyle(
                       color: Colors.white,
                       fontSize: 11.sp,
@@ -2747,6 +2783,36 @@ class _VideoReelScreenState extends State<VideoReelScreen>
           ),
         ),
       ),
+    );
+  }
+
+  /// Empty Near Me / geo-fallback: let the user pick another country and watch
+  /// it on the General tab (location filter).
+  Future<void> _browseAnotherCountryForNearMe(BuildContext context) async {
+    controller.silenceHomeReelsForTransition();
+    if (!Get.isRegistered<VideoAddController>()) {
+      Get.put(VideoAddController());
+    }
+    if (!Get.isRegistered<CityController>()) {
+      Get.put(CityController());
+    }
+    await showUploadCountryPicker(context);
+    if (!mounted) {
+      return;
+    }
+    final upload = Get.find<VideoAddController>();
+    final countryId = upload.selectedLocationId.value;
+    final countryName = upload.selectedCountry.value.trim();
+    if (countryId <= 0 || countryName.isEmpty || countryName == 'Unknown') {
+      return;
+    }
+    final cityId = upload.selectedCityId.value;
+    final cityName = upload.selectedCity.value.trim();
+    await controller.applyFeedLocationFilterAndRefresh(
+      countryId: countryId.toString(),
+      countryName: countryName,
+      cityId: cityId > 0 ? cityId.toString() : '',
+      cityName: cityName == 'Unknown' ? '' : cityName,
     );
   }
 
