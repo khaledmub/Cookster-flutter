@@ -1175,6 +1175,7 @@ const Map<String, String> en = {
   "reward_paused": "Deal paused",
   "reward_scan": "Scan QR",
   "reward_scan_hint": "Point the camera at the customer's reward QR",
+  "reward_scan_paste_hint": "Or paste the customer QR code",
   "reward_scan_success": "Redeemed",
   "reward_scan_success_remaining": "@remaining left",
   "reward_remaining_count": "@remaining / @total left",

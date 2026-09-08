@@ -1108,6 +1108,7 @@ const Map<String, String> ar = {
   "reward_paused": "تم إيقاف العرض",
   "reward_scan": "مسح الرمز",
   "reward_scan_hint": "وجّه الكاميرا نحو رمز مكافأة العميل",
+  "reward_scan_paste_hint": "أو الصق رمز مكافأة العميل",
   "reward_scan_success": "تم الاسترداد",
   "reward_scan_success_remaining": "المتبقي @remaining",
   "reward_remaining_count": "@remaining / @total متبقٍ",

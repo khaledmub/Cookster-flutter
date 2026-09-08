@@ -5,6 +5,11 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 export PATH="${HOME}/.gem/ruby/2.6.0/bin:${PATH}"
+# System curl fails IPv6 DNS for GitHub release assets (FBAEMKit / Facebook SDK).
+CURL_IPV4_HOME="${TMPDIR:-/tmp}/cookster-curl-ipv4"
+mkdir -p "$CURL_IPV4_HOME"
+printf '%s\n' '--ipv4' > "$CURL_IPV4_HOME/.curlrc"
+export CURL_HOME="$CURL_IPV4_HOME"
 
 BUNDLE_ID="com.cookster.cooksterapp"
 
@@ -58,7 +63,7 @@ fi
 
 echo ""
 echo "Flutter devices:"
-flutter devices
+flutter devices || true
 echo ""
 
 if [[ -z "$DEVICE_ID" ]]; then
