@@ -2191,6 +2191,8 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
     _showRetry = false;
     _frameTimeout?.cancel();
 
+    // First frame is on screen — other reel downloads may start now.
+    ReelsVideoCacheManager.instance.releaseDownloadHold();
     widget.onPlaybackReady?.call();
     FeedSurfaceParityLock.recordPainted(player.state.width, player.state.height);
     _logPoster(
@@ -2286,24 +2288,41 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
     if (_needsConstrainedStartGate && currentTier != '360') {
       return;
     }
-    final String? targetTier;
+    String? targetTier;
     if (_needsConstrainedStartGate) {
       targetTier = currentTier == '360' ? '720' : null;
     } else if (network == NetworkClass.wifi ||
         network == NetworkClass.mobile) {
-      // Mobile upgrades to 1080 like Wi-Fi — same quality on cellular.
-      targetTier = currentTier == '1080' ? null : '1080';
+      // Step up to the best file already on disk. A cold 360 open must be
+      // able to land on 720 even when 1080 is still downloading.
+      if (currentTier == '1080') {
+        targetTier = null;
+      } else if (currentTier == '720') {
+        targetTier = '1080';
+      } else {
+        targetTier = '720';
+      }
     } else {
       targetTier = currentTier == '360' ? '720' : null;
     }
     if (targetTier == null) {
       return;
     }
-    final hdCandidate = await _resolver.cachedTierCandidate(
+    var hdCandidate = await _resolver.cachedTierCandidate(
       _resolvedCandidates(),
       tier: targetTier,
     );
+    if (hdCandidate == null && currentTier == '360' && targetTier == '1080') {
+      hdCandidate = await _resolver.cachedTierCandidate(
+        _resolvedCandidates(),
+        tier: '720',
+      );
+      targetTier = '720';
+    }
     if (hdCandidate == null || !_isCurrentAttach(generation)) {
+      if (currentTier == '360') {
+        _prefetchUpgradeTier('720');
+      }
       return;
     }
     _upgradeInFlight = true;
@@ -2343,6 +2362,40 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
     } finally {
       _upgradeInFlight = false;
     }
+  }
+
+  int? _upgradePrefetchGen;
+
+  /// Background-fill the sharper tier after a 360 cold open, then step up
+  /// once those bytes are on disk. One shot per attach so a miss cannot loop.
+  void _prefetchUpgradeTier(String tier) {
+    if (_upgradePrefetchGen == _playbackGeneration) {
+      return;
+    }
+    _upgradePrefetchGen = _playbackGeneration;
+    final generation = _playbackGeneration;
+    String? url;
+    for (final candidate in _resolvedCandidates()) {
+      if (_resolver.mp4Tier(candidate.url) == tier) {
+        url = candidate.url;
+        break;
+      }
+    }
+    if (url == null || url.isEmpty) {
+      return;
+    }
+    final upgradeUrl = url;
+    prefetchPlaybackUrl(upgradeUrl, priority: 80);
+    unawaited(() async {
+      await ReelsVideoCacheManager.instance.waitForUrl(
+        upgradeUrl,
+        maxWaitMs: 8000,
+      );
+      if (!_isCurrentAttach(generation) || !mounted || _isDisposed) {
+        return;
+      }
+      await _maybeUpgradeToCachedHd(generation: generation);
+    }());
   }
 
   bool _syncAudibleInFlight = false;
@@ -2979,6 +3032,15 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
         break; // Highest-quality ready HD tier first.
       }
     }
+    final anyHdReady = readyResults.any((ready) => ready);
+    // No HD on disk: open 360 so a slow link (mobile data / cold CDN) can
+    // paint a first frame instead of buffering a full 720. A cached 720/1080
+    // above still wins. Upgrade steps up once the sharper file lands.
+    if (!anyHdReady &&
+        RemoteConfigService.instance.reels360FirstUncached &&
+        pick360 != null) {
+      add(pick360);
+    }
     // Uncached ladder: 720 first (fast + sharp), then 1080, then 360.
     add(pick720);
     if (!constrained) {
@@ -3159,9 +3221,10 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
   }
 
   /// Prefer already-cached bytes when present. If a download is already
-  /// in-flight/queued for this URL, briefly race it so open can hit `file://`
-  /// (~350ms) instead of cold HTTPS (~2s + paint stall). Cap is short so we
-  /// never hold the poster for a full download.
+  /// in-flight for this URL, briefly race it so open can hit `file://`
+  /// (~350ms) instead of cold HTTPS. A cold miss streams immediately —
+  /// starting a second GET of the same file, or waiting on a paused queue,
+  /// was the ~2s poster stall on a slow link.
   Future<bool> _awaitInFlightPlaybackBytes(
     String url, {
     required int generation,
@@ -3174,16 +3237,10 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
       return true;
     }
     final cache = ReelsVideoCacheManager.instance;
-    final alreadyGoing = cache.isQueuedOrInFlight(url);
-    // Visible reel wins the queue — starve far N+2 while we race.
-    cache.prefetch(url, priority: 130, isTablet: false);
-    if (!alreadyGoing && !cache.isInFlight(url)) {
-      // Cold miss with empty queue: stream immediately, warm in background.
+    if (!cache.isInFlight(url)) {
       return false;
     }
-    // In-flight or already queued — short race only.
-    final budgetMs = cache.isInFlight(url) ? 520 : 280;
-    await cache.waitForUrl(url, maxWaitMs: budgetMs);
+    await cache.waitForUrl(url, maxWaitMs: 400);
     if (!mounted ||
         _isDisposed ||
         generation != _playbackGeneration ||
@@ -3220,6 +3277,10 @@ class ReelVideoPlayerState extends State<ReelVideoPlayer> {
       ),
     );
     final anyCached = cacheProbes.any((v) => v);
+    if (!anyCached) {
+      // Stream this reel alone. Queued N+1 downloads resume after the first frame.
+      ReelsVideoCacheManager.instance.holdNewDownloads();
+    }
     var waitedForCache = false;
     for (final source in candidates) {
       if (_failedSourceUrls.contains(source.url)) {

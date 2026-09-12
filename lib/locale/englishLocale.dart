@@ -50,8 +50,7 @@ const Map<String, String> en = {
   "near_me_geo_expanded_radius_notice":
       "Showing posts within @radius km around you.",
   "near_me_geo_city_notice": "Showing all posts in @city.",
-  "near_me_geo_city_group_notice":
-      "Showing all posts in @cities (same city group).",
+  "near_me_geo_city_group_notice": "@cities",
   "near_me_in_city": "In @city",
   "near_me_distance_away": "@distance away",
   "General": "General",

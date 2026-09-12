@@ -23,9 +23,11 @@ import 'package:cookster/core/video/media_kit_player_pool.dart';
 import 'package:cookster/core/video/device_constraints.dart';
 import 'package:cookster/core/video/reels_playback_coordinator.dart';
 import 'package:cookster/core/video/reel_screen_playback_helpers.dart';
+import 'package:cookster/core/video/reels_video_cache_manager.dart';
 import 'package:cookster/core/video/video_preload_manager.dart';
 import 'package:cookster/core/video/video_preload_target.dart';
 import 'package:cookster/core/video/video_source_resolver.dart';
+import 'package:cookster/core/video/watched_videos_store.dart';
 import 'package:cookster/modules/landing/landingController/landingController.dart';
 import 'package:cookster/modules/landing/landingTabs/home/homeModel/userSaveUnsave.dart';
 import 'package:cookster/modules/landing/landingTabs/home/homeModel/videoFeedModel.dart';
@@ -72,7 +74,7 @@ class _FeedTabLayer {
       : visibleIndexNotifier = ValueNotifier<int>(initialIndex),
         pageController = PageController(initialPage: initialIndex);
 
-  final PageController pageController;
+  PageController pageController;
   final ValueNotifier<int> visibleIndexNotifier;
   WallVideos? activePlayerVideo;
   int? scrollTowardActualIndex;
@@ -126,6 +128,14 @@ class _VideoReelScreenState extends State<VideoReelScreen>
   Worker? _reelsVisibilityWorker;
   bool _pendingFeedTabPlayback = false;
   bool _feedTabSwitchInFlight = false;
+  /// True from finger-down until the page snap finishes. PageView reports
+  /// onPageChanged at the halfway point of a drag — committing there pauses
+  /// the current decoder and invalidates the next open before the next reel
+  /// can paint. Fast extra swipes then land on a black page.
+  bool _feedUserScrollActive = false;
+  /// Home re-tap wants index 0. Ignore a PageView rebuild that still reports
+  /// the old page, or the new first reel is cancelled before it paints.
+  bool _holdHomeRefreshAtZero = false;
   bool _suppressFocusPlayback = false;
   Timer? _playbackAttachDebounce;
   int _lastHandledPlaybackEpoch = -1;
@@ -340,6 +350,19 @@ class _VideoReelScreenState extends State<VideoReelScreen>
       layer.pageController.addListener(listener);
       return listener;
     });
+  }
+
+  void _replacePageController(_FeedTabLayer layer, int page) {
+    final previous = layer.pageController;
+    final listener = _pageScrollListeners[_activeTabType];
+    if (listener != null) {
+      previous.removeListener(listener);
+    }
+    layer.pageController = PageController(initialPage: page);
+    if (listener != null) {
+      layer.pageController.addListener(listener);
+    }
+    previous.dispose();
   }
 
   void _removePageScrollListener(String tab) {
@@ -866,6 +889,10 @@ class _VideoReelScreenState extends State<VideoReelScreen>
     }
     final targetVideo = videos[targetIndex];
     final targetId = targetVideo.id;
+    // Count as seen as soon as the reel is shown. The 2s view timer is for
+    // the API count; Home refresh must not bring this reel back if the user
+    // swipes away before that timer fires.
+    WatchedVideosStore.instance.noteSeen(targetId);
     debugPrint('[FeedRestore] finishPlayback tab=$tab idx=$targetIndex '
         'id=$targetId isPhoto=${targetVideo.isPhotoPost} '
         'canPlay=${controller.canPlayHomeReels} '
@@ -886,6 +913,8 @@ class _VideoReelScreenState extends State<VideoReelScreen>
         MediaKitPlayerPool.instance.isFeedVisibleKey(targetId);
     if (alreadyOnTarget) {
       if (targetVideo.isPhotoPost) {
+        _holdHomeRefreshAtZero = false;
+        ReelsVideoCacheManager.instance.releaseDownloadHold();
         _completeTabSwitchFrameIfReady();
         _dismissColdStartSpinner(reason: 'photo_already_visible');
         return;
@@ -940,6 +969,10 @@ class _VideoReelScreenState extends State<VideoReelScreen>
       );
       _playbackCoordinator.onPageSettled(targetIndex, context: context);
       _resumeFeedAudibleOnce();
+      if (targetVideo.isPhotoPost) {
+        _holdHomeRefreshAtZero = false;
+        ReelsVideoCacheManager.instance.releaseDownloadHold();
+      }
       if (targetVideo.isPhotoPost && _holdColdStartSpinner) {
         // Photos have no videoPainted signal — drop spinner once the page is up
         // (poster is usually already warmed by image_warmed).
@@ -950,6 +983,16 @@ class _VideoReelScreenState extends State<VideoReelScreen>
         });
       }
       if (preferNewest) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted || tab != _activeTabType) {
+            return;
+          }
+          if (layer.pageController.hasClients &&
+              (layer.pageController.page?.round() ?? 0) != 0) {
+            layer.pageController.jumpToPage(0);
+          }
+          _holdHomeRefreshAtZero = false;
+        });
         // Icon re-tap: silence cleared the previous player; nudge audible
         // again after the first frame so autoplay isn't stuck muted.
         WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -1400,6 +1443,31 @@ class _VideoReelScreenState extends State<VideoReelScreen>
     initialLayer.visibleIndexNotifier.value = controller.visiblePageIndex.value;
     _ensurePageScrollListener(initialTab);
     _feedRestoreWorker = ever(controller.videoFeed, (_) {
+      final videos = controller.videoFeed.value.videos;
+      if ((videos == null || videos.isEmpty) &&
+          controller.prefersNewestAttach) {
+        _holdHomeRefreshAtZero = true;
+        final layer = _activeLayer;
+        layer.visibleIndexNotifier.value = 0;
+        layer.activePlayerVideo = null;
+        // PageView is unmounted while the list is empty. Replace the
+        // controller so the next list opens at 0 instead of the old offset
+        // (that mounted page 1 and cancelled the new first reel).
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted || !_holdHomeRefreshAtZero) {
+            return;
+          }
+          final stillEmpty =
+              controller.videoFeed.value.videos?.isEmpty ?? true;
+          if (!stillEmpty) {
+            if (layer.pageController.hasClients) {
+              layer.pageController.jumpToPage(0);
+            }
+            return;
+          }
+          _replacePageController(layer, 0);
+        });
+      }
       _applyPendingRestoreIfPossible();
       _maybeBootstrapPreload();
       _maybeDismissColdStartForSettledEmptyFeed();
@@ -1408,7 +1476,6 @@ class _VideoReelScreenState extends State<VideoReelScreen>
       if (_feedTabSwitchInFlight || controller.isFeedTabSwitchLocked) {
         return;
       }
-      final videos = controller.videoFeed.value.videos;
       if (videos != null && videos.isNotEmpty) {
         final idx = _activeLayer.visibleIndexNotifier.value.clamp(
           0,
@@ -1489,7 +1556,8 @@ class _VideoReelScreenState extends State<VideoReelScreen>
             // current reel is dead. Always forcing reattach stopped playback
             // right after "Allow Once".
             if (controller.selectedType.value == 'Near Me' &&
-                controller.hasLocationBeenFetched.value) {
+                controller.hasLocationBeenFetched.value &&
+                !_holdHomeRefreshAtZero) {
               final videos = controller.videoFeed.value.videos;
               if (videos != null && videos.isNotEmpty) {
                 final index = _activeLayer.visibleIndexNotifier.value
@@ -2035,7 +2103,31 @@ class _VideoReelScreenState extends State<VideoReelScreen>
               );
             }
           : null,
-      child: PageView.custom(
+      child: NotificationListener<ScrollNotification>(
+        onNotification: (notification) {
+          if (!isActiveTab || notification.depth != 0) {
+            return false;
+          }
+          if (notification is ScrollStartNotification &&
+              notification.dragDetails != null) {
+            _feedUserScrollActive = true;
+            _holdHomeRefreshAtZero = false;
+          } else if (notification is ScrollEndNotification &&
+              _feedUserScrollActive) {
+            _feedUserScrollActive = false;
+            final page = layer.pageController.hasClients
+                ? layer.pageController.page
+                : null;
+            if (page != null && videos.isNotEmpty) {
+              final settled = page.round() % videos.length;
+              if (settled != layer.visibleIndexNotifier.value) {
+                _commitSettledReelPage(tab, settled, videos);
+              }
+            }
+          }
+          return false;
+        },
+        child: PageView.custom(
         scrollDirection: Axis.vertical,
         controller: layer.pageController,
         clipBehavior: Clip.hardEdge,
@@ -2053,47 +2145,30 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                   return;
                 }
                 final actualIndex = index % length;
-                MediaKitPlayerPool.instance.pauseAllImmediate();
-                _feedPlayerState?.cancelInFlightPlaybackForPageChange();
-                controller.visiblePageIndex.value = actualIndex;
-                controller.saveTabScrollIndex(tab, actualIndex);
-                controller.saveTabVideoId(tab, videos[actualIndex].id);
-                layer.visibleIndexNotifier.value = actualIndex;
-                DeviceConstraints.instance.recordSwipe();
-                _resetPosterMaskForPageChange(
-                  videoId: videos[actualIndex].id,
-                );
-                // Open immediately — never wait on disk before attach. Disk warm
-                // runs in parallel for N+1 so the next swipe can hit file://.
-                unawaited(
-                  _preloadManager.prefetchVisibleReel(
-                    actualIndex,
-                    maxWaitMs: 0,
-                  ),
-                );
-                // Keep warming the next reel(s) under the finger for fast flings.
-                unawaited(
-                  _preloadManager.onScrollToward(
-                    fromIndex: actualIndex,
-                    towardIndex: actualIndex + 1,
-                    extraDepth: 1,
-                  ),
-                );
-                _schedulePlayerForPage(tab, actualIndex);
-                _preloadManager.onVisiblePageSettled();
-                MediaKitPlayerPool.instance.setScreenWidth(
-                  MediaQuery.sizeOf(context).width,
-                );
-                _playbackCoordinator.onPageSettled(
-                  actualIndex,
-                  context: context,
-                );
-                WidgetsBinding.instance.addPostFrameCallback((_) {
-                  if (!mounted || tab != _activeTabType) {
-                    return;
+                if (_holdHomeRefreshAtZero &&
+                    !_feedUserScrollActive &&
+                    actualIndex != 0) {
+                  return;
+                }
+                if (_feedUserScrollActive) {
+                  // Mid-gesture: warm the incoming poster only. Switching the
+                  // decoder here aborts the next reel before it can paint.
+                  unawaited(
+                    _preloadManager.onScrollToward(
+                      fromIndex: layer.visibleIndexNotifier.value,
+                      towardIndex: actualIndex,
+                      extraDepth: 1,
+                    ),
+                  );
+                  if (mounted) {
+                    _playbackCoordinator.precacheVisiblePoster(
+                      context,
+                      actualIndex,
+                    );
                   }
-                  _schedulePageSideEffects(actualIndex);
-                });
+                  return;
+                }
+                _commitSettledReelPage(tab, actualIndex, videos);
               }
             : null,
         childrenDelegate: SliverChildBuilderDelegate(
@@ -2127,8 +2202,48 @@ class _VideoReelScreenState extends State<VideoReelScreen>
           },
           childCount: listLen,
         ),
+        ),
       ),
     );
+  }
+
+  void _commitSettledReelPage(
+    String tab,
+    int actualIndex,
+    List<WallVideos> videos,
+  ) {
+    if (!mounted || tab != _activeTabType || videos.isEmpty) {
+      return;
+    }
+    final index = actualIndex % videos.length;
+    WatchedVideosStore.instance.noteSeen(videos[index].id);
+    final layer = _layerFor(tab);
+    MediaKitPlayerPool.instance.pauseAllImmediate();
+    _feedPlayerState?.cancelInFlightPlaybackForPageChange();
+    controller.visiblePageIndex.value = index;
+    controller.saveTabScrollIndex(tab, index);
+    controller.saveTabVideoId(tab, videos[index].id);
+    layer.visibleIndexNotifier.value = index;
+    DeviceConstraints.instance.recordSwipe();
+    _resetPosterMaskForPageChange(videoId: videos[index].id);
+    unawaited(_preloadManager.prefetchVisibleReel(index, maxWaitMs: 0));
+    unawaited(
+      _preloadManager.onScrollToward(
+        fromIndex: index,
+        towardIndex: index + 1,
+        extraDepth: 1,
+      ),
+    );
+    _schedulePlayerForPage(tab, index);
+    _preloadManager.onVisiblePageSettled();
+    MediaKitPlayerPool.instance.setScreenWidth(MediaQuery.sizeOf(context).width);
+    _playbackCoordinator.onPageSettled(index, context: context);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || tab != _activeTabType) {
+        return;
+      }
+      _schedulePageSideEffects(index);
+    });
   }
 
   Widget _buildReelPageStack({
@@ -2226,6 +2341,8 @@ class _VideoReelScreenState extends State<VideoReelScreen>
                   distanceBasis:
                       tab == 'Near Me' ? videoDetail.distanceBasis : null,
                   cityName: tab == 'Near Me' ? videoDetail.cityName : null,
+                  groupCitiesLabel:
+                      tab == 'Near Me' ? _nearMeGroupCitiesLabel() : null,
                   bottomBarClearance: 12,
                 ),
                 videoUserDetails(
@@ -2677,6 +2794,39 @@ class _VideoReelScreenState extends State<VideoReelScreen>
     return _buildNearMeGeoNotice(context);
   }
 
+  String? _nearMeGroupCitiesLabel() {
+    final meta = controller.videoFeed.value.meta;
+    if (meta == null || !isNearMeCityScope(meta.geoScope)) {
+      return null;
+    }
+    final names = _nearMeGroupCityNames(meta);
+    if (names.length < 2) {
+      return null;
+    }
+    return formatCityGroupList(names);
+  }
+
+  List<String> _nearMeGroupCityNames(FeedMeta meta) {
+    final catalog = <int, String>{};
+    if (Get.isRegistered<CityController>()) {
+      for (final city in Get.find<CityController>().cityList) {
+        final id = city.id;
+        final name = city.name?.trim();
+        if (id != null && name != null && name.isNotEmpty) {
+          catalog[id] = name;
+        }
+      }
+    }
+    final feed = controller.videoFeed.value;
+    return cityGroupDisplayNames(
+      anchorCityName: meta.geoCityName,
+      serverGroupNames: meta.geoCityGroupNames,
+      videoCityNames: (feed.videos ?? const []).map((v) => v.cityName),
+      videoCityIds: (feed.videos ?? const []).map((v) => v.cityId),
+      catalogNamesById: catalog,
+    );
+  }
+
   String? _nearMeGeoNoticeMessage(FeedMeta meta) {
     // Empty country uses the full-screen empty state, not a banner over videos.
     if (meta.geoEmptyCountry) {
@@ -2698,30 +2848,9 @@ class _VideoReelScreenState extends State<VideoReelScreen>
       return null;
     }
 
-    // City groups (Dhahran/Khobar/Dammam) already come from the API; the old
-    // banner only showed geo_city_name (e.g. "Dhahran") which looked broken.
-    final catalog = <int, String>{};
-    if (Get.isRegistered<CityController>()) {
-      for (final city in Get.find<CityController>().cityList) {
-        final id = city.id;
-        final name = city.name?.trim();
-        if (id != null && name != null && name.isNotEmpty) {
-          catalog[id] = name;
-        }
-      }
-    }
-    final feed = controller.videoFeed.value;
-    final groupNames = cityGroupDisplayNames(
-      anchorCityName: meta.geoCityName,
-      serverGroupNames: meta.geoCityGroupNames,
-      videoCityNames: (feed.videos ?? const []).map((v) => v.cityName),
-      videoCityIds: (feed.videos ?? const []).map((v) => v.cityId),
-      catalogNamesById: catalog,
-    );
+    final groupNames = _nearMeGroupCityNames(meta);
     if (groupNames.length > 1) {
-      return 'near_me_geo_city_group_notice'.trParams({
-        'cities': formatCityGroupList(groupNames),
-      });
+      return formatCityGroupList(groupNames);
     }
     final city = groupNames.isNotEmpty
         ? groupNames.first
@@ -4072,6 +4201,8 @@ class VideoDescriptionWidget extends StatefulWidget {
   final double? distanceKm;
   final String? distanceBasis;
   final String? cityName;
+  /// City names when the feed is a city group (replaces "group" / single city).
+  final String? groupCitiesLabel;
 
   const VideoDescriptionWidget({
     this.title,
@@ -4087,6 +4218,7 @@ class VideoDescriptionWidget extends StatefulWidget {
     this.distanceKm,
     this.distanceBasis,
     this.cityName,
+    this.groupCitiesLabel,
     super.key,
   });
 
@@ -4121,7 +4253,8 @@ class _VideoDescriptionWidgetState extends State<VideoDescriptionWidget>
         oldWidget.isPhotoPost != widget.isPhotoPost ||
         oldWidget.distanceKm != widget.distanceKm ||
         oldWidget.distanceBasis != widget.distanceBasis ||
-        oldWidget.cityName != widget.cityName) {
+        oldWidget.cityName != widget.cityName ||
+        oldWidget.groupCitiesLabel != widget.groupCitiesLabel) {
       _isExpanded = false;
       _hasOverflow = false;
       WidgetsBinding.instance.addPostFrameCallback((_) => _checkOverflowOnce());
@@ -4219,7 +4352,10 @@ class _VideoDescriptionWidgetState extends State<VideoDescriptionWidget>
       distanceBasis: widget.distanceBasis,
       cityName: widget.cityName,
     );
-    final String? locationLabel = switch (locationBadge.kind) {
+    final groupCities = widget.groupCitiesLabel?.trim() ?? '';
+    final String? locationLabel = groupCities.isNotEmpty
+        ? groupCities
+        : switch (locationBadge.kind) {
       NearMeLocationBadgeKind.distance =>
         'near_me_distance_away'.trParams({
           'distance': locationBadge.distanceFormatted!,
@@ -4274,34 +4410,40 @@ class _VideoDescriptionWidgetState extends State<VideoDescriptionWidget>
         if (locationLabel != null && locationLabel.isNotEmpty)
           Padding(
             padding: const EdgeInsets.only(top: 2),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  locationBadge.kind == NearMeLocationBadgeKind.distance
-                      ? Icons.near_me_outlined
-                      : Icons.location_city_outlined,
-                  size: 12.sp,
-                  color: Colors.white.withValues(alpha: 0.85),
-                ),
-                SizedBox(width: 4.w),
-                Text(
-                  locationLabel,
-                  style: widget.tiktokStyle
-                      ? TikTokFeedChrome.bodyCaption.copyWith(
-                          fontSize: 12.sp,
-                          color: Colors.white.withValues(alpha: 0.85),
-                        )
-                      : TextStyle(
-                          color: Colors.white.withValues(alpha: 0.85),
-                          fontSize: 12.sp,
-                        ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  textAlign: TextAlign.left,
-                  textDirection: textDirection,
-                ),
-              ],
+            child: ConstrainedBox(
+              constraints: BoxConstraints(maxWidth: maxNameWidth),
+              child: Row(
+                children: [
+                  Icon(
+                    groupCities.isNotEmpty ||
+                            locationBadge.kind !=
+                                NearMeLocationBadgeKind.distance
+                        ? Icons.location_city_outlined
+                        : Icons.near_me_outlined,
+                    size: 12.sp,
+                    color: Colors.white.withValues(alpha: 0.85),
+                  ),
+                  SizedBox(width: 4.w),
+                  Flexible(
+                    child: Text(
+                      locationLabel,
+                      style: widget.tiktokStyle
+                          ? TikTokFeedChrome.bodyCaption.copyWith(
+                              fontSize: 12.sp,
+                              color: Colors.white.withValues(alpha: 0.85),
+                            )
+                          : TextStyle(
+                              color: Colors.white.withValues(alpha: 0.85),
+                              fontSize: 12.sp,
+                            ),
+                      maxLines: groupCities.isNotEmpty ? 2 : 1,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.left,
+                      textDirection: textDirection,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         if (PublicUserIdentity.subtitleHandle(widget.creatorHandle) != null)

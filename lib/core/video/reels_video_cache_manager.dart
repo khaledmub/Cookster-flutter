@@ -40,6 +40,8 @@ class ReelsVideoCacheManager {
   final Queue<String> _pendingOrder = Queue<String>();
   int _activeCount = 0;
   bool? _configuredForTablet;
+  bool _holdNewDownloads = false;
+  Timer? _holdReleaseTimer;
 
   /// Maps remote-config MB budget to object count (~4 MB per cached MP4).
   static int maxObjectsForBudgetMb(int budgetMb) {
@@ -120,7 +122,30 @@ class ReelsVideoCacheManager {
       ..addAll(sorted.map((e) => e.url));
   }
 
+  /// Queue downloads but don't start them until [releaseDownloadHold].
+  ///
+  /// A cold open streams the visible reel itself. Starting N+1..N+7 at the
+  /// same time made that stream wait ~2s for a first frame on a slow link.
+  void holdNewDownloads({Duration autoRelease = const Duration(seconds: 6)}) {
+    _holdNewDownloads = true;
+    _holdReleaseTimer?.cancel();
+    _holdReleaseTimer = Timer(autoRelease, releaseDownloadHold);
+  }
+
+  void releaseDownloadHold() {
+    if (!_holdNewDownloads && _holdReleaseTimer == null) {
+      return;
+    }
+    _holdNewDownloads = false;
+    _holdReleaseTimer?.cancel();
+    _holdReleaseTimer = null;
+    _pump();
+  }
+
   void _pump() {
+    if (_holdNewDownloads) {
+      return;
+    }
     while (_activeCount < _maxConcurrent && _pendingOrder.isNotEmpty) {
       // Keep one slot free when a near-window URL (≥100) is waiting so a
       // far dual-tier job cannot occupy both lanes before visible/N+1 start.

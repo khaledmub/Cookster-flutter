@@ -50,8 +50,7 @@ const Map<String, String> ar = {
   "near_me_geo_expanded_radius_notice":
       "يتم عرض المنشورات ضمن @radius كم حولك.",
   "near_me_geo_city_notice": "يتم عرض جميع المنشورات في @city.",
-  "near_me_geo_city_group_notice":
-      "يتم عرض جميع المنشورات في @cities (نفس مجموعة المدن).",
+  "near_me_geo_city_group_notice": "@cities",
   "near_me_in_city": "في @city",
   "near_me_distance_away": "على بعد @distance",
   "General": "عام",

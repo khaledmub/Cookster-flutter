@@ -100,10 +100,16 @@ class VideoViewTracker {
   }
 
   /// POST /api/reels/views — batch (max 20). Optional helper for catch-up sync.
-  static Future<void> reportViewsBatchToApi(List<String> videoIds) async {
+  ///
+  /// [force] resends ids already reported this session (idempotent). Home
+  /// refresh uses that so the next unseen-first GET sees the local watched set.
+  static Future<void> reportViewsBatchToApi(
+    List<String> videoIds, {
+    bool force = false,
+  }) async {
     final ids = videoIds
         .map((e) => e.trim())
-        .where((e) => e.isNotEmpty && !_apiReportedIds.contains(e))
+        .where((e) => e.isNotEmpty && (force || !_apiReportedIds.contains(e)))
         .take(20)
         .toList();
     if (ids.isEmpty) {

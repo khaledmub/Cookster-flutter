@@ -638,36 +638,34 @@ class _LandingState extends State<Landing> {
         home.setReelsTabVisible(false);
         MediaKitPlayerPool.instance.silenceAllSync();
       } else if (wasOnHome) {
-        // Re-tap on Home = TikTok-style refresh to the newest reel (index 0).
+        // Re-tap on Home reloads unseen-first and opens at index 0.
         // Do NOT call onReturnedToHomeTab first — it restores the saved scroll
         // index (~N) and wins the race before refreshHomeFeed resets to 0.
         unawaited(home.refreshHomeFeed());
-      } else {
-        // Coming from another tab (e.g. Profile after upload) — always restore.
-        // Even with an overlay, clear gates + mark pending so the feed can
-        // cold-attach once the overlay pops (post-upload pool is disposed).
+      } else if (home.needsColdRestoreAfterCapture ||
+          home.feedResumePendingWhenHomeTab) {
+        // Coming from another tab after upload — restore playback, don't
+        // race a feed reload against the cold attach.
         home.onReturnedToHomeTab();
-        // Post-upload: cold restore is async (pool settle). A second nudge
-        // after the settle window recovers if the first attach was missed
-        // while TickerMode / IndexedStack was still catching up.
-        if (home.needsColdRestoreAfterCapture || home.feedResumePendingWhenHomeTab) {
-          Future<void>.delayed(const Duration(milliseconds: 700), () {
-            if (!Get.isRegistered<HomeController>()) {
-              return;
-            }
-            final h = Get.find<HomeController>();
-            if (!h.feedResumePendingWhenHomeTab &&
-                !h.needsColdRestoreAfterCapture &&
-                !h.coldRestoreInFlight) {
-              return;
-            }
-            if (navBarController.selectedIndex.value != 0) {
-              return;
-            }
-            debugPrint('[FeedRestore] tabNav post-upload nudge');
-            h.onReturnedToHomeTab();
-          });
-        }
+        Future<void>.delayed(const Duration(milliseconds: 700), () {
+          if (!Get.isRegistered<HomeController>()) {
+            return;
+          }
+          final h = Get.find<HomeController>();
+          if (!h.feedResumePendingWhenHomeTab &&
+              !h.needsColdRestoreAfterCapture &&
+              !h.coldRestoreInFlight) {
+            return;
+          }
+          if (navBarController.selectedIndex.value != 0) {
+            return;
+          }
+          debugPrint('[FeedRestore] tabNav post-upload nudge');
+          h.onReturnedToHomeTab();
+        });
+      } else {
+        // Returning to Home from another tab: unseen-first, not the last reel.
+        unawaited(home.refreshHomeFeed());
       }
     }
   }

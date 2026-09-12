@@ -15,6 +15,7 @@ import 'package:cookster/core/video/media_kit_player_pool.dart';
 import 'package:cookster/core/video/video_player_pool.dart';
 import 'package:cookster/core/video/video_source_resolver.dart';
 import 'package:cookster/core/video/cached_playback_url.dart';
+import 'package:cookster/core/video/reels_video_cache_manager.dart';
 import 'package:cookster/core/video/feed_disk_warm_service.dart';
 import 'package:cookster/core/video/reels_feed_pin_store.dart';
 import 'package:cookster/core/video/watched_videos_store.dart';
@@ -105,6 +106,7 @@ class HomeController extends GetxController with WidgetsBindingObserver {
   /// Home icon re-tap: next [_finishFeedTabPlayback] must land on index 0 and
   /// autoplay — ignore any previous pin / page index.
   bool _preferNewestAttach = false;
+  int _feedFetchGen = 0;
 
   /// In-flight reel-screen teardown (profile/collection dispose+resume).
   /// Grid taps await this before opening a new reel screen so the previous
@@ -496,9 +498,10 @@ class HomeController extends GetxController with WidgetsBindingObserver {
     }
 
     isLoadingMore.value = true;
+    final gen = _feedFetchGen;
     try {
       final parsed = await _fetchFeedPage(reset: false);
-      if (parsed == null) {
+      if (parsed == null || gen != _feedFetchGen) {
         return;
       }
 
@@ -950,15 +953,13 @@ class HomeController extends GetxController with WidgetsBindingObserver {
   /// Rank never-watched reels before watched ones; within each phase honor
   /// [feedSortOrder]. Keeps [pin_video_id] at index 0 when present.
   ///
-  /// When the API already ranked with `unseen_first` ([FeedMeta.unseenFirst]),
-  /// keep server order so phased cursors stay correct.
+  /// Always apply the local watched set, even when the API echoes
+  /// `unseen_first`. The server flag only covers views already accepted by
+  /// POST /reels/{id}/view — skipping local reorder left Home refresh on
+  /// reels this device just watched.
   void _sortFeedByOrder(VideoFeed feed) {
     final videos = feed.videos;
     if (videos == null || videos.length < 2) {
-      return;
-    }
-
-    if (feed.meta?.unseenFirst == true) {
       return;
     }
 
@@ -1592,6 +1593,7 @@ class HomeController extends GetxController with WidgetsBindingObserver {
       reelListLength.value = 0;
     }
     currentPage.value = 1;
+    final gen = ++_feedFetchGen;
 
     try {
       if (selectedType.value == "Near Me") {
@@ -1621,6 +1623,9 @@ class HomeController extends GetxController with WidgetsBindingObserver {
       }
 
       final parsed = await _fetchFeedPage(reset: true);
+      if (gen != _feedFetchGen) {
+        return;
+      }
       if (parsed != null) {
         if (_feedStaleAfterUpload && tab == selectedType.value) {
           _feedStaleAfterUpload = false;
@@ -1643,8 +1648,12 @@ class HomeController extends GetxController with WidgetsBindingObserver {
           return;
         }
         final parsedVideos = feedForTab.videos;
-        // Publish + attach immediately. Disk warm is fire-and-forget so the
-        // first frame is HTTPS/stream TTFB — never a multi-second poster hold.
+        // Publish + attach immediately. Hold extra disk downloads until the
+        // visible reel paints — a parallel CDN fan-out was why a cache miss
+        // sat on the poster for ~2s before the stream could buffer.
+        if (!backgroundRefresh) {
+          ReelsVideoCacheManager.instance.holdNewDownloads();
+        }
         videoFeed.value = feedForTab;
         reelListLength.value = feedForTab.videos?.length ?? 0;
         if (tab == 'Near Me') {
@@ -1711,9 +1720,11 @@ class HomeController extends GetxController with WidgetsBindingObserver {
     } catch (e) {
       error.value = "Error: $e";
     } finally {
-      isLoading.value = false;
-      isAppInBackground.value = false;
-      update();
+      if (gen == _feedFetchGen) {
+        isLoading.value = false;
+        isAppInBackground.value = false;
+        update();
+      }
     }
   }
 
@@ -3168,6 +3179,27 @@ class HomeController extends GetxController with WidgetsBindingObserver {
     return savedIndex;
   }
 
+  /// Push this device's watched ids to the API before an unseen-first reload
+  /// so page 1 is actually unwatched, not just locally reshuffled.
+  Future<void> _flushWatchedForUnseenRefresh() async {
+    final videos = videoFeed.value.videos;
+    if (videos != null && videos.isNotEmpty) {
+      final index = visiblePageIndex.value.clamp(0, videos.length - 1);
+      final id = videos[index].id?.trim() ?? '';
+      if (id.isNotEmpty) {
+        // Sync so the refresh GET's local sort sees this reel even if the
+        // 2s view timer was cancelled by a swipe.
+        WatchedVideosStore.instance.noteSeen(id);
+        await WatchedVideosStore.instance.markWatched(id);
+      }
+    }
+    await WatchedVideosStore.instance.ensureLoaded();
+    await VideoViewTracker.reportViewsBatchToApi(
+      WatchedVideosStore.instance.snapshotIds(limit: 20),
+      force: true,
+    );
+  }
+
   /// TikTok-style refresh: reload the current feed from the network and jump
   /// back to the first reel. Triggered by re-tapping the Home tab.
   ///
@@ -3175,10 +3207,12 @@ class HomeController extends GetxController with WidgetsBindingObserver {
   /// does NOT first call [onReturnedToHomeTab] (which would restore the saved
   /// scroll index ~N and lose the race against this reset to 0).
   Future<void> refreshHomeFeed() async {
-    if (isLoading.value) {
-      return;
-    }
     final tab = selectedType.value;
+    await _flushWatchedForUnseenRefresh();
+    // A location/tab fetch may still be in flight. Invalidate it, then reload.
+    // [fetchVideos] no-ops while [isLoading], so Home used to do nothing.
+    _feedFetchGen++;
+    isLoading.value = false;
     // Manual refresh is the recovery path after a stuck post-upload feed —
     // clear sticky cold-restore first so schedulePlayer / silence cannot fight
     // this remount (that left video without audio on first-session refresh).

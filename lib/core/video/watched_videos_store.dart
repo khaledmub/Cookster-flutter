@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:collection';
 
 import 'package:shared_preferences/shared_preferences.dart';
@@ -29,9 +30,8 @@ class WatchedVideosStore {
   Future<void> _load() async {
     final prefs = await SharedPreferences.getInstance();
     final raw = prefs.getStringList(_prefsKey) ?? const <String>[];
-    _ids
-      ..clear()
-      ..addAll(raw.where((id) => id.trim().isNotEmpty));
+    // Merge, don't replace — [noteSeen] may have added ids before prefs loaded.
+    _ids.addAll(raw.where((id) => id.trim().isNotEmpty));
     _loaded = true;
   }
 
@@ -53,6 +53,31 @@ class WatchedVideosStore {
       return list;
     }
     return list.sublist(list.length - limit);
+  }
+
+  /// Remember a reel this session already opened.
+  ///
+  /// Sync, so a Home re-tap can demote it even if the 2s view timer never
+  /// fired and even if prefs have not loaded yet. The API view count still
+  /// waits for that timer — this only affects unseen-first ordering.
+  void noteSeen(String? videoId) {
+    final id = videoId?.trim() ?? '';
+    if (id.isEmpty) {
+      return;
+    }
+    if (_ids.contains(id)) {
+      _ids.remove(id);
+    }
+    _ids.add(id);
+    while (_ids.length > _maxIds) {
+      _ids.remove(_ids.first);
+    }
+    unawaited(_persistWhenReady());
+  }
+
+  Future<void> _persistWhenReady() async {
+    await ensureLoaded();
+    await _persist();
   }
 
   Future<void> markWatched(String videoId) async {
