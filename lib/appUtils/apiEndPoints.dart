@@ -3,7 +3,7 @@ class Common {
   static const String _apiBaseOverride = String.fromEnvironment('API_BASE_URL');
   static const String testServerIp = String.fromEnvironment('TEST_SERVER_IP');
 
-  static const String _defaultApiBase = 'https://cookster.org/api/';
+  static const String _defaultApiBase = 'https://api2.cookster.org/api/';
   static String get baseUrl {
     if (_apiBaseOverride.isNotEmpty) {
       return _apiBaseOverride.endsWith('/')
@@ -29,7 +29,10 @@ class Common {
     if (testServerIp.isNotEmpty && baseUrl.contains(testServerIp)) {
       return 'https://$testServerIp/storage/';
     }
-    return 'https://cookster.org/storage/';
+    final origin = baseUrl.endsWith('/api/')
+        ? baseUrl.substring(0, baseUrl.length - 4)
+        : baseUrl;
+    return '${origin}storage/';
   }
 
   //

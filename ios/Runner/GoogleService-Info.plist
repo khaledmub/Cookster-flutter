@@ -3,23 +3,21 @@
 <plist version="1.0">
 <dict>
 	<key>CLIENT_ID</key>
-	<string>588874074588-pf9i1v6e4olsrbbg5f3fgi66r983doe3.apps.googleusercontent.com</string>
+	<string>248386808543-fjehfuifgvl3a49fir5ujv92usajn23t.apps.googleusercontent.com</string>
 	<key>REVERSED_CLIENT_ID</key>
-	<string>com.googleusercontent.apps.588874074588-pf9i1v6e4olsrbbg5f3fgi66r983doe3</string>
-	<key>ANDROID_CLIENT_ID</key>
-	<string>588874074588-5l02g7jm1srqrgve59iptcegmvnv3i6u.apps.googleusercontent.com</string>
+	<string>com.googleusercontent.apps.248386808543-fjehfuifgvl3a49fir5ujv92usajn23t</string>
 	<key>API_KEY</key>
-	<string>AIzaSyDww5MrJxf3eMSHXAnT-BZDp2Lc6Nxxjdg</string>
+	<string>AIzaSyAF32ANr4_0avHp0QhqOzzlph4n8KiVW7I</string>
 	<key>GCM_SENDER_ID</key>
-	<string>588874074588</string>
+	<string>248386808543</string>
 	<key>PLIST_VERSION</key>
 	<string>1</string>
 	<key>BUNDLE_ID</key>
 	<string>com.cookster.cooksterapp</string>
 	<key>PROJECT_ID</key>
-	<string>cockster-e477a</string>
+	<string>cookster26-10454</string>
 	<key>STORAGE_BUCKET</key>
-	<string>cockster-e477a.firebasestorage.app</string>
+	<string>cookster26-10454.firebasestorage.app</string>
 	<key>IS_ADS_ENABLED</key>
 	<false></false>
 	<key>IS_ANALYTICS_ENABLED</key>
@@ -31,6 +29,6 @@
 	<key>IS_SIGNIN_ENABLED</key>
 	<true></true>
 	<key>GOOGLE_APP_ID</key>
-	<string>1:588874074588:ios:ef6a7ce3841cae1c64a719</string>
+	<string>1:248386808543:ios:f2c0327955059c6732976a</string>
 </dict>
 </plist>

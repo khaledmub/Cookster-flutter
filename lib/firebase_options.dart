@@ -55,13 +55,12 @@ class DefaultFirebaseOptions {
   );
 
   static const FirebaseOptions ios = FirebaseOptions(
-    apiKey: 'AIzaSyDww5MrJxf3eMSHXAnT-BZDp2Lc6Nxxjdg',
-    appId: '1:588874074588:ios:ef6a7ce3841cae1c64a719',
-    messagingSenderId: '588874074588',
-    projectId: 'cockster-e477a',
-    storageBucket: 'cockster-e477a.firebasestorage.app',
-    androidClientId: '588874074588-5l02g7jm1srqrgve59iptcegmvnv3i6u.apps.googleusercontent.com',
-    iosClientId: '588874074588-pf9i1v6e4olsrbbg5f3fgi66r983doe3.apps.googleusercontent.com',
+    apiKey: 'AIzaSyAF32ANr4_0avHp0QhqOzzlph4n8KiVW7I',
+    appId: '1:248386808543:ios:f2c0327955059c6732976a',
+    messagingSenderId: '248386808543',
+    projectId: 'cookster26-10454',
+    storageBucket: 'cookster26-10454.firebasestorage.app',
+    iosClientId: '248386808543-fjehfuifgvl3a49fir5ujv92usajn23t.apps.googleusercontent.com',
     iosBundleId: 'com.cookster.cooksterapp',
   );
 

@@ -13,6 +13,14 @@
             <key>CFBundleURLName</key>
             <string>com.cookster.cooksterapp</string>
         </dict>
+        <dict>
+            <key>CFBundleURLSchemes</key>
+            <array>
+                <string>com.googleusercontent.apps.248386808543-fjehfuifgvl3a49fir5ujv92usajn23t</string>
+            </array>
+            <key>CFBundleURLName</key>
+            <string>google-sign-in</string>
+        </dict>
     </array>
 
     <!-- Permission Descriptions -->

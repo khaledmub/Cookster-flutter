@@ -1,11 +1,8 @@
 name: Android Release
 
-# Tag pushes use `android-v*` so iOS (`v*`) is not triggered on Android-only releases.
-# Manual runs accept the same semver body: `vMAJOR.MINOR.PATCH+BUILD`.
+# Paused. Ship iOS only with ios_release.yml on v* tags.
+# The Play account is suspended, so this workflow must not build or upload.
 on:
-  push:
-    tags:
-      - "android-v*"
   workflow_dispatch:
     inputs:
       release_tag:
@@ -26,6 +23,7 @@ env:
 
 jobs:
   build-and-deploy:
+    if: false
     name: Build AAB and Upload to Play Internal
     runs-on: ubuntu-latest
     timeout-minutes: 45

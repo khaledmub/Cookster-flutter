@@ -124,16 +124,8 @@ class NavBarController extends GetxController {
   }
 
   String _getStoreUrl() {
-    const androidStoreUrl =
-        'https://play.google.com/store/apps/details?id=com.cookster.cooksterapp';
-    const iosStoreUrl =
-        'https://apps.apple.com/us/app/cookster-%D9%83%D9%88%D9%83%D8%B3%D8%AA%D8%B1/id6746804733';
-
-    if (GetPlatform.isAndroid) {
-      return androidStoreUrl;
-    }
     if (GetPlatform.isIOS) {
-      return iosStoreUrl;
+      return 'https://apps.apple.com/us/app/cookster-%D9%83%D9%88%D9%83%D8%B3%D8%AA%D8%B1/id6746804733';
     }
     return '';
   }

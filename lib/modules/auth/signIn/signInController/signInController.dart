@@ -28,10 +28,9 @@ class LogInController extends GetxController {
   var isLoading = false.obs;
   final GlobalKey<FormState> formKey = GlobalKey<FormState>();
 
-  // Web client ID from Firebase project (google-services.json client_type: 3).
-  // Required in some release/Play builds to reliably get ID token.
+  // Web client ID from Firebase project cookster26-10454.
   static const String _googleServerClientId =
-      '588874074588-ls288jb68aq4dh7igmc5iqr60ogj1o74.apps.googleusercontent.com';
+      '248386808543-hdtqh171icbs2obo9t9ktcsca854kmgq.apps.googleusercontent.com';
   final GoogleSignIn _googleSignIn = GoogleSignIn(
     scopes: ['email'],
     serverClientId: _googleServerClientId,

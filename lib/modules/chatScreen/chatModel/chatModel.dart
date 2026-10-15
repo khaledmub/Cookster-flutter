@@ -1,14 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
-import '../../../services/notificationService.dart';
 
 class ChatModel {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   String? _cachedRecipientToken;
-  String? _cachedAccessToken;
-  DateTime? _tokenCacheTime;
-  static const Duration TOKEN_CACHE_DURATION = Duration(hours: 1);
 
   String getChatId(String senderId, String receiverId) {
     List<String> ids = [senderId, receiverId]..sort();
@@ -87,50 +81,8 @@ class ChatModel {
     required String senderId,
     required String receiverId,
   }) async {
-    if (recipientToken.isEmpty) return;
-
-    const String fcmUrl =
-        'https://fcm.googleapis.com/v1/projects/cockster-e477a/messages:send';
-
-    try {
-      String accessToken;
-      if (_cachedAccessToken != null &&
-          _tokenCacheTime != null &&
-          DateTime.now().difference(_tokenCacheTime!) < TOKEN_CACHE_DURATION) {
-        accessToken = _cachedAccessToken!;
-      } else {
-        accessToken = await PushNotificationService.getAccessToken();
-        _cachedAccessToken = accessToken;
-        _tokenCacheTime = DateTime.now();
-      }
-
-      final response = await http.post(
-        Uri.parse(fcmUrl),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $accessToken',
-        },
-        body: jsonEncode({
-          'message': {
-            'token': recipientToken,
-            'notification': {'title': title, 'body': body},
-            'data': {
-              'click_action': 'FLUTTER_NOTIFICATION_CLICK',
-              'type': 'chat',
-              'senderId': senderId,
-              'receiverId': receiverId,
-            },
-          },
-        }),
-      );
-
-      if (response.statusCode == 401) {
-        _cachedAccessToken = null;
-        _tokenCacheTime = null;
-      }
-    } catch (e) {
-      print('🚨 Error sending notification: $e');
-    }
+    // Chat push is sent by the backend. The app must not hold a Firebase
+    // admin key for the old Google project.
   }
 
   Future<void> sendMessage({
